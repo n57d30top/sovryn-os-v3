@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { AppError } from "../../shared/errors.js";
@@ -110,6 +111,22 @@ export class GitAdapter {
     const untracked = summary.changedFiles.filter((file) => file.status === "??");
     const untrackedText = untracked.map((file) => `\n--- untracked: ${file.path}\n`).join("");
     return `${result.stdout}${untrackedText}`;
+  }
+
+  async diffHash(worktreePath: string, baseBranch: string): Promise<string> {
+    const summary = await this.diffSummary(worktreePath, baseBranch);
+    const patch = await this.diffPatch(worktreePath, baseBranch);
+    const untracked = [];
+    for (const file of summary.changedFiles.filter((entry) => entry.status === "??")) {
+      const content = await readFile(join(worktreePath, file.path));
+      untracked.push({
+        path: file.path,
+        sha256: createHash("sha256").update(content).digest("hex")
+      });
+    }
+    return createHash("sha256")
+      .update(JSON.stringify({ summary, patch, untracked }))
+      .digest("hex");
   }
 
   async commitWorktree(worktreePath: string, message: string): Promise<string | null> {

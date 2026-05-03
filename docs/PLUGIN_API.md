@@ -25,6 +25,25 @@ export type SovrynPlugin = {
 Plugins receive a constrained context with the repo root. They must return
 stable JSON-compatible data and must not bypass policy or finalize gates.
 
-The included sample plugin is a loader fixture. `packages/sovryn-plugin-gitnexus`
-is a real optional plugin package that shells out to a local `gitnexus` command
-or `SOVRYN_GITNEXUS_COMMAND`.
+The included sample plugin is a loader fixture. Domain plugins are not imported
+by core unless configured.
+
+Enable plugins with `.sovryn/plugins.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "name": "gitnexus",
+      "module": "sovryn-plugin-gitnexus",
+      "export": "createGitNexusPlugin"
+    }
+  ]
+}
+```
+
+`module` may be an installed package name or a local file path. If `export` is
+omitted, the loader tries `default`, `plugin`, then `createPlugin`.
+
+`packages/sovryn-plugin-gitnexus` is a real optional plugin package that shells
+out to a local `gitnexus` command or `SOVRYN_GITNEXUS_COMMAND`.

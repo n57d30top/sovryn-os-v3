@@ -8,9 +8,11 @@ import { createRunner } from "../runner/registry.js";
 import type { Store } from "../storage/types.js";
 import { createStore } from "../storage/create-store.js";
 import { runVerify } from "../verify/verifier.js";
+import { hashVerifyResult } from "../verify/hash.js";
 import { WorkspaceManager } from "../workspace/workspace-manager.js";
 import { createReview } from "../review/review.js";
-import { evaluatePolicy } from "../policy/policy.js";
+import { evaluatePolicy, riskForFiles } from "../policy/policy.js";
+import type { VerifyResult } from "../verify/types.js";
 import type { MissionState } from "./types.js";
 
 export class MissionService {
@@ -62,6 +64,10 @@ export class MissionService {
       approvals: [],
       risk: null,
       lastVerifyPassed: null,
+      lastVerifyAt: null,
+      lastVerifiedDiffHash: null,
+      lastVerifyResultHash: null,
+      review: null,
       finalizedCommit: null
     };
     await store.writeMission(mission);
@@ -94,9 +100,7 @@ export class MissionService {
     const verify = await runVerify(mission.worktreePath, config);
     const attempt = Math.max(1, mission.attempts.length);
     await store.writeAttemptFile(id, attempt, "verify.json", JSON.stringify(verify, null, 2));
-    mission.lastVerifyPassed = verify.passed;
-    mission.status = verify.passed ? "passed" : "failed";
-    mission.updatedAt = nowIso();
+    await this.recordVerify(mission, verify);
     await store.writeMission(mission);
     return { mission, verify, artifactRefs: [`.sovryn/missions/${id}/attempts/${String(attempt).padStart(3, "0")}/verify.json`] };
   }
@@ -107,20 +111,38 @@ export class MissionService {
     const mission = await store.readMission(id);
     const review = await createReview({ root: this.root, mission, config, store, git: this.git });
     mission.risk = review.risk;
+    mission.review = {
+      at: nowIso(),
+      diffHash: review.diffHash,
+      verifyHash: review.verifyHash,
+      risk: review.risk,
+      artifactRef: `.sovryn/missions/${id}/review.md`
+    };
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
     return { mission, review, artifactRefs: review.artifactRefs };
   }
 
   async approve(id: string, note: string | null = null): Promise<{ mission: MissionState }> {
-    const store = await this.storeForConfig();
+    const config = await this.config();
+    const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
+    const diff = await this.git.diffSummary(mission.worktreePath, mission.baseBranch);
+    const diffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
+    if (!mission.lastVerifyPassed || mission.lastVerifiedDiffHash !== diffHash || !mission.lastVerifyResultHash) {
+      throw new AppError("VERIFY_STALE", "Approval requires a passing verify result for the current diff.", {
+        id,
+        lastVerifiedDiffHash: mission.lastVerifiedDiffHash,
+        currentDiffHash: diffHash
+      });
+    }
     const by = await gitIdentity(this.root);
-    mission.approvals.push({ by, at: nowIso(), note });
+    const risk = riskForFiles(diff.changedFiles.map((file) => file.path), config);
+    mission.approvals.push({ by, at: nowIso(), note, diffHash, verifyHash: mission.lastVerifyResultHash, risk });
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
     await store.writeMissionFile(id, "approval.json", JSON.stringify(mission.approvals.at(-1), null, 2));
-    await store.appendJournal(id, `- ${mission.updatedAt} approved by ${by}`);
+    await store.appendJournal(id, `- ${mission.updatedAt} approved by ${by} for ${diffHash}`);
     return { mission };
   }
 
@@ -128,12 +150,31 @@ export class MissionService {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
-    if (mission.status !== "passed") {
-      throw new AppError("MISSION_NOT_PASSED", "Finalize requires a passed mission.", { id, status: mission.status });
+    if (mission.status === "finalized" || mission.status === "rejected") {
+      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, { id, status: mission.status });
     }
+
+    const verify = await runVerify(mission.worktreePath, config);
+    await store.writeMissionFile(id, "finalize-verify.json", JSON.stringify(verify, null, 2));
+    await this.recordVerify(mission, verify);
+    await store.writeMission(mission);
+    if (!verify.passed) {
+      await store.appendJournal(id, `- ${mission.updatedAt} finalize blocked by failed verify`);
+      throw new AppError("VERIFY_FAILED", "Finalize requires verify to pass immediately before merge.", {
+        id,
+        results: verify.results.map((result) => ({
+          command: result.command,
+          exitCode: result.exitCode,
+          passed: result.passed
+        }))
+      });
+    }
+
     const diff = await this.git.diffSummary(mission.worktreePath, mission.baseBranch);
     const patch = await this.git.diffPatch(mission.worktreePath, mission.baseBranch);
-    const policy = await evaluatePolicy({ root: this.root, mission, config, diff, patch });
+    const diffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
+    this.ensureReviewCurrent(mission, config, diffHash);
+    const policy = await evaluatePolicy({ root: this.root, mission, config, diff, patch, diffHash });
     mission.risk = policy.risk;
     if (!policy.allowed) {
       await store.writeMission(mission);
@@ -208,6 +249,7 @@ export class MissionService {
     await store.writeAttemptFile(mission.id, attemptNumber, "verify.json", JSON.stringify(verify, null, 2));
     const finishedAt = nowIso();
     const passed = result.exitCode === 0 && verify.passed;
+    await this.recordVerify(mission, verify, finishedAt);
     mission.attempts.push({
       number: attemptNumber,
       runner: runner.name,
@@ -217,7 +259,6 @@ export class MissionService {
       verifyPassed: verify.passed
     });
     mission.status = passed ? "passed" : "failed";
-    mission.lastVerifyPassed = verify.passed;
     mission.updatedAt = finishedAt;
     await store.writeMission(mission);
     await store.appendJournal(mission.id, `- ${finishedAt} attempt ${attemptNumber} ${passed ? "passed" : "failed"}`);
@@ -228,6 +269,31 @@ export class MissionService {
     const resolved = config ?? (await this.config());
     this.store = createStore(this.root, resolved);
     return this.store;
+  }
+
+  private async recordVerify(mission: MissionState, verify: VerifyResult, timestamp = nowIso()): Promise<void> {
+    mission.lastVerifyPassed = verify.passed;
+    mission.lastVerifyAt = timestamp;
+    mission.lastVerifiedDiffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
+    mission.lastVerifyResultHash = hashVerifyResult(verify);
+    mission.status = verify.passed ? "passed" : "failed";
+    mission.updatedAt = timestamp;
+  }
+
+  private ensureReviewCurrent(mission: MissionState, config: SovrynConfig, diffHash: string): void {
+    if (!config.policy.requireReviewBeforeFinalize) return;
+    if (!mission.review) {
+      throw new AppError("REVIEW_REQUIRED", "Finalize requires a review for the current verified diff.", { id: mission.id });
+    }
+    if (mission.review.diffHash !== diffHash || mission.review.verifyHash !== mission.lastVerifyResultHash) {
+      throw new AppError("REVIEW_STALE", "Review is stale. Run sovryn review again after the latest verify/diff change.", {
+        id: mission.id,
+        reviewDiffHash: mission.review.diffHash,
+        currentDiffHash: diffHash,
+        reviewVerifyHash: mission.review.verifyHash,
+        currentVerifyHash: mission.lastVerifyResultHash
+      });
+    }
   }
 }
 

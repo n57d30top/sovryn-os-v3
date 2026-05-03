@@ -6,6 +6,20 @@ The plugin shells out to a local `gitnexus` command or the command named by
 `SOVRYN_GITNEXUS_COMMAND`. It does not run network operations by itself and does
 not bypass Sovryn policy or finalize gates.
 
+Enable it from `.sovryn/plugins.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "name": "gitnexus",
+      "module": "sovryn-plugin-gitnexus",
+      "export": "createGitNexusPlugin"
+    }
+  ]
+}
+```
+
 Commands exposed through Sovryn:
 
 ```bash

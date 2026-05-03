@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import type { Pool, QueryResult } from "pg";
 import { FileStore } from "../file-store/file-store.js";
 import type { MissionState } from "../../core/mission/types.js";
 import type { MissionListItem, Store } from "../../core/storage/types.js";
@@ -6,7 +6,7 @@ import { AppError } from "../../shared/errors.js";
 import type { SovrynConfig } from "../../core/config.js";
 
 export class PostgresStore implements Store {
-  private readonly pool: Pool;
+  private pool: Pool | null = null;
   private readonly fileStore: FileStore;
 
   constructor(private readonly root: string, private readonly config: SovrynConfig) {
@@ -15,7 +15,6 @@ export class PostgresStore implements Store {
     if (!connectionString) {
       throw new AppError("POSTGRES_URL_REQUIRED", `Postgres storage requires ${envName}.`, { env: envName });
     }
-    this.pool = new Pool({ connectionString });
     this.fileStore = new FileStore(root);
   }
 
@@ -124,7 +123,12 @@ export class PostgresStore implements Store {
     );
   }
 
-  private async query(sql: string, params: unknown[] = []) {
+  private async query(sql: string, params: unknown[] = []): Promise<QueryResult> {
+    if (!this.pool) {
+      const { Pool: PgPool } = await import("pg");
+      const envName = this.config.storage.postgres?.urlEnv ?? "SOVRYN_DATABASE_URL";
+      this.pool = new PgPool({ connectionString: process.env[envName] });
+    }
     return this.pool.query(sql, params);
   }
 }

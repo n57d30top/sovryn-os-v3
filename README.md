@@ -31,7 +31,6 @@ node dist/src/cli/index.js --help
 sovryn init
 sovryn spawn "goal" --runner fake --json
 sovryn spawn "goal" --runner shell --shell-command "npm test" --json
-sovryn spawn "goal" --runner ssh --json
 sovryn continue <mission-id> --json
 sovryn status --json
 sovryn log <mission-id> --json
@@ -58,6 +57,8 @@ Every command supports stable JSON output via `--json`.
 - Computes changed files, diff stats, policy risk, and approval requirements.
 - Blocks finalize when verification, policy, approval, blocked-path, or secret
   checks fail.
+- Re-runs verify immediately before finalize and requires the review/approval to
+  match the current diff and verify hashes.
 
 ## What Sovryn Does Not Do
 
@@ -79,7 +80,20 @@ The plugin API is intentionally small. Plugins can register commands, verify
 providers, artifact parsers, and review enrichers. Domain logic such as OQP,
 deploy, and lab workflows belongs in plugins, not in the core.
 
-This repo includes `sovryn-plugin-gitnexus` as an optional plugin package:
+This repo includes `sovryn-plugin-gitnexus` as an optional plugin package. Enable
+it by adding it to `.sovryn/plugins.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "name": "gitnexus",
+      "module": "sovryn-plugin-gitnexus",
+      "export": "createGitNexusPlugin"
+    }
+  ]
+}
+```
 
 ```bash
 sovryn plugin run gitnexus status --json
@@ -96,5 +110,9 @@ Finalize runs a secret scan over diff, prompts, stdout, stderr, verify output,
 and review artifacts before merging. Runner and verify commands also enforce the
 network policy by blocking common network tools when `policy.allowNetwork` is
 false.
+
+The network policy is best-effort process policy, not a kernel-level sandbox. For
+strong no-network isolation, run Sovryn inside a container, network namespace, or
+CI/runtime environment with networking disabled.
 
 See `docs/SECURITY.md`.

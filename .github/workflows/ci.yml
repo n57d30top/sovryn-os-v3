@@ -18,3 +18,20 @@ jobs:
       - run: npm test
       - run: node dist/src/cli/index.js --help
       - run: node dist/src/cli/index.js doctor --json
+      - name: CLI smoke mission flow
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          git init -b main
+          git config user.name "CI"
+          git config user.email "ci@example.com"
+          printf '{"scripts":{"test":"node -e \"process.exit(0)\""}}\n' > package.json
+          git add package.json
+          git commit -m init
+          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" init --json
+          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" spawn "write evidence" --runner fake --json > spawn.json
+          mission_id="$(node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync('spawn.json','utf8')).data.mission.id)")"
+          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" status --json
+          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" review "$mission_id" --json
+          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" finalize "$mission_id" --json

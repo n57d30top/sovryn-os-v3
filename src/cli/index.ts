@@ -3,7 +3,7 @@ import { errorEnvelope, okEnvelope, type JsonEnvelope } from "../shared/json-env
 import { AppError } from "../shared/errors.js";
 import { configExists } from "../core/config.js";
 import { MissionService } from "../core/mission/mission-service.js";
-import { loadBuiltinPlugins } from "../plugins/loader.js";
+import { loadPlugins } from "../plugins/loader.js";
 
 type ParsedArgs = {
   command: string;
@@ -176,7 +176,7 @@ async function doctor(root: string, service: MissionService): Promise<Record<str
 
 async function pluginCommand(parsed: ParsedArgs, root: string): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0] ?? "list";
-  const plugins = loadBuiltinPlugins();
+  const plugins = await loadPlugins(root);
   if (subcommand === "list") {
     return { plugins: plugins.map((plugin) => ({ name: plugin.name, version: plugin.version })) };
   }

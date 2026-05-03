@@ -30,6 +30,8 @@ export function createGitNexusPlugin(options: GitNexusOptions = {}): SovrynPlugi
   };
 }
 
+export default createGitNexusPlugin;
+
 function pluginCommand(
   name: string,
   description: string,

@@ -12,6 +12,9 @@ export type ReviewResult = {
   deletions: number;
   fileCount: number;
   verifyPassed: boolean | null;
+  verifyFresh: boolean;
+  diffHash: string;
+  verifyHash: string | null;
   risk: PolicyResult["risk"];
   policy: PolicyResult;
   artifactRefs: string[];
@@ -26,12 +29,14 @@ export async function createReview(input: {
 }): Promise<ReviewResult> {
   const diff = await input.git.diffSummary(input.mission.worktreePath, input.mission.baseBranch);
   const patch = await input.git.diffPatch(input.mission.worktreePath, input.mission.baseBranch);
+  const diffHash = await input.git.diffHash(input.mission.worktreePath, input.mission.baseBranch);
   const policy = await evaluatePolicy({
     root: input.root,
     mission: input.mission,
     config: input.config,
     diff,
-    patch
+    patch,
+    diffHash
   });
   const review: ReviewResult = {
     missionId: input.mission.id,
@@ -41,6 +46,9 @@ export async function createReview(input: {
     deletions: diff.deletions,
     fileCount: diff.fileCount,
     verifyPassed: input.mission.lastVerifyPassed,
+    verifyFresh: input.mission.lastVerifiedDiffHash === diffHash,
+    diffHash,
+    verifyHash: input.mission.lastVerifyResultHash,
     risk: policy.risk,
     policy,
     artifactRefs: [
@@ -63,6 +71,9 @@ function renderReview(review: ReviewResult): string {
 Status: ${review.status}
 Risk: ${review.risk}
 Verify passed: ${review.verifyPassed}
+Verify fresh: ${review.verifyFresh}
+Diff hash: ${review.diffHash}
+Verify hash: ${review.verifyHash ?? "none"}
 
 ## Diff
 

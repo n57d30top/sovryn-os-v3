@@ -36,6 +36,7 @@ export type SovrynConfig = {
     sensitivePaths: string[];
     autoFinalizeRisk: RiskLevel;
     requireApprovalForRisk: RiskLevel[];
+    requireReviewBeforeFinalize: boolean;
     allowNetwork: boolean;
   };
   storage: {
@@ -47,6 +48,9 @@ export type SovrynConfig = {
   };
   output: {
     truncateOutputChars: number;
+  };
+  plugins?: {
+    configFile: string;
   };
 };
 
@@ -82,6 +86,7 @@ export const DEFAULT_CONFIG: SovrynConfig = {
     sensitivePaths: [".env", ".env.*", "**/*secret*", "**/*key*"],
     autoFinalizeRisk: "low",
     requireApprovalForRisk: ["medium", "high", "critical"],
+    requireReviewBeforeFinalize: true,
     allowNetwork: false
   },
   storage: {
@@ -93,6 +98,9 @@ export const DEFAULT_CONFIG: SovrynConfig = {
   },
   output: {
     truncateOutputChars: 12000
+  },
+  plugins: {
+    configFile: ".sovryn/plugins.json"
   }
 };
 
@@ -113,6 +121,7 @@ export async function initConfig(root: string): Promise<SovrynConfig> {
   await mkdir(join(root, ".sovryn"), { recursive: true });
   await writeJson(configPath(root), DEFAULT_CONFIG);
   await writeJson(join(root, ".sovryn", "policy.json"), DEFAULT_CONFIG.policy);
+  await writeJson(join(root, ".sovryn", "plugins.json"), { plugins: [] });
   await ensureGitignore(root);
   return DEFAULT_CONFIG;
 }

@@ -15,6 +15,17 @@ export type Approval = {
   by: string;
   at: string;
   note: string | null;
+  diffHash: string;
+  verifyHash: string;
+  risk: RiskLevel;
+};
+
+export type ReviewState = {
+  at: string;
+  diffHash: string;
+  verifyHash: string | null;
+  risk: RiskLevel;
+  artifactRef: string;
 };
 
 export type MissionState = {
@@ -32,5 +43,9 @@ export type MissionState = {
   approvals: Approval[];
   risk: RiskLevel | null;
   lastVerifyPassed: boolean | null;
+  lastVerifyAt: string | null;
+  lastVerifiedDiffHash: string | null;
+  lastVerifyResultHash: string | null;
+  review: ReviewState | null;
   finalizedCommit: string | null;
 };

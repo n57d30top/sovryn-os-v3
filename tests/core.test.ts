@@ -16,6 +16,7 @@ test("init creates config and directories", async () => {
   const response = await executeCli(["init", "--json"], repo.root);
   assert.equal(response.ok, true);
   await access(join(repo.root, ".sovryn", "config.json"));
+  await access(join(repo.root, ".sovryn", "plugins.json"));
   await access(join(repo.root, ".sovryn", "missions"));
   await access(join(repo.root, ".sovryn", "memory", "lessons.md"));
 });
@@ -88,6 +89,8 @@ test("review includes diff stat and changed files", async () => {
   const result = (review.data as any).review;
   assert.equal(result.fileCount, 1);
   assert.deepEqual(result.changedFiles, ["sovryn-fake-result.txt"]);
+  assert.equal(typeof result.diffHash, "string");
+  assert.equal(result.verifyFresh, true);
 });
 
 test("finalize blocks failed missions", async () => {
@@ -103,7 +106,7 @@ test("finalize blocks failed missions", async () => {
   const mission = (spawn.data as any).mission;
   const finalize = await executeCli(["finalize", mission.id], repo.root);
   assert.equal(finalize.ok, false);
-  assert.equal(finalize.errors[0].code, "MISSION_NOT_PASSED");
+  assert.equal(finalize.errors[0].code, "VERIFY_FAILED");
 });
 
 test("finalize blocks high-risk missions without approval", async () => {
@@ -111,6 +114,7 @@ test("finalize blocks high-risk missions without approval", async () => {
   await executeCli(["init"], repo.root);
   const spawn = await executeCli(["spawn", "change package", "--runner", "fake"], repo.root);
   const mission = (spawn.data as any).mission;
+  await executeCli(["review", mission.id], repo.root);
   const finalize = await executeCli(["finalize", mission.id], repo.root);
   assert.equal(finalize.ok, false);
   assert.equal(finalize.errors[0].code, "POLICY_BLOCKED");
@@ -122,6 +126,7 @@ test("finalize blocks blocked paths", async () => {
   const spawn = await executeCli(["spawn", "blocked path", "--runner", "fake"], repo.root);
   const mission = (spawn.data as any).mission;
   await executeCli(["approve", mission.id], repo.root);
+  await executeCli(["review", mission.id], repo.root);
   const finalize = await executeCli(["finalize", mission.id], repo.root);
   assert.equal(finalize.ok, false);
   assert.equal(finalize.errors[0].code, "POLICY_BLOCKED");
@@ -152,7 +157,7 @@ test("--json envelope shape is stable", async () => {
   const response = await executeCli(["doctor", "--json"], repo.root);
   assert.equal(typeof response.ok, "boolean");
   assert.equal(typeof response.command, "string");
-  assert.equal(response.version, "3.0.0");
+  assert.equal(response.version, "3.0.0-alpha.1");
   assert.equal(typeof response.timestamp, "string");
   assert.ok(Array.isArray(response.errors));
   assert.ok(Array.isArray(response.warnings));
@@ -172,11 +177,29 @@ test("plugin loader loads sample plugin", () => {
   const plugins = loadBuiltinPlugins();
   assert.equal(plugins[0].name, "sample");
   assert.equal(plugins[0].commands?.[0].name, "sample.echo");
-  assert.ok(plugins.some((plugin) => plugin.name === "gitnexus"));
+  assert.equal(plugins.some((plugin) => plugin.name === "gitnexus"), false);
 });
 
-test("plugin run executes gitnexus plugin command", async () => {
+test("configured plugin run executes gitnexus plugin command", async () => {
   const repo = await makeTempRepo();
+  await executeCli(["init"], repo.root);
+  await writeFile(
+    join(repo.root, ".sovryn", "plugins.json"),
+    `${JSON.stringify(
+      {
+        plugins: [
+          {
+            name: "gitnexus",
+            module: "sovryn-plugin-gitnexus",
+            export: "createGitNexusPlugin"
+          }
+        ]
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
   const previous = process.env.SOVRYN_GITNEXUS_COMMAND;
   process.env.SOVRYN_GITNEXUS_COMMAND = "printf gitnexus-fixture";
   try {
@@ -260,15 +283,73 @@ test("postgres store is an optional adapter and requires configured url env", ()
   assert.throws(() => createStore("/tmp/sovryn-no-db", config), /SOVRYN_TEST_DATABASE_URL/);
 });
 
-test("finalize merges approved mission into main", async () => {
+test("finalize requires current review before merge", async () => {
   const repo = await makeTempRepo();
   await executeCli(["init"], repo.root);
   const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
   const mission = (spawn.data as any).mission;
   const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, false);
+  assert.equal(finalize.errors[0].code, "REVIEW_REQUIRED");
+});
+
+test("finalize merges reviewed mission into main", async () => {
+  const repo = await makeTempRepo();
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  await executeCli(["review", mission.id], repo.root);
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
   assert.equal(finalize.ok, true);
   const file = await readFile(join(repo.root, "sovryn-fake-result.txt"), "utf8");
   assert.match(file, new RegExp(mission.id));
+});
+
+test("finalize reruns verify and blocks changed failing worktree", async () => {
+  const repo = await makeTempRepo({
+    packageJson: {
+      scripts: {
+        test: "test ! -f break.txt"
+      }
+    }
+  });
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  await executeCli(["review", mission.id], repo.root);
+  await writeFile(join(mission.worktreePath, "break.txt"), "break\n", "utf8");
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, false);
+  assert.equal(finalize.errors[0].code, "VERIFY_FAILED");
+});
+
+test("approval is invalidated when diff changes", async () => {
+  const repo = await makeTempRepo({ packageJson: { scripts: { test: "node -e \"process.exit(0)\"" } } });
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "change package", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  await executeCli(["approve", mission.id], repo.root);
+  const packagePath = join(mission.worktreePath, "package.json");
+  const json = JSON.parse(await readFile(packagePath, "utf8"));
+  json.afterApproval = true;
+  await writeFile(packagePath, `${JSON.stringify(json, null, 2)}\n`, "utf8");
+  await executeCli(["verify", mission.id], repo.root);
+  await executeCli(["review", mission.id], repo.root);
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, false);
+  assert.equal(finalize.errors[0].code, "POLICY_BLOCKED");
+});
+
+test("review is invalidated when diff changes", async () => {
+  const repo = await makeTempRepo();
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  await executeCli(["review", mission.id], repo.root);
+  await writeFile(join(mission.worktreePath, "after-review.txt"), "changed\n", "utf8");
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, false);
+  assert.equal(finalize.errors[0].code, "REVIEW_STALE");
 });
 
 test("explicit verify command can pass after manual repair", async () => {

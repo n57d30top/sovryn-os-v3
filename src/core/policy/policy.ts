@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { DiffSummary } from "../../adapters/git/git.js";
 import type { SovrynConfig, RiskLevel } from "../config.js";
-import type { MissionState } from "../mission/types.js";
+import type { Approval, MissionState } from "../mission/types.js";
 import { scanSecrets, type SecretFinding } from "../../shared/redaction.js";
 
 export type PolicyCheck = {
@@ -28,10 +28,12 @@ export async function evaluatePolicy(input: {
   config: SovrynConfig;
   diff: DiffSummary;
   patch: string;
+  diffHash?: string;
 }): Promise<PolicyResult> {
   const risk = riskForFiles(input.diff.changedFiles.map((file) => file.path), input.config);
   const changedLines = input.diff.additions + input.diff.deletions;
   const checks: PolicyCheck[] = [];
+  const currentApprovals = currentValidApprovals(input.mission, input.diffHash);
 
   checks.push({
     code: "MAX_CHANGED_FILES",
@@ -59,16 +61,21 @@ export async function evaluatePolicy(input: {
   const approvalRequired = input.config.policy.requireApprovalForRisk.includes(risk);
   checks.push({
     code: "APPROVAL_REQUIRED",
-    passed: !approvalRequired || input.mission.approvals.length > 0,
+    passed: !approvalRequired || currentApprovals.length > 0,
     message: approvalRequired ? "Approval required for this risk level." : "Approval not required.",
-    details: { approvalRequired, approvals: input.mission.approvals.length, risk }
+    details: {
+      approvalRequired,
+      validApprovals: currentApprovals.length,
+      totalApprovals: input.mission.approvals.length,
+      risk
+    }
   });
 
   checks.push({
     code: "AUTO_FINALIZE_RISK",
-    passed: riskRank(risk) <= riskRank(input.config.policy.autoFinalizeRisk) || input.mission.approvals.length > 0,
+    passed: riskRank(risk) <= riskRank(input.config.policy.autoFinalizeRisk) || currentApprovals.length > 0,
     message: "Risk must be within auto-finalize risk or have approval.",
-    details: { risk, autoFinalizeRisk: input.config.policy.autoFinalizeRisk }
+    details: { risk, autoFinalizeRisk: input.config.policy.autoFinalizeRisk, validApprovals: currentApprovals.length }
   });
 
   const secretFindings = [
@@ -120,6 +127,12 @@ export function riskForPath(path: string, config: SovrynConfig): RiskLevel {
 
 export function riskRank(risk: RiskLevel): number {
   return RISK_ORDER.indexOf(risk);
+}
+
+export function currentValidApprovals(mission: MissionState, diffHash?: string): Approval[] {
+  const verifyHash = mission.lastVerifyResultHash;
+  if (!diffHash || !verifyHash) return [];
+  return mission.approvals.filter((approval) => approval.diffHash === diffHash && approval.verifyHash === verifyHash);
 }
 
 export function matchGlob(pattern: string, path: string): boolean {

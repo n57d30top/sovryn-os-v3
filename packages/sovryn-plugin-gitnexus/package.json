@@ -4,5 +4,6 @@
   "description": "GitNexus plugin for Sovryn OS v3.",
   "type": "module",
   "license": "MIT",
-  "main": "./dist/index.js"
+  "main": "../../dist/packages/sovryn-plugin-gitnexus/src/index.js",
+  "types": "../../dist/packages/sovryn-plugin-gitnexus/src/index.d.ts"
 }

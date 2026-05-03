@@ -1,6 +1,6 @@
 {
   "name": "sovryn-os-v3",
-  "version": "3.0.0",
+  "version": "3.0.0-alpha.1",
   "description": "A local-first evidence kernel for AI-assisted coding and research work.",
   "type": "module",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "@types/pg": "^8.20.0",
     "typescript": "^5.8.3"
   },
-  "dependencies": {
+  "optionalDependencies": {
     "pg": "^8.20.0"
   }
 }

@@ -20,7 +20,9 @@ export async function loadPlugins(root: string): Promise<SovrynPlugin[]> {
   return [...loadBuiltinPlugins(), ...(await loadConfiguredPlugins(root))];
 }
 
-export async function loadConfiguredPlugins(root: string): Promise<SovrynPlugin[]> {
+export async function loadConfiguredPlugins(
+  root: string,
+): Promise<SovrynPlugin[]> {
   let config: PluginConfig;
   try {
     config = await readJson<PluginConfig>(await pluginConfigPath(root));
@@ -34,23 +36,36 @@ export async function loadConfiguredPlugins(root: string): Promise<SovrynPlugin[
   return plugins;
 }
 
-async function loadPlugin(entry: PluginConfig["plugins"][number], root: string): Promise<SovrynPlugin> {
+async function loadPlugin(
+  entry: PluginConfig["plugins"][number],
+  root: string,
+): Promise<SovrynPlugin> {
   const modulePath = resolveModule(entry.module, root);
   const mod = await import(modulePath);
-  const exported = entry.export ? mod[entry.export] : mod.default ?? mod.plugin ?? mod.createPlugin;
+  const exported = entry.export
+    ? mod[entry.export]
+    : (mod.default ?? mod.plugin ?? mod.createPlugin);
   const plugin = typeof exported === "function" ? await exported() : exported;
   if (!plugin?.name || !plugin?.version) {
-    throw new AppError("PLUGIN_INVALID", `Plugin module did not return a Sovryn plugin: ${entry.name}`, {
-      name: entry.name,
-      module: entry.module,
-      export: entry.export ?? null
-    });
+    throw new AppError(
+      "PLUGIN_INVALID",
+      `Plugin module did not return a Sovryn plugin: ${entry.name}`,
+      {
+        name: entry.name,
+        module: entry.module,
+        export: entry.export ?? null,
+      },
+    );
   }
   return plugin as SovrynPlugin;
 }
 
 function resolveModule(specifier: string, root: string): string {
-  if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("..")) {
+  if (
+    specifier.startsWith(".") ||
+    specifier.startsWith("/") ||
+    specifier.startsWith("..")
+  ) {
     const absolute = isAbsolute(specifier) ? specifier : join(root, specifier);
     return pathToFileURL(absolute).href;
   }
@@ -59,7 +74,9 @@ function resolveModule(specifier: string, root: string): string {
 
 async function pluginConfigPath(root: string): Promise<string> {
   try {
-    const config = await readJson<{ plugins?: { configFile?: string } }>(join(root, ".sovryn", "config.json"));
+    const config = await readJson<{ plugins?: { configFile?: string } }>(
+      join(root, ".sovryn", "config.json"),
+    );
     const configured = config.plugins?.configFile ?? ".sovryn/plugins.json";
     return isAbsolute(configured) ? configured : join(root, configured);
   } catch {
@@ -77,8 +94,8 @@ export function samplePlugin(): SovrynPlugin {
         description: "Echoes plugin loader health.",
         async run(args) {
           return { args, loaded: true };
-        }
-      }
-    ]
+        },
+      },
+    ],
   };
 }

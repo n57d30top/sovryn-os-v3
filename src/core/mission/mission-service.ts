@@ -39,15 +39,26 @@ export class MissionService {
     return loadConfig(this.root);
   }
 
-  async spawn(goal: string, runnerName?: string, options: { shellCommand?: string } = {}): Promise<{ mission: MissionState; artifactRefs: string[] }> {
+  async spawn(
+    goal: string,
+    runnerName?: string,
+    options: { shellCommand?: string } = {},
+  ): Promise<{ mission: MissionState; artifactRefs: string[] }> {
     const config = applyRunnerOptions(await this.config(), options);
     const store = await this.storeForConfig(config);
     await store.init();
     if (!(await this.git.hasRef(config.git.baseBranch))) {
-      throw new AppError("BASE_BRANCH_MISSING", `Base branch not found: ${config.git.baseBranch}`);
+      throw new AppError(
+        "BASE_BRANCH_MISSING",
+        `Base branch not found: ${config.git.baseBranch}`,
+      );
     }
     const id = createMissionId();
-    const workspace = await new WorkspaceManager(this.root, config, this.git).create(id);
+    const workspace = await new WorkspaceManager(
+      this.root,
+      config,
+      this.git,
+    ).create(id);
     const now = nowIso();
     const mission: MissionState = {
       id,
@@ -71,48 +82,87 @@ export class MissionService {
       lastVerifyOutcomeHash: null,
       lastVerifyEvidenceHash: null,
       review: null,
-      finalizedCommit: null
+      finalizedCommit: null,
     };
     await store.writeMission(mission);
     await store.writeGoal(id, goal);
-    await store.appendJournal(id, `- ${now} created mission in ${workspace.worktreePath}`);
+    await store.appendJournal(
+      id,
+      `- ${now} created mission in ${workspace.worktreePath}`,
+    );
     const updated = await this.runAttempt(mission, runnerName, store);
     return {
       mission: updated,
-      artifactRefs: [`.sovryn/missions/${id}/state.json`, `.sovryn/missions/${id}/journal.md`]
+      artifactRefs: [
+        `.sovryn/missions/${id}/state.json`,
+        `.sovryn/missions/${id}/journal.md`,
+      ],
     };
   }
 
-  async continue(id: string): Promise<{ mission: MissionState; artifactRefs: string[] }> {
+  async continue(
+    id: string,
+  ): Promise<{ mission: MissionState; artifactRefs: string[] }> {
     const store = await this.storeForConfig();
     const mission = await store.readMission(id);
     if (mission.status === "finalized" || mission.status === "rejected") {
-      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, { id, status: mission.status });
+      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, {
+        id,
+        status: mission.status,
+      });
     }
     const updated = await this.runAttempt(mission, mission.runner, store);
     return {
       mission: updated,
-      artifactRefs: [`.sovryn/missions/${id}/state.json`, `.sovryn/missions/${id}/journal.md`]
+      artifactRefs: [
+        `.sovryn/missions/${id}/state.json`,
+        `.sovryn/missions/${id}/journal.md`,
+      ],
     };
   }
 
-  async verify(id: string): Promise<{ mission: MissionState; verify: unknown; artifactRefs: string[] }> {
+  async verify(id: string): Promise<{
+    mission: MissionState;
+    verify: unknown;
+    artifactRefs: string[];
+  }> {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
     const verify = await runVerify(mission.worktreePath, config);
     const attempt = Math.max(1, mission.attempts.length);
-    await store.writeAttemptFile(id, attempt, "verify.json", JSON.stringify(verify, null, 2));
+    await store.writeAttemptFile(
+      id,
+      attempt,
+      "verify.json",
+      JSON.stringify(verify, null, 2),
+    );
     await this.recordVerify(mission, verify);
     await store.writeMission(mission);
-    return { mission, verify, artifactRefs: [`.sovryn/missions/${id}/attempts/${String(attempt).padStart(3, "0")}/verify.json`] };
+    return {
+      mission,
+      verify,
+      artifactRefs: [
+        `.sovryn/missions/${id}/attempts/${String(attempt).padStart(3, "0")}/verify.json`,
+      ],
+    };
   }
 
-  async review(id: string): Promise<{ mission: MissionState; review: unknown; artifactRefs: string[] }> {
+  async review(id: string): Promise<{
+    mission: MissionState;
+    review: unknown;
+    artifactRefs: string[];
+  }> {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
-    const review = await createReview({ root: this.root, mission, config, store, git: this.git });
+    const review = await createReview({
+      root: this.root,
+      mission,
+      config,
+      store,
+      git: this.git,
+    });
     mission.risk = review.risk;
     mission.review = {
       at: nowIso(),
@@ -121,30 +171,52 @@ export class MissionService {
       verifyOutcomeHash: review.verifyOutcomeHash,
       verifyEvidenceHash: review.verifyEvidenceHash,
       risk: review.risk,
-      artifactRef: `.sovryn/missions/${id}/review.md`
+      artifactRef: `.sovryn/missions/${id}/review.md`,
     };
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
     return { mission, review, artifactRefs: review.artifactRefs };
   }
 
-  async approve(id: string, note: string | null = null): Promise<{ mission: MissionState }> {
+  async approve(
+    id: string,
+    note: string | null = null,
+  ): Promise<{ mission: MissionState }> {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
-    const diff = await this.git.diffSummary(mission.worktreePath, mission.baseBranch);
-    const diffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
-    const verifyOutcomeHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
+    const diff = await this.git.diffSummary(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
+    const diffHash = await this.git.diffHash(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
+    const verifyOutcomeHash =
+      mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
     const verifyEvidenceHash = mission.lastVerifyEvidenceHash;
-    if (!mission.lastVerifyPassed || mission.lastVerifiedDiffHash !== diffHash || !verifyOutcomeHash || !verifyEvidenceHash) {
-      throw new AppError("VERIFY_STALE", "Approval requires a passing verify result for the current diff.", {
-        id,
-        lastVerifiedDiffHash: mission.lastVerifiedDiffHash,
-        currentDiffHash: diffHash
-      });
+    if (
+      !mission.lastVerifyPassed ||
+      mission.lastVerifiedDiffHash !== diffHash ||
+      !verifyOutcomeHash ||
+      !verifyEvidenceHash
+    ) {
+      throw new AppError(
+        "VERIFY_STALE",
+        "Approval requires a passing verify result for the current diff.",
+        {
+          id,
+          lastVerifiedDiffHash: mission.lastVerifiedDiffHash,
+          currentDiffHash: diffHash,
+        },
+      );
     }
     const by = await gitIdentity(this.root);
-    const risk = riskForFiles(diff.changedFiles.map((file) => file.path), config);
+    const risk = riskForFiles(
+      diff.changedFiles.map((file) => file.path),
+      config,
+    );
     mission.approvals.push({
       by,
       at: nowIso(),
@@ -153,58 +225,107 @@ export class MissionService {
       verifyHash: verifyOutcomeHash,
       verifyOutcomeHash,
       verifyEvidenceHash,
-      risk
+      risk,
     });
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
-    await store.writeMissionFile(id, "approval.json", JSON.stringify(mission.approvals.at(-1), null, 2));
-    await store.appendJournal(id, `- ${mission.updatedAt} approved by ${by} for ${diffHash}`);
+    await store.writeMissionFile(
+      id,
+      "approval.json",
+      JSON.stringify(mission.approvals.at(-1), null, 2),
+    );
+    await store.appendJournal(
+      id,
+      `- ${mission.updatedAt} approved by ${by} for ${diffHash}`,
+    );
     return { mission };
   }
 
-  async finalize(id: string): Promise<{ mission: MissionState; commit: string | null }> {
+  async finalize(
+    id: string,
+  ): Promise<{ mission: MissionState; commit: string | null }> {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
     if (mission.status === "finalized" || mission.status === "rejected") {
-      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, { id, status: mission.status });
-    }
-
-    const verify = await runVerify(mission.worktreePath, config);
-    await store.writeMissionFile(id, "finalize-verify.json", JSON.stringify(verify, null, 2));
-    await this.recordVerify(mission, verify);
-    await store.writeMission(mission);
-    if (!verify.passed) {
-      await store.appendJournal(id, `- ${mission.updatedAt} finalize blocked by failed verify`);
-      throw new AppError("VERIFY_FAILED", "Finalize requires verify to pass immediately before merge.", {
+      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, {
         id,
-        results: verify.results.map((result) => ({
-          command: result.command,
-          exitCode: result.exitCode,
-          passed: result.passed
-        }))
+        status: mission.status,
       });
     }
 
-    const diff = await this.git.diffSummary(mission.worktreePath, mission.baseBranch);
-    const patch = await this.git.diffPatch(mission.worktreePath, mission.baseBranch);
-    const diffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
+    const verify = await runVerify(mission.worktreePath, config);
+    await store.writeMissionFile(
+      id,
+      "finalize-verify.json",
+      JSON.stringify(verify, null, 2),
+    );
+    await this.recordVerify(mission, verify);
+    await store.writeMission(mission);
+    if (!verify.passed) {
+      await store.appendJournal(
+        id,
+        `- ${mission.updatedAt} finalize blocked by failed verify`,
+      );
+      throw new AppError(
+        "VERIFY_FAILED",
+        "Finalize requires verify to pass immediately before merge.",
+        {
+          id,
+          results: verify.results.map((result) => ({
+            command: result.command,
+            exitCode: result.exitCode,
+            passed: result.passed,
+          })),
+        },
+      );
+    }
+
+    const diff = await this.git.diffSummary(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
+    const patch = await this.git.diffPatch(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
+    const diffHash = await this.git.diffHash(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
     this.ensureReviewCurrent(mission, config, diffHash);
-    const policy = await evaluatePolicy({ root: this.root, mission, config, diff, patch, diffHash });
+    const policy = await evaluatePolicy({
+      root: this.root,
+      mission,
+      config,
+      diff,
+      patch,
+      diffHash,
+    });
     mission.risk = policy.risk;
     if (!policy.allowed) {
       await store.writeMission(mission);
-      throw new AppError("POLICY_BLOCKED", "Finalize blocked by policy.", { checks: policy.checks });
+      throw new AppError("POLICY_BLOCKED", "Finalize blocked by policy.", {
+        checks: policy.checks,
+      });
     }
-    const commit = await this.git.commitWorktree(mission.worktreePath, `sovryn: finalize ${mission.id}`);
+    const commit = await this.git.commitWorktree(
+      mission.worktreePath,
+      `sovryn: finalize ${mission.id}`,
+    );
     if (commit) await this.git.fastForward(mission.baseBranch, mission.branch);
     mission.status = "finalized";
     mission.finalizedCommit = commit;
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
-    await store.appendJournal(id, `- ${mission.updatedAt} finalized ${commit ?? "without changes"}`);
+    await store.appendJournal(
+      id,
+      `- ${mission.updatedAt} finalized ${commit ?? "without changes"}`,
+    );
     try {
-      await new WorkspaceManager(this.root, config, this.git).remove(mission.worktreePath);
+      await new WorkspaceManager(this.root, config, this.git).remove(
+        mission.worktreePath,
+      );
     } catch {
       // Worktree cleanup failures are non-fatal after a successful merge.
     }
@@ -216,9 +337,14 @@ export class MissionService {
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
     if (mission.status === "finalized" || mission.status === "rejected") {
-      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, { id, status: mission.status });
+      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, {
+        id,
+        status: mission.status,
+      });
     }
-    await new WorkspaceManager(this.root, config, this.git).remove(mission.worktreePath);
+    await new WorkspaceManager(this.root, config, this.git).remove(
+      mission.worktreePath,
+    );
     mission.status = "rejected";
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
@@ -241,29 +367,63 @@ export class MissionService {
     return store.readMission(id);
   }
 
-  private async runAttempt(mission: MissionState, runnerName?: string, store = this.store): Promise<MissionState> {
-    const config = applyRunnerOptions(await this.config(), { shellCommand: mission.runnerCommand ?? undefined });
+  private async runAttempt(
+    mission: MissionState,
+    runnerName?: string,
+    store = this.store,
+  ): Promise<MissionState> {
+    const config = applyRunnerOptions(await this.config(), {
+      shellCommand: mission.runnerCommand ?? undefined,
+    });
     const runner = createRunner(runnerName ?? mission.runner, config);
     const attemptNumber = mission.attempts.length + 1;
     const startedAt = nowIso();
     mission.status = "running";
     mission.updatedAt = startedAt;
     await store.writeMission(mission);
-    await store.writeAttemptFile(mission.id, attemptNumber, "prompt.md", `# Goal\n\n${mission.goal}\n`);
-    await store.appendJournal(mission.id, `- ${startedAt} attempt ${attemptNumber} started with ${runner.name}`);
+    await store.writeAttemptFile(
+      mission.id,
+      attemptNumber,
+      "prompt.md",
+      `# Goal\n\n${mission.goal}\n`,
+    );
+    await store.appendJournal(
+      mission.id,
+      `- ${startedAt} attempt ${attemptNumber} started with ${runner.name}`,
+    );
 
     const result = await runner.run({
       missionId: mission.id,
       goal: mission.goal,
       worktreePath: mission.worktreePath,
-      attempt: attemptNumber
+      attempt: attemptNumber,
     });
-    await store.writeAttemptFile(mission.id, attemptNumber, "stdout.txt", result.stdout);
-    await store.writeAttemptFile(mission.id, attemptNumber, "stderr.txt", result.stderr);
-    await store.writeAttemptFile(mission.id, attemptNumber, "result.json", JSON.stringify(result, null, 2));
+    await store.writeAttemptFile(
+      mission.id,
+      attemptNumber,
+      "stdout.txt",
+      result.stdout,
+    );
+    await store.writeAttemptFile(
+      mission.id,
+      attemptNumber,
+      "stderr.txt",
+      result.stderr,
+    );
+    await store.writeAttemptFile(
+      mission.id,
+      attemptNumber,
+      "result.json",
+      JSON.stringify(result, null, 2),
+    );
 
     const verify = await runVerify(mission.worktreePath, config);
-    await store.writeAttemptFile(mission.id, attemptNumber, "verify.json", JSON.stringify(verify, null, 2));
+    await store.writeAttemptFile(
+      mission.id,
+      attemptNumber,
+      "verify.json",
+      JSON.stringify(verify, null, 2),
+    );
     const finishedAt = nowIso();
     const passed = result.exitCode === 0 && verify.passed;
     await this.recordVerify(mission, verify, finishedAt);
@@ -273,12 +433,15 @@ export class MissionService {
       exitCode: result.exitCode,
       startedAt,
       finishedAt,
-      verifyPassed: verify.passed
+      verifyPassed: verify.passed,
     });
     mission.status = passed ? "passed" : "failed";
     mission.updatedAt = finishedAt;
     await store.writeMission(mission);
-    await store.appendJournal(mission.id, `- ${finishedAt} attempt ${attemptNumber} ${passed ? "passed" : "failed"}`);
+    await store.appendJournal(
+      mission.id,
+      `- ${finishedAt} attempt ${attemptNumber} ${passed ? "passed" : "failed"}`,
+    );
     return mission;
   }
 
@@ -288,12 +451,19 @@ export class MissionService {
     return this.store;
   }
 
-  private async recordVerify(mission: MissionState, verify: VerifyResult, timestamp = nowIso()): Promise<void> {
+  private async recordVerify(
+    mission: MissionState,
+    verify: VerifyResult,
+    timestamp = nowIso(),
+  ): Promise<void> {
     const outcomeHash = hashVerifyOutcome(verify);
     const evidenceHash = hashVerifyEvidence(verify);
     mission.lastVerifyPassed = verify.passed;
     mission.lastVerifyAt = timestamp;
-    mission.lastVerifiedDiffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
+    mission.lastVerifiedDiffHash = await this.git.diffHash(
+      mission.worktreePath,
+      mission.baseBranch,
+    );
     mission.lastVerifyResultHash = outcomeHash;
     mission.lastVerifyOutcomeHash = outcomeHash;
     mission.lastVerifyEvidenceHash = evidenceHash;
@@ -301,38 +471,58 @@ export class MissionService {
     mission.updatedAt = timestamp;
   }
 
-  private ensureReviewCurrent(mission: MissionState, config: SovrynConfig, diffHash: string): void {
+  private ensureReviewCurrent(
+    mission: MissionState,
+    config: SovrynConfig,
+    diffHash: string,
+  ): void {
     if (!config.policy.requireReviewBeforeFinalize) return;
     if (!mission.review) {
-      throw new AppError("REVIEW_REQUIRED", "Finalize requires a review for the current verified diff.", { id: mission.id });
+      throw new AppError(
+        "REVIEW_REQUIRED",
+        "Finalize requires a review for the current verified diff.",
+        { id: mission.id },
+      );
     }
-    const verifyOutcomeHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
-    if (mission.review.diffHash !== diffHash || mission.review.verifyOutcomeHash !== verifyOutcomeHash) {
-      throw new AppError("REVIEW_STALE", "Review is stale. Run sovryn review again after the latest verify/diff change.", {
-        id: mission.id,
-        reviewDiffHash: mission.review.diffHash,
-        currentDiffHash: diffHash,
-        reviewVerifyOutcomeHash: mission.review.verifyOutcomeHash,
-        currentVerifyOutcomeHash: verifyOutcomeHash
-      });
+    const verifyOutcomeHash =
+      mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
+    if (
+      mission.review.diffHash !== diffHash ||
+      mission.review.verifyOutcomeHash !== verifyOutcomeHash
+    ) {
+      throw new AppError(
+        "REVIEW_STALE",
+        "Review is stale. Run sovryn review again after the latest verify/diff change.",
+        {
+          id: mission.id,
+          reviewDiffHash: mission.review.diffHash,
+          currentDiffHash: diffHash,
+          reviewVerifyOutcomeHash: mission.review.verifyOutcomeHash,
+          currentVerifyOutcomeHash: verifyOutcomeHash,
+        },
+      );
     }
   }
 }
 
-function applyRunnerOptions(config: SovrynConfig, options: { shellCommand?: string }): SovrynConfig {
+function applyRunnerOptions(
+  config: SovrynConfig,
+  options: { shellCommand?: string },
+): SovrynConfig {
   if (!options.shellCommand) return config;
   return {
     ...config,
     runner: {
       ...config.runner,
-      shellCommand: options.shellCommand
-    }
+      shellCommand: options.shellCommand,
+    },
   };
 }
 
 async function gitIdentity(root: string): Promise<string> {
   const { runCommand } = await import("../../adapters/shell/command.js");
-  const name = (await runCommand("git config user.name", root)).stdout.trim() || "unknown";
+  const name =
+    (await runCommand("git config user.name", root)).stdout.trim() || "unknown";
   const email = (await runCommand("git config user.email", root)).stdout.trim();
   return email ? `${name} <${email}>` : name;
 }

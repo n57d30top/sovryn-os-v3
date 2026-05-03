@@ -16,7 +16,12 @@ export interface Store {
   appendJournal(id: string, line: string): Promise<void>;
   readJournal(id: string): Promise<string>;
   writeGoal(id: string, goal: string): Promise<void>;
-  writeAttemptFile(id: string, attempt: number, name: string, content: string): Promise<string>;
+  writeAttemptFile(
+    id: string,
+    attempt: number,
+    name: string,
+    content: string,
+  ): Promise<string>;
   writeMissionFile(id: string, name: string, content: string): Promise<string>;
   readMissionFile(id: string, name: string): Promise<string>;
   missionDir(id: string): string;

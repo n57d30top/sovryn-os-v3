@@ -9,11 +9,18 @@ export class PostgresStore implements Store {
   private pool: Pool | null = null;
   private readonly fileStore: FileStore;
 
-  constructor(private readonly root: string, private readonly config: SovrynConfig) {
+  constructor(
+    private readonly root: string,
+    private readonly config: SovrynConfig,
+  ) {
     const envName = config.storage.postgres?.urlEnv ?? "SOVRYN_DATABASE_URL";
     const connectionString = process.env[envName];
     if (!connectionString) {
-      throw new AppError("POSTGRES_URL_REQUIRED", `Postgres storage requires ${envName}.`, { env: envName });
+      throw new AppError(
+        "POSTGRES_URL_REQUIRED",
+        `Postgres storage requires ${envName}.`,
+        { env: envName },
+      );
     }
     this.fileStore = new FileStore(root);
   }
@@ -50,12 +57,15 @@ export class PostgresStore implements Store {
       `insert into sovryn_missions(root, id, state, updated_at)
        values($1, $2, $3::jsonb, now())
        on conflict(root, id) do update set state = excluded.state, updated_at = now()`,
-      [this.root, state.id, JSON.stringify(state)]
+      [this.root, state.id, JSON.stringify(state)],
     );
   }
 
   async readMission(id: string): Promise<MissionState> {
-    const result = await this.query("select state from sovryn_missions where root = $1 and id = $2", [this.root, id]);
+    const result = await this.query(
+      "select state from sovryn_missions where root = $1 and id = $2",
+      [this.root, id],
+    );
     if (result.rows.length > 0) return result.rows[0].state as MissionState;
     return this.fileStore.readMission(id);
   }
@@ -63,7 +73,7 @@ export class PostgresStore implements Store {
   async listMissions(): Promise<MissionListItem[]> {
     const result = await this.query(
       `select state from sovryn_missions where root = $1 order by updated_at desc`,
-      [this.root]
+      [this.root],
     );
     return result.rows.map((row) => {
       const state = row.state as MissionState;
@@ -72,7 +82,7 @@ export class PostgresStore implements Store {
         status: state.status,
         goal: state.goal,
         updatedAt: state.updatedAt,
-        worktreePath: state.worktreePath
+        worktreePath: state.worktreePath,
       };
     });
   }
@@ -89,44 +99,80 @@ export class PostgresStore implements Store {
 
   async writeGoal(id: string, goal: string): Promise<void> {
     await this.fileStore.writeGoal(id, goal);
-    await this.upsertFile(id, "goal.md", await this.fileStore.readMissionFile(id, "goal.md"));
+    await this.upsertFile(
+      id,
+      "goal.md",
+      await this.fileStore.readMissionFile(id, "goal.md"),
+    );
   }
 
-  async writeAttemptFile(id: string, attempt: number, name: string, content: string): Promise<string> {
-    const path = await this.fileStore.writeAttemptFile(id, attempt, name, content);
-    await this.upsertFile(id, `attempts/${String(attempt).padStart(3, "0")}/${name}`, await this.fileStore.readMissionFile(id, `attempts/${String(attempt).padStart(3, "0")}/${name}`));
+  async writeAttemptFile(
+    id: string,
+    attempt: number,
+    name: string,
+    content: string,
+  ): Promise<string> {
+    const path = await this.fileStore.writeAttemptFile(
+      id,
+      attempt,
+      name,
+      content,
+    );
+    await this.upsertFile(
+      id,
+      `attempts/${String(attempt).padStart(3, "0")}/${name}`,
+      await this.fileStore.readMissionFile(
+        id,
+        `attempts/${String(attempt).padStart(3, "0")}/${name}`,
+      ),
+    );
     return path;
   }
 
-  async writeMissionFile(id: string, name: string, content: string): Promise<string> {
+  async writeMissionFile(
+    id: string,
+    name: string,
+    content: string,
+  ): Promise<string> {
     const path = await this.fileStore.writeMissionFile(id, name, content);
-    await this.upsertFile(id, name, await this.fileStore.readMissionFile(id, name));
+    await this.upsertFile(
+      id,
+      name,
+      await this.fileStore.readMissionFile(id, name),
+    );
     return path;
   }
 
   async readMissionFile(id: string, name: string): Promise<string> {
-    const result = await this.query("select content from sovryn_mission_files where root = $1 and mission_id = $2 and name = $3", [
-      this.root,
-      id,
-      name
-    ]);
+    const result = await this.query(
+      "select content from sovryn_mission_files where root = $1 and mission_id = $2 and name = $3",
+      [this.root, id, name],
+    );
     if (result.rows.length > 0) return result.rows[0].content as string;
     return this.fileStore.readMissionFile(id, name);
   }
 
-  private async upsertFile(id: string, name: string, content: string): Promise<void> {
+  private async upsertFile(
+    id: string,
+    name: string,
+    content: string,
+  ): Promise<void> {
     await this.query(
       `insert into sovryn_mission_files(root, mission_id, name, content, updated_at)
        values($1, $2, $3, $4, now())
        on conflict(root, mission_id, name) do update set content = excluded.content, updated_at = now()`,
-      [this.root, id, name, content]
+      [this.root, id, name, content],
     );
   }
 
-  private async query(sql: string, params: unknown[] = []): Promise<QueryResult> {
+  private async query(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<QueryResult> {
     if (!this.pool) {
       const { Pool: PgPool } = await import("pg");
-      const envName = this.config.storage.postgres?.urlEnv ?? "SOVRYN_DATABASE_URL";
+      const envName =
+        this.config.storage.postgres?.urlEnv ?? "SOVRYN_DATABASE_URL";
       this.pool = new PgPool({ connectionString: process.env[envName] });
     }
     return this.pool.query(sql, params);

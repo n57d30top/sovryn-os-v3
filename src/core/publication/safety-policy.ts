@@ -8,17 +8,48 @@ export type SafetyFinding = {
 };
 
 const UNSAFE_PATTERNS: Array<{ name: string; regex: RegExp }> = [
-  { name: "malware", regex: /\b(malware payload|ransomware source|botnet command|keylogger implementation)\b/i },
-  { name: "credential-theft", regex: /\b(credential harvester|steal cookies|steal passwords|token stealer)\b/i },
-  { name: "phishing", regex: /\b(phishing kit source|fake login page for credential collection)\b/i },
-  { name: "intrusion", regex: /\b(operationalize an exploit|unauthorized intrusion workflow|persistence mechanism)\b/i },
-  { name: "spam", regex: /\b(spam automation script|bulk unsolicited messaging workflow)\b/i },
-  { name: "dangerous-physical", regex: /\b(make explosives|weaponization instructions|harmful biological protocol|harmful chemical synthesis)\b/i },
-  { name: "private-data", regex: /\b(private customer data dump|leaked personal data)\b/i },
-  { name: "copyrighted-bulk", regex: /\b(copyrighted bulk corpus|full copyrighted book dump)\b/i }
+  {
+    name: "malware",
+    regex:
+      /\b(malware payload|ransomware source|botnet command|keylogger implementation)\b/i,
+  },
+  {
+    name: "credential-theft",
+    regex:
+      /\b(credential harvester|steal cookies|steal passwords|token stealer)\b/i,
+  },
+  {
+    name: "phishing",
+    regex:
+      /\b(phishing kit source|fake login page for credential collection)\b/i,
+  },
+  {
+    name: "intrusion",
+    regex:
+      /\b(operationalize an exploit|unauthorized intrusion workflow|persistence mechanism)\b/i,
+  },
+  {
+    name: "spam",
+    regex: /\b(spam automation script|bulk unsolicited messaging workflow)\b/i,
+  },
+  {
+    name: "dangerous-physical",
+    regex:
+      /\b(make explosives|weaponization instructions|harmful biological protocol|harmful chemical synthesis)\b/i,
+  },
+  {
+    name: "private-data",
+    regex: /\b(private customer data dump|leaked personal data)\b/i,
+  },
+  {
+    name: "copyrighted-bulk",
+    regex: /\b(copyrighted bulk corpus|full copyrighted book dump)\b/i,
+  },
 ];
 
-export async function scanUnsafeContent(root: string): Promise<SafetyFinding[]> {
+export async function scanUnsafeContent(
+  root: string,
+): Promise<SafetyFinding[]> {
   const files = await listFiles(root);
   const findings: SafetyFinding[] = [];
   for (const file of files) {
@@ -30,7 +61,7 @@ export async function scanUnsafeContent(root: string): Promise<SafetyFinding[]> 
         findings.push({
           path: relative(root, file),
           pattern: pattern.name,
-          preview: match[0].slice(0, 120)
+          preview: match[0].slice(0, 120),
         });
       }
     }

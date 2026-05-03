@@ -26,6 +26,7 @@ npm test
 For development:
 
 ```bash
+npm run format:check
 node dist/cli.js --help
 ```
 
@@ -119,8 +120,11 @@ paired with real OS isolation.
 GitHub credentials stay with Sovryn Controller. The autonomous agent prepares
 artifacts, but `publish-github` is gated by dossier, license, verification,
 source-stability, source-hash freshness, secret-scan, safety, prior-art,
-defensive-publication, and finality checks. Release repos include curated public
-evidence under `evidence/public/`; raw command logs remain local by default.
+large-file scan coverage, defensive-publication, and finality checks. Dry-run
+publication can stage a release package before finalization; real publication is
+finalization-gated. Release repos include curated public evidence under
+`evidence/public/`; raw command logs and final controller-only GitHub evidence
+remain local by default.
 
 ## What Sovryn Does Not Do
 

@@ -11,13 +11,21 @@ export class WorkspaceManager {
   constructor(
     private readonly root: string,
     private readonly config: SovrynConfig,
-    private readonly git = new GitAdapter(root)
+    private readonly git = new GitAdapter(root),
   ) {}
 
   async create(missionId: string): Promise<Workspace> {
     const branch = `${this.config.git.branchPrefix}${missionId}`;
-    const worktreePath = join(this.root, this.config.git.worktreeRoot, missionId);
-    await this.git.createWorktree(worktreePath, branch, this.config.git.baseBranch);
+    const worktreePath = join(
+      this.root,
+      this.config.git.worktreeRoot,
+      missionId,
+    );
+    await this.git.createWorktree(
+      worktreePath,
+      branch,
+      this.config.git.baseBranch,
+    );
     return { branch, worktreePath };
   }
 

@@ -29,16 +29,25 @@ export async function createReview(input: {
   store: Store;
   git: GitAdapter;
 }): Promise<ReviewResult> {
-  const diff = await input.git.diffSummary(input.mission.worktreePath, input.mission.baseBranch);
-  const patch = await input.git.diffPatch(input.mission.worktreePath, input.mission.baseBranch);
-  const diffHash = await input.git.diffHash(input.mission.worktreePath, input.mission.baseBranch);
+  const diff = await input.git.diffSummary(
+    input.mission.worktreePath,
+    input.mission.baseBranch,
+  );
+  const patch = await input.git.diffPatch(
+    input.mission.worktreePath,
+    input.mission.baseBranch,
+  );
+  const diffHash = await input.git.diffHash(
+    input.mission.worktreePath,
+    input.mission.baseBranch,
+  );
   const policy = await evaluatePolicy({
     root: input.root,
     mission: input.mission,
     config: input.config,
     diff,
     patch,
-    diffHash
+    diffHash,
   });
   const review: ReviewResult = {
     missionId: input.mission.id,
@@ -50,26 +59,36 @@ export async function createReview(input: {
     verifyPassed: input.mission.lastVerifyPassed,
     verifyFresh: input.mission.lastVerifiedDiffHash === diffHash,
     diffHash,
-    verifyHash: input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
-    verifyOutcomeHash: input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
+    verifyHash:
+      input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
+    verifyOutcomeHash:
+      input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
     verifyEvidenceHash: input.mission.lastVerifyEvidenceHash,
     risk: policy.risk,
     policy,
     artifactRefs: [
       `.sovryn/missions/${input.mission.id}/state.json`,
       `.sovryn/missions/${input.mission.id}/journal.md`,
-      `.sovryn/missions/${input.mission.id}/review.md`
-    ]
+      `.sovryn/missions/${input.mission.id}/review.md`,
+    ],
   };
-  await input.store.writeMissionFile(input.mission.id, "review.md", renderReview(review));
+  await input.store.writeMissionFile(
+    input.mission.id,
+    "review.md",
+    renderReview(review),
+  );
   return review;
 }
 
 function renderReview(review: ReviewResult): string {
   const checks = review.policy.checks
-    .map((check) => `- ${check.passed ? "PASS" : "FAIL"} ${check.code}: ${check.message}`)
+    .map(
+      (check) =>
+        `- ${check.passed ? "PASS" : "FAIL"} ${check.code}: ${check.message}`,
+    )
     .join("\n");
-  const files = review.changedFiles.map((file) => `- ${file}`).join("\n") || "- none";
+  const files =
+    review.changedFiles.map((file) => `- ${file}`).join("\n") || "- none";
   return `# Review ${review.missionId}
 
 Status: ${review.status}

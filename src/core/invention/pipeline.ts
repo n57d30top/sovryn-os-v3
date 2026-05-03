@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { writeJson } from "../../shared/fs.js";
 import { nowIso } from "../../shared/time.js";
-import type { ResearchPhaseEvidence, ResearchPhaseName } from "./invention-types.js";
+import type {
+  ResearchPhaseEvidence,
+  ResearchPhaseName,
+} from "./invention-types.js";
 
 export const RESEARCH_PHASES: ResearchPhaseName[] = [
   "brief",
@@ -13,14 +16,20 @@ export const RESEARCH_PHASES: ResearchPhaseName[] = [
   "verification",
   "dossier_generation",
   "publication_review",
-  "github_publication"
+  "github_publication",
 ];
 
 export function phaseEvidenceFileName(phase: ResearchPhaseName): string {
   return `${phase.replace(/_/g, "-")}.json`;
 }
 
-export async function writePhaseEvidence(path: string, phase: ResearchPhaseName, summary: string, artifacts: string[], errors: string[] = []): Promise<ResearchPhaseEvidence> {
+export async function writePhaseEvidence(
+  path: string,
+  phase: ResearchPhaseName,
+  summary: string,
+  artifacts: string[],
+  errors: string[] = [],
+): Promise<ResearchPhaseEvidence> {
   const startedAt = nowIso();
   const evidence: ResearchPhaseEvidence = {
     phase,
@@ -30,7 +39,7 @@ export async function writePhaseEvidence(path: string, phase: ResearchPhaseName,
     summary,
     artifacts,
     evidenceHash: "",
-    errors
+    errors,
   };
   evidence.evidenceHash = hashEvidence(evidence);
   await writeJson(path, evidence);

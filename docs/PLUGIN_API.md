@@ -9,7 +9,7 @@ A plugin can provide:
 - Artifact parsers
 - Review enrichers
 
-In `3.0.0-alpha.4`, command plugins are wired into `sovryn plugin run`.
+In `3.0.0-alpha.5`, command plugins are wired into `sovryn plugin run`.
 `verifyProviders`, `artifactParsers`, and `reviewEnrichers` are API contracts for
 the next integration pass; the core does not invoke them yet.
 

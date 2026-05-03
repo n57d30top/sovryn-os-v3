@@ -55,7 +55,12 @@ export type ResearchPhaseName =
   | "publication_review"
   | "github_publication";
 
-export type ResearchPhaseStatus = "pending" | "running" | "completed" | "failed" | "blocked";
+export type ResearchPhaseStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "blocked";
 
 export type ResearchPhaseEvidence = {
   phase: ResearchPhaseName;
@@ -68,7 +73,14 @@ export type ResearchPhaseEvidence = {
   errors: string[];
 };
 
-export type InventionMissionStatus = "draft" | "running" | "verified" | "reviewed" | "finalized" | "published" | "blocked";
+export type InventionMissionStatus =
+  | "draft"
+  | "running"
+  | "verified"
+  | "reviewed"
+  | "finalized"
+  | "published"
+  | "blocked";
 
 export type OpenInventionMissionState = {
   id: string;

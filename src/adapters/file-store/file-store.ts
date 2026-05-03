@@ -19,7 +19,7 @@ export class FileStore implements Store {
       ".sovryn/nodes",
       ".sovryn/node-alpha/workspaces",
       ".sovryn/node-alpha/logs",
-      ".sovryn/node-alpha/artifacts"
+      ".sovryn/node-alpha/artifacts",
     ]) {
       await mkdir(join(this.root, dir), { recursive: true });
     }
@@ -36,9 +36,14 @@ export class FileStore implements Store {
 
   async readMission(id: string): Promise<MissionState> {
     try {
-      return await readJson<MissionState>(join(this.missionDir(id), "state.json"));
+      return await readJson<MissionState>(
+        join(this.missionDir(id), "state.json"),
+      );
     } catch (error) {
-      throw new AppError("MISSION_NOT_FOUND", `Mission not found: ${id}`, { id, cause: String(error) });
+      throw new AppError("MISSION_NOT_FOUND", `Mission not found: ${id}`, {
+        id,
+        cause: String(error),
+      });
     }
   }
 
@@ -58,14 +63,16 @@ export class FileStore implements Store {
             status: state.status,
             goal: state.goal,
             updatedAt: state.updatedAt,
-            worktreePath: state.worktreePath
+            worktreePath: state.worktreePath,
           };
         } catch {
           return null;
         }
-      })
+      }),
     );
-    return missions.filter((item): item is MissionListItem => item !== null).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return missions
+      .filter((item): item is MissionListItem => item !== null)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   async appendJournal(id: string, line: string): Promise<void> {
@@ -84,22 +91,46 @@ export class FileStore implements Store {
     try {
       return await readFile(join(this.missionDir(id), "journal.md"), "utf8");
     } catch {
-      throw new AppError("MISSION_LOG_NOT_FOUND", `Mission log not found: ${id}`);
+      throw new AppError(
+        "MISSION_LOG_NOT_FOUND",
+        `Mission log not found: ${id}`,
+      );
     }
   }
 
   async writeGoal(id: string, goal: string): Promise<void> {
-    await this.writeMissionFile(id, "goal.md", `# Goal\n\n${redactSecrets(goal)}\n`);
+    await this.writeMissionFile(
+      id,
+      "goal.md",
+      `# Goal\n\n${redactSecrets(goal)}\n`,
+    );
   }
 
-  async writeAttemptFile(id: string, attempt: number, name: string, content: string): Promise<string> {
-    const path = join(this.missionDir(id), "attempts", String(attempt).padStart(3, "0"), name);
-    await mkdir(join(this.missionDir(id), "attempts", String(attempt).padStart(3, "0")), { recursive: true });
+  async writeAttemptFile(
+    id: string,
+    attempt: number,
+    name: string,
+    content: string,
+  ): Promise<string> {
+    const path = join(
+      this.missionDir(id),
+      "attempts",
+      String(attempt).padStart(3, "0"),
+      name,
+    );
+    await mkdir(
+      join(this.missionDir(id), "attempts", String(attempt).padStart(3, "0")),
+      { recursive: true },
+    );
     await writeFile(path, redactSecrets(content), "utf8");
     return path;
   }
 
-  async writeMissionFile(id: string, name: string, content: string): Promise<string> {
+  async writeMissionFile(
+    id: string,
+    name: string,
+    content: string,
+  ): Promise<string> {
     const path = join(this.missionDir(id), name);
     await mkdir(this.missionDir(id), { recursive: true });
     await writeFile(path, redactSecrets(content), "utf8");
@@ -116,7 +147,7 @@ export class FileStore implements Store {
       "conventions.md": "# Conventions\n\n",
       "commands.md": "# Commands\n\n",
       "failures.md": "# Failures\n\n",
-      "lessons.md": "# Lessons\n\n"
+      "lessons.md": "# Lessons\n\n",
     };
     for (const [name, content] of Object.entries(files)) {
       const path = join(this.root, ".sovryn", "memory", name);

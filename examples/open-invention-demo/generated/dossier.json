@@ -25,7 +25,9 @@
       "citation": null
     }
   ],
-  "noveltyNotes": ["Treat defensive publication artifacts as first-class outputs of an autonomous research pipeline."],
+  "noveltyNotes": [
+    "Treat defensive publication artifacts as first-class outputs of an autonomous research pipeline."
+  ],
   "safetyNotes": ["Do not publish harmful artifacts or leaked secrets."],
   "prototypePath": "prototype",
   "testsPath": "prototype/tests",

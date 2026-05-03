@@ -14,10 +14,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run build
       - run: npm test
-      - run: node dist/src/cli/index.js --help
-      - run: node dist/src/cli/index.js doctor --json
+      - run: node dist/cli.js --help
+      - run: node dist/cli.js doctor --json
       - name: CLI smoke mission flow
         run: |
           set -euo pipefail
@@ -29,10 +30,10 @@ jobs:
           printf '{"scripts":{"test":"node -e \"process.exit(0)\""}}\n' > package.json
           git add package.json
           git commit -m init
-          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" init --json > init.json
+          node "$GITHUB_WORKSPACE/dist/cli.js" init --json > init.json
           node -e "const fs=require('node:fs'); const p='.sovryn/config.json'; const c=JSON.parse(fs.readFileSync(p,'utf8')); c.verify.commands=['node -e \"process.exit(0)\"']; fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n')"
-          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" spawn "write evidence" --runner fake --json > spawn.json
+          node "$GITHUB_WORKSPACE/dist/cli.js" spawn "write evidence" --runner fake --json > spawn.json
           mission_id="$(node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync('spawn.json','utf8')).data.mission.id)")"
-          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" status --json
-          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" review "$mission_id" --json
-          node "$GITHUB_WORKSPACE/dist/src/cli/index.js" finalize "$mission_id" --json
+          node "$GITHUB_WORKSPACE/dist/cli.js" status --json
+          node "$GITHUB_WORKSPACE/dist/cli.js" review "$mission_id" --json
+          node "$GITHUB_WORKSPACE/dist/cli.js" finalize "$mission_id" --json

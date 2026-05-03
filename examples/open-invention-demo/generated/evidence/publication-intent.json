@@ -1,0 +1,14 @@
+{
+  "missionId": "mis_demo_open_invention",
+  "slug": "verifiable-open-source-agent-research",
+  "title": "A method for verifiable open-source agent research",
+  "requestedAt": "2026-05-03T00:00:00.000Z",
+  "dryRun": true,
+  "owner": "sovryn-inventions",
+  "repo": "verifiable-open-source-agent-research",
+  "url": "https://github.com/sovryn-inventions/verifiable-open-source-agent-research",
+  "releaseTag": "open-invention-verifiable-open-source-agent-research",
+  "publicationSourceHash": "demo-publication-source-hash",
+  "finalVerifyEvidenceHash": "demo-final-verify-evidence-hash",
+  "note": "Publication intent prepared by Sovryn Controller. Final GitHub publication evidence is written locally after the publish attempt."
+}

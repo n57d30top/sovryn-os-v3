@@ -4,7 +4,10 @@ import { InventionService } from "../invention/invention-service.js";
 export class PublicationService {
   constructor(private readonly root: string) {}
 
-  async reviewOpenInvention(missionId: string, target: { org?: string | null; repo?: string | null } = {}) {
+  async reviewOpenInvention(
+    missionId: string,
+    target: { org?: string | null; repo?: string | null } = {},
+  ) {
     return new InventionService(this.root).review(missionId, target);
   }
 

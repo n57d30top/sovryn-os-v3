@@ -86,7 +86,12 @@ export type NodeRunOptions = {
   maxSteps: number;
 };
 
-export type ResearchPlanStepStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+export type ResearchPlanStepStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
 
 export type ResearchPlanStep = {
   id: string;

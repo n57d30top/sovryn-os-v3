@@ -1,7 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactSecrets } from "../shared/redaction.js";
-import type { RunnerAdapter, RunnerInput, RunnerResult } from "../core/runner/types.js";
+import type {
+  RunnerAdapter,
+  RunnerInput,
+  RunnerResult,
+} from "../core/runner/types.js";
 
 export class FakeRunner implements RunnerAdapter {
   readonly name = "fake";
@@ -14,30 +18,45 @@ export class FakeRunner implements RunnerAdapter {
       return {
         exitCode: 0,
         stdout: redactSecrets(`token=${fakeToken} ${passwordKey}=${"hunter2"}`),
-        stderr: ""
+        stderr: "",
       };
     }
     if (goal.includes("blocked path")) {
       await mkdir(join(input.worktreePath, ".sovryn"), { recursive: true });
-      await writeFile(join(input.worktreePath, ".sovryn", "config.json"), "{}", "utf8");
+      await writeFile(
+        join(input.worktreePath, ".sovryn", "config.json"),
+        "{}",
+        "utf8",
+      );
     } else if (goal.includes("change package")) {
       const packagePath = join(input.worktreePath, "package.json");
       let json: Record<string, unknown> = {};
       try {
-        json = JSON.parse(await readFile(packagePath, "utf8")) as Record<string, unknown>;
+        json = JSON.parse(await readFile(packagePath, "utf8")) as Record<
+          string,
+          unknown
+        >;
       } catch {
         json = {};
       }
       json.fakeRunnerTouched = true;
-      await writeFile(packagePath, `${JSON.stringify(json, null, 2)}\n`, "utf8");
+      await writeFile(
+        packagePath,
+        `${JSON.stringify(json, null, 2)}\n`,
+        "utf8",
+      );
     } else {
-      await writeFile(join(input.worktreePath, "sovryn-fake-result.txt"), `mission=${input.missionId}\nattempt=${input.attempt}\n`, "utf8");
+      await writeFile(
+        join(input.worktreePath, "sovryn-fake-result.txt"),
+        `mission=${input.missionId}\nattempt=${input.attempt}\n`,
+        "utf8",
+      );
     }
     const fail = goal.includes("runner fail");
     return {
       exitCode: fail ? 1 : 0,
       stdout: `fake runner attempt ${input.attempt}\n`,
-      stderr: fail ? "fake runner requested failure\n" : ""
+      stderr: fail ? "fake runner requested failure\n" : "",
     };
   }
 }

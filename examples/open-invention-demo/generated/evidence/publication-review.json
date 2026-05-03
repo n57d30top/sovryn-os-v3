@@ -20,6 +20,14 @@
       }
     },
     {
+      "code": "SKIPPED_LARGE_FILES",
+      "passed": true,
+      "message": "No large text files were skipped by publication scanners.",
+      "details": {
+        "skippedLargeFiles": []
+      }
+    },
+    {
       "code": "SAFETY_SCAN",
       "passed": true,
       "message": "No disallowed content patterns found.",
@@ -29,5 +37,6 @@
     }
   ],
   "secretFindings": [],
-  "safetyFindings": []
+  "safetyFindings": [],
+  "skippedLargeFiles": []
 }

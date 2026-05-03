@@ -1,6 +1,12 @@
 import type { RiskLevel } from "../config.js";
 
-export type MissionStatus = "created" | "running" | "passed" | "failed" | "rejected" | "finalized";
+export type MissionStatus =
+  | "created"
+  | "running"
+  | "passed"
+  | "failed"
+  | "rejected"
+  | "finalized";
 
 export type MissionType =
   | "code_change"

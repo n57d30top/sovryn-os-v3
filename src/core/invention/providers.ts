@@ -1,4 +1,7 @@
-import type { InventionDossier, PriorArtMatrixItem } from "./invention-types.js";
+import type {
+  InventionDossier,
+  PriorArtMatrixItem,
+} from "./invention-types.js";
 
 export type ResearchProviderOutput = {
   summary: string;
@@ -53,18 +56,29 @@ export class MockPriorArtSearchAdapter implements PriorArtSearchAdapter {
   async search(query: PriorArtSearchQuery): Promise<PriorArtSearchResult[]> {
     return query.sources.map((source) => ({
       title: `Manual ${source} search required for ${query.brief}`,
-      sourceType: source === "papers" ? "paper" : source === "patents" ? "patent" : source === "standards" ? "standard" : source,
+      sourceType:
+        source === "papers"
+          ? "paper"
+          : source === "patents"
+            ? "patent"
+            : source === "standards"
+              ? "standard"
+              : source,
       url: null,
       relevance: "medium",
-      overlap: "Potential overlap unknown until a public-source adapter retrieves concrete results.",
-      difference: "Difference analysis pending. This deterministic placeholder prevents unsupported novelty claims.",
+      overlap:
+        "Potential overlap unknown until a public-source adapter retrieves concrete results.",
+      difference:
+        "Difference analysis pending. This deterministic placeholder prevents unsupported novelty claims.",
       citation: null,
-      note: "Deterministic MVP placeholder. Future adapters should query public sources and record citations."
+      note: "Deterministic MVP placeholder. Future adapters should query public sources and record citations.",
     }));
   }
 }
 
-export function priorArtResultsToMatrix(results: PriorArtSearchResult[]): PriorArtMatrixItem[] {
+export function priorArtResultsToMatrix(
+  results: PriorArtSearchResult[],
+): PriorArtMatrixItem[] {
   return results.map((result) => ({
     title: result.title,
     sourceType: result.sourceType,
@@ -72,22 +86,30 @@ export function priorArtResultsToMatrix(results: PriorArtSearchResult[]): PriorA
     overlap: result.overlap,
     difference: result.difference,
     relevance: result.relevance,
-    citation: result.citation
+    citation: result.citation,
   }));
 }
 
-export class TemplateResearchProvider implements ResearchProvider, PriorArtProvider, InventionProvider, PrototypeProvider, DossierWriterProvider, SafetyReviewProvider {
+export class TemplateResearchProvider
+  implements
+    ResearchProvider,
+    PriorArtProvider,
+    InventionProvider,
+    PrototypeProvider,
+    DossierWriterProvider,
+    SafetyReviewProvider
+{
   async research(brief: string): Promise<ResearchProviderOutput> {
     return {
       summary: `Deterministic landscape scan prepared from the research brief: ${brief}`,
-      artifacts: ["PRIOR_ART.md", "SPEC.md"]
+      artifacts: ["PRIOR_ART.md", "SPEC.md"],
     };
   }
 
   async mapPriorArt(brief: string): Promise<ResearchProviderOutput> {
     return {
       summary: `Prior-art mapping placeholder created. Manual or agent-assisted public research is required before serious use: ${brief}`,
-      artifacts: ["PRIOR_ART.md"]
+      artifacts: ["PRIOR_ART.md"],
     };
   }
 
@@ -95,29 +117,37 @@ export class TemplateResearchProvider implements ResearchProvider, PriorArtProvi
     return {
       abstract: `An open invention dossier for ${brief}.`,
       proposedSolution: `A deterministic, auditable workflow that turns a research brief into open-source artifacts, validation evidence, and a defensive publication.`,
-      architecture: "Controller CLI, Node Alpha workspace, deterministic pipeline phases, publication policy, and GitHub publisher adapter.",
-      algorithm: "Accept brief, create dossier, generate prototype scaffold, run validation, perform safety/license/prior-art gates, then publish only through Sovryn finalization."
+      architecture:
+        "Controller CLI, Node Alpha workspace, deterministic pipeline phases, publication policy, and GitHub publisher adapter.",
+      algorithm:
+        "Accept brief, create dossier, generate prototype scaffold, run validation, perform safety/license/prior-art gates, then publish only through Sovryn finalization.",
     };
   }
 
   async prototype(dossier: InventionDossier): Promise<ResearchProviderOutput> {
     return {
       summary: `Prototype scaffold generated for ${dossier.title}.`,
-      artifacts: [dossier.prototypePath, dossier.testsPath]
+      artifacts: [dossier.prototypePath, dossier.testsPath],
     };
   }
 
   async write(dossier: InventionDossier): Promise<ResearchProviderOutput> {
     return {
       summary: `Dossier documents generated for ${dossier.title}.`,
-      artifacts: ["README.md", "SPEC.md", "DEFENSIVE_PUBLICATION.md", "NOVELTY_NOTES.md", "SAFETY_REVIEW.md"]
+      artifacts: [
+        "README.md",
+        "SPEC.md",
+        "DEFENSIVE_PUBLICATION.md",
+        "NOVELTY_NOTES.md",
+        "SAFETY_REVIEW.md",
+      ],
     };
   }
 
   async review(dossier: InventionDossier): Promise<ResearchProviderOutput> {
     return {
       summary: `Safety review generated for ${dossier.title}. This is not a legal or production safety certification.`,
-      artifacts: ["SAFETY_REVIEW.md"]
+      artifacts: ["SAFETY_REVIEW.md"],
     };
   }
 }

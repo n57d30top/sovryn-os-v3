@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { errorEnvelope, okEnvelope, type JsonEnvelope } from "../shared/json-envelope.js";
+import {
+  errorEnvelope,
+  okEnvelope,
+  type JsonEnvelope,
+} from "../shared/json-envelope.js";
 import { AppError } from "../shared/errors.js";
 import { configExists, loadConfig } from "../core/config.js";
 import { InventionService } from "../core/invention/invention-service.js";
@@ -46,7 +50,10 @@ Commands:
   sovryn plugin run <plugin> <command> [args...] [--json]
 `;
 
-export async function executeCli(argv: string[], root = process.cwd()): Promise<JsonEnvelope> {
+export async function executeCli(
+  argv: string[],
+  root = process.cwd(),
+): Promise<JsonEnvelope> {
   const parsed = parseArgs(argv);
   const service = new MissionService(root);
   try {
@@ -60,16 +67,25 @@ export async function executeCli(argv: string[], root = process.cwd()): Promise<
       }
       case "spawn": {
         const goal = parsed.positionals.join(" ").trim();
-        if (!goal) throw new AppError("GOAL_REQUIRED", "spawn requires a goal.");
-        const result = await service.spawn(goal, flagString(parsed.flags, "--runner"), {
-          shellCommand: flagString(parsed.flags, "--shell-command")
+        if (!goal)
+          throw new AppError("GOAL_REQUIRED", "spawn requires a goal.");
+        const result = await service.spawn(
+          goal,
+          flagString(parsed.flags, "--runner"),
+          {
+            shellCommand: flagString(parsed.flags, "--shell-command"),
+          },
+        );
+        return okEnvelope("mission.spawn", result, {
+          artifactRefs: result.artifactRefs,
         });
-        return okEnvelope("mission.spawn", result, { artifactRefs: result.artifactRefs });
       }
       case "continue": {
         const id = requiredId(parsed);
         const result = await service.continue(id);
-        return okEnvelope("mission.continue", result, { artifactRefs: result.artifactRefs });
+        return okEnvelope("mission.continue", result, {
+          artifactRefs: result.artifactRefs,
+        });
       }
       case "status": {
         await ensureInitialized(root);
@@ -77,28 +93,44 @@ export async function executeCli(argv: string[], root = process.cwd()): Promise<
       }
       case "log": {
         const id = requiredId(parsed);
-        return okEnvelope("mission.log", { id, log: await service.readJournal(id) });
+        return okEnvelope("mission.log", {
+          id,
+          log: await service.readJournal(id),
+        });
       }
       case "diff": {
         const id = requiredId(parsed);
         const mission = await service.readMission(id);
-        const summary = await service.git.diffSummary(mission.worktreePath, mission.baseBranch);
-        const patch = await service.git.diffPatch(mission.worktreePath, mission.baseBranch);
+        const summary = await service.git.diffSummary(
+          mission.worktreePath,
+          mission.baseBranch,
+        );
+        const patch = await service.git.diffPatch(
+          mission.worktreePath,
+          mission.baseBranch,
+        );
         return okEnvelope("mission.diff", { id, summary, patch });
       }
       case "verify": {
         const id = requiredId(parsed);
         const result = await service.verify(id);
-        return okEnvelope("mission.verify", result, { artifactRefs: result.artifactRefs });
+        return okEnvelope("mission.verify", result, {
+          artifactRefs: result.artifactRefs,
+        });
       }
       case "review": {
         const id = requiredId(parsed);
         const result = await service.review(id);
-        return okEnvelope("mission.review", result, { artifactRefs: result.artifactRefs });
+        return okEnvelope("mission.review", result, {
+          artifactRefs: result.artifactRefs,
+        });
       }
       case "approve": {
         const id = requiredId(parsed);
-        const result = await service.approve(id, flagString(parsed.flags, "--note") ?? null);
+        const result = await service.approve(
+          id,
+          flagString(parsed.flags, "--note") ?? null,
+        );
         return okEnvelope("mission.approve", result);
       }
       case "finalize": {
@@ -115,9 +147,15 @@ export async function executeCli(argv: string[], root = process.cwd()): Promise<
         return okEnvelope("doctor", await doctor(root, service));
       case "invent-open": {
         const brief = parsed.positionals.join(" ").trim();
-        if (!brief) throw new AppError("BRIEF_REQUIRED", "invent-open requires a research brief.");
+        if (!brief)
+          throw new AppError(
+            "BRIEF_REQUIRED",
+            "invent-open requires a research brief.",
+          );
         const result = await new InventionService(root).inventOpen(brief);
-        return okEnvelope("invention.create", result, { artifactRefs: result.artifactRefs });
+        return okEnvelope("invention.create", result, {
+          artifactRefs: result.artifactRefs,
+        });
       }
       case "invention":
         return okEnvelope("invention", await inventionCommand(parsed, root));
@@ -126,16 +164,21 @@ export async function executeCli(argv: string[], root = process.cwd()): Promise<
         const result = await new InventionService(root).publishGithub(id, {
           org: flagString(parsed.flags, "--org") ?? null,
           repo: flagString(parsed.flags, "--repo") ?? null,
-          dryRun: flagBool(parsed.flags, "--dry-run")
+          dryRun: flagBool(parsed.flags, "--dry-run"),
         });
-        return okEnvelope("invention.publish-github", result, { artifactRefs: result.artifactRefs });
+        return okEnvelope("invention.publish-github", result, {
+          artifactRefs: result.artifactRefs,
+        });
       }
       case "node":
         return okEnvelope("node", await nodeCommand(parsed, root));
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
-        throw new AppError("UNKNOWN_COMMAND", `Unknown command: ${parsed.command}. Use sovryn --help.`);
+        throw new AppError(
+          "UNKNOWN_COMMAND",
+          `Unknown command: ${parsed.command}. Use sovryn --help.`,
+        );
     }
   } catch (error) {
     return errorEnvelope(parsed.command, error);
@@ -145,7 +188,12 @@ export async function executeCli(argv: string[], root = process.cwd()): Promise<
 function parseArgs(argv: string[]): ParsedArgs {
   const args = [...argv];
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-    return { command: "help", positionals: [], flags: new Map(), json: args.includes("--json") };
+    return {
+      command: "help",
+      positionals: [],
+      flags: new Map(),
+      json: args.includes("--json"),
+    };
   }
   const flags = new Map<string, string | boolean>();
   const positionals: string[] = [];
@@ -168,16 +216,28 @@ function parseArgs(argv: string[]): ParsedArgs {
       positionals.push(arg);
     }
   }
-  return { command: command || "help", positionals, flags, json: flags.has("--json") };
+  return {
+    command: command || "help",
+    positionals,
+    flags,
+    json: flags.has("--json"),
+  };
 }
 
 function requiredId(parsed: ParsedArgs): string {
   const id = parsed.positionals[0];
-  if (!id) throw new AppError("MISSION_ID_REQUIRED", `${parsed.command} requires a mission id.`);
+  if (!id)
+    throw new AppError(
+      "MISSION_ID_REQUIRED",
+      `${parsed.command} requires a mission id.`,
+    );
   return id;
 }
 
-function flagString(flags: Map<string, string | boolean>, name: string): string | undefined {
+function flagString(
+  flags: Map<string, string | boolean>,
+  name: string,
+): string | undefined {
   const value = flags.get(name);
   return typeof value === "string" ? value : undefined;
 }
@@ -189,16 +249,23 @@ function flagBool(flags: Map<string, string | boolean>, name: string): boolean {
 function rejectForbiddenSecretArgs(parsed: ParsedArgs): void {
   for (const key of parsed.flags.keys()) {
     if (/^--(password|secret|token|api-key|apikey|credential)$/i.test(key)) {
-      throw new AppError("SECRET_ARG_FORBIDDEN", `${key} is forbidden. Use environment or secret-command hooks with redaction.`);
+      throw new AppError(
+        "SECRET_ARG_FORBIDDEN",
+        `${key} is forbidden. Use environment or secret-command hooks with redaction.`,
+      );
     }
   }
 }
 
 async function ensureInitialized(root: string): Promise<void> {
-  if (!(await configExists(root))) throw new AppError("CONFIG_MISSING", "Run sovryn init first.");
+  if (!(await configExists(root)))
+    throw new AppError("CONFIG_MISSING", "Run sovryn init first.");
 }
 
-async function doctor(root: string, service: MissionService): Promise<Record<string, unknown>> {
+async function doctor(
+  root: string,
+  service: MissionService,
+): Promise<Record<string, unknown>> {
   const git = await service.git.isRepo().catch(() => false);
   const config = await configExists(root).catch(() => false);
   const github = config ? await githubDoctor(root) : null;
@@ -209,46 +276,84 @@ async function doctor(root: string, service: MissionService): Promise<Record<str
     healthy: git && config,
     problems: [
       ...(git ? [] : ["not a Git work tree"]),
-      ...(config ? [] : ["missing .sovryn/config.json"])
-    ]
+      ...(config ? [] : ["missing .sovryn/config.json"]),
+    ],
   };
 }
 
-async function pluginCommand(parsed: ParsedArgs, root: string): Promise<Record<string, unknown>> {
+async function pluginCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0] ?? "list";
   const plugins = await loadPlugins(root);
   if (subcommand === "list") {
-    return { plugins: plugins.map((plugin) => ({ name: plugin.name, version: plugin.version })) };
+    return {
+      plugins: plugins.map((plugin) => ({
+        name: plugin.name,
+        version: plugin.version,
+      })),
+    };
   }
   if (subcommand === "run") {
     const pluginName = parsed.positionals[1];
     const commandName = parsed.positionals[2];
     if (!pluginName || !commandName) {
-      throw new AppError("PLUGIN_RUN_USAGE", "Use: sovryn plugin run <plugin> <command> [args...]");
+      throw new AppError(
+        "PLUGIN_RUN_USAGE",
+        "Use: sovryn plugin run <plugin> <command> [args...]",
+      );
     }
     const plugin = plugins.find((candidate) => candidate.name === pluginName);
-    if (!plugin) throw new AppError("PLUGIN_NOT_FOUND", `Plugin not found: ${pluginName}`, { plugin: pluginName });
-    const command = plugin.commands?.find((candidate) => candidate.name === commandName || candidate.name === `${pluginName}.${commandName}`);
+    if (!plugin)
+      throw new AppError(
+        "PLUGIN_NOT_FOUND",
+        `Plugin not found: ${pluginName}`,
+        { plugin: pluginName },
+      );
+    const command = plugin.commands?.find(
+      (candidate) =>
+        candidate.name === commandName ||
+        candidate.name === `${pluginName}.${commandName}`,
+    );
     if (!command) {
-      throw new AppError("PLUGIN_COMMAND_NOT_FOUND", `Plugin command not found: ${pluginName} ${commandName}`, {
-        plugin: pluginName,
-        command: commandName
-      });
+      throw new AppError(
+        "PLUGIN_COMMAND_NOT_FOUND",
+        `Plugin command not found: ${pluginName} ${commandName}`,
+        {
+          plugin: pluginName,
+          command: commandName,
+        },
+      );
     }
     return {
       plugin: plugin.name,
       command: command.name,
-      result: await command.run(parsed.positionals.slice(3), { root })
+      result: await command.run(parsed.positionals.slice(3), { root }),
     };
   }
-  throw new AppError("UNKNOWN_PLUGIN_COMMAND", `Unknown plugin command: ${subcommand}`);
+  throw new AppError(
+    "UNKNOWN_PLUGIN_COMMAND",
+    `Unknown plugin command: ${subcommand}`,
+  );
 }
 
-async function inventionCommand(parsed: ParsedArgs, root: string): Promise<Record<string, unknown>> {
+async function inventionCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0];
   const id = parsed.positionals[1];
-  if (!subcommand) throw new AppError("INVENTION_COMMAND_REQUIRED", "Use: sovryn invention <status|dossier|verify|review|finalize> <mission-id>");
-  if (!id) throw new AppError("MISSION_ID_REQUIRED", `invention ${subcommand} requires a mission id.`);
+  if (!subcommand)
+    throw new AppError(
+      "INVENTION_COMMAND_REQUIRED",
+      "Use: sovryn invention <status|dossier|verify|review|finalize> <mission-id>",
+    );
+  if (!id)
+    throw new AppError(
+      "MISSION_ID_REQUIRED",
+      `invention ${subcommand} requires a mission id.`,
+    );
   const service = new InventionService(root);
   switch (subcommand) {
     case "status":
@@ -260,75 +365,128 @@ async function inventionCommand(parsed: ParsedArgs, root: string): Promise<Recor
     case "review":
       return service.review(id, {
         org: flagString(parsed.flags, "--org") ?? null,
-        repo: flagString(parsed.flags, "--repo") ?? null
+        repo: flagString(parsed.flags, "--repo") ?? null,
       });
     case "finalize":
       return service.finalize(id);
     default:
-      throw new AppError("UNKNOWN_INVENTION_COMMAND", `Unknown invention command: ${subcommand}`);
+      throw new AppError(
+        "UNKNOWN_INVENTION_COMMAND",
+        `Unknown invention command: ${subcommand}`,
+      );
   }
 }
 
-async function nodeCommand(parsed: ParsedArgs, root: string): Promise<Record<string, unknown>> {
+async function nodeCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0];
   const nodeId = parsed.positionals[1];
-  if (!subcommand) throw new AppError("NODE_COMMAND_REQUIRED", "Use: sovryn node <register|status|run|logs|artifacts> alpha");
-  if (!nodeId) throw new AppError("NODE_ID_REQUIRED", `node ${subcommand} requires a node id.`);
+  if (!subcommand)
+    throw new AppError(
+      "NODE_COMMAND_REQUIRED",
+      "Use: sovryn node <register|status|run|logs|artifacts> alpha",
+    );
+  if (!nodeId)
+    throw new AppError(
+      "NODE_ID_REQUIRED",
+      `node ${subcommand} requires a node id.`,
+    );
   const manager = new NodeManager(root);
   switch (subcommand) {
     case "register":
-      return manager.register(nodeId, { host: flagString(parsed.flags, "--host") ?? "local" });
+      return manager.register(nodeId, {
+        host: flagString(parsed.flags, "--host") ?? "local",
+      });
     case "status":
       return manager.status(nodeId);
     case "run": {
       const missionId = parsed.positionals[2];
-      if (!missionId) throw new AppError("MISSION_ID_REQUIRED", "node run requires a mission id.");
+      if (!missionId)
+        throw new AppError(
+          "MISSION_ID_REQUIRED",
+          "node run requires a mission id.",
+        );
       return manager.run(nodeId, missionId, {
         mode: flagRunMode(parsed.flags),
-        maxSteps: flagInt(parsed.flags, "--max-steps", 25)
+        maxSteps: flagInt(parsed.flags, "--max-steps", 25),
       });
     }
     case "logs": {
       const missionId = parsed.positionals[2];
-      if (!missionId) throw new AppError("MISSION_ID_REQUIRED", "node logs requires a mission id.");
+      if (!missionId)
+        throw new AppError(
+          "MISSION_ID_REQUIRED",
+          "node logs requires a mission id.",
+        );
       return manager.logs(nodeId, missionId);
     }
     case "artifacts": {
       const missionId = parsed.positionals[2];
-      if (!missionId) throw new AppError("MISSION_ID_REQUIRED", "node artifacts requires a mission id.");
+      if (!missionId)
+        throw new AppError(
+          "MISSION_ID_REQUIRED",
+          "node artifacts requires a mission id.",
+        );
       return manager.artifacts(nodeId, missionId);
     }
     default:
-      throw new AppError("UNKNOWN_NODE_COMMAND", `Unknown node command: ${subcommand}`);
+      throw new AppError(
+        "UNKNOWN_NODE_COMMAND",
+        `Unknown node command: ${subcommand}`,
+      );
   }
 }
 
-function flagRunMode(flags: Map<string, string | boolean>): "validation" | "autonomous" {
+function flagRunMode(
+  flags: Map<string, string | boolean>,
+): "validation" | "autonomous" {
   const value = flagString(flags, "--mode") ?? "validation";
   if (value !== "validation" && value !== "autonomous") {
-    throw new AppError("NODE_RUN_MODE_INVALID", "--mode must be validation or autonomous.", { mode: value });
+    throw new AppError(
+      "NODE_RUN_MODE_INVALID",
+      "--mode must be validation or autonomous.",
+      { mode: value },
+    );
   }
   return value;
 }
 
-function flagInt(flags: Map<string, string | boolean>, name: string, fallback: number): number {
+function flagInt(
+  flags: Map<string, string | boolean>,
+  name: string,
+  fallback: number,
+): number {
   const value = flagString(flags, name);
   if (value === undefined) return fallback;
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) throw new AppError("FLAG_INVALID", `${name} must be a positive integer.`, { name, value });
+  if (!Number.isInteger(parsed) || parsed < 1)
+    throw new AppError("FLAG_INVALID", `${name} must be a positive integer.`, {
+      name,
+      value,
+    });
   return parsed;
 }
 
-async function githubDoctor(root: string): Promise<Record<string, unknown> & { healthy: boolean; problems: string[] }> {
+async function githubDoctor(
+  root: string,
+): Promise<Record<string, unknown> & { healthy: boolean; problems: string[] }> {
   const config = await loadConfig(root);
   const tokenEnv = config.github?.tokenEnv ?? "SOVRYN_GITHUB_TOKEN";
-  const gh = await runCommand("gh --version", root, { allowNetwork: false }).catch(() => null);
+  const gh = await runCommand("gh --version", root, {
+    allowNetwork: false,
+  }).catch(() => null);
   const ghInstalled = gh !== null && gh.exitCode === 0;
   const tokenPresent = Boolean(process.env[tokenEnv]);
   const enabled = config.github?.enabled !== false;
   const problems = [
-    ...(enabled && !ghInstalled ? ["gh CLI missing for GitHub publication"] : []),
-    ...(enabled && !tokenPresent ? [`${tokenEnv} is not set for real GitHub publication`] : [])
+    ...(enabled && !ghInstalled
+      ? ["gh CLI missing for GitHub publication"]
+      : []),
+    ...(enabled && !tokenPresent
+      ? [`${tokenEnv} is not set for real GitHub publication`]
+      : []),
   ];
   return {
     enabled,
@@ -341,13 +499,17 @@ async function githubDoctor(root: string): Promise<Record<string, unknown> & { h
     tokenPresent,
     defaultOrg: config.github?.defaultOrg ?? null,
     defaultVisibility: config.github?.defaultVisibility ?? "public",
-    problems
+    problems,
   };
 }
 
 function printHuman(envelope: JsonEnvelope): void {
   if (!envelope.ok) {
-    console.error(envelope.errors.map((error) => `${error.code}: ${error.message}`).join("\n"));
+    console.error(
+      envelope.errors
+        .map((error) => `${error.code}: ${error.message}`)
+        .join("\n"),
+    );
     process.exitCode = 1;
     return;
   }

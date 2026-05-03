@@ -9,5 +9,5 @@ export const NODE_ALPHA_CAPABILITIES: NodeCapability[] = [
   "repos:clone",
   "build:test",
   "environment:inspect",
-  "capability:request"
+  "capability:request",
 ];

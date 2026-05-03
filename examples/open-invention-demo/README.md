@@ -23,6 +23,7 @@ Demo artifacts:
 - `generated/evidence/command-journal.json`
 - `generated/evidence/artifact-score.json`
 - `generated/evidence/publication-review.json`
+- `generated/evidence/publication-intent.json`
 - `generated/evidence/github-publication.json`
 
 Sovryn publishes Open Inventions and Defensive Publications. It does not file

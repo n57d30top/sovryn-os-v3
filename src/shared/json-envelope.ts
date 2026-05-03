@@ -1,7 +1,7 @@
 import { nowIso } from "./time.js";
 import { toAppError } from "./errors.js";
 
-export const SOVRYN_VERSION = "3.0.0-alpha.4";
+export const SOVRYN_VERSION = "3.0.0-alpha.5";
 
 export type JsonError = {
   code: string;
@@ -23,7 +23,7 @@ export type JsonEnvelope<T extends object | null = object | null> = {
 export function okEnvelope<T extends object | null>(
   command: string,
   data: T,
-  options: { warnings?: string[]; artifactRefs?: string[] } = {}
+  options: { warnings?: string[]; artifactRefs?: string[] } = {},
 ): JsonEnvelope<T> {
   return {
     ok: true,
@@ -33,11 +33,14 @@ export function okEnvelope<T extends object | null>(
     data,
     warnings: options.warnings ?? [],
     errors: [],
-    artifactRefs: options.artifactRefs ?? []
+    artifactRefs: options.artifactRefs ?? [],
   };
 }
 
-export function errorEnvelope(command: string, error: unknown): JsonEnvelope<null> {
+export function errorEnvelope(
+  command: string,
+  error: unknown,
+): JsonEnvelope<null> {
   const appError = toAppError(error);
   return {
     ok: false,
@@ -50,9 +53,9 @@ export function errorEnvelope(command: string, error: unknown): JsonEnvelope<nul
       {
         code: appError.code,
         message: appError.message,
-        details: appError.details
-      }
+        details: appError.details,
+      },
     ],
-    artifactRefs: []
+    artifactRefs: [],
   };
 }

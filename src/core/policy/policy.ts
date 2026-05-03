@@ -31,7 +31,10 @@ export async function evaluatePolicy(input: {
   patch: string;
   diffHash?: string;
 }): Promise<PolicyResult> {
-  const risk = riskForFiles(input.diff.changedFiles.map((file) => file.path), input.config);
+  const risk = riskForFiles(
+    input.diff.changedFiles.map((file) => file.path),
+    input.config,
+  );
   const changedLines = input.diff.additions + input.diff.deletions;
   const checks: PolicyCheck[] = [];
   const currentApprovals = currentValidApprovals(input.mission, input.diffHash);
@@ -40,55 +43,80 @@ export async function evaluatePolicy(input: {
     code: "MAX_CHANGED_FILES",
     passed: input.diff.fileCount <= input.config.policy.maxChangedFiles,
     message: `Changed files: ${input.diff.fileCount}/${input.config.policy.maxChangedFiles}`,
-    details: { fileCount: input.diff.fileCount, maxChangedFiles: input.config.policy.maxChangedFiles }
+    details: {
+      fileCount: input.diff.fileCount,
+      maxChangedFiles: input.config.policy.maxChangedFiles,
+    },
   });
   checks.push({
     code: "MAX_CHANGED_LINES",
     passed: changedLines <= input.config.policy.maxChangedLines,
     message: `Changed lines: ${changedLines}/${input.config.policy.maxChangedLines}`,
-    details: { changedLines, maxChangedLines: input.config.policy.maxChangedLines }
+    details: {
+      changedLines,
+      maxChangedLines: input.config.policy.maxChangedLines,
+    },
   });
 
   const blocked = input.diff.changedFiles
     .map((file) => file.path)
-    .filter((path) => input.config.policy.blockedPaths.some((pattern) => matchGlob(pattern, path)));
+    .filter((path) =>
+      input.config.policy.blockedPaths.some((pattern) =>
+        matchGlob(pattern, path),
+      ),
+    );
   checks.push({
     code: "BLOCKED_PATHS",
     passed: blocked.length === 0,
-    message: blocked.length === 0 ? "No blocked paths changed." : "Blocked paths changed.",
-    details: { blocked }
+    message:
+      blocked.length === 0
+        ? "No blocked paths changed."
+        : "Blocked paths changed.",
+    details: { blocked },
   });
 
-  const approvalRequired = input.config.policy.requireApprovalForRisk.includes(risk);
+  const approvalRequired =
+    input.config.policy.requireApprovalForRisk.includes(risk);
   checks.push({
     code: "APPROVAL_REQUIRED",
     passed: !approvalRequired || currentApprovals.length > 0,
-    message: approvalRequired ? "Approval required for this risk level." : "Approval not required.",
+    message: approvalRequired
+      ? "Approval required for this risk level."
+      : "Approval not required.",
     details: {
       approvalRequired,
       validApprovals: currentApprovals.length,
       totalApprovals: input.mission.approvals.length,
-      risk
-    }
+      risk,
+    },
   });
 
   checks.push({
     code: "AUTO_FINALIZE_RISK",
-    passed: riskRank(risk) <= riskRank(input.config.policy.autoFinalizeRisk) || currentApprovals.length > 0,
+    passed:
+      riskRank(risk) <= riskRank(input.config.policy.autoFinalizeRisk) ||
+      currentApprovals.length > 0,
     message: "Risk must be within auto-finalize risk or have approval.",
-    details: { risk, autoFinalizeRisk: input.config.policy.autoFinalizeRisk, validApprovals: currentApprovals.length }
+    details: {
+      risk,
+      autoFinalizeRisk: input.config.policy.autoFinalizeRisk,
+      validApprovals: currentApprovals.length,
+    },
   });
 
   const secretFindings = [
     ...scanSecrets("diff", input.patch),
     ...(await scanChangedFileContents(input.mission, input.diff)),
-    ...(await scanMissionFiles(input.root, input.mission.id))
+    ...(await scanMissionFiles(input.root, input.mission.id)),
   ];
   checks.push({
     code: "SECRET_SCAN",
     passed: secretFindings.length === 0,
-    message: secretFindings.length === 0 ? "No secret patterns found." : "Secret-like patterns found.",
-    details: { findings: secretFindings }
+    message:
+      secretFindings.length === 0
+        ? "No secret patterns found."
+        : "Secret-like patterns found.",
+    details: { findings: secretFindings },
   });
 
   return {
@@ -96,11 +124,14 @@ export async function evaluatePolicy(input: {
     allowed: checks.every((check) => check.passed),
     approvalRequired,
     checks,
-    secretFindings
+    secretFindings,
   };
 }
 
-async function scanChangedFileContents(mission: MissionState, diff: DiffSummary): Promise<SecretFinding[]> {
+async function scanChangedFileContents(
+  mission: MissionState,
+  diff: DiffSummary,
+): Promise<SecretFinding[]> {
   const findings: SecretFinding[] = [];
   for (const file of diff.changedFiles) {
     if (file.status.includes("D")) continue;
@@ -119,7 +150,9 @@ async function scanChangedFileContents(mission: MissionState, diff: DiffSummary)
       continue;
     }
     if (!looksText(buffer)) continue;
-    findings.push(...scanSecrets(`changed-file:${file.path}`, buffer.toString("utf8")));
+    findings.push(
+      ...scanSecrets(`changed-file:${file.path}`, buffer.toString("utf8")),
+    );
   }
   return findings;
 }
@@ -145,8 +178,10 @@ export function riskForFiles(paths: string[], config: SovrynConfig): RiskLevel {
 }
 
 export function riskForPath(path: string, config: SovrynConfig): RiskLevel {
-  if (config.policy.sensitivePaths.some((pattern) => matchGlob(pattern, path))) return "critical";
-  if (path.startsWith("src/auth/") || path.startsWith("src/security/")) return "critical";
+  if (config.policy.sensitivePaths.some((pattern) => matchGlob(pattern, path)))
+    return "critical";
+  if (path.startsWith("src/auth/") || path.startsWith("src/security/"))
+    return "critical";
   if (
     path === "package.json" ||
     path === "package-lock.json" ||
@@ -166,11 +201,16 @@ export function riskRank(risk: RiskLevel): number {
   return RISK_ORDER.indexOf(risk);
 }
 
-export function currentValidApprovals(mission: MissionState, diffHash?: string): Approval[] {
-  const verifyHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
+export function currentValidApprovals(
+  mission: MissionState,
+  diffHash?: string,
+): Approval[] {
+  const verifyHash =
+    mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
   if (!diffHash || !verifyHash) return [];
   return mission.approvals.filter((approval) => {
-    const approvalVerifyHash = approval.verifyOutcomeHash ?? approval.verifyHash;
+    const approvalVerifyHash =
+      approval.verifyOutcomeHash ?? approval.verifyHash;
     return approval.diffHash === diffHash && approvalVerifyHash === verifyHash;
   });
 }
@@ -192,7 +232,10 @@ export function matchGlob(pattern: string, path: string): boolean {
   return new RegExp(`^${regex}$`).test(path);
 }
 
-async function scanMissionFiles(root: string, missionId: string): Promise<SecretFinding[]> {
+async function scanMissionFiles(
+  root: string,
+  missionId: string,
+): Promise<SecretFinding[]> {
   const missionDir = join(root, ".sovryn", "missions", missionId);
   const files = await listFiles(missionDir);
   const findings: SecretFinding[] = [];

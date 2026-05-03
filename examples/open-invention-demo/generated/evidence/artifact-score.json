@@ -4,8 +4,18 @@
   "score": 96,
   "completedSteps": 8,
   "failedSteps": 0,
-  "expectedArtifacts": ["README.md", "SPEC.md", "DEFENSIVE_PUBLICATION.md", "PRIOR_ART.md"],
-  "presentArtifacts": ["README.md", "SPEC.md", "DEFENSIVE_PUBLICATION.md", "PRIOR_ART.md"],
+  "expectedArtifacts": [
+    "README.md",
+    "SPEC.md",
+    "DEFENSIVE_PUBLICATION.md",
+    "PRIOR_ART.md"
+  ],
+  "presentArtifacts": [
+    "README.md",
+    "SPEC.md",
+    "DEFENSIVE_PUBLICATION.md",
+    "PRIOR_ART.md"
+  ],
   "missingArtifacts": [],
   "qualitySignals": {
     "hasPriorArt": true,

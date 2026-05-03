@@ -235,7 +235,7 @@ function list(items: string[]): string {
 }
 
 function escapeYaml(value: string): string {
-  return value.replace(/"/g, "\\\"");
+  return value.replace(/"/g, '\\"');
 }
 
 function escapeTable(value: string): string {

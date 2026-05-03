@@ -65,24 +65,25 @@ export const DEFAULT_CONFIG: SovrynConfig = {
     default: "codex",
     command: "codex",
     args: ["exec"],
-    shellCommand: "sh -c 'cat >/dev/null; printf \"shell runner completed\\n\"'",
+    shellCommand:
+      "sh -c 'cat >/dev/null; printf \"shell runner completed\\n\"'",
     ssh: {
       host: null,
       user: null,
       port: null,
       identityFile: null,
       command: "sh -s",
-      sshCommand: "ssh"
-    }
+      sshCommand: "ssh",
+    },
   },
   git: {
     useWorktrees: true,
     worktreeRoot: ".sovryn/worktrees",
     baseBranch: "main",
-    branchPrefix: "sovryn/"
+    branchPrefix: "sovryn/",
   },
   verify: {
-    commands: "auto"
+    commands: "auto",
   },
   policy: {
     maxChangedFiles: 20,
@@ -92,26 +93,26 @@ export const DEFAULT_CONFIG: SovrynConfig = {
     autoFinalizeRisk: "low",
     requireApprovalForRisk: ["medium", "high", "critical"],
     requireReviewBeforeFinalize: true,
-    allowNetwork: false
+    allowNetwork: false,
   },
   storage: {
     driver: "file",
     postgres: {
-      urlEnv: "SOVRYN_DATABASE_URL"
-    }
+      urlEnv: "SOVRYN_DATABASE_URL",
+    },
   },
   output: {
-    truncateOutputChars: 12000
+    truncateOutputChars: 12000,
   },
   plugins: {
-    configFile: ".sovryn/plugins.json"
+    configFile: ".sovryn/plugins.json",
   },
   github: {
     enabled: true,
     defaultOrg: null,
     tokenEnv: "SOVRYN_GITHUB_TOKEN",
-    defaultVisibility: "public"
-  }
+    defaultVisibility: "public",
+  },
 };
 
 export async function configExists(root: string): Promise<boolean> {
@@ -155,12 +156,18 @@ async function ensureGitignore(root: string): Promise<void> {
     ".sovryn/memory/",
     ".sovryn/inventions/",
     ".sovryn/nodes/",
-    ".sovryn/node-alpha/"
+    ".sovryn/node-alpha/",
   ];
-  const missing = required.filter((line) => !existing.split("\n").includes(line));
+  const missing = required.filter(
+    (line) => !existing.split("\n").includes(line),
+  );
   if (missing.length > 0) {
     const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
-    await writeFile(path, `${existing}${prefix}${missing.join("\n")}\n`, "utf8");
+    await writeFile(
+      path,
+      `${existing}${prefix}${missing.join("\n")}\n`,
+      "utf8",
+    );
   }
 }
 

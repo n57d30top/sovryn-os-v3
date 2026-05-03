@@ -22,6 +22,10 @@ Dry run:
 sovryn publish-github <mission-id> --dry-run
 ```
 
+Dry-run publication prepares the release package and public evidence without
+requiring invention finalization. Real GitHub publication remains finalization
+gated.
+
 Real publication:
 
 ```bash
@@ -32,6 +36,11 @@ The publisher stages a clean release repository under
 `.sovryn/inventions/<slug>/release/repo`, initializes Git, commits the dossier
 and prototype, creates a release tag, and pushes through GitHub CLI using the
 configured token environment variable.
+
+Release packages include `evidence/public/publication-intent.json` before any
+push is attempted. The final `.sovryn/inventions/<slug>/evidence/github-publication.json`
+is local controller evidence written after the dry-run or real publish attempt;
+it is not copied into the release package as stale public evidence.
 
 `sovryn doctor --json` reports GitHub publication prerequisites:
 

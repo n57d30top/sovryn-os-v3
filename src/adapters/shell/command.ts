@@ -14,10 +14,19 @@ export type CommandResult = {
 export async function runCommand(
   command: string,
   cwd: string,
-  options: { input?: string; truncateOutputChars?: number; env?: NodeJS.ProcessEnv; allowNetwork?: boolean } = {}
+  options: {
+    input?: string;
+    truncateOutputChars?: number;
+    env?: NodeJS.ProcessEnv;
+    allowNetwork?: boolean;
+  } = {},
 ): Promise<CommandResult> {
   if (options.allowNetwork === false && looksLikeNetworkCommand(command)) {
-    throw new AppError("NETWORK_BLOCKED", "Network command blocked by policy.", { command: redactSecrets(command) });
+    throw new AppError(
+      "NETWORK_BLOCKED",
+      "Network command blocked by policy.",
+      { command: redactSecrets(command) },
+    );
   }
   const started = Date.now();
   const child = spawn(command, {
@@ -27,8 +36,8 @@ export async function runCommand(
     env: {
       ...process.env,
       ...(options.allowNetwork === false ? networkDenyEnv() : {}),
-      ...options.env
-    }
+      ...options.env,
+    },
   });
   let stdout = "";
   let stderr = "";
@@ -57,7 +66,7 @@ export async function runCommand(
     exitCode,
     stdout: redactSecrets(stdout),
     stderr: redactSecrets(stderr),
-    durationMs: Date.now() - started
+    durationMs: Date.now() - started,
   };
 }
 
@@ -68,9 +77,11 @@ function appendLimited(existing: string, chunk: string, limit: number): string {
 }
 
 function looksLikeNetworkCommand(command: string): boolean {
-  return /\b(curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet)\b/.test(command) ||
+  return (
+    /\b(curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet)\b/.test(command) ||
     /\bgit\s+(fetch|pull|push|clone|ls-remote)\b/.test(command) ||
-    /\bnpm\s+(install|publish|view|search|audit|fund|ping)\b/.test(command);
+    /\bnpm\s+(install|publish|view|search|audit|fund|ping)\b/.test(command)
+  );
 }
 
 function networkDenyEnv(): NodeJS.ProcessEnv {
@@ -84,6 +95,6 @@ function networkDenyEnv(): NodeJS.ProcessEnv {
     all_proxy: denyProxy,
     NO_PROXY: "",
     no_proxy: "",
-    SOVRYN_NETWORK_POLICY: "deny"
+    SOVRYN_NETWORK_POLICY: "deny",
   };
 }

@@ -15,7 +15,10 @@ GitHub publication is blocked unless:
 - no large text file is skipped by the publication scanners
 - safety scanning passes
 - prior-art notes and defensive publication text exist
+- the prior-art matrix entries are structurally valid
+- `evidence/public-source-search.json` is present, hash-valid, and bound to the dossier
 - the prior-art matrix has concrete public-source results or deterministic MVP placeholders
+- strict real-publish policy, when enabled, has concrete prior-art evidence instead of placeholders only
 - the GitHub target is present unless dry-run mode is used
 - the mission is finalized for real publication
 
@@ -35,8 +38,23 @@ artifacts do not invalidate their own verification.
 
 Release repositories publish a curated public evidence layer under
 `evidence/public/`. That layer includes publication intent and redacted
-summaries; raw command stdout/stderr logs and final controller-only GitHub
+summaries, including a public-source-search summary. Raw command stdout/stderr
+logs, local command working directories, and final controller-only GitHub
 publication evidence remain local by default.
+
+For stricter real publication, set:
+
+```json
+{
+  "research": {
+    "requireConcretePriorArtForPublish": true
+  }
+}
+```
+
+Dry-runs can still package deterministic MVP placeholders. Real GitHub
+publication then requires at least one concrete prior-art source from the
+bound public-source evidence file.
 
 Sovryn does not guarantee novelty, patentability, freedom to operate, or legal
 patent protection. Public publication may affect patent rights.

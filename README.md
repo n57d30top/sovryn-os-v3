@@ -124,6 +124,10 @@ standards/docs links, and general web search links when
 written to `evidence/public-source-search.json` with quality kinds
 (`concrete_source`, `query_link`, `adapter_failure`, `mock_placeholder`) and
 status counts. Query links alone are not treated as concrete prior-art evidence.
+Publication review verifies that this evidence is hash-bound to the dossier and
+that unknown prior-art kinds are invalid, not placeholders. Strict real
+publication can require concrete prior-art sources with
+`research.requireConcretePriorArtForPublish`.
 
 GitHub credentials stay with Sovryn Controller. The autonomous agent prepares
 artifacts, but `publish-github` is gated by dossier, license, verification,
@@ -131,8 +135,8 @@ source-stability, source-hash freshness, secret-scan, safety, prior-art,
 large-file scan coverage, defensive-publication, and finality checks. Dry-run
 publication can stage a release package before finalization; real publication is
 finalization-gated. Release repos include curated public evidence under
-`evidence/public/`; raw command logs and final controller-only GitHub evidence
-remain local by default.
+`evidence/public/`; raw command logs, local working directories, and final
+controller-only GitHub evidence remain local by default.
 
 ## What Sovryn Does Not Do
 

@@ -58,6 +58,7 @@ export type SovrynConfig = {
     defaultVisibility: "public" | "private";
   };
   research?: {
+    requireConcretePriorArtForPublish: boolean;
     publicSearch: {
       enabled: boolean;
       maxResultsPerSource: number;
@@ -124,6 +125,7 @@ export const DEFAULT_CONFIG: SovrynConfig = {
     defaultVisibility: "public",
   },
   research: {
+    requireConcretePriorArtForPublish: false,
     publicSearch: {
       enabled: false,
       maxResultsPerSource: 3,

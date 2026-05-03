@@ -96,7 +96,7 @@ export type FetchLike = (
 }>;
 
 export const DEFAULT_PUBLIC_SOURCE_SEARCH_CONFIG: PublicSourceSearchConfig = {
-  enabled: true,
+  enabled: false,
   maxResultsPerSource: 3,
   maxTotalResults: 30,
   timeoutMs: 8000,
@@ -134,8 +134,12 @@ export function createPriorArtSearchAdapter(
   fetcher: FetchLike = defaultFetch,
 ): PriorArtSearchAdapter {
   const settings = config.research?.publicSearch;
-  if (!settings?.enabled) return new MockPriorArtSearchAdapter();
-  return createPublicSourceSearchAdapter(settings, fetcher);
+  const normalized = normalizePublicSourceSearchConfig({
+    ...settings,
+    enabled: typeof settings?.enabled === "boolean" ? settings.enabled : false,
+  });
+  if (!normalized.enabled) return new MockPriorArtSearchAdapter();
+  return createPublicSourceSearchAdapter(normalized, fetcher);
 }
 
 export function createPublicSourceSearchAdapter(
@@ -176,8 +180,9 @@ export function normalizePublicSourceSearchConfig(
   settings: Partial<PublicSourceSearchConfig> = {},
 ): PublicSourceSearchConfig {
   return {
-    enabled: Boolean(
-      settings.enabled ?? DEFAULT_PUBLIC_SOURCE_SEARCH_CONFIG.enabled,
+    enabled: boolOrDefault(
+      settings.enabled,
+      DEFAULT_PUBLIC_SOURCE_SEARCH_CONFIG.enabled,
     ),
     maxResultsPerSource: clampInt(
       settings.maxResultsPerSource,
@@ -197,9 +202,10 @@ export function normalizePublicSourceSearchConfig(
       1000,
       30000,
     ),
-    includeQueryLinks:
-      settings.includeQueryLinks ??
+    includeQueryLinks: boolOrDefault(
+      settings.includeQueryLinks,
       DEFAULT_PUBLIC_SOURCE_SEARCH_CONFIG.includeQueryLinks,
+    ),
     githubTokenEnv:
       typeof settings.githubTokenEnv === "string" &&
       settings.githubTokenEnv.trim().length > 0
@@ -667,6 +673,10 @@ function clampInt(
       ? Math.trunc(value)
       : fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+function boolOrDefault(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

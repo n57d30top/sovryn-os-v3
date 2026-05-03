@@ -328,6 +328,9 @@ export class InventionService {
         dryRun: true,
       },
       requireFinalized: options.requireFinalized ?? false,
+      researchPolicy: {
+        requireConcretePriorArtForPublish: false,
+      },
     });
     const artifact = join(
       this.inventionDir(mission.slug),
@@ -417,6 +420,11 @@ export class InventionService {
       },
       target: { org: owner, repo, dryRun: request.dryRun },
       requireFinalized: !request.dryRun,
+      researchPolicy: {
+        requireConcretePriorArtForPublish: Boolean(
+          !request.dryRun && config.research?.requireConcretePriorArtForPublish,
+        ),
+      },
     });
     await writeJson(join(inventionDir, "evidence", "publication-review.json"), {
       missionId: id,

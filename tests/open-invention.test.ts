@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { buildGhRepoCreateCommand } from "../src/adapters/github/github-publisher.js";
 import { executeCli } from "../src/cli/index.js";
+import { hashEvidence } from "../src/core/invention/pipeline.js";
 import { evaluatePublicationPolicy } from "../src/core/publication/publication-policy.js";
 import { makeTempRepo } from "../src/testkit/temp-repo.js";
 
@@ -164,14 +165,39 @@ test("publication review blocks missing dossier fields", async () => {
 
 test("publication review blocks query-link-only prior art matrix", async () => {
   const { repo, mission } = await createOpenInvention();
+  await replacePriorArtEvidence(repo.root, mission, (items) =>
+    items.map((item, index) => ({
+      ...item,
+      kind: "query_link",
+      title: `Query-only lead ${index + 1}`,
+      sourceType: "web",
+      url: `https://www.google.com/search?q=open+research+${index + 1}`,
+      relevance: "medium",
+      overlap: "Search link prepared for manual source review.",
+      difference: "No concrete source has been retrieved from this link.",
+      citation: null,
+      note: "Query link only; not concrete prior-art evidence.",
+    })),
+  );
+  const review = await executeCli(
+    ["invention", "review", mission.id, "--json"],
+    repo.root,
+  );
+  assert.equal(review.ok, true);
+  const result = (review.data as any).review;
+  assert.equal(result.allowed, false);
+  assert.equal(checkPassed(result, "PUBLIC_SOURCE_EVIDENCE_BOUND"), true);
+  assert.equal(checkPassed(result, "CONCRETE_PRIOR_ART"), false);
+});
+
+test("publication review blocks invalid prior-art matrix entries", async () => {
+  const { repo, mission } = await createOpenInvention();
   const dossierPath = join(repo.root, mission.dossierPath);
   const dossier = JSON.parse(await readFile(dossierPath, "utf8"));
-  dossier.priorArtMatrix = dossier.priorArtMatrix.map((item: any) => ({
-    ...item,
-    kind: "query_link",
-    sourceType: "web",
-    url: "https://www.google.com/search?q=open+research",
-  }));
+  dossier.priorArtMatrix[0] = {
+    ...dossier.priorArtMatrix[0],
+    kind: "unknown_kind",
+  };
   await writeFile(dossierPath, `${JSON.stringify(dossier, null, 2)}\n`, "utf8");
   const review = await executeCli(
     ["invention", "review", mission.id, "--json"],
@@ -180,7 +206,32 @@ test("publication review blocks query-link-only prior art matrix", async () => {
   assert.equal(review.ok, true);
   const result = (review.data as any).review;
   assert.equal(result.allowed, false);
-  assert.equal(checkPassed(result, "CONCRETE_PRIOR_ART"), false);
+  assert.equal(checkPassed(result, "PRIOR_ART_MATRIX_VALID"), false);
+});
+
+test("publication review blocks unbound public-source evidence", async () => {
+  const { repo, mission } = await createOpenInvention();
+  const evidencePath = join(
+    repo.root,
+    mission.inventionPath,
+    "evidence",
+    "public-source-search.json",
+  );
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  evidence.results[0].title = "Tampered source after dossier generation";
+  await writeFile(
+    evidencePath,
+    `${JSON.stringify(evidence, null, 2)}\n`,
+    "utf8",
+  );
+  const review = await executeCli(
+    ["invention", "review", mission.id, "--json"],
+    repo.root,
+  );
+  assert.equal(review.ok, true);
+  const result = (review.data as any).review;
+  assert.equal(result.allowed, false);
+  assert.equal(checkPassed(result, "PUBLIC_SOURCE_EVIDENCE_BOUND"), false);
 });
 
 test("publication review blocks failing prototype tests", async () => {
@@ -455,6 +506,38 @@ test("publish-github blocks non-finalized real publication", async () => {
   assert.equal(checkPassed({ checks }, "MISSION_FINALIZED"), false);
 });
 
+test("real publish can require concrete prior-art evidence", async () => {
+  const { repo, mission } = await createOpenInvention();
+  const configPath = join(repo.root, ".sovryn", "config.json");
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  config.research.requireConcretePriorArtForPublish = true;
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  const finalize = await executeCli(
+    ["invention", "finalize", mission.id, "--json"],
+    repo.root,
+  );
+  assert.equal(finalize.ok, true);
+  const publish = await executeCli(
+    [
+      "publish-github",
+      mission.id,
+      "--org",
+      "example",
+      "--repo",
+      "demo",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(publish.ok, false);
+  assert.equal(publish.errors[0].code, "PUBLICATION_BLOCKED");
+  const checks = (publish.errors[0].details as any).checks;
+  assert.equal(
+    checkPassed({ checks }, "CONCRETE_PRIOR_ART_FOR_PUBLISH"),
+    false,
+  );
+});
+
 test("Node Alpha local backend creates workspace logs and artifacts", async () => {
   const { repo, mission } = await createOpenInvention();
   const register = await executeCli(
@@ -565,6 +648,37 @@ test("GitHub dry-run stages only public evidence", async () => {
   await access(
     join(releasePath, "evidence", "public", "publication-intent.json"),
   );
+  await access(
+    join(
+      releasePath,
+      "evidence",
+      "public",
+      "public-source-search.summary.json",
+    ),
+  );
+  const publicSourceSummary = JSON.parse(
+    await readFile(
+      join(
+        releasePath,
+        "evidence",
+        "public",
+        "public-source-search.summary.json",
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(publicSourceSummary.status, "mock");
+  assert.equal(publicSourceSummary.mockPlaceholderCount, 5);
+  const commandJournal = JSON.parse(
+    await readFile(
+      join(releasePath, "evidence", "public", "command-journal.redacted.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    commandJournal.entries.some((entry: any) => "cwd" in entry),
+    false,
+  );
   await assert.rejects(
     access(join(releasePath, "evidence", "public", "github-publication.json")),
   );
@@ -601,6 +715,60 @@ async function createOpenInvention() {
   );
   assert.equal(response.ok, true);
   return { repo, mission: (response.data as any).mission };
+}
+
+async function replacePriorArtEvidence(
+  root: string,
+  mission: any,
+  replace: (items: any[]) => any[],
+): Promise<void> {
+  const dossierPath = join(root, mission.dossierPath);
+  const evidencePath = join(
+    root,
+    mission.inventionPath,
+    "evidence",
+    "public-source-search.json",
+  );
+  const dossier = JSON.parse(await readFile(dossierPath, "utf8"));
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const results = replace(dossier.priorArtMatrix);
+  const concrete = results.filter((item) => item.kind === "concrete_source");
+  const links = results.filter((item) => item.kind === "query_link");
+  const failures = results.filter((item) => item.kind === "adapter_failure");
+  const mocks = results.filter((item) => item.kind === "mock_placeholder");
+  evidence.results = results;
+  evidence.resultCount = results.length;
+  evidence.concreteResultCount = concrete.length;
+  evidence.linkOnlyResultCount = links.length;
+  evidence.failureCount = failures.length;
+  evidence.mockPlaceholderCount = mocks.length;
+  evidence.successfulSources = uniqueSourceTypes(concrete);
+  evidence.failedSources = uniqueSourceTypes(failures);
+  evidence.queryLinkSources = uniqueSourceTypes(links);
+  evidence.status =
+    results.length > 0 &&
+    mocks.length === results.length &&
+    concrete.length === 0
+      ? "mock"
+      : concrete.length > 0 && failures.length === 0
+        ? "ok"
+        : concrete.length > 0 || (links.length > 0 && failures.length === 0)
+          ? "degraded"
+          : "failed";
+  evidence.evidenceHash = "";
+  evidence.evidenceHash = hashEvidence(evidence);
+  dossier.priorArtMatrix = results.map(({ note: _note, ...item }) => item);
+  dossier.evidenceHashes.public_source_search = evidence.evidenceHash;
+  await writeFile(
+    evidencePath,
+    `${JSON.stringify(evidence, null, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(dossierPath, `${JSON.stringify(dossier, null, 2)}\n`, "utf8");
+}
+
+function uniqueSourceTypes(items: any[]): string[] {
+  return Array.from(new Set(items.map((item) => item.sourceType))).sort();
 }
 
 function checkPassed(result: any, code: string): boolean | null {

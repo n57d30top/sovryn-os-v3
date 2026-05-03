@@ -69,3 +69,14 @@ Each result has a quality kind:
 
 The evidence file records `status`, concrete/link/failure/mock counts, and the
 successful, failed, and query-link source types.
+
+Publication review binds this evidence back to the dossier. Sovryn verifies
+that `dossier.evidenceHashes.public_source_search` matches the evidence file's
+hash, that the file hash is internally valid, and that the dossier's
+prior-art matrix matches the evidence results. Unknown or missing prior-art
+`kind` values are invalid; they do not fall back to deterministic placeholders.
+
+Release packages include only a curated
+`evidence/public/public-source-search.summary.json` with source titles, URLs,
+citations, kinds, source types, relevance, and aggregate counts. Raw adapter
+errors and private local execution details are not copied into public evidence.

@@ -11,6 +11,8 @@
   "successfulSources": [],
   "failedSources": [],
   "queryLinkSources": [],
+  "completedAt": "2026-05-03T00:00:00.000Z",
+  "evidenceHash": "22d75f47ad360eab3933d0b40f426de12b799b700f4e2e8c410e3e5997c27212",
   "results": [
     {
       "kind": "mock_placeholder",
@@ -18,12 +20,7 @@
       "sourceType": "github",
       "url": null,
       "relevance": "medium",
-      "overlap": "Potential overlap unknown until a public-source adapter retrieves concrete results.",
-      "difference": "Difference analysis pending. This deterministic placeholder prevents unsupported novelty claims.",
-      "citation": null,
-      "note": "Deterministic demo placeholder. Enable research.publicSearch.enabled to query public sources."
+      "citation": null
     }
-  ],
-  "completedAt": "2026-05-03T00:00:00.000Z",
-  "evidenceHash": "22d75f47ad360eab3933d0b40f426de12b799b700f4e2e8c410e3e5997c27212"
+  ]
 }

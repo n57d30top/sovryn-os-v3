@@ -234,6 +234,7 @@ async function preparePublicEvidence(
     await copyIfExists(join(evidenceDir, file), join(publicEvidenceDir, file));
   }
   await writeFinalVerifySummary(evidenceDir, publicEvidenceDir);
+  await writePublicSourceSearchSummary(evidenceDir, publicEvidenceDir);
   await writeRedactedCommandJournal(evidenceDir, publicEvidenceDir);
 }
 
@@ -269,6 +270,50 @@ async function writeFinalVerifySummary(
   );
 }
 
+async function writePublicSourceSearchSummary(
+  evidenceDir: string,
+  publicEvidenceDir: string,
+): Promise<void> {
+  const path = join(evidenceDir, "public-source-search.json");
+  if (!(await exists(path))) return;
+  const evidence = JSON.parse(await readFile(path, "utf8")) as {
+    results?: Array<Record<string, unknown>>;
+  } & Record<string, unknown>;
+  const results = (evidence.results ?? []).map((result) => ({
+    kind: result.kind,
+    title: result.title,
+    sourceType: result.sourceType,
+    url: result.url,
+    relevance: result.relevance,
+    citation: result.citation,
+  }));
+  await writeFile(
+    join(publicEvidenceDir, "public-source-search.summary.json"),
+    `${JSON.stringify(
+      {
+        kind: evidence.kind,
+        mode: evidence.mode,
+        status: evidence.status,
+        sources: evidence.sources,
+        resultCount: evidence.resultCount,
+        concreteResultCount: evidence.concreteResultCount,
+        linkOnlyResultCount: evidence.linkOnlyResultCount,
+        failureCount: evidence.failureCount,
+        mockPlaceholderCount: evidence.mockPlaceholderCount,
+        successfulSources: evidence.successfulSources,
+        failedSources: evidence.failedSources,
+        queryLinkSources: evidence.queryLinkSources,
+        completedAt: evidence.completedAt,
+        evidenceHash: evidence.evidenceHash,
+        results,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+}
+
 async function writeRedactedCommandJournal(
   evidenceDir: string,
   publicEvidenceDir: string,
@@ -282,7 +327,6 @@ async function writeRedactedCommandJournal(
     stepId: entry.stepId,
     phase: entry.phase,
     command: entry.command,
-    cwd: entry.cwd,
     allowNetwork: entry.allowNetwork,
     startedAt: entry.startedAt,
     completedAt: entry.completedAt,

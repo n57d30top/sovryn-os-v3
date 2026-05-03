@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ArxivSearchAdapter,
+  createPriorArtSearchAdapter,
   createPublicSourceSearchAdapter,
   GitHubSearchAdapter,
   normalizePublicSourceSearchConfig,
@@ -212,7 +213,7 @@ test("public-source search config clamps unsafe limits and timeouts", () => {
       githubTokenEnv: "SOVRYN_GITHUB_TOKEN",
     }),
     {
-      enabled: true,
+      enabled: false,
       maxResultsPerSource: 3,
       maxTotalResults: 30,
       timeoutMs: 8000,
@@ -220,6 +221,36 @@ test("public-source search config clamps unsafe limits and timeouts", () => {
       githubTokenEnv: "SOVRYN_GITHUB_TOKEN",
     },
   );
+});
+
+test("prior-art adapter treats non-boolean public-search toggles as disabled", async () => {
+  let called = false;
+  const fetcher: FetchLike = async () => {
+    called = true;
+    return jsonResponse({ items: [] });
+  };
+  const adapter = createPriorArtSearchAdapter(
+    {
+      research: {
+        publicSearch: {
+          enabled: "false",
+          includeQueryLinks: "true",
+          maxResultsPerSource: 1,
+          maxTotalResults: 1,
+          timeoutMs: 1000,
+          githubTokenEnv: null,
+        },
+      },
+    } as any,
+    fetcher,
+  );
+  const results = await adapter.search({
+    brief: "open research artifacts",
+    sources: ["github"],
+  });
+  assert.equal(called, false);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].kind, "mock_placeholder");
 });
 
 function jsonResponse(value: unknown): ReturnType<FetchLike> {

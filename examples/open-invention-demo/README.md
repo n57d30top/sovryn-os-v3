@@ -21,6 +21,7 @@ Demo artifacts:
 - `generated/prototype/`
 - `generated/evidence/research-plan.json`
 - `generated/evidence/public-source-search.json`
+- `generated/evidence/public/public-source-search.summary.json`
 - `generated/evidence/command-journal.json`
 - `generated/evidence/artifact-score.json`
 - `generated/evidence/publication-review.json`

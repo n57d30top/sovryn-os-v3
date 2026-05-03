@@ -34,6 +34,43 @@
       "details": {
         "findings": []
       }
+    },
+    {
+      "code": "PRIOR_ART_MATRIX_VALID",
+      "passed": true,
+      "message": "Prior-art matrix entries are structurally valid.",
+      "details": {
+        "invalidMatrixItems": [],
+        "matrixCount": 1
+      }
+    },
+    {
+      "code": "PUBLIC_SOURCE_EVIDENCE_BOUND",
+      "passed": true,
+      "message": "Public-source search evidence is bound to the dossier.",
+      "details": {
+        "evidenceExists": true,
+        "evidenceHash": "22d75f47ad360eab3933d0b40f426de12b799b700f4e2e8c410e3e5997c27212",
+        "expectedEvidenceHash": "22d75f47ad360eab3933d0b40f426de12b799b700f4e2e8c410e3e5997c27212",
+        "evidenceHashValid": true,
+        "dossierEvidenceHash": "22d75f47ad360eab3933d0b40f426de12b799b700f4e2e8c410e3e5997c27212",
+        "dossierEvidenceHashMatches": true,
+        "evidenceResultsIsArray": true,
+        "matrixMatchesEvidence": true,
+        "evidenceResultCount": 1,
+        "invalidEvidenceItems": []
+      }
+    },
+    {
+      "code": "CONCRETE_PRIOR_ART",
+      "passed": true,
+      "message": "Prior-art evidence has concrete public-source results or deterministic MVP placeholders.",
+      "details": {
+        "concretePriorArtCount": 0,
+        "queryLinkPriorArtCount": 0,
+        "adapterFailureCount": 0,
+        "mockPlaceholderCount": 1
+      }
     }
   ],
   "secretFindings": [],

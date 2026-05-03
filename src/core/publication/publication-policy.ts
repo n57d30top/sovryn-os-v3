@@ -6,6 +6,7 @@ import type {
   InventionDossier,
   OpenInventionMissionState,
 } from "../invention/invention-types.js";
+import { hashEvidence } from "../invention/pipeline.js";
 import { scanUnsafeContent, type SafetyFinding } from "./safety-policy.js";
 
 export type PublicationCheck = {
@@ -28,6 +29,13 @@ export type SkippedLargeFile = {
   size: number;
   reason: string;
 };
+
+type PriorArtKind =
+  | "concrete_source"
+  | "query_link"
+  | "adapter_failure"
+  | "mock_placeholder"
+  | "invalid";
 
 const REQUIRED_FILES = [
   "README.md",
@@ -54,6 +62,9 @@ export async function evaluatePublicationPolicy(input: {
   };
   target?: { org?: string | null; repo?: string | null; dryRun?: boolean };
   requireFinalized?: boolean;
+  researchPolicy?: {
+    requireConcretePriorArtForPublish?: boolean;
+  };
 }): Promise<PublicationPolicyResult> {
   const checks: PublicationCheck[] = [];
   const missingFields = requiredDossierFields(input.dossier);
@@ -110,22 +121,36 @@ export async function evaluatePublicationPolicy(input: {
     details: {},
   });
 
-  const priorArtMatrix = Array.isArray(input.dossier.priorArtMatrix)
-    ? input.dossier.priorArtMatrix
-    : [];
-  const priorArtKinds = priorArtMatrix.map((item) => kindOfPriorArtItem(item));
-  const concretePriorArtCount = priorArtKinds.filter(
-    (kind) => kind === "concrete_source",
-  ).length;
-  const queryLinkPriorArtCount = priorArtKinds.filter(
-    (kind) => kind === "query_link",
-  ).length;
-  const adapterFailureCount = priorArtKinds.filter(
-    (kind) => kind === "adapter_failure",
-  ).length;
-  const mockPlaceholderCount = priorArtKinds.filter(
-    (kind) => kind === "mock_placeholder",
-  ).length;
+  const priorArtAnalysis = await analyzePriorArtEvidence(
+    input.inventionDir,
+    input.dossier,
+  );
+  checks.push({
+    code: "PRIOR_ART_MATRIX_VALID",
+    passed: priorArtAnalysis.invalidMatrixItems.length === 0,
+    message:
+      priorArtAnalysis.invalidMatrixItems.length === 0
+        ? "Prior-art matrix entries are structurally valid."
+        : "Prior-art matrix has invalid entries.",
+    details: {
+      invalidMatrixItems: priorArtAnalysis.invalidMatrixItems,
+      matrixCount: priorArtAnalysis.matrixCount,
+    },
+  });
+
+  checks.push({
+    code: "PUBLIC_SOURCE_EVIDENCE_BOUND",
+    passed: priorArtAnalysis.evidenceBound,
+    message: priorArtAnalysis.evidenceBound
+      ? "Public-source search evidence is bound to the dossier."
+      : "Public-source search evidence is missing, stale, invalid, or does not match the dossier.",
+    details: priorArtAnalysis.bindingDetails,
+  });
+
+  const concretePriorArtCount = priorArtAnalysis.concretePriorArtCount;
+  const queryLinkPriorArtCount = priorArtAnalysis.queryLinkPriorArtCount;
+  const adapterFailureCount = priorArtAnalysis.adapterFailureCount;
+  const mockPlaceholderCount = priorArtAnalysis.mockPlaceholderCount;
   const concretePriorArtPassed =
     mockPlaceholderCount > 0 || concretePriorArtCount > 0;
   checks.push({
@@ -141,6 +166,21 @@ export async function evaluatePublicationPolicy(input: {
       mockPlaceholderCount,
     },
   });
+
+  if (input.researchPolicy?.requireConcretePriorArtForPublish) {
+    checks.push({
+      code: "CONCRETE_PRIOR_ART_FOR_PUBLISH",
+      passed: concretePriorArtCount > 0,
+      message:
+        concretePriorArtCount > 0
+          ? "Strict publication policy has concrete prior-art evidence."
+          : "Strict publication policy requires concrete prior-art evidence.",
+      details: {
+        concretePriorArtCount,
+        mockPlaceholderCount,
+      },
+    });
+  }
 
   checks.push({
     code: "DEFENSIVE_PUBLICATION_PRESENT",
@@ -315,18 +355,205 @@ function requiredDossierFields(dossier: InventionDossier): string[] {
   });
 }
 
-function kindOfPriorArtItem(
-  item: InventionDossier["priorArtMatrix"][number],
-): "concrete_source" | "query_link" | "adapter_failure" | "mock_placeholder" {
+function kindOfPriorArtItem(item: unknown): PriorArtKind {
+  if (!item || typeof item !== "object") return "invalid";
+  const kind = (item as { kind?: unknown }).kind;
+  return isPriorArtKind(kind) ? kind : "invalid";
+}
+
+function isPriorArtKind(
+  value: unknown,
+): value is Exclude<PriorArtKind, "invalid"> {
+  return (
+    value === "concrete_source" ||
+    value === "query_link" ||
+    value === "adapter_failure" ||
+    value === "mock_placeholder"
+  );
+}
+
+async function analyzePriorArtEvidence(
+  inventionDir: string,
+  dossier: InventionDossier,
+): Promise<{
+  matrixCount: number;
+  invalidMatrixItems: Array<{ index: number; reason: string }>;
+  evidenceBound: boolean;
+  bindingDetails: Record<string, unknown>;
+  concretePriorArtCount: number;
+  queryLinkPriorArtCount: number;
+  adapterFailureCount: number;
+  mockPlaceholderCount: number;
+}> {
+  const matrixValue = dossier.priorArtMatrix as unknown;
+  const matrixIsArray = Array.isArray(matrixValue);
+  const matrix = matrixIsArray ? matrixValue : [];
+  const invalidMatrixItems = matrixIsArray
+    ? matrix.flatMap((item, index) => {
+        const reasons = invalidPriorArtItemReasons(item);
+        return reasons.length > 0
+          ? [{ index, reason: reasons.join("; ") }]
+          : [];
+      })
+    : [{ index: -1, reason: "priorArtMatrix is not an array" }];
+  const evidencePath = join(
+    inventionDir,
+    "evidence",
+    "public-source-search.json",
+  );
+  const evidence = await readJsonIfExists(evidencePath);
+  const evidenceExists = evidence !== null;
+  const evidenceRecord = asRecord(evidence);
+  const evidenceHash = stringOrNull(evidenceRecord.evidenceHash);
+  const expectedEvidenceHash = evidenceHash
+    ? hashEvidence({ ...evidenceRecord, evidenceHash: "" })
+    : null;
+  const evidenceHashValid = Boolean(
+    evidenceHash &&
+    expectedEvidenceHash &&
+    evidenceHash === expectedEvidenceHash,
+  );
+  const dossierEvidenceHash =
+    dossier.evidenceHashes?.public_source_search ?? null;
+  const dossierEvidenceHashMatches = Boolean(
+    evidenceHash && dossierEvidenceHash && dossierEvidenceHash === evidenceHash,
+  );
+  const evidenceResultsIsArray = Array.isArray(evidenceRecord.results);
+  const evidenceResults: unknown[] = evidenceResultsIsArray
+    ? (evidenceRecord.results as unknown[])
+    : [];
+  const invalidEvidenceItems = evidenceResultsIsArray
+    ? evidenceResults.flatMap((item, index) => {
+        const reasons = invalidPriorArtItemReasons(item);
+        return reasons.length > 0
+          ? [{ index, reason: reasons.join("; ") }]
+          : [];
+      })
+    : [{ index: -1, reason: "results is not an array" }];
+  const matrixMatchesEvidence = priorArtItemsMatch(matrix, evidenceResults);
+  const validEvidenceKinds = evidenceResults
+    .map((item) => kindOfPriorArtItem(item))
+    .filter((kind) => kind !== "invalid");
+  return {
+    matrixCount: matrix.length,
+    invalidMatrixItems,
+    evidenceBound:
+      evidenceExists &&
+      evidenceHashValid &&
+      dossierEvidenceHashMatches &&
+      invalidMatrixItems.length === 0 &&
+      evidenceResultsIsArray &&
+      invalidEvidenceItems.length === 0 &&
+      matrixMatchesEvidence,
+    bindingDetails: {
+      evidenceExists,
+      evidenceHash,
+      expectedEvidenceHash,
+      evidenceHashValid,
+      dossierEvidenceHash,
+      dossierEvidenceHashMatches,
+      evidenceResultsIsArray,
+      matrixMatchesEvidence,
+      evidenceResultCount: evidenceResults.length,
+      invalidEvidenceItems,
+    },
+    concretePriorArtCount: validEvidenceKinds.filter(
+      (kind) => kind === "concrete_source",
+    ).length,
+    queryLinkPriorArtCount: validEvidenceKinds.filter(
+      (kind) => kind === "query_link",
+    ).length,
+    adapterFailureCount: validEvidenceKinds.filter(
+      (kind) => kind === "adapter_failure",
+    ).length,
+    mockPlaceholderCount: validEvidenceKinds.filter(
+      (kind) => kind === "mock_placeholder",
+    ).length,
+  };
+}
+
+function invalidPriorArtItemReasons(item: unknown): string[] {
+  const reasons: string[] = [];
+  const record = asRecord(item);
+  if (Object.keys(record).length === 0) return ["entry is not an object"];
+  if (!isPriorArtKind(record.kind)) reasons.push("kind is invalid or missing");
+  if (!isSourceType(record.sourceType))
+    reasons.push("sourceType is invalid or missing");
+  if (!nonBlankString(record.title)) reasons.push("title is missing");
+  if (!isRelevance(record.relevance))
+    reasons.push("relevance is invalid or missing");
+  if (!nonBlankString(record.overlap)) reasons.push("overlap is missing");
+  if (!nonBlankString(record.difference)) reasons.push("difference is missing");
   if (
-    item.kind === "concrete_source" ||
-    item.kind === "query_link" ||
-    item.kind === "adapter_failure" ||
-    item.kind === "mock_placeholder"
+    record.url !== null &&
+    record.url !== undefined &&
+    typeof record.url !== "string"
   ) {
-    return item.kind;
+    reasons.push("url must be a string or null");
   }
-  return "mock_placeholder";
+  if (
+    record.citation !== null &&
+    record.citation !== undefined &&
+    typeof record.citation !== "string"
+  ) {
+    reasons.push("citation must be a string or null");
+  }
+  return reasons;
+}
+
+function priorArtItemsMatch(
+  dossierItems: unknown[],
+  evidenceItems: unknown[],
+): boolean {
+  if (dossierItems.length !== evidenceItems.length) return false;
+  const evidenceKeys = new Set(evidenceItems.map(priorArtItemKey));
+  return dossierItems.every((item) => evidenceKeys.has(priorArtItemKey(item)));
+}
+
+function priorArtItemKey(item: unknown): string {
+  const record = asRecord(item);
+  return [
+    stringOrNull(record.kind) ?? "",
+    stringOrNull(record.sourceType) ?? "",
+    stringOrNull(record.title) ?? "",
+    stringOrNull(record.url) ?? "",
+  ].join("\0");
+}
+
+function isSourceType(value: unknown): boolean {
+  return (
+    value === "web" ||
+    value === "github" ||
+    value === "paper" ||
+    value === "patent" ||
+    value === "standard"
+  );
+}
+
+function isRelevance(value: unknown): boolean {
+  return value === "low" || value === "medium" || value === "high";
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function nonBlankString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+async function readJsonIfExists(path: string): Promise<unknown | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 async function exists(path: string): Promise<boolean> {

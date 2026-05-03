@@ -35,8 +35,11 @@ hold a mission open indefinitely.
 The output is written to `evidence/public-source-search.json` and folded into
 the prior-art matrix. Results are marked as `concrete_source`, `query_link`,
 `adapter_failure`, or `mock_placeholder`. Query links alone are not treated as
-concrete prior-art evidence. These results are research leads only. Sovryn does
-not make legal novelty, patentability, or freedom-to-operate conclusions.
+concrete prior-art evidence. Publication review verifies that the dossier's
+matrix is bound to the hashed evidence file. Strict real publication can also
+require concrete sources instead of deterministic placeholders. These results
+are research leads only. Sovryn does not make legal novelty, patentability, or
+freedom-to-operate conclusions.
 
 ## Dossier
 

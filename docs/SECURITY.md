@@ -46,3 +46,15 @@ Mission evidence can still contain sensitive project context after redaction.
 `sovryn init` adds `.sovryn/missions/` and `.sovryn/memory/` to `.gitignore`.
 Only remove those ignores when the project intentionally publishes evidence and
 memory artifacts.
+
+The Autonomous Open Research Factory separates autonomous research artifacts
+from publication. Factory runs may generate dossiers, prototypes, tests, scores,
+and public evidence packages, but real GitHub publication still goes through
+Sovryn Controller and existing publication gates. Factory public packaging uses
+an allowlist of curated summaries and rejects raw command logs in
+`release/public/`. Secret scanning is applied to public factory evidence.
+
+Node Alpha participation remains bounded. The local MVP can prepare and verify
+research artifacts, but it is not a host security sandbox. Use a dedicated user,
+container, VM, firewall, or network namespace before granting broad autonomous
+execution on a real research machine.

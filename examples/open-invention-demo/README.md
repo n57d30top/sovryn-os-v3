@@ -8,6 +8,7 @@ npm test
 npm run build
 node dist/cli.js invent-open "A method for verifiable open-source agent research"
 node dist/cli.js factory-open "A factory for verifiable open-source invention research"
+node dist/cli.js factory run "Develop a method for verifiable autonomous research agents" --json
 node dist/cli.js node run alpha <mission-id> --mode autonomous --max-steps 25
 node dist/cli.js invention review <mission-id>
 node dist/cli.js publish-github <mission-id> --dry-run

@@ -73,6 +73,17 @@ export type SovrynConfig = {
       maxReadBytes: number;
       githubTokenEnv: string | null;
     };
+    factory?: {
+      enabled: boolean;
+      maxCycles: number;
+      maxCandidates: number;
+      requireConcreteSources: boolean;
+      requirePrototype: boolean;
+      requireTests: boolean;
+      allowMockMode: boolean;
+      packagePublicEvidence: boolean;
+      blockHighSafetyRisk: boolean;
+    };
   };
 };
 
@@ -145,6 +156,17 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       timeoutMs: 8000,
       maxReadBytes: 20000,
       githubTokenEnv: null,
+    },
+    factory: {
+      enabled: true,
+      maxCycles: 1,
+      maxCandidates: 3,
+      requireConcreteSources: false,
+      requirePrototype: true,
+      requireTests: true,
+      allowMockMode: true,
+      packagePublicEvidence: true,
+      blockHighSafetyRisk: true,
     },
   },
 };

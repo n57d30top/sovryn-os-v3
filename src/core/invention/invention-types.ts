@@ -31,6 +31,12 @@ export type InventionDossier = {
   createdAt: string;
   updatedAt: string;
   evidenceHashes: Record<string, string>;
+  factoryRunId?: string;
+  sourceDiscoveryEvidenceHash?: string;
+  sourceReadingsEvidenceHash?: string;
+  featureMatrixEvidenceHash?: string;
+  noveltyGapMapEvidenceHash?: string;
+  selectedCandidateId?: string;
 };
 
 export type PriorArtMatrixItem = {

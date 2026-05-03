@@ -1,7 +1,9 @@
 # Factory Mode
 
-Factory Mode turns a rough research goal into a complete Open Invention mission
-plus deterministic factory evidence:
+Factory Mode has two CLI surfaces.
+
+The legacy shortcut turns a rough research goal into one complete Open
+Invention mission plus deterministic invention-level factory evidence:
 
 ```bash
 sovryn factory-open "A factory for verifiable open-source invention research"
@@ -48,3 +50,18 @@ enabled:
 Generated content must still be reviewed for serious contexts. Factory Mode
 publishes Open Inventions and Defensive Publications; it does not file patents
 or make legal patentability, novelty, or freedom-to-operate conclusions.
+
+The Autonomous Open Research Factory is the factory-level MVP:
+
+```bash
+sovryn factory run "Develop open-source methods for self-verifying autonomous research agents" --json
+sovryn factory status <factory-id> --json
+sovryn factory review <factory-id> --json
+sovryn factory package <factory-id> --json
+```
+
+It writes `.sovryn/factory/<slug>/` with research-plan, source-discovery,
+source-reading, feature-matrix, novelty-gap, candidate, selected-candidate,
+factory-score, report, limitations, and curated public release artifacts. It
+also triggers normal Open Invention missions for selected candidates. See
+`docs/RESEARCH_FACTORY.md`.

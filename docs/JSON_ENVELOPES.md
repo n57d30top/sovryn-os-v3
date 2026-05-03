@@ -6,7 +6,7 @@ Every command with `--json` returns the same envelope shape:
 {
   "ok": true,
   "command": "mission.spawn",
-  "version": "3.0.0-alpha.11",
+  "version": "3.0.0-alpha.12",
   "timestamp": "2026-05-03T00:00:00.000Z",
   "data": {},
   "warnings": [],

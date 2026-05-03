@@ -58,6 +58,15 @@ creates an Open Invention mission, extracts features, maps novelty gaps,
 generates candidate inventions, selects one, updates the dossier, writes a
 factory report, scores evidence strength, and blocks weak real publication.
 
+The newer Autonomous Open Research Factory is available through
+`sovryn factory run "<research-goal>"`. It creates a factory run under
+`.sovryn/factory/<slug>/`, builds a research plan, source-discovery evidence,
+source readings, feature matrix, novelty-gap map, candidate inventions,
+selected candidates, factory score, `FACTORY_REPORT.md`, and `LIMITATIONS.md`.
+It then triggers normal Open Invention missions for selected candidates. The
+factory reuses the same publication philosophy: agents act, Sovryn verifies,
+evidence persists, and weak or stale research is blocked by gates.
+
 ## Dossier
 
 Each invention has a typed dossier with technical field, problem, background,

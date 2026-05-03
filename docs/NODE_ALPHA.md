@@ -46,6 +46,27 @@ The loop is deliberately deterministic in the MVP. Future providers can replace
 or enrich the steps with full source reading, public search, local models,
 browser automation, containers, SSH, or `sovryn-agentd`.
 
+The Autonomous Open Research Factory records a factory-level phase sequence that
+Node Alpha can participate in as the execution worker:
+
+- `factory_plan`
+- `source_discovery`
+- `source_reading`
+- `feature_matrix`
+- `novelty_gap_analysis`
+- `candidate_generation`
+- `candidate_selection`
+- `invention_generation`
+- `prototype_build`
+- `test_generation`
+- `skeptic_review`
+- `factory_scoring`
+- `release_packaging`
+
+The Alpha MVP runs this sequence deterministically through the factory service
+and generates normal Open Invention missions that can then be validated with
+`sovryn node run alpha <mission-id> --mode autonomous`.
+
 Node Alpha is not a security sandbox unless paired with containers, VMs,
 firewalling, network namespaces, or equivalent OS controls. The local MVP uses
 policy checks and command blocking, not kernel isolation.

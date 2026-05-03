@@ -48,6 +48,10 @@ sovryn reject <mission-id> --json
 sovryn doctor --json
 sovryn invent-open "A method for verifiable open-source agent research" --json
 sovryn factory-open "A factory for verifiable open-source invention research" --json
+sovryn factory run "Develop a method for verifiable autonomous research agents" --json
+sovryn factory status <factory-id> --json
+sovryn factory review <factory-id> --json
+sovryn factory package <factory-id> --json
 sovryn node register alpha --host local --json
 sovryn node run alpha <mission-id> --json
 sovryn node run alpha <mission-id> --mode autonomous --max-steps 25 --json
@@ -147,6 +151,52 @@ builds on Open Inventions by extracting features from source search/readings,
 mapping novelty gaps, generating candidate inventions, selecting one candidate,
 writing `FACTORY_REPORT.md`, scoring factory readiness, and blocking weak real
 publication through the `FACTORY_STRENGTH_FOR_PUBLISH` gate.
+
+The Autonomous Open Research Factory is available through:
+
+```bash
+npm install
+npm run build
+sovryn init
+sovryn factory run "Develop a method for verifiable autonomous research agents" --json
+sovryn factory status <factory-id> --json
+sovryn factory review <factory-id> --json
+sovryn factory package <factory-id> --json
+```
+
+The factory accepts a broad research goal, builds a deterministic research
+plan, maps research questions, reuses the public-source adapters and source
+readers, creates a feature matrix and candidate novelty-gap map, generates
+candidate Open Inventions, selects one candidate, triggers a normal Open
+Invention mission with a runnable prototype and tests, scores research quality,
+and packages curated public evidence under
+`.sovryn/factory/<slug>/release/public/`. Factory runs never treat query links,
+adapter failures, or mock placeholders as reviewed prior art. Weak or mock-heavy
+runs are marked degraded or blocked, and public release packaging excludes raw
+command logs.
+
+Factory strictness is controlled under `research.factory`:
+
+```json
+{
+  "research": {
+    "factory": {
+      "maxCycles": 1,
+      "maxCandidates": 3,
+      "requireConcreteSources": false,
+      "requirePrototype": true,
+      "requireTests": true,
+      "allowMockMode": true,
+      "packagePublicEvidence": true,
+      "blockHighSafetyRisk": true
+    }
+  }
+}
+```
+
+Enable `research.publicSearch.enabled` and `research.sourceReading.enabled` to
+make factory evidence stronger. Defaults remain deterministic and do not require
+paid APIs or an LLM.
 
 GitHub credentials stay with Sovryn Controller. The autonomous agent prepares
 artifacts, but `publish-github` is gated by dossier, license, verification,

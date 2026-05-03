@@ -6,6 +6,10 @@ import {
 } from "../shared/json-envelope.js";
 import { AppError } from "../shared/errors.js";
 import { configExists, loadConfig } from "../core/config.js";
+import {
+  FactoryService,
+  type FactoryRunMode,
+} from "../core/factory/factory-service.js";
 import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
@@ -36,6 +40,11 @@ Commands:
   sovryn doctor [--json]
   sovryn invent-open "<brief>" [--json]
   sovryn factory-open "<research-goal>" [--json]
+  sovryn factory plan "<research-goal>" [--json]
+  sovryn factory run "<research-goal>" [--mode autonomous] [--max-cycles 3] [--json]
+  sovryn factory status <factory-id> [--json]
+  sovryn factory review <factory-id> [--json]
+  sovryn factory package <factory-id> [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -185,6 +194,8 @@ export async function executeCli(
       }
       case "node":
         return okEnvelope("node", await nodeCommand(parsed, root));
+      case "factory":
+        return okEnvelope("factory", await factoryCommand(parsed, root));
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
@@ -390,6 +401,74 @@ async function inventionCommand(
   }
 }
 
+async function factoryCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand)
+    throw new AppError(
+      "FACTORY_COMMAND_REQUIRED",
+      "Use: sovryn factory <plan|run|status|review|package>",
+    );
+  const service = new FactoryService(root);
+  switch (subcommand) {
+    case "plan": {
+      const goal = parsed.positionals.slice(1).join(" ").trim();
+      if (!goal)
+        throw new AppError(
+          "FACTORY_GOAL_REQUIRED",
+          "factory plan requires a research goal.",
+        );
+      return service.plan(goal);
+    }
+    case "run": {
+      const goal = parsed.positionals.slice(1).join(" ").trim();
+      if (!goal)
+        throw new AppError(
+          "FACTORY_GOAL_REQUIRED",
+          "factory run requires a research goal.",
+        );
+      return service.run(goal, {
+        mode: flagFactoryRunMode(parsed.flags),
+        maxCycles: flagInt(parsed.flags, "--max-cycles", 1),
+      });
+    }
+    case "status": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory status requires a factory id.",
+        );
+      return service.status(id);
+    }
+    case "review": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory review requires a factory id.",
+        );
+      return service.review(id);
+    }
+    case "package": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory package requires a factory id.",
+        );
+      return service.package(id);
+    }
+    default:
+      throw new AppError(
+        "UNKNOWN_FACTORY_COMMAND",
+        `Unknown factory command: ${subcommand}`,
+      );
+  }
+}
+
 async function nodeCommand(
   parsed: ParsedArgs,
   root: string,
@@ -464,6 +543,18 @@ function flagRunMode(
     );
   }
   return value;
+}
+
+function flagFactoryRunMode(
+  flags: Map<string, string | boolean>,
+): FactoryRunMode {
+  const value = flagString(flags, "--mode") ?? "deterministic";
+  if (value === "autonomous" || value === "deterministic") return value;
+  throw new AppError(
+    "FACTORY_RUN_MODE_INVALID",
+    "--mode must be deterministic or autonomous.",
+    { mode: value },
+  );
 }
 
 function flagInt(

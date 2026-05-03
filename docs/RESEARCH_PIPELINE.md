@@ -83,6 +83,27 @@ factory-readiness score. It writes `FACTORY_REPORT.md` and factory evidence
 files under `evidence/`. Real publication is blocked when factory evidence is
 present but weak.
 
+The Autonomous Open Research Factory adds a factory-level pipeline:
+
+1. `factory_plan`
+2. `source_discovery`
+3. `source_reading`
+4. `feature_matrix`
+5. `novelty_gap_analysis`
+6. `candidate_generation`
+7. `candidate_selection`
+8. `invention_generation`
+9. `prototype_build`
+10. `test_generation`
+11. `skeptic_review`
+12. `factory_scoring`
+13. `release_packaging`
+
+These phases are recorded in `.sovryn/factory/<slug>/factory-run.json`. Each
+phase either writes evidence or records degraded/blocked status. Factory runs
+reuse Open Invention missions for selected candidates instead of duplicating the
+dossier, prototype, test, safety, license, and publication-gate machinery.
+
 Public-source search writes
 `.sovryn/inventions/<slug>/evidence/public-source-search.json`. Retrieved
 results are technical research leads, not legal prior-art conclusions.

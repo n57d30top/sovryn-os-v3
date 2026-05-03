@@ -9,6 +9,10 @@ A plugin can provide:
 - Artifact parsers
 - Review enrichers
 
+In `3.0.0-alpha.2`, command plugins are wired into `sovryn plugin run`.
+`verifyProviders`, `artifactParsers`, and `reviewEnrichers` are API contracts for
+the next integration pass; the core does not invoke them yet.
+
 Minimal interface:
 
 ```ts
@@ -22,8 +26,10 @@ export type SovrynPlugin = {
 };
 ```
 
-Plugins receive a constrained context with the repo root. They must return
-stable JSON-compatible data and must not bypass policy or finalize gates.
+Plugins are trusted Node.js code. The context object is a constrained API
+surface, not a sandbox. A malicious plugin can still access the normal Node.js
+runtime. Plugins must return stable JSON-compatible data and must not bypass
+policy or finalize gates.
 
 The included sample plugin is a loader fixture. Domain plugins are not imported
 by core unless configured.

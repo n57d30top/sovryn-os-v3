@@ -19,6 +19,9 @@ test("init creates config and directories", async () => {
   await access(join(repo.root, ".sovryn", "plugins.json"));
   await access(join(repo.root, ".sovryn", "missions"));
   await access(join(repo.root, ".sovryn", "memory", "lessons.md"));
+  const gitignore = await readFile(join(repo.root, ".gitignore"), "utf8");
+  assert.match(gitignore, /\.sovryn\/missions\//);
+  assert.match(gitignore, /\.sovryn\/memory\//);
 });
 
 test("spawn creates a worktree and mission state with fake runner", async () => {
@@ -47,6 +50,19 @@ test("fake runner failed verify mission remains failed", async () => {
   const mission = (response.data as any).mission;
   assert.equal(mission.status, "failed");
   assert.equal(mission.lastVerifyPassed, false);
+});
+
+test("no verify commands keeps mission failed", async () => {
+  const repo = await makeTempRepo({ noVerify: true });
+  await executeCli(["init"], repo.root);
+  const response = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  assert.equal(response.ok, true);
+  const mission = (response.data as any).mission;
+  assert.equal(mission.status, "failed");
+  assert.equal(mission.lastVerifyPassed, false);
+  const verifyPath = join(repo.root, ".sovryn", "missions", mission.id, "attempts", "001", "verify.json");
+  const verify = JSON.parse(await readFile(verifyPath, "utf8"));
+  assert.equal(verify.reason, "NO_VERIFY_COMMANDS");
 });
 
 test("continue appends attempts", async () => {
@@ -132,6 +148,24 @@ test("finalize blocks blocked paths", async () => {
   assert.equal(finalize.errors[0].code, "POLICY_BLOCKED");
 });
 
+test("finalize blocks secret in untracked file", async () => {
+  const repo = await makeTempRepo();
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  const fakeToken = `sk-${"test12345678901234567890"}`;
+  await writeFile(join(mission.worktreePath, "new-secret.txt"), `token=${fakeToken}\n`, "utf8");
+  const verify = await executeCli(["verify", mission.id], repo.root);
+  assert.equal(verify.ok, true);
+  await executeCli(["review", mission.id], repo.root);
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, false);
+  assert.equal(finalize.errors[0].code, "POLICY_BLOCKED");
+  const secretCheck = (finalize.errors[0].details as any).checks.find((check: any) => check.code === "SECRET_SCAN");
+  assert.equal(secretCheck.passed, false);
+  assert.equal(secretCheck.details.findings.some((finding: any) => finding.location === "changed-file:new-secret.txt"), true);
+});
+
 test("reject removes worktree", async () => {
   const repo = await makeTempRepo();
   await executeCli(["init"], repo.root);
@@ -157,7 +191,7 @@ test("--json envelope shape is stable", async () => {
   const response = await executeCli(["doctor", "--json"], repo.root);
   assert.equal(typeof response.ok, "boolean");
   assert.equal(typeof response.command, "string");
-  assert.equal(response.version, "3.0.0-alpha.1");
+  assert.equal(response.version, "3.0.0-alpha.2");
   assert.equal(typeof response.timestamp, "string");
   assert.ok(Array.isArray(response.errors));
   assert.ok(Array.isArray(response.warnings));
@@ -277,7 +311,7 @@ test("postgres store is an optional adapter and requires configured url env", ()
     ...DEFAULT_CONFIG,
     storage: {
       driver: "postgres" as const,
-      postgres: { urlEnv: "SOVRYN_TEST_DATABASE_URL", schema: "public" }
+      postgres: { urlEnv: "SOVRYN_TEST_DATABASE_URL" }
     }
   };
   assert.throws(() => createStore("/tmp/sovryn-no-db", config), /SOVRYN_TEST_DATABASE_URL/);
@@ -303,6 +337,19 @@ test("finalize merges reviewed mission into main", async () => {
   assert.equal(finalize.ok, true);
   const file = await readFile(join(repo.root, "sovryn-fake-result.txt"), "utf8");
   assert.match(file, new RegExp(mission.id));
+});
+
+test("reject blocks finalized missions", async () => {
+  const repo = await makeTempRepo();
+  await executeCli(["init"], repo.root);
+  const spawn = await executeCli(["spawn", "write evidence", "--runner", "fake"], repo.root);
+  const mission = (spawn.data as any).mission;
+  await executeCli(["review", mission.id], repo.root);
+  const finalize = await executeCli(["finalize", mission.id], repo.root);
+  assert.equal(finalize.ok, true);
+  const reject = await executeCli(["reject", mission.id], repo.root);
+  assert.equal(reject.ok, false);
+  assert.equal(reject.errors[0].code, "MISSION_CLOSED");
 });
 
 test("finalize reruns verify and blocks changed failing worktree", async () => {

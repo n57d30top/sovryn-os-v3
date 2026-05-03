@@ -58,7 +58,8 @@ Every command supports stable JSON output via `--json`.
 - Blocks finalize when verification, policy, approval, blocked-path, or secret
   checks fail.
 - Re-runs verify immediately before finalize and requires the review/approval to
-  match the current diff and verify hashes.
+  match the current diff and verify outcome hash.
+- Treats missing verification commands as a failed verification, not a pass.
 
 ## What Sovryn Does Not Do
 
@@ -74,11 +75,16 @@ File storage is the default storage driver. Postgres is available as an optional
 adapter through `storage.driver = "postgres"` and `SOVRYN_DATABASE_URL` or the
 configured `storage.postgres.urlEnv`.
 
+Mission evidence and memory are local by default and are added to `.gitignore`
+by `sovryn init`. Commit `.sovryn/missions/` or `.sovryn/memory/` only when a
+project intentionally wants to publish those artifacts.
+
 ## Plugins
 
-The plugin API is intentionally small. Plugins can register commands, verify
-providers, artifact parsers, and review enrichers. Domain logic such as OQP,
-deploy, and lab workflows belongs in plugins, not in the core.
+The plugin API is intentionally small. Command plugins are executable today.
+Verify providers, artifact parsers, and review enrichers are alpha extension
+contracts and are not yet wired into the core verify/review flow. Domain logic
+such as OQP, deploy, and lab workflows belongs in plugins, not in the core.
 
 This repo includes `sovryn-plugin-gitnexus` as an optional plugin package. Enable
 it by adding it to `.sovryn/plugins.json`:

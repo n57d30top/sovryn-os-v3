@@ -2,6 +2,11 @@
 
 Optional GitNexus integration for Sovryn OS v3.
 
+Alpha status: this package is currently workspace-only inside the Sovryn OS v3
+monorepo. Its package entry points target the root TypeScript build output. A
+publishable standalone package will need its own package-local build before npm
+release.
+
 The plugin shells out to a local `gitnexus` command or the command named by
 `SOVRYN_GITNEXUS_COMMAND`. It does not run network operations by itself and does
 not bypass Sovryn policy or finalize gates.

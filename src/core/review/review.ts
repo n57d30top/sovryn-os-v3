@@ -15,6 +15,8 @@ export type ReviewResult = {
   verifyFresh: boolean;
   diffHash: string;
   verifyHash: string | null;
+  verifyOutcomeHash: string | null;
+  verifyEvidenceHash: string | null;
   risk: PolicyResult["risk"];
   policy: PolicyResult;
   artifactRefs: string[];
@@ -48,7 +50,9 @@ export async function createReview(input: {
     verifyPassed: input.mission.lastVerifyPassed,
     verifyFresh: input.mission.lastVerifiedDiffHash === diffHash,
     diffHash,
-    verifyHash: input.mission.lastVerifyResultHash,
+    verifyHash: input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
+    verifyOutcomeHash: input.mission.lastVerifyOutcomeHash ?? input.mission.lastVerifyResultHash,
+    verifyEvidenceHash: input.mission.lastVerifyEvidenceHash,
     risk: policy.risk,
     policy,
     artifactRefs: [
@@ -73,7 +77,8 @@ Risk: ${review.risk}
 Verify passed: ${review.verifyPassed}
 Verify fresh: ${review.verifyFresh}
 Diff hash: ${review.diffHash}
-Verify hash: ${review.verifyHash ?? "none"}
+Verify outcome hash: ${review.verifyOutcomeHash ?? "none"}
+Verify evidence hash: ${review.verifyEvidenceHash ?? "none"}
 
 ## Diff
 

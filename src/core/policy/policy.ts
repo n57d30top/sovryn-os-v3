@@ -21,6 +21,7 @@ export type PolicyResult = {
 };
 
 const RISK_ORDER: RiskLevel[] = ["low", "medium", "high", "critical"];
+const MAX_SECRET_SCAN_FILE_BYTES = 1024 * 1024;
 
 export async function evaluatePolicy(input: {
   root: string;
@@ -80,6 +81,7 @@ export async function evaluatePolicy(input: {
 
   const secretFindings = [
     ...scanSecrets("diff", input.patch),
+    ...(await scanChangedFileContents(input.mission, input.diff)),
     ...(await scanMissionFiles(input.root, input.mission.id))
   ];
   checks.push({
@@ -96,6 +98,41 @@ export async function evaluatePolicy(input: {
     checks,
     secretFindings
   };
+}
+
+async function scanChangedFileContents(mission: MissionState, diff: DiffSummary): Promise<SecretFinding[]> {
+  const findings: SecretFinding[] = [];
+  for (const file of diff.changedFiles) {
+    if (file.status.includes("D")) continue;
+    const path = join(mission.worktreePath, file.path);
+    let info;
+    try {
+      info = await stat(path);
+    } catch {
+      continue;
+    }
+    if (!info.isFile() || info.size > MAX_SECRET_SCAN_FILE_BYTES) continue;
+    let buffer: Buffer;
+    try {
+      buffer = await readFile(path);
+    } catch {
+      continue;
+    }
+    if (!looksText(buffer)) continue;
+    findings.push(...scanSecrets(`changed-file:${file.path}`, buffer.toString("utf8")));
+  }
+  return findings;
+}
+
+function looksText(buffer: Buffer): boolean {
+  if (buffer.includes(0)) return false;
+  const sample = buffer.subarray(0, Math.min(buffer.length, 4096));
+  let suspicious = 0;
+  for (const byte of sample) {
+    if (byte === 9 || byte === 10 || byte === 13) continue;
+    if (byte < 32) suspicious += 1;
+  }
+  return sample.length === 0 || suspicious / sample.length < 0.05;
 }
 
 export function riskForFiles(paths: string[], config: SovrynConfig): RiskLevel {
@@ -130,9 +167,12 @@ export function riskRank(risk: RiskLevel): number {
 }
 
 export function currentValidApprovals(mission: MissionState, diffHash?: string): Approval[] {
-  const verifyHash = mission.lastVerifyResultHash;
+  const verifyHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
   if (!diffHash || !verifyHash) return [];
-  return mission.approvals.filter((approval) => approval.diffHash === diffHash && approval.verifyHash === verifyHash);
+  return mission.approvals.filter((approval) => {
+    const approvalVerifyHash = approval.verifyOutcomeHash ?? approval.verifyHash;
+    return approval.diffHash === diffHash && approvalVerifyHash === verifyHash;
+  });
 }
 
 export function matchGlob(pattern: string, path: string): boolean {

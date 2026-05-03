@@ -43,7 +43,6 @@ export type SovrynConfig = {
     driver: "file" | "postgres";
     postgres?: {
       urlEnv: string;
-      schema: string;
     };
   };
   output: {
@@ -92,8 +91,7 @@ export const DEFAULT_CONFIG: SovrynConfig = {
   storage: {
     driver: "file",
     postgres: {
-      urlEnv: "SOVRYN_DATABASE_URL",
-      schema: "public"
+      urlEnv: "SOVRYN_DATABASE_URL"
     }
   },
   output: {
@@ -138,7 +136,7 @@ async function ensureGitignore(root: string): Promise<void> {
   } catch {
     // create below
   }
-  const required = [".sovryn/worktrees/", ".sovryn/logs/"];
+  const required = [".sovryn/worktrees/", ".sovryn/logs/", ".sovryn/missions/", ".sovryn/memory/"];
   const missing = required.filter((line) => !existing.split("\n").includes(line));
   if (missing.length > 0) {
     const prefix = existing && !existing.endsWith("\n") ? "\n" : "";

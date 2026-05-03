@@ -11,14 +11,15 @@ Rules:
 - Secrets in CLI args are forbidden by policy and redaction checks.
 - Mission prompts, logs, stdout, stderr, and artifacts are redacted before
   persistence.
-- Finalize scans diff and mission artifacts for common token, password, API key,
-  private key, and bearer token patterns.
+- Finalize scans diff text, changed text-file contents, and mission artifacts
+  for common token, password, API key, private key, and bearer token patterns.
 - Finalize re-runs verify immediately before merging.
 - Finalize requires a current review by default. The stored review must match the
-  current diff hash and verify-result hash.
-- Approvals are bound to the diff hash and verify-result hash that were current
-  at approval time. If the diff or verify result changes, the approval no longer
-  satisfies policy.
+  current diff hash and verify outcome hash.
+- Approvals are bound to the diff hash and verify outcome hash that were current
+  at approval time. If the diff or verify outcome changes, the approval no longer
+  satisfies policy. Sovryn also stores a stricter verify evidence hash for audit.
+- Missing verification commands fail verification with `NO_VERIFY_COMMANDS`.
 - Blocked paths cannot be finalized.
 - Sensitive paths raise risk and require approval.
 - Dependency and CI changes require approval.
@@ -40,3 +41,8 @@ variables to a local deny endpoint, but it is not a kernel-level sandbox. Script
 that open sockets through another runtime may still need OS-level isolation. For
 strong no-network guarantees, run Sovryn in a container, network namespace,
 `firejail`/`nsjail`-style runtime, or CI environment with network disabled.
+
+Mission evidence can still contain sensitive project context after redaction.
+`sovryn init` adds `.sovryn/missions/` and `.sovryn/memory/` to `.gitignore`.
+Only remove those ignores when the project intentionally publishes evidence and
+memory artifacts.

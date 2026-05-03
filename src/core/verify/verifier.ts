@@ -5,6 +5,14 @@ import type { VerifyResult } from "./types.js";
 
 export async function runVerify(worktreePath: string, config: SovrynConfig): Promise<VerifyResult> {
   const commands = await discoverVerifyCommands(worktreePath, config);
+  if (commands.length === 0) {
+    return {
+      commands,
+      results: [],
+      passed: false,
+      reason: "NO_VERIFY_COMMANDS"
+    };
+  }
   const results = [];
   for (const command of commands) {
     const result = await runCommand(command, worktreePath, {
@@ -23,6 +31,7 @@ export async function runVerify(worktreePath: string, config: SovrynConfig): Pro
   return {
     commands,
     results,
-    passed: results.every((result) => result.passed)
+    passed: results.every((result) => result.passed),
+    reason: null
   };
 }

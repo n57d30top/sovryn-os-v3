@@ -11,7 +11,7 @@ Major changes:
 - Stable JSON envelopes are the command contract.
 - Finalize re-runs verify, requires a current review by default, and is blocked
   by policy, approval, and secret-scan gates.
-- Approvals are bound to the current diff hash and verify-result hash.
+- Approvals are bound to the current diff hash and verify outcome hash.
 - Password SSH is intentionally unsupported; the SSH runner uses agent or
   identity-file based authentication only.
 

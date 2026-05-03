@@ -8,7 +8,7 @@ import { createRunner } from "../runner/registry.js";
 import type { Store } from "../storage/types.js";
 import { createStore } from "../storage/create-store.js";
 import { runVerify } from "../verify/verifier.js";
-import { hashVerifyResult } from "../verify/hash.js";
+import { hashVerifyEvidence, hashVerifyOutcome } from "../verify/hash.js";
 import { WorkspaceManager } from "../workspace/workspace-manager.js";
 import { createReview } from "../review/review.js";
 import { evaluatePolicy, riskForFiles } from "../policy/policy.js";
@@ -67,6 +67,8 @@ export class MissionService {
       lastVerifyAt: null,
       lastVerifiedDiffHash: null,
       lastVerifyResultHash: null,
+      lastVerifyOutcomeHash: null,
+      lastVerifyEvidenceHash: null,
       review: null,
       finalizedCommit: null
     };
@@ -115,6 +117,8 @@ export class MissionService {
       at: nowIso(),
       diffHash: review.diffHash,
       verifyHash: review.verifyHash,
+      verifyOutcomeHash: review.verifyOutcomeHash,
+      verifyEvidenceHash: review.verifyEvidenceHash,
       risk: review.risk,
       artifactRef: `.sovryn/missions/${id}/review.md`
     };
@@ -129,7 +133,9 @@ export class MissionService {
     const mission = await store.readMission(id);
     const diff = await this.git.diffSummary(mission.worktreePath, mission.baseBranch);
     const diffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
-    if (!mission.lastVerifyPassed || mission.lastVerifiedDiffHash !== diffHash || !mission.lastVerifyResultHash) {
+    const verifyOutcomeHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
+    const verifyEvidenceHash = mission.lastVerifyEvidenceHash;
+    if (!mission.lastVerifyPassed || mission.lastVerifiedDiffHash !== diffHash || !verifyOutcomeHash || !verifyEvidenceHash) {
       throw new AppError("VERIFY_STALE", "Approval requires a passing verify result for the current diff.", {
         id,
         lastVerifiedDiffHash: mission.lastVerifiedDiffHash,
@@ -138,7 +144,16 @@ export class MissionService {
     }
     const by = await gitIdentity(this.root);
     const risk = riskForFiles(diff.changedFiles.map((file) => file.path), config);
-    mission.approvals.push({ by, at: nowIso(), note, diffHash, verifyHash: mission.lastVerifyResultHash, risk });
+    mission.approvals.push({
+      by,
+      at: nowIso(),
+      note,
+      diffHash,
+      verifyHash: verifyOutcomeHash,
+      verifyOutcomeHash,
+      verifyEvidenceHash,
+      risk
+    });
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
     await store.writeMissionFile(id, "approval.json", JSON.stringify(mission.approvals.at(-1), null, 2));
@@ -199,9 +214,10 @@ export class MissionService {
     const config = await this.config();
     const store = await this.storeForConfig(config);
     const mission = await store.readMission(id);
-    if (mission.status !== "finalized") {
-      await new WorkspaceManager(this.root, config, this.git).remove(mission.worktreePath);
+    if (mission.status === "finalized" || mission.status === "rejected") {
+      throw new AppError("MISSION_CLOSED", `Mission is ${mission.status}.`, { id, status: mission.status });
     }
+    await new WorkspaceManager(this.root, config, this.git).remove(mission.worktreePath);
     mission.status = "rejected";
     mission.updatedAt = nowIso();
     await store.writeMission(mission);
@@ -272,10 +288,14 @@ export class MissionService {
   }
 
   private async recordVerify(mission: MissionState, verify: VerifyResult, timestamp = nowIso()): Promise<void> {
+    const outcomeHash = hashVerifyOutcome(verify);
+    const evidenceHash = hashVerifyEvidence(verify);
     mission.lastVerifyPassed = verify.passed;
     mission.lastVerifyAt = timestamp;
     mission.lastVerifiedDiffHash = await this.git.diffHash(mission.worktreePath, mission.baseBranch);
-    mission.lastVerifyResultHash = hashVerifyResult(verify);
+    mission.lastVerifyResultHash = outcomeHash;
+    mission.lastVerifyOutcomeHash = outcomeHash;
+    mission.lastVerifyEvidenceHash = evidenceHash;
     mission.status = verify.passed ? "passed" : "failed";
     mission.updatedAt = timestamp;
   }
@@ -285,13 +305,14 @@ export class MissionService {
     if (!mission.review) {
       throw new AppError("REVIEW_REQUIRED", "Finalize requires a review for the current verified diff.", { id: mission.id });
     }
-    if (mission.review.diffHash !== diffHash || mission.review.verifyHash !== mission.lastVerifyResultHash) {
+    const verifyOutcomeHash = mission.lastVerifyOutcomeHash ?? mission.lastVerifyResultHash;
+    if (mission.review.diffHash !== diffHash || mission.review.verifyOutcomeHash !== verifyOutcomeHash) {
       throw new AppError("REVIEW_STALE", "Review is stale. Run sovryn review again after the latest verify/diff change.", {
         id: mission.id,
         reviewDiffHash: mission.review.diffHash,
         currentDiffHash: diffHash,
-        reviewVerifyHash: mission.review.verifyHash,
-        currentVerifyHash: mission.lastVerifyResultHash
+        reviewVerifyOutcomeHash: mission.review.verifyOutcomeHash,
+        currentVerifyOutcomeHash: verifyOutcomeHash
       });
     }
   }

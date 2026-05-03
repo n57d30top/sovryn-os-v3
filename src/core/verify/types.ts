@@ -11,4 +11,5 @@ export type VerifyResult = {
   commands: string[];
   results: VerifyCommandResult[];
   passed: boolean;
+  reason: "NO_VERIFY_COMMANDS" | null;
 };

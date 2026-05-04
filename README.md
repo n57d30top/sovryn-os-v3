@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.1.0-alpha.4`
+Current version: `3.1.0-alpha.5`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -37,14 +37,17 @@ added the first deterministic data/instrument/runtime path for safe synthetic
 computational experiments. Alpha.3 added bounded statistical analysis, baseline
 comparison, ablations, sensitivity sweeps, and error analysis. Alpha.4 adds
 replication, negative tests, falsification reports, and hypothesis status
-updates. Scientific support remains bounded to the evidence actually produced.
+updates. Alpha.5 adds scientific memory ledgers, study-bound source cards,
+literature grounding, and next-question generation. Scientific support remains
+bounded to the evidence actually produced.
 
-| Version         | Focus                         | Result                                                                                                                                                     |
-| --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `3.1.0-alpha.1` | Scientific Method Core        | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.      |
-| `3.1.0-alpha.2` | Data and Instrument Runtime   | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates. |
-| `3.1.0-alpha.3` | Statistics and Ablations      | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.        |
-| `3.1.0-alpha.4` | Replication and Falsification | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                            |
+| Version         | Focus                           | Result                                                                                                                                                     |
+| --------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `3.1.0-alpha.1` | Scientific Method Core          | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.      |
+| `3.1.0-alpha.2` | Data and Instrument Runtime     | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates. |
+| `3.1.0-alpha.3` | Statistics and Ablations        | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.        |
+| `3.1.0-alpha.4` | Replication and Falsification   | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                            |
+| `3.1.0-alpha.5` | Memory and Literature Grounding | Adds scientific memory ledgers, fixture-backed source cards, literature-grounding reports, and follow-up question generation.                              |
 
 New science commands:
 
@@ -64,17 +67,27 @@ sovryn science replicate <experiment-id> --runs 3 --json
 sovryn science falsify <hypothesis-id> --json
 sovryn science negative-tests <study-id> --json
 sovryn science hypothesis status <hypothesis-id> --json
+sovryn science literature ground <study-id> --json
+sovryn science next-questions <study-id> --json
+sovryn science memory update <study-id> --json
+sovryn science memory search "energy anomaly provenance" --json
+sovryn science memory report --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```
 
 Science studies write evidence under `.sovryn/science/studies/<study-slug>/`.
+Scientific memory writes reusable ledgers under `.sovryn/science/memory/`,
+including hypothesis, study, instrument, dataset, result, open-question,
+supported-hypothesis, and rejected-hypothesis ledgers.
 The alpha review gates block missing null hypotheses, missing baselines, missing
 metrics, missing falsification criteria, unsupported scientific claims, and
 unsafe wet-lab, hazardous chemistry, exploit-development, biological
-optimization, or medical-treatment scopes. The layer is limited to safe
-computational science over synthetic data, public non-sensitive data,
-simulations, statistics, benchmarks, and software instruments.
+optimization, or medical-treatment scopes. Alpha.5 gates also block missing
+scientific memory, missing study-bound source cards, missing next questions, and
+unsupported literature claims. The layer is limited to safe computational
+science over synthetic data, public non-sensitive data, simulations, statistics,
+benchmarks, and software instruments.
 
 See [docs/SCIENTIFIC_METHOD.md](docs/SCIENTIFIC_METHOD.md) for the alpha
 science workflow and safety boundaries.

@@ -70,6 +70,9 @@ let analysisFixturePromise:
 let replicationFixturePromise:
   | Promise<Awaited<ReturnType<typeof createReplicatedStudy>>>
   | undefined;
+let memoryFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createMemoryStudy>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -84,6 +87,11 @@ async function analysisFixture() {
 async function replicationFixture() {
   replicationFixturePromise ??= createReplicatedStudy();
   return replicationFixturePromise;
+}
+
+async function memoryFixture() {
+  memoryFixturePromise ??= createMemoryStudy();
+  return memoryFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -226,13 +234,56 @@ async function createReplicatedStudy() {
   };
 }
 
+async function createMemoryStudy() {
+  const context = await createReplicatedStudy();
+  const literature = await executeCli(
+    ["science", "literature", "ground", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(literature.ok, true, JSON.stringify(literature.errors, null, 2));
+  const nextQuestions = await executeCli(
+    ["science", "next-questions", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(
+    nextQuestions.ok,
+    true,
+    JSON.stringify(nextQuestions.errors, null, 2),
+  );
+  const memoryUpdate = await executeCli(
+    ["science", "memory", "update", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(
+    memoryUpdate.ok,
+    true,
+    JSON.stringify(memoryUpdate.errors, null, 2),
+  );
+  const memoryReport = await executeCli(
+    ["science", "memory", "report", "--json"],
+    context.repo.root,
+  );
+  assert.equal(
+    memoryReport.ok,
+    true,
+    JSON.stringify(memoryReport.errors, null, 2),
+  );
+  return {
+    ...context,
+    literatureGrounding: (literature.data as any).literatureGrounding,
+    nextQuestions: (nextQuestions.data as any).nextQuestions,
+    memoryUpdate: (memoryUpdate.data as any).memoryUpdate,
+    memoryReport: (memoryReport.data as any).report,
+  };
+}
+
 function studyPath(root: string, slug: string, file: string): string {
   return join(root, ".sovryn", "science", "studies", slug, file);
 }
 
 test("v1.1 alpha package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-alpha.4");
+  assert.equal(pkg.version, "3.1.0-alpha.5");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -2098,4 +2149,507 @@ test("replication summary artifact is hash-bound", async () => {
   const { replicationSummary } = await replicationFixture();
   assert.equal(typeof replicationSummary.evidenceHash, "string");
   assert.equal(replicationSummary.evidenceHash.length, 64);
+});
+
+test("science help lists literature grounding", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science literature ground/);
+});
+
+test("science help lists memory commands", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science memory update/);
+  assert.match((response.data as any).help, /science memory search/);
+  assert.match((response.data as any).help, /science memory report/);
+});
+
+test("literature grounding command writes artifact", async () => {
+  const { repo, study, literatureGrounding } = await memoryFixture();
+  assert.equal(literatureGrounding.studyId, study.studyId);
+  await access(studyPath(repo.root, study.slug, "literature-grounding.json"));
+});
+
+test("literature grounding writes source summary", async () => {
+  const { repo, study } = await memoryFixture();
+  const summary = await readJson<any>(
+    studyPath(repo.root, study.slug, "source-summary.json"),
+  );
+  assert.equal(summary.sourceCardCount, 3);
+  assert.equal(summary.evidenceHash.length, 64);
+});
+
+test("literature grounding writes source-card directory", async () => {
+  const { repo, study } = await memoryFixture();
+  await access(studyPath(repo.root, study.slug, "source-cards"));
+});
+
+test("source cards are generated for science study", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.equal(literatureGrounding.sourceCards.length, 3);
+});
+
+test("source cards are bound to the study", async () => {
+  const { study, literatureGrounding } = await memoryFixture();
+  assert.ok(
+    literatureGrounding.sourceCards.every(
+      (card: any) => card.studyId === study.studyId,
+    ),
+  );
+});
+
+test("source cards are hash-bound", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.ok(
+    literatureGrounding.sourceCards.every(
+      (card: any) => card.evidenceHash.length === 64,
+    ),
+  );
+});
+
+test("source-card markdown uses careful non-legal language", async () => {
+  const { repo, study, literatureGrounding } = await memoryFixture();
+  const card = literatureGrounding.sourceCards[0];
+  const markdown = await readFile(
+    studyPath(repo.root, study.slug, `source-cards/${card.sourceCardId}.md`),
+    "utf8",
+  );
+  assert.match(markdown, /not a legal novelty/i);
+  assert.doesNotMatch(markdown, /\bpatentable\b|\bfreedom to operate\b/i);
+});
+
+test("literature grounding marks fixture fallback explicitly", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.equal(literatureGrounding.mode, "fixture_fallback");
+  assert.ok(
+    literatureGrounding.sourceCards.every(
+      (card: any) => card.fixtureFallback === true,
+    ),
+  );
+});
+
+test("literature grounding records no unsupported claims by default", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.deepEqual(literatureGrounding.unsupportedClaims, []);
+});
+
+test("query links are not counted as reviewed source cards", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.ok(
+    literatureGrounding.sourceCards.every(
+      (card: any) => card.sourceType !== "query_link",
+    ),
+  );
+});
+
+test("next questions are generated", async () => {
+  const { nextQuestions } = await memoryFixture();
+  assert.ok(nextQuestions.questions.length >= 3);
+});
+
+test("next questions include falsification follow-up", async () => {
+  const { nextQuestions } = await memoryFixture();
+  assert.ok(
+    nextQuestions.questions.some((item: any) =>
+      item.generatedFrom.includes("falsification"),
+    ),
+  );
+});
+
+test("next questions include dataset limitation follow-up", async () => {
+  const { nextQuestions } = await memoryFixture();
+  assert.ok(
+    nextQuestions.questions.some((item: any) =>
+      item.question.includes("public non-sensitive"),
+    ),
+  );
+});
+
+test("next questions include source-gap follow-up", async () => {
+  const { nextQuestions } = await memoryFixture();
+  assert.ok(
+    nextQuestions.questions.some((item: any) =>
+      item.rationale.includes("public-data grounding"),
+    ),
+  );
+});
+
+test("next questions markdown is generated", async () => {
+  const { repo, study } = await memoryFixture();
+  const markdown = await readFile(
+    studyPath(repo.root, study.slug, "NEXT_QUESTIONS.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Next Questions/);
+});
+
+test("memory update writes per-study artifact", async () => {
+  const { repo, study, memoryUpdate } = await memoryFixture();
+  assert.equal(memoryUpdate.studyId, study.studyId);
+  await access(studyPath(repo.root, study.slug, "memory-update.json"));
+});
+
+test("memory update writes hypothesis ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "hypothesis-ledger.json"),
+  );
+  assert.ok(ledger.hypotheses.length >= 2);
+});
+
+test("memory update writes study ledger", async () => {
+  const { repo, study } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "study-ledger.json"),
+  );
+  assert.equal(ledger.studies[0].studyId, study.studyId);
+});
+
+test("memory update writes dataset ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "dataset-ledger.json"),
+  );
+  assert.ok(ledger.datasets.includes("synthetic-dataset-seed-1"));
+});
+
+test("memory update writes instrument ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "instrument-ledger.json"),
+  );
+  assert.ok(ledger.instruments.includes("provenance-aware-energy-detector"));
+});
+
+test("memory update writes result map", async () => {
+  const { repo } = await memoryFixture();
+  const map = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "result-map.json"),
+  );
+  assert.ok(map.results.length >= 2);
+});
+
+test("memory update writes open questions ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "open-questions.json"),
+  );
+  assert.ok(ledger.questions.length >= 3);
+});
+
+test("memory update writes rejected-hypotheses ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "rejected-hypotheses.json"),
+  );
+  assert.ok(Array.isArray(ledger.hypotheses));
+});
+
+test("memory update writes supported-hypotheses ledger", async () => {
+  const { repo } = await memoryFixture();
+  const ledger = await readJson<any>(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "memory",
+      "supported-hypotheses.json",
+    ),
+  );
+  assert.equal(ledger.hypotheses.length, 1);
+});
+
+test("memory update records supported hypothesis", async () => {
+  const { memoryUpdate } = await memoryFixture();
+  assert.ok(
+    memoryUpdate.hypothesisRecords.some(
+      (record: any) => record.status === "supported",
+    ),
+  );
+});
+
+test("memory update records inconclusive untested hypothesis", async () => {
+  const { memoryUpdate } = await memoryFixture();
+  assert.ok(
+    memoryUpdate.hypothesisRecords.some(
+      (record: any) => record.status === "inconclusive",
+    ),
+  );
+});
+
+test("memory records datasets used by hypotheses", async () => {
+  const { memoryUpdate } = await memoryFixture();
+  assert.ok(
+    memoryUpdate.hypothesisRecords.every(
+      (record: any) => record.datasetsUsed.length >= 3,
+    ),
+  );
+});
+
+test("memory records instruments used by hypotheses", async () => {
+  const { memoryUpdate } = await memoryFixture();
+  assert.ok(
+    memoryUpdate.hypothesisRecords.every((record: any) =>
+      record.instrumentsUsed.includes("experiment-runner"),
+    ),
+  );
+});
+
+test("memory report is generated", async () => {
+  const { repo, memoryReport } = await memoryFixture();
+  assert.equal(memoryReport.kind, "science_memory_report");
+  await access(
+    join(repo.root, ".sovryn", "science", "memory", "SCIENTIFIC_MEMORY.md"),
+  );
+});
+
+test("memory report counts studies hypotheses and open questions", async () => {
+  const { memoryReport } = await memoryFixture();
+  assert.equal(memoryReport.studyCount, 1);
+  assert.ok(memoryReport.hypothesisCount >= 2);
+  assert.ok(memoryReport.openQuestionCount >= 3);
+});
+
+test("memory search finds provenance study evidence", async () => {
+  const { repo } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "memory", "search", "provenance", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.ok((response.data as any).resultCount > 0);
+});
+
+test("memory search supports multi-token queries", async () => {
+  const { repo } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "memory", "search", "energy anomaly provenance", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.ok((response.data as any).resultCount > 0);
+});
+
+test("memory search requires a query", async () => {
+  const { repo } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "memory", "search", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_MEMORY_SEARCH_USAGE");
+});
+
+test("memory report before update returns stable empty JSON", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    ["science", "memory", "report", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.equal((response.data as any).report.studyCount, 0);
+});
+
+test("review includes alpha.5 memory gates", async () => {
+  const { repo, study } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  const codes = (response.data as any).gates.map((gate: any) => gate.code);
+  for (const code of [
+    "SCIENTIFIC_MEMORY_UPDATED",
+    "HYPOTHESIS_LEDGER_PRESENT",
+    "STUDY_LEDGER_PRESENT",
+    "DATASET_LEDGER_PRESENT",
+    "INSTRUMENT_LEDGER_PRESENT",
+    "LITERATURE_GROUNDING_PRESENT",
+    "SOURCE_CARDS_BOUND_TO_STUDY",
+    "NEXT_QUESTIONS_PRESENT",
+    "REJECTED_HYPOTHESES_RECORDED",
+    "NO_UNSUPPORTED_LITERATURE_CLAIMS",
+  ]) {
+    assert.ok(codes.includes(code), code);
+  }
+});
+
+test("review passes with scientific memory and literature grounding", async () => {
+  const { repo, study } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  assert.equal((response.data as any).status, "passed");
+});
+
+test("review blocks missing source cards", async () => {
+  const context = await createMemoryStudy();
+  const path = studyPath(
+    context.repo.root,
+    context.study.slug,
+    "literature-grounding.json",
+  );
+  const grounding = await readJson<any>(path);
+  grounding.sourceCards = [];
+  await writeFile(path, JSON.stringify(grounding, null, 2), "utf8");
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "SOURCE_CARDS_BOUND_TO_STUDY",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("review blocks unsupported literature claims", async () => {
+  const context = await createMemoryStudy();
+  const path = studyPath(
+    context.repo.root,
+    context.study.slug,
+    "literature-grounding.json",
+  );
+  const grounding = await readJson<any>(path);
+  grounding.unsupportedClaims = ["This proves the method is generally valid."];
+  await writeFile(path, JSON.stringify(grounding, null, 2), "utf8");
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "NO_UNSUPPORTED_LITERATURE_CLAIMS",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("review blocks missing memory update when grounding exists", async () => {
+  const context = await createReplicatedStudy();
+  await executeCli(
+    ["science", "literature", "ground", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  await executeCli(
+    ["science", "next-questions", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "SCIENTIFIC_MEMORY_UPDATED",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("review blocks missing next questions when grounding exists", async () => {
+  const context = await createReplicatedStudy();
+  await executeCli(
+    ["science", "literature", "ground", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "NEXT_QUESTIONS_PRESENT",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("memory update can create grounding artifacts when missing", async () => {
+  const context = await createReplicatedStudy();
+  const response = await executeCli(
+    ["science", "memory", "update", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true);
+  await access(
+    studyPath(
+      context.repo.root,
+      context.study.slug,
+      "source-cards/energy-anomaly-baselines.json",
+    ),
+  );
+});
+
+test("memory markdown avoids legal claims", async () => {
+  const { repo } = await memoryFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "memory", "SCIENTIFIC_MEMORY.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    markdown,
+    /\bpatentable\b|\blegally novel\b|\bfreedom to operate\b/i,
+  );
+});
+
+test("open questions markdown is generated", async () => {
+  const { repo } = await memoryFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "memory", "OPEN_QUESTIONS.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Open Questions/);
+});
+
+test("literature grounding markdown is generated", async () => {
+  const { repo, study } = await memoryFixture();
+  const markdown = await readFile(
+    studyPath(repo.root, study.slug, "LITERATURE_GROUNDING.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Literature Grounding/);
+});
+
+test("memory update artifact is hash-bound", async () => {
+  const { memoryUpdate } = await memoryFixture();
+  assert.equal(memoryUpdate.evidenceHash.length, 64);
+});
+
+test("next questions artifact is hash-bound", async () => {
+  const { nextQuestions } = await memoryFixture();
+  assert.equal(nextQuestions.evidenceHash.length, 64);
+});
+
+test("literature grounding artifact is hash-bound", async () => {
+  const { literatureGrounding } = await memoryFixture();
+  assert.equal(literatureGrounding.evidenceHash.length, 64);
+});
+
+test("memory search returns stable JSON shape", async () => {
+  const { repo } = await memoryFixture();
+  const response = await executeCli(
+    ["science", "memory", "search", "energy", "--json"],
+    repo.root,
+  );
+  assert.deepEqual(Object.keys(response.data as any).sort(), [
+    "artifactRefs",
+    "hypotheses",
+    "query",
+    "questions",
+    "resultCount",
+  ]);
+});
+
+test("unsupported literature claim blocks review status", async () => {
+  const context = await createMemoryStudy();
+  const path = studyPath(
+    context.repo.root,
+    context.study.slug,
+    "literature-grounding.json",
+  );
+  const grounding = await readJson<any>(path);
+  grounding.unsupportedClaims = [
+    "This scientifically established a guarantee.",
+  ];
+  await writeFile(path, JSON.stringify(grounding, null, 2), "utf8");
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal((response.data as any).status, "blocked");
 });

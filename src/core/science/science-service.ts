@@ -26,11 +26,16 @@ import type {
   ScienceFalsificationReport,
   ScienceHypothesisStatus,
   ScienceInstrumentPlan,
+  ScienceLiteratureGrounding,
+  ScienceMemoryHypothesisRecord,
+  ScienceMemoryUpdate,
   ScienceNegativeTests,
+  ScienceNextQuestions,
   ScienceReplicationRun,
   ScienceReplicationSummary,
   ScienceResultLabel,
   ScienceSensitivityAnalysis,
+  ScienceSourceCard,
   ScienceStatisticalAnalysis,
   ScienceReview,
   ScienceToolchainPlan,
@@ -1068,6 +1073,308 @@ export class ScienceService {
     };
   }
 
+  async literatureGround(studyId: string): Promise<{
+    study: ScientificStudy;
+    literatureGrounding: ScienceLiteratureGrounding;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const literatureGrounding = buildLiteratureGrounding(study.studyId);
+    await mkdir(join(dir, "source-cards"), { recursive: true });
+    for (const card of literatureGrounding.sourceCards) {
+      await writeJson(
+        join(dir, "source-cards", `${card.sourceCardId}.json`),
+        card,
+      );
+      await writeFile(
+        join(dir, "source-cards", `${card.sourceCardId}.md`),
+        renderScienceSourceCard(card),
+        "utf8",
+      );
+    }
+    await writeJson(
+      join(dir, "literature-grounding.json"),
+      literatureGrounding,
+    );
+    await writeJson(join(dir, "source-summary.json"), {
+      kind: "science_source_summary",
+      studyId: study.studyId,
+      mode: literatureGrounding.mode,
+      sourceCardCount: literatureGrounding.sourceCards.length,
+      sourceCardRefs: literatureGrounding.sourceCardRefs,
+      unsupportedClaims: literatureGrounding.unsupportedClaims,
+      evidenceHash: hashEvidence({
+        studyId: study.studyId,
+        sourceCardRefs: literatureGrounding.sourceCardRefs,
+      }),
+    });
+    await writeFile(
+      join(dir, "LITERATURE_GROUNDING.md"),
+      renderLiteratureGrounding(literatureGrounding),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "literature-grounding.json",
+      "source-summary.json",
+      "LITERATURE_GROUNDING.md",
+      ...literatureGrounding.sourceCards.flatMap((card) => [
+        join("source-cards", `${card.sourceCardId}.json`),
+        join("source-cards", `${card.sourceCardId}.md`),
+      ]),
+    ]);
+    return {
+      study: updated,
+      literatureGrounding,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async nextQuestions(studyId: string): Promise<{
+    study: ScientificStudy;
+    nextQuestions: ScienceNextQuestions;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const falsificationReport =
+      await readOptionalJson<ScienceFalsificationReport>(
+        join(dir, "falsification-report.json"),
+      );
+    const statisticalAnalysis =
+      await readOptionalJson<ScienceStatisticalAnalysis>(
+        join(dir, "statistical-analysis.json"),
+      );
+    const nextQuestions = buildNextQuestions(
+      study.studyId,
+      falsificationReport,
+      statisticalAnalysis,
+    );
+    await writeJson(join(dir, "next-questions.json"), nextQuestions);
+    await writeFile(
+      join(dir, "NEXT_QUESTIONS.md"),
+      renderNextQuestions(nextQuestions),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "next-questions.json",
+      "NEXT_QUESTIONS.md",
+    ]);
+    return {
+      study: updated,
+      nextQuestions,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async memoryUpdate(studyId: string): Promise<{
+    study: ScientificStudy;
+    memoryUpdate: ScienceMemoryUpdate;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const hypotheses = await readOptionalJson<ScientificHypotheses>(
+      join(dir, "hypotheses.json"),
+    );
+    const question = await readOptionalJson<ScientificQuestion>(
+      join(dir, "question.json"),
+    );
+    const dataPlan = await readOptionalJson<ScienceDataPlan>(
+      join(dir, "data-plan.json"),
+    );
+    const instrumentPlan = await readOptionalJson<ScienceInstrumentPlan>(
+      join(dir, "instrument-plan.json"),
+    );
+    const hypothesisStatus = await readOptionalJson<ScienceHypothesisStatus>(
+      join(dir, "hypothesis-status.json"),
+    );
+    const replicationSummary =
+      await readOptionalJson<ScienceReplicationSummary>(
+        join(dir, "replication-summary.json"),
+      );
+    const falsificationReport =
+      await readOptionalJson<ScienceFalsificationReport>(
+        join(dir, "falsification-report.json"),
+      );
+    const literatureGrounding =
+      (await readOptionalJson<ScienceLiteratureGrounding>(
+        join(dir, "literature-grounding.json"),
+      )) ?? buildLiteratureGrounding(study.studyId);
+    const nextQuestions =
+      (await readOptionalJson<ScienceNextQuestions>(
+        join(dir, "next-questions.json"),
+      )) ??
+      buildNextQuestions(
+        study.studyId,
+        falsificationReport,
+        await readOptionalJson<ScienceStatisticalAnalysis>(
+          join(dir, "statistical-analysis.json"),
+        ),
+      );
+    const records = buildMemoryHypothesisRecords({
+      study,
+      question,
+      hypotheses,
+      dataPlan,
+      instrumentPlan,
+      hypothesisStatus,
+      replicationSummary,
+      falsificationReport,
+      nextQuestions,
+    });
+    const memoryUpdate: ScienceMemoryUpdate = withEvidenceHash({
+      memoryUpdateId: stableId("sci-memory-update", study.studyId),
+      studyId: study.studyId,
+      updatedLedgers: [
+        "hypothesis-ledger.json",
+        "study-ledger.json",
+        "instrument-ledger.json",
+        "dataset-ledger.json",
+        "result-map.json",
+        "open-questions.json",
+        "rejected-hypotheses.json",
+        "supported-hypotheses.json",
+      ],
+      hypothesisRecords: records,
+    });
+    await mkdir(join(dir, "source-cards"), { recursive: true });
+    for (const card of literatureGrounding.sourceCards) {
+      await writeJson(
+        join(dir, "source-cards", `${card.sourceCardId}.json`),
+        card,
+      );
+      await writeFile(
+        join(dir, "source-cards", `${card.sourceCardId}.md`),
+        renderScienceSourceCard(card),
+        "utf8",
+      );
+    }
+    await writeJson(
+      join(dir, "literature-grounding.json"),
+      literatureGrounding,
+    );
+    await writeJson(join(dir, "source-summary.json"), {
+      kind: "science_source_summary",
+      studyId: study.studyId,
+      mode: literatureGrounding.mode,
+      sourceCardCount: literatureGrounding.sourceCards.length,
+      sourceCardRefs: literatureGrounding.sourceCardRefs,
+      unsupportedClaims: literatureGrounding.unsupportedClaims,
+      evidenceHash: hashEvidence({
+        studyId: study.studyId,
+        sourceCardRefs: literatureGrounding.sourceCardRefs,
+      }),
+    });
+    await writeJson(join(dir, "next-questions.json"), nextQuestions);
+    await writeJson(join(dir, "memory-update.json"), memoryUpdate);
+    await writeFile(
+      join(dir, "LITERATURE_GROUNDING.md"),
+      renderLiteratureGrounding(literatureGrounding),
+      "utf8",
+    );
+    await writeFile(
+      join(dir, "NEXT_QUESTIONS.md"),
+      renderNextQuestions(nextQuestions),
+      "utf8",
+    );
+    await this.writeMemoryLedgers(study, records, nextQuestions);
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "literature-grounding.json",
+      "source-summary.json",
+      "next-questions.json",
+      "memory-update.json",
+      "LITERATURE_GROUNDING.md",
+      "NEXT_QUESTIONS.md",
+      ...literatureGrounding.sourceCards.flatMap((card) => [
+        join("source-cards", `${card.sourceCardId}.json`),
+        join("source-cards", `${card.sourceCardId}.md`),
+      ]),
+    ]);
+    return {
+      study: updated,
+      memoryUpdate,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async memorySearch(query: string): Promise<Record<string, unknown>> {
+    const memoryRoot = join(this.scienceRoot(), "memory");
+    const needle = query.toLowerCase().trim();
+    if (!needle) {
+      throw new AppError(
+        "SCIENCE_MEMORY_QUERY_REQUIRED",
+        "science memory search requires a query.",
+      );
+    }
+    const tokens = needle.split(/\s+/).filter(Boolean);
+    const matchesQuery = (value: unknown): boolean => {
+      const haystack = JSON.stringify(value).toLowerCase();
+      return tokens.every((token) => haystack.includes(token));
+    };
+    const hypothesisLedger = await readOptionalJson<{
+      hypotheses: ScienceMemoryHypothesisRecord[];
+    }>(join(memoryRoot, "hypothesis-ledger.json"));
+    const openQuestions = await readOptionalJson<{
+      questions: ScienceNextQuestions["questions"];
+    }>(join(memoryRoot, "open-questions.json"));
+    const hypotheses = (hypothesisLedger?.hypotheses ?? []).filter(
+      matchesQuery,
+    );
+    const questions = (openQuestions?.questions ?? []).filter(matchesQuery);
+    return {
+      query,
+      resultCount: hypotheses.length + questions.length,
+      hypotheses,
+      questions,
+      artifactRefs: [
+        ".sovryn/science/memory/hypothesis-ledger.json",
+        ".sovryn/science/memory/open-questions.json",
+      ],
+    };
+  }
+
+  async memoryReport(): Promise<Record<string, unknown>> {
+    const memoryRoot = join(this.scienceRoot(), "memory");
+    const hypothesisLedger = await readOptionalJson<{
+      hypotheses: ScienceMemoryHypothesisRecord[];
+    }>(join(memoryRoot, "hypothesis-ledger.json"));
+    const studyLedger = await readOptionalJson<{ studies: unknown[] }>(
+      join(memoryRoot, "study-ledger.json"),
+    );
+    const openQuestions = await readOptionalJson<{
+      questions: ScienceNextQuestions["questions"];
+    }>(join(memoryRoot, "open-questions.json"));
+    const report = {
+      kind: "science_memory_report",
+      studyCount: studyLedger?.studies.length ?? 0,
+      hypothesisCount: hypothesisLedger?.hypotheses.length ?? 0,
+      openQuestionCount: openQuestions?.questions.length ?? 0,
+      supportedCount: (hypothesisLedger?.hypotheses ?? []).filter(
+        (record) => record.status === "supported",
+      ).length,
+      rejectedCount: (hypothesisLedger?.hypotheses ?? []).filter(
+        (record) => record.status === "rejected",
+      ).length,
+      evidenceHash: hashEvidence({
+        hypothesisLedger,
+        studyLedger,
+        openQuestions,
+      }),
+    };
+    await mkdir(memoryRoot, { recursive: true });
+    await writeJson(join(memoryRoot, "memory-report.json"), report);
+    await writeFile(
+      join(memoryRoot, "SCIENTIFIC_MEMORY.md"),
+      renderScientificMemory(report),
+      "utf8",
+    );
+    return {
+      report,
+      artifactRefs: [
+        ".sovryn/science/memory/memory-report.json",
+        ".sovryn/science/memory/SCIENTIFIC_MEMORY.md",
+      ],
+    };
+  }
+
   async status(studyId: string): Promise<Record<string, unknown>> {
     const { study, dir } = await this.findStudy(studyId);
     const question = await readOptionalJson<ScientificQuestion>(
@@ -1148,6 +1455,32 @@ export class ScienceService {
     const hypothesisStatus = await readOptionalJson<ScienceHypothesisStatus>(
       join(dir, "hypothesis-status.json"),
     );
+    const literatureGrounding =
+      await readOptionalJson<ScienceLiteratureGrounding>(
+        join(dir, "literature-grounding.json"),
+      );
+    const nextQuestions = await readOptionalJson<ScienceNextQuestions>(
+      join(dir, "next-questions.json"),
+    );
+    const memoryUpdate = await readOptionalJson<ScienceMemoryUpdate>(
+      join(dir, "memory-update.json"),
+    );
+    const memoryRoot = join(this.scienceRoot(), "memory");
+    const hypothesisLedger = await readOptionalJson<{ hypotheses: unknown[] }>(
+      join(memoryRoot, "hypothesis-ledger.json"),
+    );
+    const studyLedger = await readOptionalJson<{ studies: unknown[] }>(
+      join(memoryRoot, "study-ledger.json"),
+    );
+    const datasetLedger = await readOptionalJson<{ datasets: unknown[] }>(
+      join(memoryRoot, "dataset-ledger.json"),
+    );
+    const instrumentLedger = await readOptionalJson<{ instruments: unknown[] }>(
+      join(memoryRoot, "instrument-ledger.json"),
+    );
+    const rejectedHypothesesLedger = await readOptionalJson<{
+      hypotheses: unknown[];
+    }>(join(memoryRoot, "rejected-hypotheses.json"));
     const syntheticDatasetCount = await countSyntheticDatasets(dir);
     const gates = buildReviewGates({
       dir,
@@ -1190,6 +1523,26 @@ export class ScienceService {
               negativeTests,
               falsificationReport,
               hypothesisStatus,
+            }
+          : null,
+      memory:
+        literatureGrounding ||
+        nextQuestions ||
+        memoryUpdate ||
+        hypothesisLedger ||
+        studyLedger ||
+        datasetLedger ||
+        instrumentLedger ||
+        rejectedHypothesesLedger
+          ? {
+              literatureGrounding,
+              nextQuestions,
+              memoryUpdate,
+              hypothesisLedger,
+              studyLedger,
+              datasetLedger,
+              instrumentLedger,
+              rejectedHypothesesLedger,
             }
           : null,
     });
@@ -1312,6 +1665,102 @@ export class ScienceService {
     );
     await this.updateIndex(updated);
     return updated;
+  }
+
+  private async writeMemoryLedgers(
+    study: ScientificStudy,
+    records: ScienceMemoryHypothesisRecord[],
+    nextQuestions: ScienceNextQuestions,
+  ): Promise<void> {
+    const memoryRoot = join(this.scienceRoot(), "memory");
+    await mkdir(memoryRoot, { recursive: true });
+    await writeJson(join(memoryRoot, "hypothesis-ledger.json"), {
+      kind: "science_hypothesis_ledger",
+      updatedAt: nowIso(),
+      hypotheses: records,
+      evidenceHash: hashEvidence(records),
+    });
+    await writeJson(join(memoryRoot, "study-ledger.json"), {
+      kind: "science_study_ledger",
+      updatedAt: nowIso(),
+      studies: [
+        {
+          studyId: study.studyId,
+          slug: study.slug,
+          status: study.status,
+          hypothesisIds: study.hypothesisIds,
+          artifactRefs: study.artifactRefs,
+        },
+      ],
+      evidenceHash: hashEvidence({ studyId: study.studyId, records }),
+    });
+    await writeJson(join(memoryRoot, "instrument-ledger.json"), {
+      kind: "science_instrument_ledger",
+      updatedAt: nowIso(),
+      instruments: uniqueStrings(
+        records.flatMap((record) => record.instrumentsUsed),
+      ),
+      evidenceHash: hashEvidence(
+        records.map((record) => record.instrumentsUsed),
+      ),
+    });
+    await writeJson(join(memoryRoot, "dataset-ledger.json"), {
+      kind: "science_dataset_ledger",
+      updatedAt: nowIso(),
+      datasets: uniqueStrings(records.flatMap((record) => record.datasetsUsed)),
+      evidenceHash: hashEvidence(records.map((record) => record.datasetsUsed)),
+    });
+    await writeJson(join(memoryRoot, "result-map.json"), {
+      kind: "science_result_map",
+      updatedAt: nowIso(),
+      results: records.map((record) => ({
+        hypothesisId: record.hypothesisId,
+        status: record.status,
+        studyId: record.studyId,
+      })),
+      evidenceHash: hashEvidence(records.map((record) => record.status)),
+    });
+    await writeJson(join(memoryRoot, "open-questions.json"), {
+      kind: "science_open_questions",
+      updatedAt: nowIso(),
+      questions: nextQuestions.questions,
+      evidenceHash: hashEvidence(nextQuestions.questions),
+    });
+    await writeJson(join(memoryRoot, "rejected-hypotheses.json"), {
+      kind: "science_rejected_hypotheses",
+      updatedAt: nowIso(),
+      hypotheses: records.filter((record) => record.status === "rejected"),
+      evidenceHash: hashEvidence(
+        records.filter((record) => record.status === "rejected"),
+      ),
+    });
+    await writeJson(join(memoryRoot, "supported-hypotheses.json"), {
+      kind: "science_supported_hypotheses",
+      updatedAt: nowIso(),
+      hypotheses: records.filter((record) => record.status === "supported"),
+      evidenceHash: hashEvidence(
+        records.filter((record) => record.status === "supported"),
+      ),
+    });
+    await writeFile(
+      join(memoryRoot, "SCIENTIFIC_MEMORY.md"),
+      renderScientificMemory({
+        studyCount: 1,
+        hypothesisCount: records.length,
+        openQuestionCount: nextQuestions.questions.length,
+        supportedCount: records.filter(
+          (record) => record.status === "supported",
+        ).length,
+        rejectedCount: records.filter((record) => record.status === "rejected")
+          .length,
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(memoryRoot, "OPEN_QUESTIONS.md"),
+      renderOpenQuestions(nextQuestions),
+      "utf8",
+    );
   }
 
   private async findStudy(
@@ -2387,6 +2836,267 @@ function buildHypothesisStatus(
   });
 }
 
+function buildLiteratureGrounding(studyId: string): ScienceLiteratureGrounding {
+  const cards = [
+    scienceSourceCard(
+      studyId,
+      "energy-anomaly-baselines",
+      "Energy anomaly baseline methods for synthetic usage records",
+      "Fixture public-source summary: threshold and residual baselines for energy anomaly detection.",
+      ["baseline comparison", "false-positive rate", "threshold baseline"],
+      ["Threshold baselines can overflag weather-driven normal high usage."],
+    ),
+    scienceSourceCard(
+      studyId,
+      "provenance-quality-scoring",
+      "Provenance-aware data quality scoring",
+      "Fixture public-source summary: provenance labels can separate data-quality issues from measured anomalies.",
+      ["provenance scoring", "quality triage", "weak-source labels"],
+      ["Synthetic provenance labels may be cleaner than real metadata."],
+    ),
+    scienceSourceCard(
+      studyId,
+      "replication-falsification",
+      "Replication and falsification practices for computational studies",
+      "Fixture public-source summary: deterministic seeds and negative tests improve reproducibility review.",
+      ["replication", "negative tests", "falsification"],
+      [
+        "Fixture grounding is not a replacement for independent literature review.",
+      ],
+    ),
+  ];
+  return withEvidenceHash({
+    groundingId: stableId("sci-literature", studyId),
+    studyId,
+    mode: "fixture_fallback" as const,
+    sourceCards: cards,
+    sourceCardRefs: cards.map(
+      (card) =>
+        `.sovryn/science/studies/<study-slug>/source-cards/${card.sourceCardId}.json`,
+    ),
+    unsupportedClaims: [],
+    limitations: [
+      "Literature grounding uses deterministic fixture summaries in tests.",
+      "Query links do not count as reviewed source cards.",
+      "Future real-source mode must bind public source cards to specific claims and limitations.",
+    ],
+  });
+}
+
+function scienceSourceCard(
+  studyId: string,
+  sourceCardId: string,
+  title: string,
+  citation: string,
+  claimsLinked: string[],
+  limitationsLinked: string[],
+): ScienceSourceCard {
+  return withEvidenceHash({
+    sourceCardId,
+    studyId,
+    sourceType: "fixture_public_source" as const,
+    title,
+    citation,
+    reviewedAsPriorArt: true,
+    fixtureFallback: true,
+    claimsLinked,
+    limitationsLinked,
+  });
+}
+
+function buildNextQuestions(
+  studyId: string,
+  falsificationReport: ScienceFalsificationReport | null,
+  statisticalAnalysis: ScienceStatisticalAnalysis | null,
+): ScienceNextQuestions {
+  const source = falsificationReport
+    ? "falsification-report"
+    : "analysis-limitations";
+  const questions = [
+    {
+      questionId: stableId("sci-next", `${studyId}:public-energy-data`),
+      question:
+        "Does the provenance-aware detector reduce false positives on public non-sensitive aggregate energy datasets?",
+      generatedFrom: source,
+      rationale:
+        "Synthetic results need public-data grounding before broader claims.",
+    },
+    {
+      questionId: stableId("sci-next", `${studyId}:noisy-provenance`),
+      question:
+        "How sensitive is the detector to noisy or missing provenance labels?",
+      generatedFrom: "sensitivity-analysis",
+      rationale:
+        "The current study assumes bounded provenance labels that may be cleaner than real records.",
+    },
+    {
+      questionId: stableId("sci-next", `${studyId}:baseline-win`),
+      question:
+        "Which safe counterexamples make the simple threshold baseline win over the provenance-aware method?",
+      generatedFrom: falsificationReport ? "falsification-report" : source,
+      rationale:
+        "Falsification should keep searching for cases that weaken or reject the hypothesis.",
+    },
+  ];
+  if (statisticalAnalysis?.resultLabel === "inconclusive") {
+    questions.push({
+      questionId: stableId("sci-next", `${studyId}:inconclusive-analysis`),
+      question:
+        "Which instrument or dataset changes would make the statistical result less inconclusive?",
+      generatedFrom: "statistical-analysis",
+      rationale:
+        "Inconclusive analysis should lead to better measurements rather than stronger wording.",
+    });
+  }
+  return withEvidenceHash({
+    nextQuestionId: stableId("sci-next-questions", studyId),
+    studyId,
+    questions,
+  });
+}
+
+function buildMemoryHypothesisRecords(input: {
+  study: ScientificStudy;
+  question: ScientificQuestion | null;
+  hypotheses: ScientificHypotheses | null;
+  dataPlan: ScienceDataPlan | null;
+  instrumentPlan: ScienceInstrumentPlan | null;
+  hypothesisStatus: ScienceHypothesisStatus | null;
+  replicationSummary: ScienceReplicationSummary | null;
+  falsificationReport: ScienceFalsificationReport | null;
+  nextQuestions: ScienceNextQuestions;
+}): ScienceMemoryHypothesisRecord[] {
+  return (input.hypotheses?.hypotheses ?? []).map((hypothesis) => ({
+    hypothesisId: hypothesis.hypothesisId,
+    statement: hypothesis.hypothesisStatement,
+    nullHypothesis: hypothesis.nullHypothesis,
+    studyId: input.study.studyId,
+    domain: input.question?.field ?? "unknown",
+    status:
+      input.hypothesisStatus?.hypothesisId === hypothesis.hypothesisId
+        ? input.hypothesisStatus.status
+        : "inconclusive",
+    evidenceSummary:
+      input.hypothesisStatus?.evidenceSummary ??
+      "No final hypothesis status has been computed yet.",
+    replicationSummary:
+      input.replicationSummary?.stabilitySummary ??
+      "Replication has not been completed.",
+    falsificationSummary: input.falsificationReport
+      ? `${input.falsificationReport.materialFailures} material falsification failures recorded.`
+      : "Falsification has not been completed.",
+    datasetsUsed: input.dataPlan
+      ? input.dataPlan.seeds.map((seed) => `synthetic-dataset-seed-${seed}`)
+      : [],
+    instrumentsUsed:
+      input.instrumentPlan?.instruments.map((instrument) => instrument.name) ??
+      [],
+    limitations: [
+      "Synthetic fixture-backed study.",
+      "No legal patentability, novelty, or freedom-to-operate conclusion.",
+      "Public-source grounding remains fixture-backed unless real sources are explicitly enabled.",
+    ],
+    nextQuestions: input.nextQuestions.questions.map((item) => item.question),
+    publishedResultPath: null,
+    confidenceAfterExperiment:
+      input.hypothesisStatus?.status === "supported" ? 70 : 45,
+  }));
+}
+
+function renderScienceSourceCard(card: ScienceSourceCard): string {
+  return `# Source Card: ${card.title}
+
+Citation: ${card.citation}
+
+This source card is a bounded scientific-memory summary. It is not a legal novelty, patentability, or freedom-to-operate conclusion.
+
+## Review Scope
+
+- Source type: ${card.sourceType}
+- Reviewed as prior art: ${String(card.reviewedAsPriorArt)}
+- Fixture fallback: ${String(card.fixtureFallback)}
+
+## Claims Linked
+
+${card.claimsLinked.map((claim) => `- ${claim}`).join("\n")}
+
+## Limitations Linked
+
+${card.limitationsLinked.map((limitation) => `- ${limitation}`).join("\n")}
+
+## Caution
+
+Query links and adapter failures do not count as reviewed source cards. Fixture fallback source cards are deterministic test evidence, not independent literature review.
+`;
+}
+
+function renderLiteratureGrounding(
+  grounding: ScienceLiteratureGrounding,
+): string {
+  return `# Literature Grounding
+
+- Study: ${grounding.studyId}
+- Mode: ${grounding.mode}
+- Source cards: ${grounding.sourceCards.length}
+
+This report grounds study claims and limitations in source-card summaries. It uses careful language and does not claim patentability, legal novelty, freedom to operate, or final scientific proof.
+
+## Source Cards
+
+${grounding.sourceCards
+  .map((card) => `- ${card.sourceCardId}: ${card.title}`)
+  .join("\n")}
+
+## Unsupported Claims
+
+${grounding.unsupportedClaims.length > 0 ? grounding.unsupportedClaims.map((claim) => `- ${claim}`).join("\n") : "None recorded."}
+
+## Limitations
+
+${grounding.limitations.map((limitation) => `- ${limitation}`).join("\n")}
+`;
+}
+
+function renderNextQuestions(nextQuestions: ScienceNextQuestions): string {
+  return `# Next Questions
+
+These follow-up questions come from bounded experiment results, falsification checks, instrument limits, dataset limits, and source gaps.
+
+${nextQuestions.questions
+  .map(
+    (item) => `## ${item.question}
+
+- Generated from: ${item.generatedFrom}
+- Rationale: ${item.rationale}`,
+  )
+  .join("\n\n")}
+`;
+}
+
+function renderScientificMemory(report: Record<string, unknown>): string {
+  return `# Scientific Memory
+
+Sovryn scientific memory records tested hypotheses, study outcomes, datasets, instruments, limitations, and next questions. It is an evidence ledger for safe computational science, not a legal patent system.
+
+- Studies: ${String(report.studyCount ?? 0)}
+- Hypotheses: ${String(report.hypothesisCount ?? 0)}
+- Supported hypotheses: ${String(report.supportedCount ?? 0)}
+- Rejected hypotheses: ${String(report.rejectedCount ?? 0)}
+- Open questions: ${String(report.openQuestionCount ?? 0)}
+
+Scientific memory should be interpreted with the underlying replication, falsification, literature-grounding, and limitation reports.
+`;
+}
+
+function renderOpenQuestions(nextQuestions: ScienceNextQuestions): string {
+  return `# Open Questions
+
+${nextQuestions.questions
+  .map((item) => `- ${item.question} (${item.generatedFrom})`)
+  .join("\n")}
+`;
+}
+
 function renderNodeAlphaExecution(
   execution: NodeAlphaScienceExecution,
 ): string {
@@ -2959,6 +3669,16 @@ function buildReviewGates(input: {
     falsificationReport: ScienceFalsificationReport | null;
     hypothesisStatus: ScienceHypothesisStatus | null;
   } | null;
+  memory: {
+    literatureGrounding: ScienceLiteratureGrounding | null;
+    nextQuestions: ScienceNextQuestions | null;
+    memoryUpdate: ScienceMemoryUpdate | null;
+    hypothesisLedger: { hypotheses: unknown[] } | null;
+    studyLedger: { studies: unknown[] } | null;
+    datasetLedger: { datasets: unknown[] } | null;
+    instrumentLedger: { instruments: unknown[] } | null;
+    rejectedHypothesesLedger: { hypotheses: unknown[] } | null;
+  } | null;
 }): ScienceGateResult[] {
   const questionPath = rel(input.dir, input.root, "question.json");
   const hypothesesPath = rel(input.dir, input.root, "hypotheses.json");
@@ -3082,11 +3802,26 @@ function buildReviewGates(input: {
         hypothesisStatus: input.replication.hypothesisStatus,
       })
     : [];
+  const memoryGates = input.memory
+    ? buildMemoryGates({
+        dir: input.dir,
+        root: input.root,
+        literatureGrounding: input.memory.literatureGrounding,
+        nextQuestions: input.memory.nextQuestions,
+        memoryUpdate: input.memory.memoryUpdate,
+        hypothesisLedger: input.memory.hypothesisLedger,
+        studyLedger: input.memory.studyLedger,
+        datasetLedger: input.memory.datasetLedger,
+        instrumentLedger: input.memory.instrumentLedger,
+        rejectedHypothesesLedger: input.memory.rejectedHypothesesLedger,
+      })
+    : [];
   return [
     ...methodGates,
     ...runtimeGates,
     ...analysisGates,
     ...replicationGates,
+    ...memoryGates,
   ];
 }
 
@@ -3322,6 +4057,102 @@ function buildReplicationGates(input: {
       "Failure cases and counterexamples must be documented.",
       rel(input.dir, input.root, "falsification-report.json"),
       "Document falsification cases and observed failures.",
+    ),
+  ];
+}
+
+function buildMemoryGates(input: {
+  dir: string;
+  root: string;
+  literatureGrounding: ScienceLiteratureGrounding | null;
+  nextQuestions: ScienceNextQuestions | null;
+  memoryUpdate: ScienceMemoryUpdate | null;
+  hypothesisLedger: { hypotheses: unknown[] } | null;
+  studyLedger: { studies: unknown[] } | null;
+  datasetLedger: { datasets: unknown[] } | null;
+  instrumentLedger: { instruments: unknown[] } | null;
+  rejectedHypothesesLedger: { hypotheses: unknown[] } | null;
+}): ScienceGateResult[] {
+  const grounding = input.literatureGrounding;
+  const sourceCards = grounding?.sourceCards ?? [];
+  const groundingText = JSON.stringify(grounding ?? {});
+  return [
+    gate(
+      "SCIENTIFIC_MEMORY_UPDATED",
+      input.memoryUpdate !== null,
+      "The study must be written into scientific memory.",
+      rel(input.dir, input.root, "memory-update.json"),
+      "Run `sovryn science memory update <study-id> --json`.",
+    ),
+    gate(
+      "HYPOTHESIS_LEDGER_PRESENT",
+      (input.hypothesisLedger?.hypotheses.length ?? 0) > 0,
+      "Scientific memory must include a hypothesis ledger entry.",
+      ".sovryn/science/memory/hypothesis-ledger.json",
+      "Update scientific memory for the study.",
+    ),
+    gate(
+      "STUDY_LEDGER_PRESENT",
+      (input.studyLedger?.studies.length ?? 0) > 0,
+      "Scientific memory must include a study ledger entry.",
+      ".sovryn/science/memory/study-ledger.json",
+      "Update scientific memory for the study.",
+    ),
+    gate(
+      "DATASET_LEDGER_PRESENT",
+      (input.datasetLedger?.datasets.length ?? 0) > 0,
+      "Scientific memory must record datasets used by the study.",
+      ".sovryn/science/memory/dataset-ledger.json",
+      "Generate data and update scientific memory.",
+    ),
+    gate(
+      "INSTRUMENT_LEDGER_PRESENT",
+      (input.instrumentLedger?.instruments.length ?? 0) > 0,
+      "Scientific memory must record instruments used by the study.",
+      ".sovryn/science/memory/instrument-ledger.json",
+      "Build instruments and update scientific memory.",
+    ),
+    gate(
+      "LITERATURE_GROUNDING_PRESENT",
+      grounding !== null,
+      "The study must include literature or fixture-grounding evidence.",
+      rel(input.dir, input.root, "literature-grounding.json"),
+      "Run `sovryn science literature ground <study-id> --json`.",
+    ),
+    gate(
+      "SOURCE_CARDS_BOUND_TO_STUDY",
+      sourceCards.length >= 3 &&
+        sourceCards.every(
+          (card) =>
+            card.studyId === grounding?.studyId &&
+            card.reviewedAsPriorArt &&
+            card.evidenceHash.length === 64,
+        ),
+      "Literature grounding must include at least three study-bound source cards.",
+      rel(input.dir, input.root, "source-cards"),
+      "Create source cards that are reviewed, hash-bound, and tied to this study.",
+    ),
+    gate(
+      "NEXT_QUESTIONS_PRESENT",
+      (input.nextQuestions?.questions.length ?? 0) >= 3,
+      "The study must produce follow-up scientific questions.",
+      rel(input.dir, input.root, "next-questions.json"),
+      "Run `sovryn science next-questions <study-id> --json`.",
+    ),
+    gate(
+      "REJECTED_HYPOTHESES_RECORDED",
+      input.rejectedHypothesesLedger !== null,
+      "Scientific memory must include a rejected-hypotheses ledger, even when empty.",
+      ".sovryn/science/memory/rejected-hypotheses.json",
+      "Update scientific memory for the study.",
+    ),
+    gate(
+      "NO_UNSUPPORTED_LITERATURE_CLAIMS",
+      (grounding?.unsupportedClaims.length ?? 0) === 0 &&
+        !containsUnsupportedClaimLanguage(groundingText),
+      "Literature grounding must not contain unsupported scientific or legal claims.",
+      rel(input.dir, input.root, "literature-grounding.json"),
+      "Remove unsupported claims or bind them to specific source-card evidence.",
     ),
   ];
 }
@@ -3569,6 +4400,10 @@ function rel(dir: string, root: string, file: string): string {
 
 function uniqueRefs(values: string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))].sort();
 }
 
 function containsUnsafeText(text: string): boolean {

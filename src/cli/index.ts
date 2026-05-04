@@ -205,6 +205,11 @@ Commands:
   sovryn science falsify <hypothesis-id> [--json]
   sovryn science negative-tests <study-id> [--json]
   sovryn science hypothesis status <hypothesis-id> [--json]
+  sovryn science literature ground <study-id> [--json]
+  sovryn science next-questions <study-id> [--json]
+  sovryn science memory update <study-id> [--json]
+  sovryn science memory search "<query>" [--json]
+  sovryn science memory report [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1409,6 +1414,57 @@ async function scienceCommand(
       }
       return service.hypothesisStatus(hypothesisId);
     }
+    case "literature": {
+      const action = parsed.positionals[1];
+      const studyId = parsed.positionals[2];
+      if (action !== "ground" || !studyId) {
+        throw new AppError(
+          "SCIENCE_LITERATURE_USAGE",
+          "Use: sovryn science literature ground <study-id>.",
+        );
+      }
+      return service.literatureGround(studyId);
+    }
+    case "next-questions": {
+      const studyId = parsed.positionals[1];
+      if (!studyId) {
+        throw new AppError(
+          "SCIENCE_NEXT_QUESTIONS_USAGE",
+          "Use: sovryn science next-questions <study-id>.",
+        );
+      }
+      return service.nextQuestions(studyId);
+    }
+    case "memory": {
+      const action = parsed.positionals[1];
+      if (action === "update") {
+        const studyId = parsed.positionals[2];
+        if (!studyId) {
+          throw new AppError(
+            "SCIENCE_MEMORY_UPDATE_USAGE",
+            "Use: sovryn science memory update <study-id>.",
+          );
+        }
+        return service.memoryUpdate(studyId);
+      }
+      if (action === "search") {
+        const query = parsed.positionals[2];
+        if (!query) {
+          throw new AppError(
+            "SCIENCE_MEMORY_SEARCH_USAGE",
+            'Use: sovryn science memory search "<query>".',
+          );
+        }
+        return service.memorySearch(query);
+      }
+      if (action === "report") {
+        return service.memoryReport();
+      }
+      throw new AppError(
+        "SCIENCE_MEMORY_USAGE",
+        "Use: sovryn science memory <update|search|report>.",
+      );
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
@@ -1433,7 +1489,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|study status|review>.",
       );
   }
 }

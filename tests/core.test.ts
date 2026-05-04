@@ -254,7 +254,7 @@ test("--json envelope shape is stable", async () => {
   const response = await executeCli(["doctor", "--json"], repo.root);
   assert.equal(typeof response.ok, "boolean");
   assert.equal(typeof response.command, "string");
-  assert.equal(response.version, "3.1.0-alpha.4");
+  assert.equal(response.version, "3.1.0-alpha.5");
   assert.equal(typeof response.timestamp, "string");
   assert.ok(Array.isArray(response.errors));
   assert.ok(Array.isArray(response.warnings));

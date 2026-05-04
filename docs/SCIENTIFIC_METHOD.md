@@ -1,9 +1,10 @@
 # Scientific Method Core
 
-Sovryn OS `3.1.0-alpha.4` includes the first autonomous
+Sovryn OS `3.1.0-alpha.5` includes the first autonomous
 computational-science layer, a deterministic experiment/data/instrument
 runtime, bounded statistical analysis, replication, and falsification for safe
-synthetic energy-data studies.
+synthetic energy-data studies. Alpha.5 adds scientific memory, fixture-backed
+literature grounding, source cards, and follow-up question generation.
 
 The core flow is:
 
@@ -18,8 +19,11 @@ The core flow is:
 9. Replicate the experiment across deterministic seeds.
 10. Generate negative tests and attempt falsification.
 11. Update hypothesis status.
-12. Review the study against scientific-method, runtime, analysis,
-    replication, falsification, and safety gates.
+12. Ground the study in source-card summaries.
+13. Generate next scientific questions from limitations and falsification.
+14. Update scientific memory ledgers.
+15. Review the study against scientific-method, runtime, analysis,
+    replication, falsification, memory, literature-grounding, and safety gates.
 
 ```bash
 sovryn science question "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?" --json
@@ -37,6 +41,11 @@ sovryn science replicate <experiment-id> --runs 3 --json
 sovryn science negative-tests <study-id> --json
 sovryn science falsify <hypothesis-id> --json
 sovryn science hypothesis status <hypothesis-id> --json
+sovryn science literature ground <study-id> --json
+sovryn science next-questions <study-id> --json
+sovryn science memory update <study-id> --json
+sovryn science memory search "energy anomaly provenance" --json
+sovryn science memory report --json
 sovryn science review <study-id> --json
 ```
 
@@ -67,6 +76,11 @@ Study artifacts are written under:
   negative-tests.json
   falsification-report.json
   hypothesis-status.json
+  source-cards/
+  literature-grounding.json
+  source-summary.json
+  next-questions.json
+  memory-update.json
   safety-scope.json
   SCIENCE_PLAN.md
   STUDY_STATUS.md
@@ -80,8 +94,28 @@ Study artifacts are written under:
   NEGATIVE_TESTS.md
   FALSIFICATION.md
   HYPOTHESIS_STATUS.md
+  LITERATURE_GROUNDING.md
+  NEXT_QUESTIONS.md
   science-review.json
   SCIENCE_REVIEW.md
+```
+
+Scientific memory is stored separately so later studies can search and reuse
+bounded lessons:
+
+```text
+.sovryn/science/memory/
+  hypothesis-ledger.json
+  study-ledger.json
+  instrument-ledger.json
+  dataset-ledger.json
+  result-map.json
+  open-questions.json
+  rejected-hypotheses.json
+  supported-hypotheses.json
+  memory-report.json
+  SCIENTIFIC_MEMORY.md
+  OPEN_QUESTIONS.md
 ```
 
 The alpha gates require a question, hypotheses, null hypotheses, experiment
@@ -95,12 +129,20 @@ sensitivity sweeps, error analysis, evidence-bound result labels, and no
 unsupported causal claims. Replication/falsification gates require at least
 three replication runs, explicit stability recording, safe negative tests,
 falsification evidence, hypothesis status, documented failure cases, and no
-unsupported publication of results.
+unsupported publication of results. Alpha.5 memory gates require scientific
+memory updates, hypothesis/study/dataset/instrument ledgers,
+literature-grounding evidence, at least three study-bound source cards, next
+questions, rejected-hypothesis tracking, and no unsupported literature claims.
 
-Alpha.4 can mark a hypothesis `supported` only within the bounded synthetic
+Alpha.5 can mark a hypothesis `supported` only within the bounded synthetic
 study when replication is stable and falsification has no material failures.
 Otherwise the status remains `partially_supported`, `inconclusive`, `weakened`,
 or `rejected`.
+
+Literature grounding in the deterministic alpha test path uses fixture-backed
+source-card summaries. Query links and adapter failures do not count as reviewed
+source cards. Real-source grounding must bind concrete public source cards to
+specific claims or limitations before making stronger claims.
 
 Hard safety boundaries remain in force:
 

@@ -43,7 +43,17 @@ export type ScienceGateCode =
   | "NEGATIVE_TESTS_PRESENT"
   | "HYPOTHESIS_STATUS_UPDATED"
   | "UNSUPPORTED_RESULTS_NOT_PUBLISHED"
-  | "FAILURE_CASES_DOCUMENTED";
+  | "FAILURE_CASES_DOCUMENTED"
+  | "SCIENTIFIC_MEMORY_UPDATED"
+  | "HYPOTHESIS_LEDGER_PRESENT"
+  | "STUDY_LEDGER_PRESENT"
+  | "DATASET_LEDGER_PRESENT"
+  | "INSTRUMENT_LEDGER_PRESENT"
+  | "LITERATURE_GROUNDING_PRESENT"
+  | "SOURCE_CARDS_BOUND_TO_STUDY"
+  | "NEXT_QUESTIONS_PRESENT"
+  | "REJECTED_HYPOTHESES_RECORDED"
+  | "NO_UNSUPPORTED_LITERATURE_CLAIMS";
 
 export type SafetyScope = {
   domain: string;
@@ -471,5 +481,67 @@ export type ScienceHypothesisStatus = {
   falsificationPassed: boolean;
   blockingReasons: string[];
   evidenceSummary: string;
+  evidenceHash: string;
+};
+
+export type ScienceSourceCard = {
+  sourceCardId: string;
+  studyId: string;
+  sourceType: "fixture_public_source" | "public_source";
+  title: string;
+  citation: string;
+  reviewedAsPriorArt: boolean;
+  fixtureFallback: boolean;
+  claimsLinked: string[];
+  limitationsLinked: string[];
+  evidenceHash: string;
+};
+
+export type ScienceLiteratureGrounding = {
+  groundingId: string;
+  studyId: string;
+  mode: "fixture_fallback" | "real_sources";
+  sourceCards: ScienceSourceCard[];
+  sourceCardRefs: string[];
+  unsupportedClaims: string[];
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceNextQuestions = {
+  nextQuestionId: string;
+  studyId: string;
+  questions: Array<{
+    questionId: string;
+    question: string;
+    generatedFrom: string;
+    rationale: string;
+  }>;
+  evidenceHash: string;
+};
+
+export type ScienceMemoryHypothesisRecord = {
+  hypothesisId: string;
+  statement: string;
+  nullHypothesis: string;
+  studyId: string;
+  domain: string;
+  status: ScienceResultLabel;
+  evidenceSummary: string;
+  replicationSummary: string;
+  falsificationSummary: string;
+  datasetsUsed: string[];
+  instrumentsUsed: string[];
+  limitations: string[];
+  nextQuestions: string[];
+  publishedResultPath: string | null;
+  confidenceAfterExperiment: number;
+};
+
+export type ScienceMemoryUpdate = {
+  memoryUpdateId: string;
+  studyId: string;
+  updatedLedgers: string[];
+  hypothesisRecords: ScienceMemoryHypothesisRecord[];
   evidenceHash: string;
 };

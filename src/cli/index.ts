@@ -15,6 +15,7 @@ import {
   type FactoryRunMode,
 } from "../core/factory/factory-service.js";
 import { E2EService } from "../core/e2e/e2e-service.js";
+import { ChemistryRecordAuditorResearchService } from "../core/external-research/chemistry-record-auditor.js";
 import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
@@ -162,6 +163,7 @@ Commands:
   sovryn e2e doctor [--json]
   sovryn e2e run --profile beta-fixture [--release-candidates 3] [--json]
   sovryn e2e report [--json]
+  sovryn external-research run chemistry-record-auditor [--fixture-install] [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -478,6 +480,16 @@ export async function executeCli(
       case "e2e": {
         const result = await e2eCommand(parsed, root);
         return okEnvelope("e2e", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "external-research": {
+        const result = await externalResearchCommand(parsed, root);
+        return okEnvelope("external-research", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1004,6 +1016,23 @@ async function e2eCommand(
         "Use: sovryn e2e <doctor|run|report>.",
       );
   }
+}
+
+async function externalResearchCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const target = parsed.positionals[1];
+  if (subcommand !== "run" || target !== "chemistry-record-auditor") {
+    throw new AppError(
+      "EXTERNAL_RESEARCH_COMMAND_REQUIRED",
+      "Use: sovryn external-research run chemistry-record-auditor.",
+    );
+  }
+  return new ChemistryRecordAuditorResearchService(root).run({
+    fixtureInstall: flagBool(parsed.flags, "--fixture-install"),
+  });
 }
 
 function parseArgs(argv: string[]): ParsedArgs {

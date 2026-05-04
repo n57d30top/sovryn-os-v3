@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-beta.10`
+Current version: `3.0.0-beta.11`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -48,22 +48,23 @@ Alpha.26 was the first integrated beta-candidate path: release candidates,
 quality evaluation, security audit, reliability audit, public corpus export, and
 curated beta packaging are all connected.
 
-The current Beta.1-Beta.10 operationalization line builds on Alpha.26:
+The current Beta.1-Beta.11 operationalization line builds on Alpha.26:
 
-| Version         | Focus                         | Result                                                                                                                                                          |
-| --------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `3.0.0-beta.1`  | Real Autonomy Validation      | Runs bounded autonomy campaigns, measures success/block/replay/quality rates, and writes autonomy scorecards without real publication.                          |
-| `3.0.0-beta.2`  | GitHub Publication Governance | Adds publication queue, approval ledger, strict real-publish policy, org/token-scope checks, and dry-run-first release operations.                              |
-| `3.0.0-beta.3`  | Persistent Node Alpha Worker  | Adds opt-in worker registration, job queues, heartbeat, toolchain policy enforcement, controlled execution, evidence upload, and cleanup.                       |
-| `3.0.0-beta.4`  | Research Quality Benchmarking | Adds a curated benchmark suite for source quality, claim mapping, counter-evidence, prototypes, tests, reproducibility, and safety.                             |
-| `3.0.0-beta.5`  | Public Corpus Discovery/API   | Exports a public corpus site/API with inventions, sources, quality labels, duplicate clusters, release readiness, and explanation reports.                      |
-| `3.0.0-beta.6`  | Launch Readiness              | Adds launch check/demo/package and pilot run/report flows for public beta or v1.0-RC readiness decisions.                                                       |
-| `3.0.0-beta.7`  | E2E Validation Harness        | Runs a fresh-repo fixture proof from init through beta, autonomy, Factory, worker, publication dry-run, audits, corpus, launch, and report.                     |
-| `3.0.0-beta.8`  | Replay/Launch Stabilization   | Stabilizes replay-critical evidence, separates launch limitations, writes diagnostics, and raises fixture E2E readiness out of degraded.                        |
-| `3.0.0-beta.9`  | Real Pilot Release Candidates | Builds three human-reviewable Open Invention pilot candidates and validates them through quality, security, replay, corpus, and publication dry-run governance. |
-| `3.0.0-beta.10` | Corpus Autopublish            | Publishes eligible, policy-gated results into the existing `n57d30top/sovryn-open-inventions` corpus repo without creating new repos or requiring human review. |
+| Version         | Focus                         | Result                                                                                                                                                                                 |
+| --------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `3.0.0-beta.1`  | Real Autonomy Validation      | Runs bounded autonomy campaigns, measures success/block/replay/quality rates, and writes autonomy scorecards without real publication.                                                 |
+| `3.0.0-beta.2`  | GitHub Publication Governance | Adds publication queue, approval ledger, strict real-publish policy, org/token-scope checks, and dry-run-first release operations.                                                     |
+| `3.0.0-beta.3`  | Persistent Node Alpha Worker  | Adds opt-in worker registration, job queues, heartbeat, toolchain policy enforcement, controlled execution, evidence upload, and cleanup.                                              |
+| `3.0.0-beta.4`  | Research Quality Benchmarking | Adds a curated benchmark suite for source quality, claim mapping, counter-evidence, prototypes, tests, reproducibility, and safety.                                                    |
+| `3.0.0-beta.5`  | Public Corpus Discovery/API   | Exports a public corpus site/API with inventions, sources, quality labels, duplicate clusters, release readiness, and explanation reports.                                             |
+| `3.0.0-beta.6`  | Launch Readiness              | Adds launch check/demo/package and pilot run/report flows for public beta or v1.0-RC readiness decisions.                                                                              |
+| `3.0.0-beta.7`  | E2E Validation Harness        | Runs a fresh-repo fixture proof from init through beta, autonomy, Factory, worker, publication dry-run, audits, corpus, launch, and report.                                            |
+| `3.0.0-beta.8`  | Replay/Launch Stabilization   | Stabilizes replay-critical evidence, separates launch limitations, writes diagnostics, and raises fixture E2E readiness out of degraded.                                               |
+| `3.0.0-beta.9`  | Real Pilot Release Candidates | Builds three human-reviewable Open Invention pilot candidates and validates them through quality, security, replay, corpus, and publication dry-run governance.                        |
+| `3.0.0-beta.10` | Corpus Autopublish            | Publishes eligible, policy-gated results into the existing `n57d30top/sovryn-open-inventions` corpus repo without creating new repos or requiring human review.                        |
+| `3.0.0-beta.11` | External Research Autopublish | Runs a safe non-Sovryn chemistry-data-quality research campaign, builds `mol-record-auditor`, provisions `pint`, validates through Node Alpha, and corpus-autopublishes if gates pass. |
 
-At `3.0.0-beta.10`, Sovryn can run local autonomy campaigns, build release
+At `3.0.0-beta.11`, Sovryn can run local autonomy campaigns, build release
 candidates, govern publication queues, execute worker jobs, benchmark research
 quality, export a public corpus API/site shell, and produce launch/pilot
 evidence, then validate the full path through a deterministic fresh-repo E2E
@@ -77,6 +78,10 @@ publication to new GitHub repositories. Beta.10 adds a narrower autonomous
 publication path: eligible results may be copied into the existing public
 `n57d30top/sovryn-open-inventions` corpus repository only after strict automated
 quality, replay, security, safety, hygiene, and reliability gates pass.
+Beta.11 uses that path for a non-Sovryn-internal external research proof: a
+safe chemistry-style molecular-record data-quality auditor with a custom
+prototype tool, policy-reviewed `pint` provisioning, Node Alpha validation, and
+curated corpus output.
 
 The beta operations line preserves the same operating rules:
 
@@ -94,19 +99,23 @@ The beta operations line preserves the same operating rules:
 - write evidence for every autonomous workflow;
 - keep tests, docs, smoke flows, and reports attached to each milestone.
 
-### What Beta.10 Is And Is Not
+### What Beta.11 Is And Is Not
 
-Beta.10 is a local, reproducible operating proof for the Sovryn research factory
-and the first policy-gated corpus publication path.
+Beta.11 is a local, reproducible operating proof that the Sovryn research
+factory can leave its own domain, build a custom research tool, provision a
+supporting package under policy, validate the prototype with Node Alpha, and
+publish only curated results into the existing corpus repo.
 It is meant to show that the factory can coordinate bounded research runs,
 evaluate quality, audit outputs, replay critical evidence, resolve launch
 blockers, prepare public-reviewable Open Invention release candidates, and copy
 eligible results into an existing open corpus repository without creating new
 GitHub repositories.
 
-Beta.10 is not an autonomous legal-patent system, not a guarantee of novelty,
-not a freedom-to-operate opinion, and not a permissionless autopublisher. Corpus
-autopublish does not require human review, but it is limited to
+Beta.11 is not a chemistry discovery system, not a synthesis assistant, not a
+drug-design system, not hazardous-substance optimization, not an autonomous
+legal-patent system, not a guarantee of novelty, not a freedom-to-operate
+opinion, and not a permissionless autopublisher. Corpus autopublish does not
+require human review, but it is limited to
 `n57d30top/sovryn-open-inventions` and is blocked by automated gates. Real
 publication to newly created or standalone GitHub repositories remains disabled
 unless explicit strict policy, approval evidence, and existing Sovryn
@@ -206,6 +215,7 @@ sovryn corpus publish-status --target-repo /Users/sovryn/Desktop/sovryn-open-inv
 sovryn corpus publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn corpus autopublish --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --dry-run --json
 sovryn corpus autopublish --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --max-results 10 --json
+sovryn external-research run chemistry-record-auditor --json
 sovryn release candidates build --max 3 --json
 sovryn release candidates review --json
 sovryn release candidates package --json
@@ -553,6 +563,20 @@ pass, and publication dry-run evidence must exist. Any raw logs, stdout/stderr
 fields, secrets, local absolute paths, private config, dangerous content, or
 fake patentability/freedom-to-operate claims block commit and push.
 
+Beta.11 adds an external research proof run:
+
+```bash
+sovryn external-research run chemistry-record-auditor --json
+```
+
+That run frames the problem as safe chemistry-style data quality, builds
+`mol-record-auditor`, provisions `pint` under toolchain policy in an isolated
+prototype environment, runs the prototype/tests through Node Alpha, writes
+quality/safety/replay/publication evidence, and then leaves the result eligible
+for `corpus autopublish` only when automated gates pass. It does not generate
+synthesis instructions, wet-lab protocols, drug-design advice, hazardous
+optimization, or legal patent opinions.
+
 Autopublish writes `.sovryn/corpus-autopublish/` with
 `autopublish-plan.json`, `AUTOPUBLISH_PLAN.md`, `rejected-results.json`, and
 `REJECTED_RESULTS.md`. A real run updates `results/<slug>/`, `INDEX.json`,
@@ -609,11 +633,11 @@ novelty, patentability, or freedom-to-operate opinions.
 
 ## Beta Operations
 
-Beta.1 through Beta.10 add operational proof workflows around the Alpha factory.
+Beta.1 through Beta.11 add operational proof workflows around the Alpha factory.
 They are local Evidence workflows: they measure autonomy, govern publication
 queues, coordinate worker jobs, benchmark research quality, export a public
 corpus API, package launch/pilot evidence, and validate the whole path with a
-fresh-repo E2E harness. Beta.10 adds policy-gated publication into the existing
+fresh-repo E2E harness. Beta.11 adds policy-gated publication into the existing
 `sovryn-open-inventions` corpus repo only. It does not create new repos and it
 blocks on automated gate failure.
 
@@ -726,7 +750,7 @@ corpus entry, and public demo bundle.
 
 ## End-to-End Validation
 
-Beta.9 and Beta.10 run the deterministic fixture-backed validation harness in
+Beta.9 and Beta.11 run the deterministic fixture-backed validation harness in
 multi-candidate mode:
 
 ```bash

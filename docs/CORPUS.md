@@ -45,3 +45,18 @@ claims, and full raw source dumps are blocked.
 Every autopublished result states that it is an autonomous open-research
 artifact, not a patent filing, not a patentability opinion, not a legal novelty
 opinion, and not a freedom-to-operate opinion.
+
+## Beta.11 External Research Result
+
+Beta.11 adds a safe external research proof that can feed the corpus:
+
+```bash
+sovryn external-research run chemistry-record-auditor --json
+sovryn corpus autopublish --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --dry-run --json
+```
+
+The run builds `mol-record-auditor`, provisions `pint` under policy, validates
+the prototype through Node Alpha, and publishes only curated evidence if the
+same corpus autopublish gates pass. It is chemistry-style data-quality auditing
+only, not synthesis, wet-lab guidance, drug design, hazardous optimization, or a
+legal opinion.

@@ -167,6 +167,13 @@ Any raw command journal, stdout/stderr field, secret-like value, local absolute
 path, private config, dangerous content, or fake legal patentability/FTO claim
 blocks commit and push.
 
+Beta.11 adds a safe external chemistry-style data-quality research run. The
+custom `mol-record-auditor` prototype may provision `pint` in an isolated
+prototype environment, but it must not use host `sudo`, curl-pipe-shell
+installers, global installs, synthesis instructions, wet-lab protocols,
+drug-design behavior, hazardous optimization, raw logs, secrets, or private
+paths in public outputs.
+
 Alpha.22 adds `.sovryn/quality/` evaluator artifacts. The quality evaluator
 scans curated public releases for secret-like text, raw log references, local
 absolute paths, and unsafe legal patentability language. These checks are an

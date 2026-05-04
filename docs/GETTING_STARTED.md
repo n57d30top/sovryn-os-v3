@@ -21,7 +21,7 @@ node dist/cli.js beta check --json
 node dist/cli.js beta package --json
 ```
 
-For the Beta.10 operational path:
+For the Beta.11 operational path:
 
 ```bash
 node dist/cli.js autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json

@@ -30,6 +30,7 @@ graphify-out/graph.json
 .sovryn/benchmarks/
 .sovryn/launch/
 .sovryn/e2e/
+.sovryn/external-research/
 public-corpus/
 .sovryn/pilots/
 .sovryn/corpus-autopublish/

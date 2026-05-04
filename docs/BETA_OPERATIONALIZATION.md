@@ -1,10 +1,13 @@
 # Beta Operationalization
 
-Sovryn OS v3 `3.0.0-beta.10` adds an operational proof layer above the Alpha
+Sovryn OS v3 `3.0.0-beta.11` adds an operational proof layer above the Alpha
 Factory. The goal is to show that Sovryn can run bounded autonomous research
 workflows, measure quality, keep publication governed, execute worker jobs
 without silent fallback, export a public corpus, and produce three
-human-reviewable pilot Open Invention release candidates.
+human-reviewable pilot Open Invention release candidates. Beta.11 also adds a
+safe external research proof run for a chemistry-style molecular-record auditor
+that builds a custom tool, provisions `pint` under policy, validates through
+Node Alpha, and feeds the existing corpus autopublish path.
 
 Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal

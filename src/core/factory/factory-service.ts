@@ -25,9 +25,12 @@ import { InventionService } from "../invention/invention-service.js";
 import type { InventionDossier } from "../invention/invention-types.js";
 import {
   createPriorArtSearchAdapter,
+  priorArtResultsToMatrix,
+  summarizePriorArtSearchResults,
   type PriorArtSearchResult,
 } from "../invention/providers.js";
 import { hashEvidence } from "../invention/pipeline.js";
+import { renderPriorArt } from "../invention/templates.js";
 import {
   createSourceReadingEvidence,
   createSourceReadingProvider,
@@ -1188,6 +1191,36 @@ export class FactoryService {
     enriched.technicalField = input.candidate.technicalField;
     enriched.problem = input.candidate.problem;
     enriched.proposedSolution = input.candidate.proposedSolution;
+    const publicSourceSearchSummary = summarizePriorArtSearchResults(
+      input.discovery.results,
+    );
+    const publicSourceSearchEvidence = {
+      kind: "public_source_search",
+      mode: "factory_source_discovery",
+      status: publicSourceSearchSummary.status,
+      sources: input.discovery.sources,
+      resultCount: input.discovery.results.length,
+      concreteResultCount: publicSourceSearchSummary.concreteResultCount,
+      linkOnlyResultCount: publicSourceSearchSummary.linkOnlyResultCount,
+      failureCount: publicSourceSearchSummary.failureCount,
+      mockPlaceholderCount: publicSourceSearchSummary.mockPlaceholderCount,
+      successfulSources: publicSourceSearchSummary.successfulSources,
+      failedSources: publicSourceSearchSummary.failedSources,
+      queryLinkSources: publicSourceSearchSummary.queryLinkSources,
+      results: input.discovery.results,
+      completedAt: nowIso(),
+      evidenceHash: "",
+    };
+    publicSourceSearchEvidence.evidenceHash = hashEvidence(
+      publicSourceSearchEvidence,
+    );
+    enriched.priorArtMatrix = priorArtResultsToMatrix(input.discovery.results);
+    enriched.priorArt = [
+      "Factory-bound public-source discovery evidence was used for this generated Open Invention.",
+      ...input.discovery.results.map(
+        (result) => `${result.sourceType}: ${result.title} (${result.note})`,
+      ),
+    ];
     enriched.implementationNotes = `${enriched.implementationNotes}\n\nAutonomous Research Factory selected candidate ${input.candidate.candidateId}: ${input.candidate.title}.`;
     enriched.noveltyNotes = [
       ...enriched.noveltyNotes,
@@ -1207,8 +1240,18 @@ export class FactoryService {
     enriched.evidenceHashes.benchmark_plan = input.benchmarkPlan.evidenceHash;
     enriched.evidenceHashes.selected_candidates = input.selected.evidenceHash;
     enriched.evidenceHashes.selected_candidate_id = input.candidate.candidateId;
+    enriched.evidenceHashes.public_source_search =
+      publicSourceSearchEvidence.evidenceHash;
     enriched.updatedAt = nowIso();
+    await writeJson(
+      join(inventionDir, "evidence", "public-source-search.json"),
+      publicSourceSearchEvidence,
+    );
     await writeJson(dossierPath, enriched);
+    await writeFile(
+      join(inventionDir, "PRIOR_ART.md"),
+      renderPriorArt(enriched),
+    );
     await appendFactoryCandidateDocs(inventionDir, input.candidate, input.run);
     await writeCandidatePrototype(inventionDir, input.candidate, {
       sourceDiscoveryEvidenceHash: input.discovery.evidenceHash,

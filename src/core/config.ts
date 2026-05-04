@@ -94,6 +94,12 @@ export type SovrynConfig = {
       minReproducibilityScore: number;
       requireSourceDiversity: boolean;
       requireDryRunPublishPackage: boolean;
+      requireCounterEvidence: boolean;
+      requireExperimentPlan: boolean;
+      requireContainerExecution: boolean;
+      minReadingDepthScore: number;
+      minClaimMappingScore: number;
+      minNoveltyRiskScore: number;
     };
   };
 };
@@ -189,6 +195,12 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       minReproducibilityScore: 60,
       requireSourceDiversity: false,
       requireDryRunPublishPackage: false,
+      requireCounterEvidence: false,
+      requireExperimentPlan: false,
+      requireContainerExecution: false,
+      minReadingDepthScore: 40,
+      minClaimMappingScore: 50,
+      minNoveltyRiskScore: 50,
     },
   },
 };

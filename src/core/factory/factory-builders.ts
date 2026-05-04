@@ -8,8 +8,12 @@ import type {
   SourceReadingEvidence,
 } from "../invention/source-readers.js";
 import type {
+  BenchmarkPlan,
   CandidateInvention,
   CandidateInventions,
+  CounterEvidence,
+  CounterEvidenceItem,
+  ExperimentPlan,
   FactoryScore,
   FactorySourceDiscovery,
   FactorySourceReading,
@@ -19,6 +23,7 @@ import type {
   NoveltyGap,
   NoveltyGapMap,
   PrototypeExecutionEvidence,
+  ReadingDepth,
   ResearchPlan,
   SelectedCandidates,
   SourceCard,
@@ -138,7 +143,7 @@ export function buildFactorySourceReadings(input: {
       ...(input.sourceReadingEvidence.concreteReadCount === 0
         ? ["No concrete source was deeply read."]
         : []),
-      "Readings are metadata/abstract/README level and are not legal novelty conclusions.",
+      "Readings are bounded by configured depth and are not legal novelty conclusions.",
     ],
     evidenceHash: "",
   };
@@ -153,39 +158,79 @@ export function buildSourceCards(input: {
   const cards = input.sourceReadings.readings
     .filter((reading) => reading.kind === "concrete_source")
     .map((reading): SourceCard => {
+      const confidence = confidenceForReading(reading);
       const card: SourceCard = {
         kind: "factory_source_card",
         sourceId: reading.sourceId,
         sourceType: reading.sourceType,
         title: reading.title,
         url: reading.url,
-        externalId: externalIdFor(reading.url),
+        externalId: reading.externalId ?? externalIdFor(reading.url),
+        readingDepth: reading.readingDepth,
+        concreteSource: true,
+        reviewedAsPriorArt: reading.readStatus === "read",
         readStatus: reading.readStatus,
         extractedSummary: reading.extractedSummary,
+        extractedClaims: reading.extractedTechnicalClaims,
         extractedTechnicalClaims: reading.extractedTechnicalClaims,
         extractedMethods: reading.extractedMethods,
         extractedLimitations: reading.extractedLimitations,
+        extractedEvidence: [
+          ...reading.sourceReliabilitySignals,
+          ...reading.extractedEvaluationClaims,
+        ],
+        extractedImplementationHints: reading.extractedImplementationHints,
         overlapWithResearchGoal:
           reading.extractedTechnicalClaims[1] ??
           "Concrete source overlap requires human review.",
+        knownOverlapWithGoal:
+          reading.extractedTechnicalClaims[1] ??
+          "Known overlap requires human review.",
         possibleDifferentiators: [
           "Sovryn source-card binding",
-          "factory claim-feature matrix",
-          "sandbox-local prototype execution evidence",
+          "claim/feature matrix v3",
+          "counter-evidence-aware novelty risk",
+          "sandbox/container prototype execution evidence",
           "curated dry-run publication package",
         ],
-        evidenceStrength: confidenceForReading(reading),
+        noveltyRiskHints: reading.noveltyRiskHints,
+        reproducibilityHints: [
+          "Re-run factory replay and prototype execution to verify this card remains bound.",
+        ],
+        safetyHints: [
+          "No raw source body or secret material should be stored in this source card.",
+        ],
+        evidenceStrength: confidence,
+        confidence,
         noveltyRisk: noveltyRiskFor(reading),
         citation: reading.citation,
+        sourceReadingHash: reading.evidenceHash,
+        limitations: reading.readingLimitations,
         evidenceHash: "",
       };
       card.evidenceHash = hashEvidence(card);
       return card;
     });
+  const hashOfAllCards = hashEvidence({
+    cards: cards.map((card) => ({
+      sourceId: card.sourceId,
+      evidenceHash: card.evidenceHash,
+    })),
+  });
   const index: SourceCardIndex = {
     kind: "factory_source_cards",
     sourceDiscoveryEvidenceHash: input.discovery.evidenceHash,
     sourceReadingsEvidenceHash: input.sourceReadings.evidenceHash,
+    totalSources: input.discovery.results.length,
+    concreteSources: input.discovery.concreteSourceCount,
+    concreteSourcesRead: cards.filter((card) => card.reviewedAsPriorArt).length,
+    readingDepthCounts: readingDepthCounts(cards),
+    sourceTypeCounts: sourceTypeCounts(cards),
+    failedReadings: input.sourceReadings.readings.filter(
+      (reading) => reading.readStatus === "failed",
+    ).length,
+    averageEvidenceStrength: averageEvidenceStrength(cards),
+    hashOfAllCards,
     cards,
     evidenceHash: "",
   };
@@ -208,30 +253,58 @@ export function buildFeatureMatrix(input: {
         const confidence = confidenceForReading(reading);
         const card = cardBySourceId.get(reading.sourceId);
         const noveltyRisk = noveltyRiskFor(reading);
+        const featureId = `source-feature-${index + 1}`;
+        const supportingCards = card ? [card.sourceId] : [];
         return {
-          featureId: `source-feature-${index + 1}`,
+          featureId,
+          claimFeatureId: featureId,
           featureText:
             reading.extractedTechnicalClaims[0] ?? reading.extractedSummary,
           description:
             reading.extractedTechnicalClaims[0] ?? reading.extractedSummary,
+          featureType: featureTypeFor(reading),
+          extractedFromCandidate: false,
           sourceSupport: "single_source",
-          supportingSourceCards: card ? [card.sourceId] : [],
+          supportingSourceCards: supportingCards,
+          supportedBySourceCards: supportingCards,
+          contradictedBySourceCards:
+            noveltyRisk === "high" && card ? [card.sourceId] : [],
           knownOverlap:
             reading.extractedTechnicalClaims[1] ??
             "Known overlap requires source-card review.",
           candidateDifferentiator:
             "possible differentiator: bind this source claim to an executable prototype and defensive-publication dossier.",
+          possibleDifferentiator:
+            "candidate novelty axis: compare this source claim against Sovryn's replayable evidence gate.",
+          differentiatorStrength:
+            confidence === "high"
+              ? "moderate"
+              : confidence === "medium"
+                ? "weak"
+                : "none",
           verificationMethod:
             "Run generated prototype tests and verify factory evidence hashes.",
+          requiredExperiment:
+            "Execute the prototype scorer against fixture and live evidence summaries and compare readiness caps.",
           prototypeRelevance:
             reading.relevanceScore >= 75
               ? "high"
               : reading.relevanceScore >= 50
                 ? "medium"
                 : "low",
+          benchmarkRelevance: reading.relevanceScore >= 75 ? "medium" : "low",
           seenInSources: [reading.sourceId],
           confidence,
           noveltyRisk: noveltyRisk === "unknown" ? "high" : noveltyRisk,
+          obviousnessRisk:
+            noveltyRisk === "low"
+              ? "medium"
+              : noveltyRisk === "medium"
+                ? "medium"
+                : "high",
+          implementationRisk:
+            reading.readingDepth === "code_structure_level" ? "medium" : "high",
+          readingDepthSupport: [reading.readingDepth],
           evidenceRefs: [reading.sourceId],
           riskLevel: reading.noveltyRiskHints.some((hint) =>
             hint.includes("high"),
@@ -244,19 +317,30 @@ export function buildFeatureMatrix(input: {
       }),
     {
       featureId: "evidence-bound-publication-gate",
+      claimFeatureId: "evidence-bound-publication-gate",
       featureText:
         "Evidence-bound publication gate for autonomous research factory outputs.",
       description:
         "Bind source discovery, source reading, feature extraction, candidate selection, prototype tests, and public release packaging with evidence hashes.",
+      featureType: "publication",
+      extractedFromCandidate: true,
       sourceSupport: "system_only",
       supportingSourceCards: [],
+      supportedBySourceCards: [],
+      contradictedBySourceCards: [],
       knownOverlap:
         "CI systems, lab notebooks, and agent frameworks may already bind parts of this workflow.",
       candidateDifferentiator:
         "candidate novelty axis: combine evidence hashes, source cards, Open Invention dossiers, prototype execution, and dry-run publication gates.",
+      possibleDifferentiator:
+        "possible differentiator: tie source cards, counter-evidence, replay, and dry-run packages into one open invention release workflow.",
+      differentiatorStrength: "moderate",
       verificationMethod:
         "Check HASHES_BOUND_TO_EVIDENCE and FINAL_FACTORY_VERIFY_FRESH gates.",
+      requiredExperiment:
+        "Run factory replay after packaging and verify stale evidence is rejected.",
       prototypeRelevance: "high",
+      benchmarkRelevance: "medium",
       seenInSources: ["factory-system"],
       confidence:
         input.discovery.concreteSourceCount > 0 ||
@@ -265,27 +349,44 @@ export function buildFeatureMatrix(input: {
           : "low",
       evidenceRefs: ["source-discovery.json", "source-readings.json"],
       noveltyRisk: input.discovery.concreteSourceCount > 0 ? "medium" : "high",
+      obviousnessRisk: "medium",
+      implementationRisk: "medium",
+      readingDepthSupport: [],
       riskLevel: input.discovery.concreteSourceCount > 0 ? "medium" : "high",
     } satisfies FeatureMatrixRow,
     {
       featureId: "curated-public-evidence-release",
+      claimFeatureId: "curated-public-evidence-release",
       featureText:
         "Curated public evidence package that excludes raw command logs and local absolute paths.",
       description:
         "Publish only curated summaries while excluding raw logs, local paths, secrets, and full raw source content.",
+      featureType: "reproducibility",
+      extractedFromCandidate: true,
       sourceSupport: "system_only",
       supportingSourceCards: [],
+      supportedBySourceCards: [],
+      contradictedBySourceCards: [],
       knownOverlap:
         "Release engineering and CI systems often publish summaries or redact logs.",
       candidateDifferentiator:
         "possible differentiator: apply curation to open research factory evidence before GitHub dry-run publication.",
+      possibleDifferentiator:
+        "candidate novelty axis: expose summaries while withholding raw logs and private execution details.",
+      differentiatorStrength: "weak",
       verificationMethod:
         "Inspect release/public allowlist and NO_RAW_COMMAND_LOGS_IN_PUBLIC_RELEASE gate.",
+      requiredExperiment:
+        "Package release/public and scan it for raw logs, full raw source text, secrets, and absolute local paths.",
       prototypeRelevance: "medium",
+      benchmarkRelevance: "low",
       seenInSources: ["factory-system"],
       confidence: "medium",
       evidenceRefs: ["release/public"],
       noveltyRisk: "medium",
+      obviousnessRisk: "medium",
+      implementationRisk: "low",
+      readingDepthSupport: [],
       riskLevel: "low",
     } satisfies FeatureMatrixRow,
   ];
@@ -293,6 +394,7 @@ export function buildFeatureMatrix(input: {
     kind: "factory_feature_matrix",
     sourceDiscoveryEvidenceHash: input.discovery.evidenceHash,
     sourceReadingsEvidenceHash: input.sourceReadings.evidenceHash,
+    sourceCardsEvidenceHash: input.sourceCards?.evidenceHash ?? null,
     features,
     sourceCoverage: sourceCoverage(input.discovery.results),
     knownApproaches: knownApproaches(
@@ -427,10 +529,140 @@ export function buildNoveltyGapMap(matrix: FeatureMatrix): NoveltyGapMap {
   return map;
 }
 
+export function buildCounterEvidence(input: {
+  matrix: FeatureMatrix;
+  sourceCards: SourceCardIndex;
+}): CounterEvidence {
+  const sourceCardById = new Map(
+    input.sourceCards.cards.map((card) => [card.sourceId, card]),
+  );
+  const items: CounterEvidenceItem[] = input.matrix.features
+    .filter((feature) => feature.supportedBySourceCards.length > 0)
+    .slice(0, 8)
+    .map((feature, index) => {
+      const card =
+        sourceCardById.get(feature.supportedBySourceCards[0]) ??
+        input.sourceCards.cards[0];
+      const risk =
+        feature.noveltyRisk === "high"
+          ? "high"
+          : feature.confidence === "high" &&
+              feature.differentiatorStrength === "none"
+            ? "medium"
+            : "medium";
+      return {
+        itemId: `counter-${index + 1}`,
+        sourceCardId: card?.sourceId ?? "unknown",
+        claimFeatureId: feature.claimFeatureId,
+        overlapDescription: feature.knownOverlap,
+        whyItWeakensNovelty:
+          "Source-supported overlap means the selected candidate must not present this feature as new without a clearer differentiator.",
+        whyItMayNotFullyCoverCandidate: feature.possibleDifferentiator,
+        riskLevel: risk,
+        requiredFollowUpSearch:
+          "Review the concrete source and search for additional implementations before public release.",
+        recommendedAction:
+          "Keep this as counter-evidence in the defensive publication dossier and use careful non-legal language.",
+      };
+    });
+  const value: CounterEvidence = {
+    kind: "factory_counter_evidence",
+    claimFeatureMatrixEvidenceHash: input.matrix.evidenceHash,
+    sourceCardsEvidenceHash: input.sourceCards.evidenceHash,
+    items,
+    unresolvedPriorArtRisk: items.some((item) => item.riskLevel === "high")
+      ? "high"
+      : items.length > 0
+        ? "medium"
+        : "unknown",
+    limitations: [
+      "Counter-evidence is a conservative research artifact, not legal claim construction.",
+      ...(items.length === 0
+        ? ["No source-card-supported overlap was available to analyze."]
+        : []),
+    ],
+    evidenceHash: "",
+  };
+  value.evidenceHash = hashEvidence(value);
+  return value;
+}
+
+export function buildExperimentPlan(input: {
+  matrix: FeatureMatrix;
+}): ExperimentPlan {
+  const relevantFeatures = input.matrix.features
+    .filter((feature) => feature.prototypeRelevance !== "low")
+    .slice(0, 4);
+  const experiments = relevantFeatures.map((feature, index) => ({
+    experimentId: `exp-${index + 1}`,
+    purpose: `Validate ${feature.featureType} claim-feature ${feature.claimFeatureId}.`,
+    claimFeatureIds: [feature.claimFeatureId],
+    hypothesis:
+      "A generated prototype can expose weak evidence, stale hashes, and missing reproducibility signals.",
+    inputData:
+      "Fixture source cards, claim-feature rows, counter-evidence, and execution summaries.",
+    expectedOutput:
+      "Readiness score and blocking reasons reflect source evidence, tests, and replay freshness.",
+    failureCondition:
+      "The prototype reports high readiness for query-link-only, stale, or unexecuted evidence.",
+    requiredCommand: "npm test",
+    reproducibilityNotes: [
+      "Run from the generated Open Invention prototype directory.",
+      "Use deterministic fixture input for CI.",
+    ],
+    safetyNotes: [
+      "No network access or credentials are required for the prototype test.",
+    ],
+  }));
+  const value: ExperimentPlan = {
+    kind: "factory_experiment_plan",
+    claimFeatureMatrixEvidenceHash: input.matrix.evidenceHash,
+    experiments,
+    evidenceHash: "",
+  };
+  value.evidenceHash = hashEvidence(value);
+  return value;
+}
+
+export function buildBenchmarkPlan(input: {
+  matrix: FeatureMatrix;
+}): BenchmarkPlan {
+  const benchmarkRows = input.matrix.features
+    .filter((feature) => feature.benchmarkRelevance !== "low")
+    .slice(0, 3);
+  const value: BenchmarkPlan = {
+    kind: "factory_benchmark_plan",
+    claimFeatureMatrixEvidenceHash: input.matrix.evidenceHash,
+    benchmarks: benchmarkRows.map((feature, index) => ({
+      benchmarkId: `bench-${index + 1}`,
+      metric: "evidence-bound readiness accuracy",
+      baseline:
+        "Unscored dossier generation that does not account for source-card/counter-evidence bindings.",
+      candidateMethod:
+        "Sovryn factory score v2 with source-card, counter-evidence, replay, and execution inputs.",
+      expectedImprovement:
+        "Fewer weak research runs labeled as ready for public release.",
+      measurementCommand: "npm test",
+      status: "planned",
+      limitations: [
+        "Benchmark is planned in Alpha.14; the factory does not claim benchmark success.",
+      ],
+    })),
+    notApplicableReason:
+      benchmarkRows.length === 0
+        ? "No matrix row had benchmark relevance above low."
+        : null,
+    evidenceHash: "",
+  };
+  value.evidenceHash = hashEvidence(value);
+  return value;
+}
+
 export function buildCandidateInventions(input: {
   goal: string;
   gapMap: NoveltyGapMap;
   matrix: FeatureMatrix;
+  counterEvidence?: CounterEvidence;
   maxCandidates: number;
 }): CandidateInventions {
   const concreteEvidence =
@@ -479,6 +711,16 @@ export function buildCandidateInventions(input: {
         reproducibility: 85,
       }),
       recommended: true,
+      topCounterEvidence: input.counterEvidence?.items.slice(0, 3),
+      unresolvedPriorArtRisk:
+        input.counterEvidence?.unresolvedPriorArtRisk ?? "unknown",
+      invalidationConditions: [
+        "A concrete source shows the same source-card binding, replay, prototype execution, and curated publication gate combination.",
+        "Prototype tests fail to distinguish weak evidence from ready evidence.",
+      ],
+      strengtheningExperiments: [
+        "Run additional source reads and verify counter-evidence does not fully cover the candidate.",
+      ],
     }),
     candidateWithScore({
       candidateId: "source-matrix-novelty-gap-scorer",
@@ -514,6 +756,15 @@ export function buildCandidateInventions(input: {
         reproducibility: 75,
       }),
       recommended: concreteEvidence > 0,
+      topCounterEvidence: input.counterEvidence?.items.slice(0, 2),
+      unresolvedPriorArtRisk:
+        input.counterEvidence?.unresolvedPriorArtRisk ?? "unknown",
+      invalidationConditions: [
+        "Existing tools already map source cards to novelty-risk rows with comparable evidence hashes.",
+      ],
+      strengtheningExperiments: [
+        "Add concrete source cards from at least two source types and rerun matrix scoring.",
+      ],
     }),
     candidateWithScore({
       candidateId: "public-evidence-curator",
@@ -550,6 +801,15 @@ export function buildCandidateInventions(input: {
         reproducibility: concreteEvidence > 0 ? 88 : 75,
       }),
       recommended: false,
+      topCounterEvidence: input.counterEvidence?.items.slice(0, 1),
+      unresolvedPriorArtRisk:
+        input.counterEvidence?.unresolvedPriorArtRisk ?? "unknown",
+      invalidationConditions: [
+        "Existing release systems already provide equivalent curated evidence packages for autonomous research factories.",
+      ],
+      strengtheningExperiments: [
+        "Package public evidence and scan for raw logs, paths, and secrets.",
+      ],
     }),
   ];
   const value: CandidateInventions = {
@@ -613,6 +873,10 @@ export function buildFactoryScore(input: {
   selected: SelectedCandidates;
   sourceCards?: SourceCardIndex;
   execution?: PrototypeExecutionEvidence | null;
+  containerExecution?: PrototypeExecutionEvidence | null;
+  counterEvidence?: CounterEvidence | null;
+  experimentPlan?: ExperimentPlan | null;
+  benchmarkPlan?: BenchmarkPlan | null;
   prototypePresent: boolean;
   testsPresent: boolean;
   publicEvidencePackaged: boolean;
@@ -658,16 +922,62 @@ export function buildFactoryScore(input: {
     ...(input.execution && !input.execution.passed
       ? ["Prototype execution failed."]
       : []),
+    ...(input.counterEvidence && input.counterEvidence.items.length === 0
+      ? ["Counter-evidence is missing or empty."]
+      : []),
+    ...(input.experimentPlan && input.experimentPlan.experiments.length === 0
+      ? ["Experiment plan is missing or empty."]
+      : []),
     ...(input.limitationsPresent ? [] : ["Limitations report is missing."]),
     ...(input.blockHighSafetyRisk && safetyRisk === "high"
       ? ["High safety risk blocks packaging."]
       : []),
   ];
+  const readingDepthScore = readingDepthScoreFor(input.sourceReadings);
+  const sourceDiversityScore = Math.min(
+    100,
+    Object.values(input.matrix.sourceCoverage).filter((count) => count > 0)
+      .length * 25,
+  );
+  const claimMappingScore = Math.min(
+    100,
+    input.matrix.features.filter(
+      (feature) => feature.supportedBySourceCards.length > 0,
+    ).length *
+      20 +
+      input.matrix.features.filter(
+        (feature) => feature.possibleDifferentiator.length > 0,
+      ).length *
+        5,
+  );
+  const counterEvidenceScore = input.counterEvidence
+    ? Math.min(100, input.counterEvidence.items.length * 18)
+    : 0;
+  const noveltyRiskScore =
+    noveltyRisk === "low" ? 90 : noveltyRisk === "medium" ? 65 : 25;
+  const experimentPlanScore = input.experimentPlan
+    ? Math.min(100, input.experimentPlan.experiments.length * 25)
+    : 0;
+  const benchmarkPlanScore = input.benchmarkPlan
+    ? input.benchmarkPlan.notApplicableReason
+      ? 60
+      : Math.min(100, input.benchmarkPlan.benchmarks.length * 25)
+    : 0;
+  const prototypeExecutionScore = input.execution?.passed ? 100 : 0;
+  const containerExecutionScore = input.containerExecution
+    ? input.containerExecution.passed
+      ? 100
+      : input.containerExecution.available === false
+        ? 35
+        : 0
+    : 0;
   const reproducibilityScore = Math.min(
     100,
     (input.prototypePresent ? 30 : 0) +
       (input.testsPresent ? 30 : 0) +
       (input.execution?.passed ? 20 : 0) +
+      (input.counterEvidence ? 10 : 0) +
+      (input.experimentPlan ? 10 : 0) +
       (input.limitationsPresent ? 20 : 0) +
       (input.publicEvidencePackaged ? 20 : 0),
   );
@@ -683,12 +993,43 @@ export function buildFactoryScore(input: {
         input.discovery.mockPlaceholderCount * 8,
     ),
   );
+  const publicReleaseScore = input.publicEvidencePackaged ? 100 : 35;
   const rawReadiness = Math.round(
-    reproducibilityScore * 0.45 +
-      evidenceStrengthScore * 0.35 +
-      Math.min(100, input.selected.selectedCandidates.length * 35) * 0.2 -
+    reproducibilityScore * 0.25 +
+      evidenceStrengthScore * 0.2 +
+      readingDepthScore * 0.1 +
+      claimMappingScore * 0.1 +
+      counterEvidenceScore * 0.1 +
+      experimentPlanScore * 0.08 +
+      noveltyRiskScore * 0.07 +
+      Math.min(100, input.selected.selectedCandidates.length * 35) * 0.1 -
       blockingReasons.length * 8,
   );
+  const scoreCaps = [
+    ...(input.discovery.concreteSourceCount === 0
+      ? ["no concrete sources caps readiness at weak"]
+      : []),
+    ...(input.sourceReadings.concreteSourcesRead === 0
+      ? ["no concrete source readings caps readiness at weak"]
+      : []),
+    ...(readingDepthScore <= 50 && input.sourceReadings.concreteSourcesRead > 0
+      ? ["metadata-only or shallow readings cap readiness at moderate"]
+      : []),
+    ...(!input.sourceCards || input.sourceCards.cards.length === 0
+      ? ["no source cards caps readiness at blocked"]
+      : []),
+    ...(!input.counterEvidence
+      ? ["missing counter-evidence caps readiness at weak"]
+      : []),
+    ...(!input.experimentPlan
+      ? ["missing experiment plan caps readiness at moderate"]
+      : []),
+    ...(input.prototypePresent ? [] : ["missing prototype caps readiness"]),
+    ...(input.testsPresent ? [] : ["missing tests caps readiness"]),
+    ...(input.blockHighSafetyRisk && safetyRisk === "high"
+      ? ["high safety risk blocks readiness"]
+      : []),
+  ];
   const cappedForMock =
     input.discovery.mockPlaceholderCount > 0
       ? Math.min(rawReadiness, 49)
@@ -699,11 +1040,38 @@ export function buildFactoryScore(input: {
   const cappedForMissingTests = input.testsPresent
     ? cappedForMissingPrototype
     : Math.min(cappedForMissingPrototype, 39);
+  const cappedForNoCards =
+    input.sourceCards && input.sourceCards.cards.length > 0
+      ? cappedForMissingTests
+      : Math.min(cappedForMissingTests, 19);
+  const cappedForNoConcrete =
+    input.discovery.concreteSourceCount > 0
+      ? cappedForNoCards
+      : Math.min(cappedForNoCards, 49);
+  const cappedForNoReads =
+    input.sourceReadings.concreteSourcesRead > 0
+      ? cappedForNoConcrete
+      : Math.min(cappedForNoConcrete, 49);
+  const cappedForNoCounter = input.counterEvidence
+    ? cappedForNoReads
+    : Math.min(cappedForNoReads, 49);
+  const cappedForNoExperiment = input.experimentPlan
+    ? cappedForNoCounter
+    : Math.min(cappedForNoCounter, 69);
+  const overallReadinessScore = Math.max(
+    0,
+    Math.min(100, cappedForNoExperiment),
+  );
   const value: FactoryScore = {
     kind: "factory_score",
     selectedCandidatesEvidenceHash: input.selected.evidenceHash,
     sourceCardsEvidenceHash: input.sourceCards?.evidenceHash ?? null,
     executionEvidenceHash: input.execution?.evidenceHash ?? null,
+    counterEvidenceHash: input.counterEvidence?.evidenceHash ?? null,
+    experimentPlanHash: input.experimentPlan?.evidenceHash ?? null,
+    benchmarkPlanHash: input.benchmarkPlan?.evidenceHash ?? null,
+    containerExecutionEvidenceHash:
+      input.containerExecution?.evidenceHash ?? null,
     concreteSourcesFound: input.discovery.concreteSourceCount,
     concreteSourcesRead: input.sourceReadings.concreteSourcesRead,
     queryLinksOnly: input.discovery.queryLinkCount,
@@ -722,9 +1090,29 @@ export function buildFactoryScore(input: {
     limitationsPresent: input.limitationsPresent,
     safetyRisk,
     noveltyRisk,
+    readingDepthScore,
+    sourceDiversityScore,
+    claimMappingScore,
+    counterEvidenceScore,
+    noveltyRiskScore,
+    experimentPlanScore,
+    benchmarkPlanScore,
+    prototypeExecutionScore,
+    containerExecutionScore,
     reproducibilityScore,
     evidenceStrengthScore,
-    factoryReadinessScore: Math.max(0, Math.min(100, cappedForMissingTests)),
+    publicReleaseScore,
+    factoryReadinessScore: overallReadinessScore,
+    overallReadinessScore,
+    readinessLabel: readinessLabelFor(overallReadinessScore, blockingReasons),
+    improvementRecommendations: improvementRecommendations({
+      input,
+      readingDepthScore,
+      claimMappingScore,
+      counterEvidenceScore,
+      experimentPlanScore,
+    }),
+    scoreCaps,
     blockingReasons,
     evidenceHash: "",
   };
@@ -736,22 +1124,31 @@ function factoryReading(
   reading: DeepSourceReading,
   index: number,
 ): FactorySourceReading {
-  return {
+  const value: FactorySourceReading = {
     sourceId: `source-${index + 1}`,
     kind: reading.kind,
     sourceType: reading.sourceType,
     title: reading.title,
     url: reading.url,
+    externalId: externalIdFor(reading.url),
+    readingDepth: reading.readingDepth,
     citation: reading.citation,
     readStatus: reading.readStatus,
     extractedSummary: reading.summary,
     extractedTechnicalClaims:
-      reading.readStatus === "read"
-        ? [reading.keyTechnicalMechanism, reading.overlapWithInvention]
-        : [],
+      reading.extractedTechnicalClaims.length > 0
+        ? reading.extractedTechnicalClaims
+        : reading.readStatus === "read"
+          ? [reading.keyTechnicalMechanism, reading.overlapWithInvention]
+          : [],
     extractedMethods:
-      reading.readStatus === "read" ? [reading.keyTechnicalMechanism] : [],
+      reading.extractedMethods.length > 0
+        ? reading.extractedMethods
+        : reading.readStatus === "read"
+          ? [reading.keyTechnicalMechanism]
+          : [],
     extractedLimitations: [
+      ...reading.extractedLimitations,
       reading.differenceFromInvention,
       ...(reading.readStatus === "skipped"
         ? [
@@ -762,12 +1159,19 @@ function factoryReading(
         ? ["Deterministic placeholder; no concrete source read."]
         : []),
     ],
+    extractedEvaluationClaims: reading.extractedEvaluationClaims,
+    extractedImplementationHints: reading.extractedImplementationHints,
+    sourceReliabilitySignals: reading.sourceReliabilitySignals,
+    readingLimitations: reading.readingLimitations,
     relevanceScore: relevanceScore(reading),
     noveltyRiskHints: [
       `novelty risk: ${reading.noveltyRisk}`,
       `prototype relevance: ${reading.prototypeRelevance}`,
     ],
+    evidenceHash: "",
   };
+  value.evidenceHash = hashEvidence(value);
+  return value;
 }
 
 function relevanceScore(reading: DeepSourceReading): number {
@@ -784,6 +1188,140 @@ function confidenceForReading(
   if (reading.relevanceScore >= 75) return "high";
   if (reading.relevanceScore >= 50) return "medium";
   return "low";
+}
+
+function readingDepthCounts(
+  cards: SourceCardIndex["cards"],
+): Record<ReadingDepth, number> {
+  const counts: Record<ReadingDepth, number> = {
+    metadata_only: 0,
+    abstract_level: 0,
+    readme_level: 0,
+    code_structure_level: 0,
+    paper_fulltext_level: 0,
+    patent_claim_level: 0,
+    unavailable: 0,
+    failed: 0,
+  };
+  for (const card of cards) counts[card.readingDepth] += 1;
+  return counts;
+}
+
+function sourceTypeCounts(
+  cards: SourceCardIndex["cards"],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const card of cards)
+    counts[card.sourceType] = (counts[card.sourceType] ?? 0) + 1;
+  return Object.fromEntries(
+    Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)),
+  );
+}
+
+function averageEvidenceStrength(cards: SourceCardIndex["cards"]): number {
+  if (cards.length === 0) return 0;
+  const total = cards.reduce((sum, card) => {
+    if (card.evidenceStrength === "high") return sum + 90;
+    if (card.evidenceStrength === "medium") return sum + 60;
+    return sum + 25;
+  }, 0);
+  return Math.round(total / cards.length);
+}
+
+function featureTypeFor(
+  reading: FactorySourceReading,
+): FeatureMatrixRow["featureType"] {
+  if (reading.sourceType === "github") return "architecture";
+  if (reading.sourceType === "paper") return "verification";
+  if (reading.sourceType === "patent") return "interface";
+  if (
+    reading.extractedSummary.toLowerCase().includes("safety") ||
+    reading.extractedTechnicalClaims.some((claim) =>
+      claim.toLowerCase().includes("safety"),
+    )
+  ) {
+    return "safety";
+  }
+  return "other";
+}
+
+function readingDepthScoreFor(sourceReadings: FactorySourceReadings): number {
+  const scores: number[] = sourceReadings.readings
+    .filter(
+      (reading) =>
+        reading.kind === "concrete_source" && reading.readStatus === "read",
+    )
+    .map((reading) => {
+      switch (reading.readingDepth) {
+        case "paper_fulltext_level":
+          return 100;
+        case "code_structure_level":
+          return 85;
+        case "patent_claim_level":
+          return 75;
+        case "abstract_level":
+          return 55;
+        case "readme_level":
+          return 60;
+        case "metadata_only":
+          return 35;
+        case "failed":
+        case "unavailable":
+          return 0;
+      }
+    });
+  if (scores.length === 0) return 0;
+  return Math.round(
+    scores.reduce((total, score) => total + score, 0) / scores.length,
+  );
+}
+
+function readinessLabelFor(
+  score: number,
+  blockingReasons: string[],
+): FactoryScore["readinessLabel"] {
+  if (blockingReasons.some((reason) => /blocks|missing|failed/i.test(reason))) {
+    return "blocked";
+  }
+  if (score >= 80) return "strong";
+  if (score >= 60) return "moderate";
+  return "weak";
+}
+
+function improvementRecommendations(input: {
+  input: Parameters<typeof buildFactoryScore>[0];
+  readingDepthScore: number;
+  claimMappingScore: number;
+  counterEvidenceScore: number;
+  experimentPlanScore: number;
+}): string[] {
+  return [
+    ...(input.input.discovery.concreteSourceCount === 0
+      ? ["Enable public search or fixture evidence with concrete sources."]
+      : []),
+    ...(input.input.sourceReadings.concreteSourcesRead === 0
+      ? ["Enable source reading and rerun factory improve."]
+      : []),
+    ...(input.readingDepthScore < 50
+      ? [
+          "Increase reading depth with code-structure or abstract-level readers.",
+        ]
+      : []),
+    ...(input.claimMappingScore < 50
+      ? ["Add source-card-backed claim mappings."]
+      : []),
+    ...(input.counterEvidenceScore === 0
+      ? ["Generate counter-evidence before claiming moderate readiness."]
+      : []),
+    ...(input.experimentPlanScore === 0
+      ? ["Create an experiment plan tied to claim-feature rows."]
+      : []),
+    ...(input.input.execution?.passed
+      ? []
+      : [
+          "Run generated prototype tests through a constrained worker profile.",
+        ]),
+  ].sort();
 }
 
 function sourceCoverage(

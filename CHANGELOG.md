@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.0-alpha.14
+
+- Added Factory source readers v2 with bounded reading-depth evidence for
+  GitHub, arXiv/OpenAlex metadata, and structured patent-source fixtures.
+- Added Source Cards v2, source-card index hashing, Claim/Feature Matrix v3,
+  counter-evidence, experiment plans, benchmark plans, improvement cycles, and
+  replay reports.
+- Added Factory Score v2 readiness labels and stricter gates for source-card
+  hashes, counter-evidence, replay freshness, curated public release v3, raw-log
+  exclusion, and local-path exclusion.
+- Added `sovryn factory improve`, `sovryn factory replay`, `sovryn worker
+doctor --profile container-local`, and `container-local` Node Alpha validation
+  without silent host fallback.
+- Updated the research-factory demo for fixture-backed strict evidence mode and
+  curated public release v3.
+
 ## 3.0.0-alpha.3
 
 - Fixed the public CI smoke flow to use an explicit deterministic verify command

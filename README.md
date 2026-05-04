@@ -51,12 +51,16 @@ sovryn factory-open "A factory for verifiable open-source invention research" --
 sovryn factory run "Develop a method for verifiable autonomous research agents" --json
 sovryn factory status <factory-id> --json
 sovryn factory review <factory-id> --json
+sovryn factory improve <factory-id> --max-cycles 2 --json
+sovryn factory replay <factory-id> --json
 sovryn factory package <factory-id> --json
 sovryn factory publish-github <factory-id> --dry-run --json
+sovryn worker doctor --profile container-local --json
 sovryn node register alpha --host local --json
 sovryn node run alpha <mission-id> --json
 sovryn node run alpha <mission-id> --mode autonomous --max-steps 25 --json
 sovryn node run alpha <mission-id> --mode validate --profile sandbox-local --json
+sovryn node run alpha <mission-id> --mode validate --profile container-local --json
 sovryn invention review <mission-id> --json
 sovryn invention finalize <mission-id> --json
 sovryn publish-github <mission-id> --dry-run --json
@@ -205,7 +209,13 @@ Factory strictness is controlled under `research.factory`:
       "minEvidenceStrengthScore": 60,
       "minReproducibilityScore": 60,
       "requireSourceDiversity": false,
-      "requireDryRunPublishPackage": false
+      "requireDryRunPublishPackage": false,
+      "requireCounterEvidence": false,
+      "requireExperimentPlan": false,
+      "requireContainerExecution": false,
+      "minReadingDepthScore": 40,
+      "minClaimMappingScore": 50,
+      "minNoveltyRiskScore": 50
     }
   }
 }
@@ -224,18 +234,40 @@ Strict evidence mode makes the factory more conservative:
 - query links, adapter failures, and mock placeholders do not count as concrete
   source evidence;
 - weak evidence or reproducibility scores block review;
-- source cards, `CLAIM_FEATURE_MATRIX.md`, `NOVELTY_GAP_REPORT.md`,
-  `candidate-selection-rationale.md`, prototype execution evidence, and curated
-  public release checks must pass.
+- source cards, `CLAIM_FEATURE_MATRIX.md`, `COUNTER_EVIDENCE.md`,
+  `EXPERIMENT_PLAN.md`, `BENCHMARK_PLAN.md`, `NOVELTY_GAP_REPORT.md`,
+  `candidate-selection-rationale.md`, replay evidence, prototype execution
+  evidence, and curated public release checks must pass.
 
 The factory now writes compact source cards under
 `.sovryn/factory/<slug>/source-cards/`, a source-card-backed claim/feature
 matrix, a novelty gap report, candidate-selection rationale, and sandbox-local
 prototype execution evidence under `.sovryn/factory/<slug>/execution/`.
+
+Alpha.14 adds deeper research-intelligence artifacts: bounded source reading
+depths, Source Cards v2, Claim/Feature Matrix v3, counter-evidence,
+experiment/benchmark plans, deterministic improvement cycles, replay, and
+readiness labels (`blocked`, `weak`, `moderate`, `strong`). The score is capped
+when evidence is shallow, counter-evidence is missing, source cards are stale,
+prototype execution is absent, or public release evidence contains raw logs or
+local paths. These are research quality signals, not legal novelty or
+patentability conclusions.
+
 `sandbox-local` is a constrained command profile, not a kernel-level sandbox: it
 runs only allowlisted generated prototype test commands inside the prototype
 directory and records redacted evidence. Use containers, VMs, network namespaces,
 or a dedicated Linux user for strong isolation.
+
+`container-local` is a sandbox-ready worker profile that uses Docker or Podman
+when available and reports unavailable when no runtime exists:
+
+```bash
+sovryn worker doctor --profile container-local --json
+sovryn node run alpha <mission-id> --mode validate --profile container-local --json
+```
+
+It never silently falls back to host execution. It is stronger than
+`sandbox-local`, but it is not a formal kernel-level sandbox or VM boundary.
 
 Factory dry-run publication is controller-owned:
 

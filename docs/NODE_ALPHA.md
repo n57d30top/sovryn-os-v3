@@ -12,6 +12,9 @@ sovryn node register alpha --host local
 sovryn node status alpha
 sovryn node run alpha <mission-id>
 sovryn node run alpha <mission-id> --mode autonomous --max-steps 25
+sovryn node run alpha <mission-id> --mode validate --profile sandbox-local
+sovryn node run alpha <mission-id> --mode validate --profile container-local
+sovryn worker doctor --profile container-local
 sovryn node logs alpha <mission-id>
 sovryn node artifacts alpha <mission-id>
 ```
@@ -70,6 +73,15 @@ and generates normal Open Invention missions that can then be validated with
 Node Alpha is not a security sandbox unless paired with containers, VMs,
 firewalling, network namespaces, or equivalent OS controls. The local MVP uses
 policy checks and command blocking, not kernel isolation.
+
+Alpha.14 adds `container-local` as a sandbox-ready execution profile. It checks
+Docker or Podman with `sovryn worker doctor --profile container-local`. When a
+runtime is available, Node Alpha runs generated prototype tests in a container
+with network disabled where supported and without mounting the user's home
+directory. When no runtime is available, it writes degraded/unavailable
+execution evidence and does not silently run on the host. This is stronger than
+`sandbox-local`, but it is still not a formal OS isolation proof or a hardened
+VM boundary.
 
 Autonomous agents may work in mission workspaces and install legitimate
 development dependencies when policy permits. They may not access secrets

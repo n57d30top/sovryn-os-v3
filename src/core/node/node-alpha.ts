@@ -7,8 +7,11 @@ import {
 } from "../../adapters/shell/command.js";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
+import { redactSecrets } from "../../shared/redaction.js";
 import { nowIso } from "../../shared/time.js";
 import type { OpenInventionMissionState } from "../invention/invention-types.js";
+import { hashEvidence } from "../invention/pipeline.js";
+import { workerDoctor } from "../worker/worker-doctor.js";
 import { assertNodeCommandAllowed } from "./node-policy.js";
 import type {
   CommandJournal,
@@ -129,6 +132,17 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
       recursive: true,
       force: true,
     });
+    if (profile === "container-local") {
+      return this.runContainerLocal({
+        mission,
+        startedAt,
+        workspacePath,
+        artifactsPath,
+        logPath,
+        sourcePath,
+        workspacePrototypePath,
+      });
+    }
     if (options.mode === "autonomous") {
       await writePublicResearchReviewScript(
         join(
@@ -336,6 +350,185 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
 
   private artifactsPath(): string {
     return join(this.root, ".sovryn", "node-alpha", "artifacts");
+  }
+
+  private async runContainerLocal(input: {
+    mission: OpenInventionMissionState;
+    startedAt: string;
+    workspacePath: string;
+    artifactsPath: string;
+    logPath: string;
+    sourcePath: string;
+    workspacePrototypePath: string;
+  }): Promise<NodeRunResult> {
+    const doctor = await workerDoctor(this.root, "container-local");
+    const executionDir = join(input.sourcePath, "evidence", "execution");
+    await mkdir(executionDir, { recursive: true });
+    await writeJson(join(executionDir, "container-worker-doctor.json"), doctor);
+    const command =
+      doctor.runtime && doctor.available
+        ? `${doctor.runtime} create/cp/start node:22-alpine npm test`
+        : "container-local unavailable";
+    const startedAt = nowIso();
+    const result =
+      doctor.runtime && doctor.available
+        ? await this.runCopiedContainerPrototype({
+            runtime: doctor.runtime,
+            missionId: input.mission.id,
+            prototypePath: input.workspacePrototypePath,
+          })
+        : {
+            command,
+            cwd: input.workspacePrototypePath,
+            exitCode: 125,
+            stdout: "",
+            stderr: doctor.limitations.join("\n"),
+            durationMs: 0,
+          };
+    const completedAt = nowIso();
+    const evidence = {
+      kind: "prototype_execution",
+      missionId: input.mission.id,
+      prototypePath: "prototype",
+      executionProfile: "container-local" as const,
+      available: doctor.available,
+      runtime: doctor.runtime,
+      limitations: doctor.limitations,
+      command,
+      cwd: "prototype",
+      startedAt,
+      finishedAt: completedAt,
+      exitCode: result.exitCode,
+      passed: doctor.available && result.exitCode === 0,
+      stdout: redactSecrets(result.stdout).slice(0, 2000),
+      stderr: redactSecrets(result.stderr).slice(0, 2000),
+      evidenceHash: "",
+    };
+    evidence.evidenceHash = hashEvidence(evidence);
+    await writeJson(
+      join(executionDir, "container-prototype-execution.json"),
+      evidence,
+    );
+    await writeJson(
+      join(executionDir, "container-prototype-execution.summary.json"),
+      {
+        kind: evidence.kind,
+        missionId: evidence.missionId,
+        prototypePath: evidence.prototypePath,
+        executionProfile: evidence.executionProfile,
+        available: evidence.available,
+        runtime: evidence.runtime,
+        limitations: evidence.limitations,
+        command: evidence.command,
+        cwd: evidence.cwd,
+        startedAt: evidence.startedAt,
+        finishedAt: evidence.finishedAt,
+        exitCode: evidence.exitCode,
+        passed: evidence.passed,
+        evidenceHash: evidence.evidenceHash,
+      },
+    );
+    await writeJson(join(executionDir, "command-journal.redacted.json"), {
+      entries: [
+        {
+          missionId: input.mission.id,
+          command,
+          cwd: "prototype",
+          startedAt,
+          completedAt,
+          exitCode: result.exitCode,
+        },
+      ],
+    });
+    const log = [
+      `# Node Alpha Container Run ${input.mission.id}`,
+      "",
+      "Profile: container-local",
+      `Available: ${String(doctor.available)}`,
+      `Runtime: ${doctor.runtime ?? "none"}`,
+      `Exit code: ${result.exitCode}`,
+      "",
+      doctor.available
+        ? "Container-local execution attempted."
+        : "Container-local unavailable; no host fallback was performed.",
+      "",
+    ].join("\n");
+    await writeFile(input.logPath, log, "utf8");
+    await mkdir(input.artifactsPath, { recursive: true });
+    await cp(
+      join(input.sourcePath, "evidence"),
+      join(input.artifactsPath, "evidence"),
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+    await writeArtifactIndex(
+      this.registration.id,
+      input.mission.id,
+      input.artifactsPath,
+    );
+    return {
+      nodeId: this.registration.id,
+      missionId: input.mission.id,
+      mode: "validation",
+      profile: "container-local",
+      workspacePath: input.workspacePath,
+      logPath: input.logPath,
+      artifactsPath: input.artifactsPath,
+      exitCode: evidence.passed ? 0 : 125,
+      startedAt: input.startedAt,
+      completedAt,
+      planPath: null,
+      journalPath: join(executionDir, "command-journal.redacted.json"),
+      commands: [
+        {
+          stepId: "container-prototype-test",
+          phase: "verification",
+          purpose:
+            "Run generated prototype tests inside container-local when available.",
+          command,
+          cwd: "prototype",
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+        },
+      ],
+    };
+  }
+
+  private async runCopiedContainerPrototype(input: {
+    runtime: "docker" | "podman";
+    missionId: string;
+    prototypePath: string;
+  }): Promise<CommandResult> {
+    const containerName = `sovryn-${input.missionId.replace(/[^A-Za-z0-9_.-]/g, "-")}`;
+    await runCommand(`${input.runtime} rm -f ${containerName}`, this.root, {
+      allowNetwork: false,
+    }).catch(() => null);
+    const create = await runCommand(
+      `${input.runtime} create --name ${containerName} --network none --cpus 1 --memory 512m -w /work node:22-alpine npm test`,
+      this.root,
+      { allowNetwork: false },
+    );
+    if (create.exitCode !== 0) return create;
+    const copy = await runCommand(
+      `${input.runtime} cp ${shellQuote(input.prototypePath)}/. ${containerName}:/work`,
+      this.root,
+      { allowNetwork: false },
+    );
+    if (copy.exitCode !== 0) return copy;
+    const start = await runCommand(
+      `${input.runtime} start -a ${containerName}`,
+      this.root,
+      { allowNetwork: false },
+    );
+    await runCommand(`${input.runtime} rm -f ${containerName}`, this.root, {
+      allowNetwork: false,
+    }).catch(() => null);
+    return {
+      ...start,
+      command: `${input.runtime} create/cp/start node:22-alpine npm test`,
+    };
   }
 }
 

@@ -27,13 +27,20 @@ const REQUIRED_EVIDENCE = [
   "source-readings.json",
   "source-cards.json",
   "feature-matrix.json",
+  "claim-feature-matrix.json",
+  "counter-evidence.json",
   "novelty-gap-map.json",
+  "experiment-plan.json",
+  "benchmark-plan.json",
   "candidate-inventions.json",
   "selected-candidates.json",
   "factory-score.json",
   "FACTORY_REPORT.md",
   "LIMITATIONS.md",
   "CLAIM_FEATURE_MATRIX.md",
+  "COUNTER_EVIDENCE.md",
+  "EXPERIMENT_PLAN.md",
+  "BENCHMARK_PLAN.md",
   "NOVELTY_GAP_REPORT.md",
   "candidate-selection-rationale.md",
 ];
@@ -45,7 +52,11 @@ const HASHED_EVIDENCE = [
   "source-readings.json",
   "source-cards.json",
   "feature-matrix.json",
+  "claim-feature-matrix.json",
+  "counter-evidence.json",
   "novelty-gap-map.json",
+  "experiment-plan.json",
+  "benchmark-plan.json",
   "candidate-inventions.json",
   "selected-candidates.json",
   "factory-score.json",
@@ -124,8 +135,20 @@ export async function evaluateFactoryGates(input: {
   const featureMatrix = await readRecord(
     join(input.factoryDir, "feature-matrix.json"),
   );
+  const claimFeatureMatrix = await readRecord(
+    join(input.factoryDir, "claim-feature-matrix.json"),
+  );
+  const counterEvidence = await readRecord(
+    join(input.factoryDir, "counter-evidence.json"),
+  );
   const gapMap = await readRecord(
     join(input.factoryDir, "novelty-gap-map.json"),
+  );
+  const experimentPlan = await readRecord(
+    join(input.factoryDir, "experiment-plan.json"),
+  );
+  const benchmarkPlan = await readRecord(
+    join(input.factoryDir, "benchmark-plan.json"),
   );
   const candidates = await readRecord(
     join(input.factoryDir, "candidate-inventions.json"),
@@ -137,6 +160,10 @@ export async function evaluateFactoryGates(input: {
   const execution = await readRecord(
     join(input.factoryDir, "execution", "prototype-execution.json"),
   );
+  const containerExecution = await readRecord(
+    join(input.factoryDir, "execution", "container-prototype-execution.json"),
+  );
+  const replay = await readRecord(join(input.factoryDir, "replay-report.json"));
 
   const concreteSources = numberValue(discovery.concreteSourceCount);
   const mockPlaceholders = numberValue(discovery.mockPlaceholderCount);
@@ -167,6 +194,15 @@ export async function evaluateFactoryGates(input: {
         input.config.minEvidenceStrengthScore &&
       numberValue(score.reproducibilityScore) >=
         input.config.minReproducibilityScore &&
+      numberValue(score.readingDepthScore) >=
+        input.config.minReadingDepthScore &&
+      numberValue(score.claimMappingScore) >=
+        input.config.minClaimMappingScore &&
+      numberValue(score.noveltyRiskScore) >= input.config.minNoveltyRiskScore &&
+      Array.isArray(counterEvidence.items) &&
+      counterEvidence.items.length > 0 &&
+      Array.isArray(experimentPlan.experiments) &&
+      experimentPlan.experiments.length > 0 &&
       (!input.config.requireSourceDiversity || sourceTypesRead.length >= 2) &&
       mockPlaceholders === 0);
   checks.push(
@@ -184,6 +220,12 @@ export async function evaluateFactoryGates(input: {
         minEvidenceStrengthScore: input.config.minEvidenceStrengthScore,
         reproducibilityScore: score.reproducibilityScore ?? null,
         minReproducibilityScore: input.config.minReproducibilityScore,
+        readingDepthScore: score.readingDepthScore ?? null,
+        minReadingDepthScore: input.config.minReadingDepthScore,
+        claimMappingScore: score.claimMappingScore ?? null,
+        minClaimMappingScore: input.config.minClaimMappingScore,
+        noveltyRiskScore: score.noveltyRiskScore ?? null,
+        minNoveltyRiskScore: input.config.minNoveltyRiskScore,
         sourceTypesRead,
         requireSourceDiversity: input.config.requireSourceDiversity,
         mockPlaceholders,
@@ -252,11 +294,114 @@ export async function evaluateFactoryGates(input: {
   );
   checks.push(
     check(
+      "SOURCE_READING_DEPTH_RECORDED",
+      readingsHaveDepth(sourceReadings),
+      "Every source reading must record reading depth.",
+      {},
+    ),
+  );
+  checks.push(
+    check(
+      "SOURCE_CARD_INDEX_HASH_VALID",
+      sourceCardIndexHashValid(sourceCards),
+      "Source-card index hash must bind all card hashes.",
+      {
+        hashOfAllCards: sourceCards.hashOfAllCards ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
       "CLAIM_FEATURE_MATRIX_PRESENT",
       !missingEvidence.includes("CLAIM_FEATURE_MATRIX.md") &&
         (await nonEmpty(join(input.factoryDir, "CLAIM_FEATURE_MATRIX.md"))),
       "Human-readable claim/feature matrix must exist.",
       {},
+    ),
+  );
+  checks.push(
+    check(
+      "CLAIM_FEATURE_MATRIX_V3_PRESENT",
+      !missingEvidence.includes("claim-feature-matrix.json") &&
+        matrixHasV3Rows(featureMatrix),
+      "Claim/feature matrix v3 must contain source-card-aware rows.",
+      {
+        rowCount: Array.isArray(featureMatrix.features)
+          ? featureMatrix.features.length
+          : 0,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "CLAIM_FEATURE_MATRIX_HASH_BOUND",
+      stringValue(claimFeatureMatrix.evidenceHash) ===
+        stringValue(featureMatrix.evidenceHash) &&
+        evidenceHashValid(featureMatrix),
+      "Claim/feature matrix alias must bind to the feature matrix evidence hash.",
+      {
+        featureMatrixHash: featureMatrix.evidenceHash ?? null,
+        aliasHash: claimFeatureMatrix.evidenceHash ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "COUNTER_EVIDENCE_PRESENT",
+      !missingEvidence.includes("counter-evidence.json") &&
+        Array.isArray(counterEvidence.items),
+      "Counter-evidence evidence must exist.",
+      {
+        counterEvidenceItems: Array.isArray(counterEvidence.items)
+          ? counterEvidence.items.length
+          : 0,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "COUNTER_EVIDENCE_HASH_BOUND",
+      evidenceHashValid(counterEvidence) &&
+        stringValue(score.counterEvidenceHash) ===
+          stringValue(counterEvidence.evidenceHash) &&
+        input.run.evidenceHashes.counter_evidence ===
+          stringValue(counterEvidence.evidenceHash),
+      "Counter-evidence hash must bind to score and factory run.",
+      {
+        scoreCounterEvidenceHash: score.counterEvidenceHash ?? null,
+        runCounterEvidenceHash:
+          input.run.evidenceHashes.counter_evidence ?? null,
+        counterEvidenceHash: counterEvidence.evidenceHash ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "EXPERIMENT_PLAN_PRESENT",
+      !missingEvidence.includes("experiment-plan.json") &&
+        Array.isArray(experimentPlan.experiments) &&
+        experimentPlan.experiments.length > 0,
+      "Experiment plan must exist and map to claim/feature rows.",
+      {
+        experiments: Array.isArray(experimentPlan.experiments)
+          ? experimentPlan.experiments.length
+          : 0,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "BENCHMARK_PLAN_PRESENT_OR_DECLARED_NOT_APPLICABLE",
+      !missingEvidence.includes("benchmark-plan.json") &&
+        (Array.isArray(benchmarkPlan.benchmarks) ||
+          typeof benchmarkPlan.notApplicableReason === "string"),
+      "Benchmark plan must exist or declare why benchmarks are not applicable.",
+      {
+        benchmarkCount: Array.isArray(benchmarkPlan.benchmarks)
+          ? benchmarkPlan.benchmarks.length
+          : 0,
+        notApplicableReason: benchmarkPlan.notApplicableReason ?? null,
+      },
     ),
   );
   checks.push(
@@ -362,6 +507,65 @@ export async function evaluateFactoryGates(input: {
   );
   checks.push(
     check(
+      "CONTAINER_WORKER_DOCTOR_RECORDED",
+      !input.config.requireContainerExecution ||
+        (await exists(
+          join(input.factoryDir, "execution", "container-worker-doctor.json"),
+        )),
+      "Container worker doctor evidence is required only when container execution is configured as required.",
+      {
+        requireContainerExecution: input.config.requireContainerExecution,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "CONTAINER_EXECUTION_PASSED_OR_NOT_REQUIRED",
+      !input.config.requireContainerExecution ||
+        Boolean(containerExecution.passed),
+      "Container execution must pass when required; sandbox-local remains the default Alpha profile.",
+      {
+        requireContainerExecution: input.config.requireContainerExecution,
+        containerExecutionPassed: containerExecution.passed ?? null,
+        available: containerExecution.available ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "NO_CONTAINER_FALLBACK_SILENCE",
+      !("available" in containerExecution) ||
+        containerExecution.available !== false ||
+        containerExecution.passed !== true,
+      "Unavailable container-local execution must not silently fall back to host execution.",
+      {
+        available: containerExecution.available ?? null,
+        passed: containerExecution.passed ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "READINESS_LABEL_NOT_FAKE_STRONG",
+      score.readinessLabel !== "strong" ||
+        (numberValue(score.readingDepthScore) >=
+          input.config.minReadingDepthScore &&
+          numberValue(score.claimMappingScore) >=
+            input.config.minClaimMappingScore &&
+          numberValue(score.counterEvidenceScore) > 0 &&
+          numberValue(score.prototypeExecutionScore) > 0),
+      "Factory score must not label weak evidence as strong readiness.",
+      {
+        readinessLabel: score.readinessLabel ?? null,
+        readingDepthScore: score.readingDepthScore ?? null,
+        claimMappingScore: score.claimMappingScore ?? null,
+        counterEvidenceScore: score.counterEvidenceScore ?? null,
+        prototypeExecutionScore: score.prototypeExecutionScore ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
       "SAFETY_REVIEW_PRESENT",
       await generatedSafetyReviewsPresent(input.factoryDir, input.run),
       "Generated invention safety reviews must exist.",
@@ -397,6 +601,30 @@ export async function evaluateFactoryGates(input: {
         generatedInventionMissionIds: input.run.generatedInventionMissionIds,
         publicationIntent:
           input.run.evidenceHashes.factory_publication_intent ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "IMPROVEMENT_CYCLES_RECORDED",
+      !input.config.strictEvidenceMode ||
+        (await exists(join(input.factoryDir, "factory-cycle-log.json"))),
+      "Strict factory evidence should include at least one recorded improvement cycle.",
+      {
+        strictEvidenceMode: input.config.strictEvidenceMode,
+      },
+    ),
+  );
+  const replayHashValid = evidenceHashValid(replay);
+  checks.push(
+    check(
+      "FACTORY_REPLAY_PASSES",
+      !input.config.strictEvidenceMode ||
+        (replayHashValid && Array.isArray(replay.failedGates)),
+      "Strict factory evidence should include replay evidence recomputed from existing artifacts.",
+      {
+        replayHashValid,
+        failedGates: replay.failedGates ?? null,
       },
     ),
   );
@@ -445,6 +673,36 @@ export async function evaluateFactoryGates(input: {
       },
     ),
   );
+  checks.push(
+    check(
+      "PUBLIC_RELEASE_V3_CURATED_ONLY",
+      (await nonCuratedPublicFiles(publicDir)).length === 0,
+      "Factory public release v3 must contain only curated summaries and safe reports.",
+      {
+        nonCuratedFiles: await nonCuratedPublicFiles(publicDir),
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "NO_FULL_RAW_SOURCE_IN_PUBLIC_RELEASE",
+      (await listFullRawSourceFindings(publicDir)).length === 0,
+      "Public release must not include full raw source content.",
+      {
+        findings: await listFullRawSourceFindings(publicDir),
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "NO_RAW_STDOUT_STDERR_IN_PUBLIC_RELEASE",
+      (await listRawPublicLogs(publicDir)).length === 0,
+      "Public release must not include raw stdout or stderr.",
+      {
+        rawLogs: await listRawPublicLogs(publicDir),
+      },
+    ),
+  );
   const hashBinding = await hashesBound(input.factoryDir, input.run, {
     discovery,
     sourceReadings,
@@ -472,6 +730,21 @@ export async function evaluateFactoryGates(input: {
       "Factory run must reference the current factory score hash.",
       {
         runFactoryScoreHash: input.run.evidenceHashes.factory_score ?? null,
+        currentFactoryScoreHash: score.evidenceHash ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "FINAL_FACTORY_REPLAY_FRESH",
+      !input.config.strictEvidenceMode ||
+        !replayHashValid ||
+        stringValue(replay.scoreEvidenceHash) ===
+          stringValue(score.evidenceHash),
+      "Strict replay evidence must reference the current factory score hash.",
+      {
+        replayHashValid,
+        replayScoreHash: replay.scoreEvidenceHash ?? null,
         currentFactoryScoreHash: score.evidenceHash ?? null,
       },
     ),
@@ -623,19 +896,30 @@ async function nonCuratedPublicFiles(publicDir: string): Promise<string[]> {
     "FACTORY_REPORT.md",
     "LIMITATIONS.md",
     "CLAIM_FEATURE_MATRIX.md",
+    "COUNTER_EVIDENCE.md",
+    "EXPERIMENT_PLAN.md",
+    "BENCHMARK_PLAN.md",
     "NOVELTY_GAP_REPORT.md",
+    "CYCLE_REPORT.md",
+    "REPLAY_REPORT.md",
     "candidate-selection-rationale.md",
     "factory-run.summary.json",
     "source-discovery.summary.json",
     "source-readings.summary.json",
     "source-cards.summary.json",
+    "source-cards.index.summary.json",
     "feature-matrix.summary.json",
     "claim-feature-matrix.summary.json",
+    "counter-evidence.summary.json",
     "novelty-gap-map.summary.json",
+    "experiment-plan.summary.json",
+    "benchmark-plan.summary.json",
     "candidate-inventions.summary.json",
     "selected-candidates.summary.json",
     "factory-score.summary.json",
+    "replay-report.summary.json",
     "prototype-execution.summary.json",
+    "container-prototype-execution.summary.json",
     "factory-publication-intent.summary.json",
   ]);
   return (await listFiles(publicDir))
@@ -659,6 +943,67 @@ function concreteSourceTypesRead(record: Record<string, unknown>): string[] {
     }
   }
   return [...types].sort();
+}
+
+function readingsHaveDepth(record: Record<string, unknown>): boolean {
+  const readings = Array.isArray(record.readings) ? record.readings : [];
+  return readings.every((reading) => {
+    if (!reading || typeof reading !== "object") return false;
+    const value = reading as Record<string, unknown>;
+    return (
+      typeof value.readingDepth === "string" && value.readingDepth.length > 0
+    );
+  });
+}
+
+function sourceCardIndexHashValid(record: Record<string, unknown>): boolean {
+  const cards = Array.isArray(record.cards) ? record.cards : [];
+  const expected = hashEvidence({
+    cards: cards
+      .filter((card): card is Record<string, unknown> =>
+        Boolean(card && typeof card === "object"),
+      )
+      .map((card) => ({
+        sourceId: card.sourceId,
+        evidenceHash: card.evidenceHash,
+      })),
+  });
+  return stringValue(record.hashOfAllCards) === expected;
+}
+
+function matrixHasV3Rows(record: Record<string, unknown>): boolean {
+  const features = Array.isArray(record.features) ? record.features : [];
+  return (
+    features.length > 0 &&
+    features.every((feature) => {
+      if (!feature || typeof feature !== "object") return false;
+      const value = feature as Record<string, unknown>;
+      return (
+        typeof value.claimFeatureId === "string" &&
+        typeof value.featureType === "string" &&
+        Array.isArray(value.supportedBySourceCards) &&
+        typeof value.possibleDifferentiator === "string" &&
+        typeof value.verificationMethod === "string"
+      );
+    })
+  );
+}
+
+async function listFullRawSourceFindings(publicDir: string): Promise<string[]> {
+  const findings: string[] = [];
+  for (const file of await listFiles(publicDir)) {
+    const relativePath = relative(publicDir, file);
+    if (/\.(?:ts|tsx|js|jsx|py|go|rs|java|c|cc|cpp|h)$/i.test(relativePath)) {
+      findings.push(relativePath);
+      continue;
+    }
+    const content = await readTextIfSafe(file);
+    if (content === null) continue;
+    if (/rawSource|fullRawContent|readmeExcerpt|sourceText/i.test(content)) {
+      findings.push(relativePath);
+    }
+  }
+  return [...new Set(findings)].sort();
 }
 
 async function listFiles(dir: string): Promise<string[]> {

@@ -18,6 +18,19 @@ Strict evidence mode requires concrete source discovery, concrete source
 readings, prototype/test evidence, source-card binding, and curated public
 packaging.
 
+Readiness label: moderate or strong in fixture mode when source cards,
+counter-evidence, experiment plans, replay evidence, prototype execution, and
+curated public release gates are present.
+
+## Alpha.14 Artifacts
+
+- Source Cards v2
+- Claim/Feature Matrix v3
+- Counter-evidence
+- Experiment and benchmark plans
+- Replay report
+- Public release v3 curated summaries
+
 ## Publication Warning
 
 This is an open-source research artifact and defensive-publication workflow. It

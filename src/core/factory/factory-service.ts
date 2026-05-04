@@ -29,6 +29,9 @@ import {
 } from "../invention/source-readers.js";
 import {
   buildCandidateInventions,
+  buildBenchmarkPlan,
+  buildCounterEvidence,
+  buildExperimentPlan,
   buildFactoryScore,
   buildFactorySourceReadings,
   buildFeatureMatrix,
@@ -49,9 +52,13 @@ import {
 import type {
   CandidateInvention,
   CandidateInventions,
+  BenchmarkPlan,
+  CounterEvidence,
+  ExperimentPlan,
   FactoryConfig,
   FactoryCycle,
   FactoryCyclePhase,
+  FactoryReplayReport,
   FactoryRunStatus,
   FactoryScore,
   FactorySourceDiscovery,
@@ -96,6 +103,12 @@ export const DEFAULT_FACTORY_CONFIG: FactoryConfig = {
   minReproducibilityScore: 60,
   requireSourceDiversity: false,
   requireDryRunPublishPackage: false,
+  requireCounterEvidence: false,
+  requireExperimentPlan: false,
+  requireContainerExecution: false,
+  minReadingDepthScore: 40,
+  minClaimMappingScore: 50,
+  minNoveltyRiskScore: 50,
 };
 
 export class FactoryService {
@@ -192,11 +205,15 @@ export class FactoryService {
       sourceReadings,
       sourceCards,
     });
+    const counterEvidence = buildCounterEvidence({ matrix, sourceCards });
     const gapMap = buildNoveltyGapMap(matrix);
+    const experimentPlan = buildExperimentPlan({ matrix });
+    const benchmarkPlan = buildBenchmarkPlan({ matrix });
     const candidates = buildCandidateInventions({
       goal: researchGoal,
       gapMap,
       matrix,
+      counterEvidence,
       maxCandidates: config.maxCandidates,
     });
     const selected = selectCandidates({ candidates, maxSelected: 1 });
@@ -207,7 +224,10 @@ export class FactoryService {
       sourceReadings,
       sourceCards,
       matrix,
+      counterEvidence,
       gapMap,
+      experimentPlan,
+      benchmarkPlan,
       candidates,
       selected,
     });
@@ -224,6 +244,21 @@ export class FactoryService {
       "utf8",
     );
     await writeFile(
+      join(factoryDir, "COUNTER_EVIDENCE.md"),
+      renderCounterEvidence(counterEvidence),
+      "utf8",
+    );
+    await writeFile(
+      join(factoryDir, "EXPERIMENT_PLAN.md"),
+      renderExperimentPlan(experimentPlan),
+      "utf8",
+    );
+    await writeFile(
+      join(factoryDir, "BENCHMARK_PLAN.md"),
+      renderBenchmarkPlan(benchmarkPlan),
+      "utf8",
+    );
+    await writeFile(
       join(factoryDir, "candidate-selection-rationale.md"),
       renderCandidateSelectionRationale(candidates, selected),
       "utf8",
@@ -237,7 +272,10 @@ export class FactoryService {
         discovery,
         sourceReadings,
         matrix,
+        counterEvidence,
         gapMap,
+        experimentPlan,
+        benchmarkPlan,
         selected,
       });
       generatedMissionIds.push(missionId);
@@ -273,6 +311,9 @@ export class FactoryService {
       selected,
       sourceCards,
       execution,
+      counterEvidence,
+      experimentPlan,
+      benchmarkPlan,
       prototypePresent,
       testsPresent,
       publicEvidencePackaged: false,
@@ -293,6 +334,9 @@ export class FactoryService {
         candidates,
         selected,
         score,
+        counterEvidence,
+        experimentPlan,
+        benchmarkPlan,
       }),
       "utf8",
     );
@@ -317,10 +361,14 @@ export class FactoryService {
       source_discovery: discovery.evidenceHash,
       source_readings: sourceReadings.evidenceHash,
       feature_matrix: matrix.evidenceHash,
+      claim_feature_matrix: matrix.evidenceHash,
       novelty_gap_map: gapMap.evidenceHash,
       candidate_inventions: candidates.evidenceHash,
       selected_candidates: selected.evidenceHash,
       source_cards: sourceCards.evidenceHash,
+      counter_evidence: counterEvidence.evidenceHash,
+      experiment_plan: experimentPlan.evidenceHash,
+      benchmark_plan: benchmarkPlan.evidenceHash,
       factory_score: score.evidenceHash,
       ...(execution ? { prototype_execution: execution.evidenceHash } : {}),
     };
@@ -372,6 +420,221 @@ export class FactoryService {
     };
   }
 
+  async improve(
+    id: string,
+    options: { maxCycles?: number } = {},
+  ): Promise<{
+    run: ResearchFactoryRun;
+    score: FactoryScore;
+    artifactRefs: string[];
+  }> {
+    const config = await this.factoryConfig();
+    const run = await this.readRun(id);
+    const factoryDir = this.factoryDir(run.slug);
+    const maxCycles = clampInt(options.maxCycles, 1, 1, 5);
+    const before = await readJson<FactoryScore>(
+      join(factoryDir, "factory-score.json"),
+    );
+    const cycleLogPath = join(factoryDir, "factory-cycle-log.json");
+    const cycleLog: Array<Record<string, unknown>> = await readJson<
+      Array<Record<string, unknown>>
+    >(cycleLogPath).catch(() => []);
+    const artifactRefs: string[] = [];
+    for (let cycle = 1; cycle <= maxCycles; cycle += 1) {
+      const cycleId = `cycle-${cycleLog.length + 1}`;
+      const cycleDir = join(factoryDir, "factory-cycles", cycleId);
+      await mkdir(cycleDir, { recursive: true });
+      const plan = {
+        kind: "factory_improvement_cycle_plan",
+        cycleId,
+        actions: [
+          "verify source-card index binding",
+          "rebuild counter-evidence",
+          "recompute factory score",
+          "refresh factory report",
+        ],
+        stopRules: [
+          "maxCycles reached",
+          "readiness reaches strong",
+          "no useful deterministic action remains",
+        ],
+        evidenceHash: "",
+      };
+      plan.evidenceHash = hashObject(plan);
+      await writeJson(join(cycleDir, "cycle-plan.json"), plan);
+      const matrix = await readJson<FeatureMatrix>(
+        join(factoryDir, "feature-matrix.json"),
+      );
+      const sourceCards = await readJson<SourceCardIndex>(
+        join(factoryDir, "source-cards.json"),
+      );
+      const counterEvidence = buildCounterEvidence({ matrix, sourceCards });
+      await writeJson(
+        join(factoryDir, "counter-evidence.json"),
+        counterEvidence,
+      );
+      await writeFile(
+        join(factoryDir, "COUNTER_EVIDENCE.md"),
+        renderCounterEvidence(counterEvidence),
+        "utf8",
+      );
+      const after = await this.rebuildScore(
+        run,
+        await exists(join(factoryDir, "release", "public")),
+      );
+      await writeJson(join(factoryDir, "factory-score.json"), after);
+      const actions = {
+        kind: "factory_improvement_cycle_actions",
+        cycleId,
+        completedActions: plan.actions,
+        networkCallsMade: 0,
+        evidenceHash: "",
+      };
+      actions.evidenceHash = hashObject(actions);
+      await writeJson(join(cycleDir, "cycle-actions.json"), actions);
+      const delta = {
+        kind: "factory_improvement_cycle_delta",
+        cycleId,
+        scoreBefore:
+          before.overallReadinessScore ?? before.factoryReadinessScore,
+        scoreAfter: after.overallReadinessScore ?? after.factoryReadinessScore,
+        readinessBefore: before.readinessLabel ?? "weak",
+        readinessAfter: after.readinessLabel,
+        changedEvidence: ["counter-evidence.json", "factory-score.json"],
+        evidenceHash: "",
+      };
+      delta.evidenceHash = hashObject(delta);
+      await writeJson(join(cycleDir, "cycle-delta.json"), delta);
+      const beforeAfter = {
+        kind: "factory_improvement_cycle_score_before_after",
+        cycleId,
+        beforeEvidenceHash: before.evidenceHash,
+        afterEvidenceHash: after.evidenceHash,
+        evidenceHash: "",
+      };
+      beforeAfter.evidenceHash = hashObject(beforeAfter);
+      await writeJson(
+        join(cycleDir, "cycle-score-before-after.json"),
+        beforeAfter,
+      );
+      await writeFile(
+        join(cycleDir, "CYCLE_REPORT.md"),
+        renderCycleReport(cycleId, delta),
+        "utf8",
+      );
+      cycleLog.push({
+        cycleId,
+        completedAt: nowIso(),
+        scoreBefore: delta.scoreBefore,
+        scoreAfter: delta.scoreAfter,
+        readinessAfter: delta.readinessAfter,
+      });
+      artifactRefs.push(
+        this.factoryRef(run.slug, join("factory-cycles", cycleId)),
+      );
+      if (after.readinessLabel === "strong") break;
+    }
+    await writeJson(cycleLogPath, cycleLog);
+    const score = await readJson<FactoryScore>(
+      join(factoryDir, "factory-score.json"),
+    );
+    run.cycles.push(
+      factoryCycle("autonomous", maxCycles, statusForScore(score, config)),
+    );
+    run.qualityScore = score.factoryReadinessScore;
+    run.evidenceHashes.factory_score = score.evidenceHash;
+    run.evidenceHashes.counter_evidence = (
+      await readJson<CounterEvidence>(join(factoryDir, "counter-evidence.json"))
+    ).evidenceHash;
+    run.status = statusForScore(score, config);
+    run.updatedAt = nowIso();
+    await this.writeRun(run);
+    await this.updateIndex(run);
+    return { run, score, artifactRefs };
+  }
+
+  async replay(id: string): Promise<{
+    run: ResearchFactoryRun;
+    replay: FactoryReplayReport;
+    review: FactoryReviewResult;
+    artifactRefs: string[];
+  }> {
+    const config = await this.factoryConfig();
+    const run = await this.readRun(id);
+    const factoryDir = this.factoryDir(run.slug);
+    const publicEvidencePackaged = await exists(
+      join(factoryDir, "release", "public"),
+    );
+    const score = await this.rebuildScore(run, publicEvidencePackaged);
+    await writeJson(join(factoryDir, "factory-score.json"), score);
+    run.evidenceHashes.factory_score = score.evidenceHash;
+    run.qualityScore = score.factoryReadinessScore;
+    await this.writeRun(run);
+    const review = await evaluateFactoryGates({ factoryDir, run, config });
+    const failedGates = review.checks
+      .filter((gate) => !gate.passed)
+      .map((gate) => gate.code);
+    const replay = await this.writeReplayEvidence(
+      run,
+      score,
+      failedGates.filter((gate) => !/REPLAY/.test(gate)),
+      !failedGates.some((gate) => /PUBLIC_RELEASE|RAW|PATH/.test(gate)),
+    );
+    run.evidenceHashes.replay_report = replay.evidenceHash;
+    await this.writeRun(run);
+    const finalReview = await evaluateFactoryGates({ factoryDir, run, config });
+    run.gateResults = finalReview.checks;
+    run.updatedAt = nowIso();
+    await this.writeRun(run);
+    await this.updateIndex(run);
+    return {
+      run,
+      replay,
+      review: finalReview,
+      artifactRefs: [this.factoryRef(run.slug, "replay-report.json")],
+    };
+  }
+
+  private async writeReplayEvidence(
+    run: ResearchFactoryRun,
+    score: FactoryScore,
+    failedGates: string[],
+    publicReleaseConsistent: boolean,
+  ): Promise<FactoryReplayReport> {
+    const factoryDir = this.factoryDir(run.slug);
+    const replay: FactoryReplayReport = {
+      kind: "factory_replay_report",
+      factoryRunId: run.id,
+      replayedAt: nowIso(),
+      scoreEvidenceHash: score.evidenceHash,
+      gatesAllowed: failedGates.length === 0,
+      failedGates,
+      staleEvidence: failedGates.filter((gate) =>
+        /HASH|FRESH|BOUND/.test(gate),
+      ),
+      publicReleaseConsistent,
+      evidenceHash: "",
+    };
+    replay.evidenceHash = hashObject(replay);
+    await writeJson(join(factoryDir, "replay-report.json"), replay);
+    await writeJson(join(factoryDir, "replay-report.summary.json"), {
+      kind: replay.kind,
+      factoryRunId: replay.factoryRunId,
+      scoreEvidenceHash: replay.scoreEvidenceHash,
+      gatesAllowed: replay.gatesAllowed,
+      failedGates: replay.failedGates,
+      staleEvidence: replay.staleEvidence,
+      publicReleaseConsistent: replay.publicReleaseConsistent,
+      evidenceHash: replay.evidenceHash,
+    });
+    await writeFile(
+      join(factoryDir, "REPLAY_REPORT.md"),
+      renderReplayReport(replay),
+      "utf8",
+    );
+    return replay;
+  }
+
   async package(id: string): Promise<{
     run: ResearchFactoryRun;
     review: FactoryReviewResult;
@@ -392,6 +655,22 @@ export class FactoryService {
     run.evidencePaths = evidenceRefs(run.slug);
     run.status = "packaged";
     run.updatedAt = nowIso();
+    await this.writeRun(run);
+    await this.writePublicEvidence(run, releasePath);
+    const firstReview = await evaluateFactoryGates({ factoryDir, run, config });
+    const replay = await this.writeReplayEvidence(
+      run,
+      score,
+      firstReview.checks
+        .filter((gate) => !gate.passed)
+        .map((gate) => gate.code)
+        .filter((code) => !/REPLAY/.test(code)),
+      !firstReview.checks.some(
+        (gate) =>
+          !gate.passed && /PUBLIC_RELEASE|RAW|PATH|SOURCE/.test(gate.code),
+      ),
+    );
+    run.evidenceHashes.replay_report = replay.evidenceHash;
     await this.writeRun(run);
     await this.writePublicEvidence(run, releasePath);
 
@@ -546,7 +825,10 @@ export class FactoryService {
       sourceReadings: FactorySourceReadings;
       sourceCards: SourceCardIndex;
       matrix: FeatureMatrix;
+      counterEvidence: CounterEvidence;
       gapMap: NoveltyGapMap;
+      experimentPlan: ExperimentPlan;
+      benchmarkPlan: BenchmarkPlan;
       candidates: CandidateInventions;
       selected: SelectedCandidates;
     },
@@ -569,7 +851,23 @@ export class FactoryService {
       evidence.sourceCards,
     );
     await writeJson(join(factoryDir, "feature-matrix.json"), evidence.matrix);
+    await writeJson(
+      join(factoryDir, "claim-feature-matrix.json"),
+      evidence.matrix,
+    );
+    await writeJson(
+      join(factoryDir, "counter-evidence.json"),
+      evidence.counterEvidence,
+    );
     await writeJson(join(factoryDir, "novelty-gap-map.json"), evidence.gapMap);
+    await writeJson(
+      join(factoryDir, "experiment-plan.json"),
+      evidence.experimentPlan,
+    );
+    await writeJson(
+      join(factoryDir, "benchmark-plan.json"),
+      evidence.benchmarkPlan,
+    );
     await writeJson(
       join(factoryDir, "candidate-inventions.json"),
       evidence.candidates,
@@ -633,6 +931,7 @@ export class FactoryService {
     const cardsDir = join(factoryDir, "source-cards");
     await rm(cardsDir, { recursive: true, force: true });
     await mkdir(cardsDir, { recursive: true });
+    await writeJson(join(cardsDir, "source-cards.index.json"), sourceCards);
     for (const card of sourceCards.cards) {
       await writeJson(join(cardsDir, `${card.sourceId}.json`), card);
       await writeFile(
@@ -723,7 +1022,10 @@ export class FactoryService {
     discovery: FactorySourceDiscovery;
     sourceReadings: FactorySourceReadings;
     matrix: FeatureMatrix;
+    counterEvidence: CounterEvidence;
     gapMap: NoveltyGapMap;
+    experimentPlan: ExperimentPlan;
+    benchmarkPlan: BenchmarkPlan;
     selected: SelectedCandidates;
   }): Promise<string> {
     const inventionService = new InventionService(this.root);
@@ -736,14 +1038,20 @@ export class FactoryService {
       sourceDiscoveryEvidenceHash?: string;
       sourceReadingsEvidenceHash?: string;
       featureMatrixEvidenceHash?: string;
+      counterEvidenceHash?: string;
       noveltyGapMapEvidenceHash?: string;
+      experimentPlanEvidenceHash?: string;
+      benchmarkPlanEvidenceHash?: string;
       selectedCandidateId?: string;
     };
     enriched.factoryRunId = input.run.id;
     enriched.sourceDiscoveryEvidenceHash = input.discovery.evidenceHash;
     enriched.sourceReadingsEvidenceHash = input.sourceReadings.evidenceHash;
     enriched.featureMatrixEvidenceHash = input.matrix.evidenceHash;
+    enriched.counterEvidenceHash = input.counterEvidence.evidenceHash;
     enriched.noveltyGapMapEvidenceHash = input.gapMap.evidenceHash;
+    enriched.experimentPlanEvidenceHash = input.experimentPlan.evidenceHash;
+    enriched.benchmarkPlanEvidenceHash = input.benchmarkPlan.evidenceHash;
     enriched.selectedCandidateId = input.candidate.candidateId;
     enriched.technicalField = input.candidate.technicalField;
     enriched.problem = input.candidate.problem;
@@ -760,7 +1068,11 @@ export class FactoryService {
     enriched.evidenceHashes.source_discovery = input.discovery.evidenceHash;
     enriched.evidenceHashes.source_readings = input.sourceReadings.evidenceHash;
     enriched.evidenceHashes.feature_matrix = input.matrix.evidenceHash;
+    enriched.evidenceHashes.counter_evidence =
+      input.counterEvidence.evidenceHash;
     enriched.evidenceHashes.novelty_gap_map = input.gapMap.evidenceHash;
+    enriched.evidenceHashes.experiment_plan = input.experimentPlan.evidenceHash;
+    enriched.evidenceHashes.benchmark_plan = input.benchmarkPlan.evidenceHash;
     enriched.evidenceHashes.selected_candidates = input.selected.evidenceHash;
     enriched.evidenceHashes.selected_candidate_id = input.candidate.candidateId;
     enriched.updatedAt = nowIso();
@@ -807,6 +1119,18 @@ export class FactoryService {
       execution: await readJson<PrototypeExecutionEvidence>(
         join(factoryDir, "execution", "prototype-execution.json"),
       ).catch(() => null),
+      containerExecution: await readJson<PrototypeExecutionEvidence>(
+        join(factoryDir, "execution", "container-prototype-execution.json"),
+      ).catch(() => null),
+      counterEvidence: await readJson<CounterEvidence>(
+        join(factoryDir, "counter-evidence.json"),
+      ).catch(() => null),
+      experimentPlan: await readJson<ExperimentPlan>(
+        join(factoryDir, "experiment-plan.json"),
+      ).catch(() => null),
+      benchmarkPlan: await readJson<BenchmarkPlan>(
+        join(factoryDir, "benchmark-plan.json"),
+      ).catch(() => null),
       prototypePresent: await this.generatedPrototypePresent(
         run.generatedInventionMissionIds,
       ),
@@ -840,7 +1164,11 @@ export class FactoryService {
       ["source-readings.json", "source-readings.summary.json"],
       ["source-cards.json", "source-cards.summary.json"],
       ["feature-matrix.json", "feature-matrix.summary.json"],
+      ["claim-feature-matrix.json", "claim-feature-matrix.summary.json"],
+      ["counter-evidence.json", "counter-evidence.summary.json"],
       ["novelty-gap-map.json", "novelty-gap-map.summary.json"],
+      ["experiment-plan.json", "experiment-plan.summary.json"],
+      ["benchmark-plan.json", "benchmark-plan.summary.json"],
       ["candidate-inventions.json", "candidate-inventions.summary.json"],
       ["selected-candidates.json", "selected-candidates.summary.json"],
       ["factory-score.json", "factory-score.summary.json"],
@@ -854,11 +1182,11 @@ export class FactoryService {
       );
     }
     await writeJson(
-      join(releasePath, "claim-feature-matrix.summary.json"),
+      join(releasePath, "source-cards.index.summary.json"),
       publicSummaryFor(
-        "feature-matrix.json",
+        "source-cards.json",
         await readJson<Record<string, unknown>>(
-          join(factoryDir, "feature-matrix.json"),
+          join(factoryDir, "source-cards.json"),
         ),
       ),
     );
@@ -872,14 +1200,34 @@ export class FactoryService {
     );
     for (const file of [
       "CLAIM_FEATURE_MATRIX.md",
+      "COUNTER_EVIDENCE.md",
+      "EXPERIMENT_PLAN.md",
+      "BENCHMARK_PLAN.md",
       "NOVELTY_GAP_REPORT.md",
       "candidate-selection-rationale.md",
+      "REPLAY_REPORT.md",
     ]) {
-      await cp(join(factoryDir, file), join(releasePath, file));
+      await copyIfExists(join(factoryDir, file), join(releasePath, file));
     }
+    await copyIfExists(
+      join(factoryDir, "factory-cycles", "cycle-1", "CYCLE_REPORT.md"),
+      join(releasePath, "CYCLE_REPORT.md"),
+    );
     await copyIfExists(
       join(factoryDir, "execution", "prototype-execution.summary.json"),
       join(releasePath, "prototype-execution.summary.json"),
+    );
+    await copyIfExists(
+      join(
+        factoryDir,
+        "execution",
+        "container-prototype-execution.summary.json",
+      ),
+      join(releasePath, "container-prototype-execution.summary.json"),
+    );
+    await copyIfExists(
+      join(factoryDir, "replay-report.summary.json"),
+      join(releasePath, "replay-report.summary.json"),
     );
     await copyIfExists(
       join(factoryDir, "factory-publication-intent.summary.json"),
@@ -1086,6 +1434,36 @@ export function normalizeFactoryConfig(
       value?.requireDryRunPublishPackage,
       DEFAULT_FACTORY_CONFIG.requireDryRunPublishPackage,
     ),
+    requireCounterEvidence: boolOrDefault(
+      value?.requireCounterEvidence,
+      DEFAULT_FACTORY_CONFIG.requireCounterEvidence,
+    ),
+    requireExperimentPlan: boolOrDefault(
+      value?.requireExperimentPlan,
+      DEFAULT_FACTORY_CONFIG.requireExperimentPlan,
+    ),
+    requireContainerExecution: boolOrDefault(
+      value?.requireContainerExecution,
+      DEFAULT_FACTORY_CONFIG.requireContainerExecution,
+    ),
+    minReadingDepthScore: clampInt(
+      value?.minReadingDepthScore,
+      DEFAULT_FACTORY_CONFIG.minReadingDepthScore,
+      0,
+      100,
+    ),
+    minClaimMappingScore: clampInt(
+      value?.minClaimMappingScore,
+      DEFAULT_FACTORY_CONFIG.minClaimMappingScore,
+      0,
+      100,
+    ),
+    minNoveltyRiskScore: clampInt(
+      value?.minNoveltyRiskScore,
+      DEFAULT_FACTORY_CONFIG.minNoveltyRiskScore,
+      0,
+      100,
+    ),
   };
 }
 
@@ -1180,6 +1558,9 @@ function renderFactoryReport(input: {
   candidates: CandidateInventions;
   selected: SelectedCandidates;
   score: FactoryScore;
+  counterEvidence: CounterEvidence;
+  experimentPlan: ExperimentPlan;
+  benchmarkPlan: BenchmarkPlan;
 }): string {
   return [
     "# Autonomous Open Research Factory Report",
@@ -1230,6 +1611,11 @@ function renderFactoryReport(input: {
     `Factory readiness score: ${input.score.factoryReadinessScore}`,
     `Evidence strength score: ${input.score.evidenceStrengthScore}`,
     `Reproducibility score: ${input.score.reproducibilityScore}`,
+    `Readiness label: ${input.score.readinessLabel}`,
+    `Claim mapping score: ${input.score.claimMappingScore}`,
+    `Counter-evidence items: ${input.counterEvidence.items.length}`,
+    `Experiments planned: ${input.experimentPlan.experiments.length}`,
+    `Benchmarks planned: ${input.benchmarkPlan.benchmarks.length}`,
     "",
     "## Limitations",
     "",
@@ -1240,6 +1626,7 @@ function renderFactoryReport(input: {
     "- Replace mock placeholders with concrete public-source evidence where possible.",
     "- Run Node Alpha autonomous validation on generated invention missions.",
     "- Human-review source overlaps, safety notes, and publication readiness before public use.",
+    "- Run factory replay before relying on packaged public evidence.",
     "",
     "## Publication Warning",
     "",
@@ -1297,6 +1684,8 @@ function renderSourceCard(card: SourceCard): string {
     `Source ID: ${card.sourceId}`,
     `Source type: ${card.sourceType}`,
     `Read status: ${card.readStatus}`,
+    `Reading depth: ${card.readingDepth}`,
+    `Reviewed as prior art: ${String(card.reviewedAsPriorArt)}`,
     `URL or external ID: ${card.url ?? card.externalId ?? "not available"}`,
     `Citation: ${card.citation ?? "not available"}`,
     `Evidence strength: ${card.evidenceStrength}`,
@@ -1308,7 +1697,7 @@ function renderSourceCard(card: SourceCard): string {
     "",
     "## Extracted Technical Claims",
     "",
-    ...listOrFallback(card.extractedTechnicalClaims),
+    ...listOrFallback(card.extractedClaims),
     "",
     "## Extracted Methods",
     "",
@@ -1320,11 +1709,19 @@ function renderSourceCard(card: SourceCard): string {
     "",
     "## Overlap With Research Goal",
     "",
-    card.overlapWithResearchGoal,
+    card.knownOverlapWithGoal,
     "",
     "## Possible Differentiators",
     "",
     ...listOrFallback(card.possibleDifferentiators),
+    "",
+    "## Reproducibility Hints",
+    "",
+    ...listOrFallback(card.reproducibilityHints),
+    "",
+    "## Caution Notes",
+    "",
+    ...listOrFallback(card.limitations),
     "",
     "This source card is a compact evidence artifact. It is not a legal novelty, patentability, or freedom-to-operate conclusion.",
     "",
@@ -1339,15 +1736,16 @@ function renderClaimFeatureMatrix(matrix: FeatureMatrix): string {
     "",
     `Feature rows: ${matrix.features.length}`,
     "",
-    "| Feature | Source support | Source cards | Known overlap | Possible differentiator | Verification method | Confidence | Novelty risk |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Feature | Type | Source support | Source cards | Known overlap | Possible differentiator | Verification method | Confidence | Novelty risk |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...matrix.features.map((feature) =>
       [
-        mdCell(`${feature.featureId}: ${feature.featureText}`),
+        mdCell(`${feature.claimFeatureId}: ${feature.featureText}`),
+        feature.featureType,
         feature.sourceSupport,
-        mdCell(feature.supportingSourceCards.join(", ") || "none"),
+        mdCell(feature.supportedBySourceCards.join(", ") || "none"),
         mdCell(feature.knownOverlap),
-        mdCell(feature.candidateDifferentiator),
+        mdCell(feature.possibleDifferentiator),
         mdCell(feature.verificationMethod),
         feature.confidence,
         feature.noveltyRisk,
@@ -1361,6 +1759,137 @@ function renderClaimFeatureMatrix(matrix: FeatureMatrix): string {
     "## Missing Evidence",
     "",
     ...listOrFallback(matrix.missingEvidence),
+    "",
+  ].join("\n");
+}
+
+function renderCounterEvidence(counterEvidence: CounterEvidence): string {
+  const lines = [
+    "# Counter-Evidence",
+    "",
+    "This artifact records source-supported overlap and novelty-risk concerns. It is not a legal novelty conclusion, patentability opinion, or freedom-to-operate opinion.",
+    "",
+    `Unresolved prior-art risk: ${counterEvidence.unresolvedPriorArtRisk}`,
+    "",
+  ];
+  for (const item of counterEvidence.items) {
+    lines.push(`## ${item.itemId}`);
+    lines.push("");
+    lines.push(`Source card: ${item.sourceCardId}`);
+    lines.push(`Claim/feature: ${item.claimFeatureId}`);
+    lines.push(`Risk: ${item.riskLevel}`);
+    lines.push("");
+    lines.push(`Overlap: ${item.overlapDescription}`);
+    lines.push(`Why it weakens novelty: ${item.whyItWeakensNovelty}`);
+    lines.push(
+      `Why it may not fully cover candidate: ${item.whyItMayNotFullyCoverCandidate}`,
+    );
+    lines.push(`Follow-up search: ${item.requiredFollowUpSearch}`);
+    lines.push(`Recommended action: ${item.recommendedAction}`);
+    lines.push("");
+  }
+  lines.push("## Limitations");
+  lines.push("");
+  lines.push(...listOrFallback(counterEvidence.limitations));
+  lines.push("");
+  return lines.join("\n");
+}
+
+function renderExperimentPlan(plan: ExperimentPlan): string {
+  return [
+    "# Experiment Plan",
+    "",
+    "Experiments are planned validation steps for open-source research artifacts. They are not benchmark success claims.",
+    "",
+    ...plan.experiments.flatMap((experiment) => [
+      `## ${experiment.experimentId}`,
+      "",
+      `Purpose: ${experiment.purpose}`,
+      `Claim features: ${experiment.claimFeatureIds.join(", ")}`,
+      `Hypothesis: ${experiment.hypothesis}`,
+      `Input data: ${experiment.inputData}`,
+      `Expected output: ${experiment.expectedOutput}`,
+      `Failure condition: ${experiment.failureCondition}`,
+      `Required command: ${experiment.requiredCommand}`,
+      "",
+      "Reproducibility notes:",
+      ...listOrFallback(experiment.reproducibilityNotes),
+      "",
+      "Safety notes:",
+      ...listOrFallback(experiment.safetyNotes),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function renderBenchmarkPlan(plan: BenchmarkPlan): string {
+  return [
+    "# Benchmark Plan",
+    "",
+    "Benchmarks are planned unless explicitly marked implemented. Sovryn does not fake benchmark success.",
+    "",
+    ...(plan.notApplicableReason
+      ? [`Not applicable: ${plan.notApplicableReason}`, ""]
+      : []),
+    ...plan.benchmarks.flatMap((benchmark) => [
+      `## ${benchmark.benchmarkId}`,
+      "",
+      `Metric: ${benchmark.metric}`,
+      `Baseline: ${benchmark.baseline}`,
+      `Candidate method: ${benchmark.candidateMethod}`,
+      `Expected improvement: ${benchmark.expectedImprovement}`,
+      `Measurement command: ${benchmark.measurementCommand}`,
+      `Status: ${benchmark.status}`,
+      "",
+      "Limitations:",
+      ...listOrFallback(benchmark.limitations),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function renderCycleReport(
+  cycleId: string,
+  delta: Record<string, unknown>,
+): string {
+  return [
+    `# Factory Improvement Cycle ${cycleId}`,
+    "",
+    "This cycle replays deterministic evidence improvements without unbounded network calls.",
+    "",
+    `Score before: ${String(delta.scoreBefore)}`,
+    `Score after: ${String(delta.scoreAfter)}`,
+    `Readiness before: ${String(delta.readinessBefore)}`,
+    `Readiness after: ${String(delta.readinessAfter)}`,
+    "",
+    "Changed evidence:",
+    ...listOrFallback(
+      Array.isArray(delta.changedEvidence)
+        ? delta.changedEvidence.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [],
+    ),
+    "",
+  ].join("\n");
+}
+
+function renderReplayReport(replay: FactoryReplayReport): string {
+  return [
+    "# Factory Replay Report",
+    "",
+    "Replay recomputes factory review and score from existing evidence without source discovery or network calls.",
+    "",
+    `Factory run: ${replay.factoryRunId}`,
+    `Gates allowed: ${String(replay.gatesAllowed)}`,
+    `Public release consistent: ${String(replay.publicReleaseConsistent)}`,
+    `Score evidence hash: ${replay.scoreEvidenceHash}`,
+    "",
+    "Failed gates:",
+    ...listOrFallback(replay.failedGates),
+    "",
+    "Stale evidence signals:",
+    ...listOrFallback(replay.staleEvidence),
     "",
   ].join("\n");
 }
@@ -1418,15 +1947,29 @@ function renderCandidateSelectionRationale(
       `Publication readiness score: ${candidate.publicationReadinessScore}`,
       `Novelty risk: ${candidate.noveltyRisk}`,
       `Safety risk: ${candidate.safetyRisk}`,
+      `Unresolved prior-art risk: ${candidate.unresolvedPriorArtRisk ?? "unknown"}`,
       "",
       "Why selected: evidence-derived scoring favored this candidate's balance of source support, prototype feasibility, testability, low safety risk, reproducibility, and defensive-publication value.",
       "",
       "Supporting evidence:",
       ...listOrFallback(candidate.requiredSources),
       "",
+      "Top counter-evidence:",
+      ...listOrFallback(
+        (candidate.topCounterEvidence ?? []).map(
+          (item) =>
+            `${item.sourceCardId}/${item.claimFeatureId}: ${item.riskLevel}`,
+        ),
+      ),
+      "",
+      "What would invalidate it:",
+      ...listOrFallback(candidate.invalidationConditions ?? []),
+      "",
       "Weak evidence and strengthening experiment:",
       `- ${candidate.evidenceStrengthScore < 70 ? "Evidence is moderate and should be strengthened with more concrete source reading." : "Evidence is sufficient for Alpha review but still requires human source comparison."}`,
-      `- ${candidate.expectedPrototype}`,
+      ...listOrFallback(
+        candidate.strengtheningExperiments ?? [candidate.expectedPrototype],
+      ),
       "",
     ]),
     "## Rejected Candidates",
@@ -1601,6 +2144,7 @@ function publicSummaryFor(
               title: record.title,
               url: record.url,
               readStatus: record.readStatus,
+              readingDepth: record.readingDepth,
               extractedSummary: record.extractedSummary,
               relevanceScore: record.relevanceScore,
               noveltyRiskHints: record.noveltyRiskHints,
@@ -1626,7 +2170,10 @@ function publicSummaryFor(
               title: record.title,
               url: record.url,
               readStatus: record.readStatus,
+              readingDepth: record.readingDepth,
+              reviewedAsPriorArt: record.reviewedAsPriorArt,
               evidenceStrength: record.evidenceStrength,
+              confidence: record.confidence,
               noveltyRisk: record.noveltyRisk,
               citation: record.citation,
               evidenceHash: record.evidenceHash,
@@ -1672,14 +2219,22 @@ function evidenceRefs(slug: string): string[] {
     "source-readings.json",
     "source-cards.json",
     "feature-matrix.json",
+    "claim-feature-matrix.json",
+    "counter-evidence.json",
     "novelty-gap-map.json",
+    "experiment-plan.json",
+    "benchmark-plan.json",
     "candidate-inventions.json",
     "selected-candidates.json",
     "factory-score.json",
     "FACTORY_REPORT.md",
     "LIMITATIONS.md",
     "CLAIM_FEATURE_MATRIX.md",
+    "COUNTER_EVIDENCE.md",
+    "EXPERIMENT_PLAN.md",
+    "BENCHMARK_PLAN.md",
     "NOVELTY_GAP_REPORT.md",
+    "REPLAY_REPORT.md",
     "candidate-selection-rationale.md",
     "execution/prototype-execution.json",
   ].map((file) => join(".sovryn", "factory", slug, file));

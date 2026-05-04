@@ -13,6 +13,7 @@ import {
 import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
+import { workerDoctor } from "../core/worker/worker-doctor.js";
 import { runCommand } from "../adapters/shell/command.js";
 import { loadPlugins } from "../plugins/loader.js";
 
@@ -45,7 +46,10 @@ Commands:
   sovryn factory status <factory-id> [--json]
   sovryn factory review <factory-id> [--json]
   sovryn factory package <factory-id> [--json]
+  sovryn factory replay <factory-id> [--json]
+  sovryn factory improve <factory-id> [--max-cycles 2] [--json]
   sovryn factory publish-github <factory-id> --dry-run [--json]
+  sovryn worker doctor --profile container-local [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -54,7 +58,7 @@ Commands:
   sovryn publish-github <mission-id> --org <org> --repo <repo> [--dry-run] [--json]
   sovryn node register alpha --host local [--json]
   sovryn node status alpha [--json]
-  sovryn node run alpha <mission-id> [--mode validation|autonomous|validate] [--profile sandbox-local] [--max-steps 25] [--json]
+  sovryn node run alpha <mission-id> [--mode validation|autonomous|validate] [--profile sandbox-local|container-local] [--max-steps 25] [--json]
   sovryn node logs alpha <mission-id> [--json]
   sovryn node artifacts alpha <mission-id> [--json]
   sovryn plugin list [--json]
@@ -195,6 +199,8 @@ export async function executeCli(
       }
       case "node":
         return okEnvelope("node", await nodeCommand(parsed, root));
+      case "worker":
+        return okEnvelope("worker", await workerCommand(parsed, root));
       case "factory": {
         const result = await factoryCommand(parsed, root);
         return okEnvelope("factory", result, {
@@ -418,7 +424,7 @@ async function factoryCommand(
   if (!subcommand)
     throw new AppError(
       "FACTORY_COMMAND_REQUIRED",
-      "Use: sovryn factory <plan|run|status|review|package|publish-github>",
+      "Use: sovryn factory <plan|run|status|review|package|replay|improve|publish-github>",
     );
   const service = new FactoryService(root);
   switch (subcommand) {
@@ -470,6 +476,26 @@ async function factoryCommand(
         );
       return service.package(id);
     }
+    case "replay": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory replay requires a factory id.",
+        );
+      return service.replay(id);
+    }
+    case "improve": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory improve requires a factory id.",
+        );
+      return service.improve(id, {
+        maxCycles: flagInt(parsed.flags, "--max-cycles", 1),
+      });
+    }
     case "publish-github": {
       const id = parsed.positionals[1];
       if (!id)
@@ -491,6 +517,28 @@ async function factoryCommand(
         `Unknown factory command: ${subcommand}`,
       );
   }
+}
+
+async function workerCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (subcommand !== "doctor") {
+    throw new AppError(
+      "WORKER_COMMAND_REQUIRED",
+      "Use: sovryn worker doctor --profile container-local.",
+    );
+  }
+  const profile = flagString(parsed.flags, "--profile") ?? "container-local";
+  if (profile !== "container-local") {
+    throw new AppError(
+      "WORKER_PROFILE_INVALID",
+      "--profile must be container-local.",
+      { profile },
+    );
+  }
+  return workerDoctor(root, "container-local");
 }
 
 async function nodeCommand(
@@ -573,12 +621,17 @@ function flagRunMode(
 
 function flagNodeProfile(
   flags: Map<string, string | boolean>,
-): "default" | "sandbox-local" {
+): "default" | "sandbox-local" | "container-local" {
   const value = flagString(flags, "--profile") ?? "default";
-  if (value === "default" || value === "sandbox-local") return value;
+  if (
+    value === "default" ||
+    value === "sandbox-local" ||
+    value === "container-local"
+  )
+    return value;
   throw new AppError(
     "NODE_RUN_PROFILE_INVALID",
-    "--profile must be default or sandbox-local.",
+    "--profile must be default, sandbox-local, or container-local.",
     { profile: value },
   );
 }

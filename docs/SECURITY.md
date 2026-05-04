@@ -59,7 +59,7 @@ research artifacts, but it is not a host security sandbox. Use a dedicated user,
 container, VM, firewall, or network namespace before granting broad autonomous
 execution on a real research machine.
 
-Factory Alpha.13 adds a `sandbox-local` execution profile for generated
+Factory Alpha.13 added a `sandbox-local` execution profile for generated
 prototype validation:
 
 ```bash
@@ -78,7 +78,28 @@ command profile suitable for Alpha evidence collection. For strong isolation,
 pair Node Alpha with a container, VM, dedicated Linux user, firewall rules, or a
 future `sovryn-agentd` backend.
 
+Factory Alpha.14 adds a `container-local` worker profile:
+
+```bash
+sovryn worker doctor --profile container-local --json
+sovryn node run alpha <mission-id> --mode validate --profile container-local --json
+```
+
+The doctor checks Docker and Podman availability without exposing credentials.
+When a runtime is available, Node Alpha can run generated prototype validation
+inside a container profile with network disabled where supported and only the
+prototype workspace mounted. When no runtime is available, the profile returns a
+clear unavailable/degraded result and does not silently fall back to host
+execution. `container-local` is sandbox-ready infrastructure, not a legal or
+formal proof of isolation. Use a hardened VM, container policy, dedicated user,
+firewalling, and secret isolation for stronger guarantees.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence
 set. Review gates fail if these checks fail.
+
+Factory replay is part of the safety model. Replay recomputes score and gates
+from existing evidence without source discovery or network calls, detects stale
+hashes, and blocks public evidence packages that contain raw logs or absolute
+local paths. Replay does not replace human review.

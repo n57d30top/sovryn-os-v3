@@ -67,7 +67,7 @@ It then triggers normal Open Invention missions for selected candidates. The
 factory reuses the same publication philosophy: agents act, Sovryn verifies,
 evidence persists, and weak or stale research is blocked by gates.
 
-Factory Alpha.13 adds a strict evidence path for runs that should behave more
+Factory Alpha.14 adds a strict evidence path for runs that should behave more
 like real public-source research. Enable:
 
 ```json
@@ -84,7 +84,10 @@ like real public-source research. Enable:
       "minConcreteSources": 1,
       "minConcreteSourcesRead": 1,
       "minEvidenceStrengthScore": 60,
-      "minReproducibilityScore": 60
+      "minReproducibilityScore": 60,
+      "minReadingDepthScore": 40,
+      "minClaimMappingScore": 50,
+      "minNoveltyRiskScore": 50
     }
   }
 }
@@ -93,8 +96,9 @@ like real public-source research. Enable:
 In strict mode, Sovryn blocks runs with no concrete sources, no concrete source
 readings, weak evidence scores, weak reproducibility scores, missing prototypes,
 missing tests, stale hashes, missing source cards, missing claim/feature matrix,
-or missing curated release evidence. Query links, adapter failures, and mock
-placeholders remain visible but never count as reviewed prior art.
+missing counter-evidence, missing experiment plans, or missing curated release
+evidence. Query links, adapter failures, and mock placeholders remain visible
+but never count as reviewed prior art.
 
 For deterministic tests and demos, set `research.publicSearch.fixtureMode` and
 `research.sourceReading.fixtureMode` to true. Fixture mode uses representative
@@ -105,7 +109,11 @@ Strict factory runs also write:
 
 - `source-cards/<source-id>.json` and `.md`
 - `CLAIM_FEATURE_MATRIX.md`
+- `COUNTER_EVIDENCE.md`
+- `EXPERIMENT_PLAN.md`
+- `BENCHMARK_PLAN.md`
 - `NOVELTY_GAP_REPORT.md`
+- `REPLAY_REPORT.md`
 - `candidate-selection-rationale.md`
 - `execution/prototype-execution.json`
 - `release/public/` curated summaries
@@ -113,6 +121,21 @@ Strict factory runs also write:
 The claim/feature matrix and novelty gap report use careful language such as
 "possible differentiator" and "candidate novelty axis." They are research
 artifacts only, not legal claims or patentability opinions.
+
+Alpha.14 source readings record bounded reading depth:
+`metadata_only`, `abstract_level`, `readme_level`, `code_structure_level`,
+`paper_fulltext_level`, `patent_claim_level`, `unavailable`, or `failed`.
+GitHub fixture/live readers can summarize code structure and implementation
+hints; arXiv and OpenAlex readers remain bounded to abstract/metadata unless a
+future fulltext provider is configured; patent sources have a structured
+claim-like model but no legal claim construction.
+
+`sovryn factory improve <factory-id>` runs deterministic improvement cycles
+from existing evidence. `sovryn factory replay <factory-id>` recomputes score
+and gates without network calls, verifies hashes, and writes replay evidence.
+`sovryn factory publish-github <factory-id> --dry-run` packages curated factory
+evidence and routes publication through the generated Open Invention mission.
+Real GitHub publication remains gated by Sovryn Controller.
 
 ## Dossier
 

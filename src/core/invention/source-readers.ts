@@ -17,6 +17,15 @@ export type SourceReadingEvidenceStatus =
   | "degraded"
   | "failed"
   | "disabled";
+export type SourceReadingDepth =
+  | "metadata_only"
+  | "abstract_level"
+  | "readme_level"
+  | "code_structure_level"
+  | "paper_fulltext_level"
+  | "patent_claim_level"
+  | "unavailable"
+  | "failed";
 
 export type DeepSourceReading = {
   title: string;
@@ -26,13 +35,22 @@ export type DeepSourceReading = {
   citation: string | null;
   provider: string;
   readStatus: SourceReadStatus;
+  readingDepth: SourceReadingDepth;
   summary: string;
   keyTechnicalMechanism: string;
   overlapWithInvention: string;
   differenceFromInvention: string;
+  extractedTechnicalClaims: string[];
+  extractedMethods: string[];
+  extractedLimitations: string[];
+  extractedEvaluationClaims: string[];
+  extractedImplementationHints: string[];
+  sourceReliabilitySignals: string[];
+  readingLimitations: string[];
   noveltyRisk: SourceReadingNoveltyRisk;
   prototypeRelevance: SourceReadingPrototypeRelevance;
   metadata: Record<string, unknown>;
+  evidenceHash: string;
   error?: string;
 };
 
@@ -119,6 +137,7 @@ export function createSourceReadingProvider(
       fetcher: fetcherWithTimeout,
       maxReadBytes: normalized.maxReadBytes,
     }),
+    new PatentClaimReader(),
   ]);
 }
 
@@ -298,7 +317,7 @@ export class GitHubReadmeReader implements ConcreteSourceReader {
     const topics = asArray(repoMeta.topics).filter(
       (item): item is string => typeof item === "string",
     );
-    return {
+    return sourceReadingWithHash({
       title: source.title,
       sourceType: source.sourceType,
       kind: source.kind,
@@ -306,10 +325,40 @@ export class GitHubReadmeReader implements ConcreteSourceReader {
       citation: source.citation,
       provider: this.name,
       readStatus: "read",
+      readingDepth: "code_structure_level",
       summary: oneLine(readme || description),
       keyTechnicalMechanism: `Public repository ${repo.owner}/${repo.name}${language ? ` in ${language}` : ""} exposes implementation/documentation signals relevant to ${query.brief}.`,
       overlapWithInvention: `${source.overlap} README/metadata signal: ${oneLine(description || readme)}`,
       differenceFromInvention: `${source.difference} Compare repository implementation boundaries, tests, license, and evidence artifacts before treating it as overlapping prior art.`,
+      extractedTechnicalClaims: [
+        `Repository ${repo.owner}/${repo.name} exposes implementation and documentation signals for ${query.brief}.`,
+        `README signal: ${oneLine(readme || description)}`,
+      ],
+      extractedMethods: [
+        language
+          ? `Primary implementation language appears to be ${language}.`
+          : "Repository metadata did not report a primary language.",
+        topics.length > 0
+          ? `Repository topics: ${topics.slice(0, 6).join(", ")}.`
+          : "No repository topics were available.",
+      ],
+      extractedLimitations: [
+        "Repository reading is bounded to metadata and README/code-structure signals.",
+        "Sovryn did not clone the full repository in this reader.",
+      ],
+      extractedEvaluationClaims: [
+        "Test and benchmark claims require repository-specific review.",
+      ],
+      extractedImplementationHints: [
+        "Compare package manifests, top-level source layout, tests, and evidence outputs before prototype design.",
+      ],
+      sourceReliabilitySignals: [
+        `GitHub repository metadata read for ${repo.owner}/${repo.name}.`,
+        stars === null ? "Star count unavailable." : `Stars: ${stars}.`,
+      ],
+      readingLimitations: [
+        "Bounded GitHub reader stores summaries only and avoids raw large source content.",
+      ],
       noveltyRisk: noveltyRiskFor(source.relevance),
       prototypeRelevance: source.relevance === "low" ? "medium" : "high",
       metadata: {
@@ -320,7 +369,8 @@ export class GitHubReadmeReader implements ConcreteSourceReader {
         topics,
         readmeExcerpt: oneLine(readme),
       },
-    };
+      evidenceHash: "",
+    });
   }
 }
 
@@ -355,7 +405,7 @@ export class ArxivAbstractReader implements ConcreteSourceReader {
       entry.summary,
       this.options.maxReadBytes ?? DEFAULT_SOURCE_READING_CONFIG.maxReadBytes,
     );
-    return {
+    return sourceReadingWithHash({
       title: entry.title || source.title,
       sourceType: source.sourceType,
       kind: source.kind,
@@ -363,11 +413,33 @@ export class ArxivAbstractReader implements ConcreteSourceReader {
       citation: source.citation ?? `arXiv:${id}`,
       provider: this.name,
       readStatus: "read",
+      readingDepth: "abstract_level",
       summary: oneLine(abstract),
       keyTechnicalMechanism: `arXiv abstract describes: ${oneLine(abstract)}`,
       overlapWithInvention: `${source.overlap} Abstract signal: ${oneLine(abstract)}`,
       differenceFromInvention:
         "Compare the paper's method, assumptions, evaluation, and released artifacts against the open invention dossier.",
+      extractedTechnicalClaims: [`Abstract-level claim: ${oneLine(abstract)}`],
+      extractedMethods: [
+        "Method extraction is abstract-level unless paper fulltext reading is explicitly enabled later.",
+      ],
+      extractedLimitations: [
+        "arXiv reader v2 uses metadata and abstract only in this Alpha.",
+      ],
+      extractedEvaluationClaims: [
+        "Evaluation claims require full paper review when available.",
+      ],
+      extractedImplementationHints: [
+        "Use abstract concepts as research leads, not as implementation proof.",
+      ],
+      sourceReliabilitySignals: [
+        `arXiv id ${id}.`,
+        `Authors: ${entry.authors.slice(0, 4).join(", ") || "not available"}.`,
+        `Categories: ${entry.categories.slice(0, 4).join(", ") || "not available"}.`,
+      ],
+      readingLimitations: [
+        "No PDF or OCR was performed; this is not fulltext review.",
+      ],
       noveltyRisk: noveltyRiskFor(source.relevance),
       prototypeRelevance: source.relevance === "high" ? "medium" : "low",
       metadata: {
@@ -377,7 +449,8 @@ export class ArxivAbstractReader implements ConcreteSourceReader {
         publishedYear: entry.publishedYear,
         abstractExcerpt: oneLine(abstract),
       },
-    };
+      evidenceHash: "",
+    });
   }
 }
 
@@ -416,7 +489,7 @@ export class OpenAlexWorkReader implements ConcreteSourceReader {
     const doi = stringOrNull(work.doi);
     const venue = openAlexVenue(work);
     const authors = openAlexAuthors(work);
-    return {
+    return sourceReadingWithHash({
       title,
       sourceType: source.sourceType,
       kind: source.kind,
@@ -424,11 +497,38 @@ export class OpenAlexWorkReader implements ConcreteSourceReader {
       citation: source.citation ?? `${title}${year ? ` (${year})` : ""}`,
       provider: this.name,
       readStatus: "read",
+      readingDepth:
+        abstract === "No OpenAlex abstract available."
+          ? "metadata_only"
+          : "abstract_level",
       summary: oneLine(abstract),
       keyTechnicalMechanism: `OpenAlex metadata describes: ${oneLine(abstract)}`,
       overlapWithInvention: `${source.overlap} Abstract signal: ${oneLine(abstract)}`,
       differenceFromInvention:
         "Compare the paper's mechanism, evidence model, publication mode, and implementation availability against the open invention.",
+      extractedTechnicalClaims: [`OpenAlex work signal: ${oneLine(abstract)}`],
+      extractedMethods: [
+        "Method extraction is reconstructed from OpenAlex abstract metadata where available.",
+      ],
+      extractedLimitations: [
+        abstract === "No OpenAlex abstract available."
+          ? "No OpenAlex abstract was available; reading is metadata-only."
+          : "OpenAlex reader uses abstract metadata and does not fetch full text.",
+      ],
+      extractedEvaluationClaims: [
+        "Citation and venue metadata are signals, not direct evaluation evidence.",
+      ],
+      extractedImplementationHints: [
+        "Use concepts and abstract claims to shape follow-up source review.",
+      ],
+      sourceReliabilitySignals: [
+        year ? `Publication year: ${year}.` : "Publication year unavailable.",
+        doi ? `DOI: ${doi}.` : "DOI unavailable.",
+        venue ? `Venue: ${venue}.` : "Venue unavailable.",
+      ],
+      readingLimitations: [
+        "OpenAlex reader stores reconstructed summary fields only.",
+      ],
       noveltyRisk: noveltyRiskFor(source.relevance),
       prototypeRelevance: source.relevance === "high" ? "medium" : "low",
       metadata: {
@@ -439,7 +539,65 @@ export class OpenAlexWorkReader implements ConcreteSourceReader {
         abstractExcerpt: oneLine(abstract),
         brief: query.brief,
       },
-    };
+      evidenceHash: "",
+    });
+  }
+}
+
+export class PatentClaimReader implements ConcreteSourceReader {
+  readonly name = "patent-claim-reader";
+
+  canRead(source: PriorArtSearchResult): boolean {
+    return source.kind === "concrete_source" && source.sourceType === "patent";
+  }
+
+  async read(source: PriorArtSearchResult): Promise<DeepSourceReading> {
+    return sourceReadingWithHash({
+      title: source.title,
+      sourceType: source.sourceType,
+      kind: source.kind,
+      url: source.url,
+      citation: source.citation,
+      provider: this.name,
+      readStatus: "read",
+      readingDepth: "patent_claim_level",
+      summary:
+        source.note ??
+        "Patent source metadata was represented as structured claim-level fixture data.",
+      keyTechnicalMechanism:
+        "Patent-like source represented with bounded claim-element fields; full legal claim interpretation is outside Sovryn scope.",
+      overlapWithInvention: source.overlap,
+      differenceFromInvention: source.difference,
+      extractedTechnicalClaims: [
+        "Claim-like source should be decomposed into independent elements before comparison.",
+      ],
+      extractedMethods: [
+        "Map each claim-like element to candidate factory features and counter-evidence.",
+      ],
+      extractedLimitations: [
+        "Patent reader is a structured placeholder unless a concrete patent adapter supplies claim snippets.",
+        "This is not legal claim construction or patentability analysis.",
+      ],
+      extractedEvaluationClaims: [],
+      extractedImplementationHints: [
+        "Use patent claim elements only as follow-up research cues.",
+      ],
+      sourceReliabilitySignals: [
+        source.url
+          ? `Patent source URL: ${source.url}.`
+          : "Patent URL unavailable.",
+      ],
+      readingLimitations: [
+        "No legal novelty, patentability, or freedom-to-operate conclusion is made.",
+      ],
+      noveltyRisk: noveltyRiskFor(source.relevance),
+      prototypeRelevance: "low",
+      metadata: {
+        publicationNumber: publicationNumberFrom(source),
+        readingDepth: "patent_claim_level",
+      },
+      evidenceHash: "",
+    });
   }
 }
 
@@ -479,7 +637,7 @@ function failedReading(
   provider: string,
   reason: unknown,
 ): DeepSourceReading {
-  return {
+  return sourceReadingWithHash({
     ...baseReading(
       source,
       provider,
@@ -487,7 +645,8 @@ function failedReading(
       "Deep source reader failed. Retry or manual review is required.",
     ),
     error: reason instanceof Error ? reason.message : String(reason),
-  };
+    readingDepth: "failed",
+  });
 }
 
 function baseReading(
@@ -496,7 +655,7 @@ function baseReading(
   readStatus: SourceReadStatus,
   summary: string,
 ): DeepSourceReading {
-  return {
+  return sourceReadingWithHash({
     title: source.title,
     sourceType: source.sourceType,
     kind: source.kind,
@@ -504,14 +663,36 @@ function baseReading(
     citation: source.citation,
     provider,
     readStatus,
+    readingDepth:
+      readStatus === "failed"
+        ? "failed"
+        : readStatus === "unsupported" || readStatus === "disabled"
+          ? "unavailable"
+          : "metadata_only",
     summary,
     keyTechnicalMechanism: "Not available from deep source reading.",
     overlapWithInvention: source.overlap,
     differenceFromInvention: source.difference,
+    extractedTechnicalClaims: [],
+    extractedMethods: [],
+    extractedLimitations: [summary],
+    extractedEvaluationClaims: [],
+    extractedImplementationHints: [],
+    sourceReliabilitySignals: [],
+    readingLimitations: ["This source was not reviewed as concrete prior art."],
     noveltyRisk: "unknown",
     prototypeRelevance: "low",
     metadata: {},
-  };
+    evidenceHash: "",
+  });
+}
+
+function sourceReadingWithHash(
+  reading: Omit<DeepSourceReading, "evidenceHash"> & { evidenceHash?: string },
+): DeepSourceReading {
+  const value: DeepSourceReading = { ...reading, evidenceHash: "" };
+  value.evidenceHash = hashEvidence(value);
+  return value;
 }
 
 function githubHeaders(tokenEnv: string | null): Record<string, string> {
@@ -739,4 +920,13 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function publicationNumberFrom(source: PriorArtSearchResult): string | null {
+  const fromUrl = source.url?.match(
+    /(?:patent|publication)\/?([A-Z]{2}[0-9A-Z]+)/i,
+  );
+  if (fromUrl) return fromUrl[1];
+  const fromTitle = source.title.match(/\b([A-Z]{2}[0-9][0-9A-Z.-]+)\b/);
+  return fromTitle ? fromTitle[1] : null;
 }

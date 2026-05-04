@@ -289,6 +289,10 @@ test("strict mode passes with fixture concrete sources and readings", async () =
     configure: enableStrictFixtureEvidence,
     args: ["--mode", "autonomous", "--max-cycles", "3"],
   });
+  await executeCli(
+    ["factory", "improve", run.id, "--max-cycles", "1", "--json"],
+    repo.root,
+  );
   const packaged = await executeCli(
     ["factory", "package", run.id, "--json"],
     repo.root,
@@ -532,6 +536,10 @@ test("factory publish-github dry-run creates publication intent", async () => {
     configure: enableStrictFixtureEvidence,
     args: ["--mode", "autonomous", "--max-cycles", "3"],
   });
+  await executeCli(
+    ["factory", "improve", run.id, "--max-cycles", "1", "--json"],
+    repo.root,
+  );
   const response = await executeCli(
     ["factory", "publish-github", run.id, "--dry-run", "--json"],
     repo.root,
@@ -555,6 +563,10 @@ test("factory publish-github dry-run does not require real publish", async () =>
     configure: enableStrictFixtureEvidence,
     args: ["--mode", "autonomous", "--max-cycles", "3"],
   });
+  await executeCli(
+    ["factory", "improve", run.id, "--max-cycles", "1", "--json"],
+    repo.root,
+  );
   const response = await executeCli(
     ["factory", "publish-github", run.id, "--dry-run", "--json"],
     repo.root,
@@ -617,6 +629,12 @@ test("malformed factory config is clamped safely", async () => {
       minReproducibilityScore: 0,
       requireSourceDiversity: false,
       requireDryRunPublishPackage: false,
+      requireCounterEvidence: false,
+      requireExperimentPlan: false,
+      requireContainerExecution: false,
+      minReadingDepthScore: 40,
+      minClaimMappingScore: 50,
+      minNoveltyRiskScore: 50,
     },
   );
 });
@@ -647,19 +665,28 @@ test("release packaging includes only curated public files", async () => {
   assert.equal(packaged.ok, true);
   const files = (await readdir((packaged.data as any).releasePath)).sort();
   assert.deepEqual(files, [
+    "BENCHMARK_PLAN.md",
     "CLAIM_FEATURE_MATRIX.md",
+    "COUNTER_EVIDENCE.md",
+    "EXPERIMENT_PLAN.md",
     "FACTORY_REPORT.md",
     "LIMITATIONS.md",
     "NOVELTY_GAP_REPORT.md",
+    "REPLAY_REPORT.md",
+    "benchmark-plan.summary.json",
     "candidate-inventions.summary.json",
     "candidate-selection-rationale.md",
     "claim-feature-matrix.summary.json",
+    "counter-evidence.summary.json",
+    "experiment-plan.summary.json",
     "factory-run.summary.json",
     "factory-score.summary.json",
     "feature-matrix.summary.json",
     "novelty-gap-map.summary.json",
     "prototype-execution.summary.json",
+    "replay-report.summary.json",
     "selected-candidates.summary.json",
+    "source-cards.index.summary.json",
     "source-cards.summary.json",
     "source-discovery.summary.json",
     "source-readings.summary.json",
@@ -771,20 +798,33 @@ function scoreInput(
     kind: "factory_feature_matrix",
     sourceDiscoveryEvidenceHash: discovery.evidenceHash,
     sourceReadingsEvidenceHash: sourceReadings.evidenceHash,
+    sourceCardsEvidenceHash: "source-cards-hash",
     features: [
       {
         featureId: "feature-1",
+        claimFeatureId: "feature-1",
         description: "Feature",
         featureText: "Feature",
+        featureType: "verification",
+        extractedFromCandidate: false,
         sourceSupport: "single_source",
         supportingSourceCards: ["source-1"],
+        supportedBySourceCards: ["source-1"],
+        contradictedBySourceCards: [],
         knownOverlap: "Known overlap.",
         candidateDifferentiator: "Possible differentiator.",
+        possibleDifferentiator: "Possible differentiator.",
+        differentiatorStrength: "moderate",
         verificationMethod: "Run prototype test.",
+        requiredExperiment: "Run prototype test.",
         prototypeRelevance: "high",
+        benchmarkRelevance: "medium",
         seenInSources: ["source-1"],
         confidence: "high",
         noveltyRisk: "medium",
+        obviousnessRisk: "medium",
+        implementationRisk: "low",
+        readingDepthSupport: ["code_structure_level"],
         evidenceRefs: ["source-1"],
         riskLevel: "low",
       },

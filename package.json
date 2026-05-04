@@ -1,6 +1,6 @@
 {
   "name": "sovryn-os-v3",
-  "version": "3.0.0-alpha.13",
+  "version": "3.0.0-alpha.14",
   "description": "A local-first evidence kernel for AI-assisted coding and research work.",
   "type": "module",
   "license": "MIT",

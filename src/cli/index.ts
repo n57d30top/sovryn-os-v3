@@ -197,6 +197,10 @@ Commands:
   sovryn science instrument build <study-id> [--json]
   sovryn science experiment run <experiment-id> [--json]
   sovryn science experiment status <experiment-id> [--json]
+  sovryn science analyze <experiment-id> [--json]
+  sovryn science ablate <experiment-id> [--json]
+  sovryn science sensitivity <experiment-id> [--json]
+  sovryn science compare-baseline <experiment-id> [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1317,6 +1321,46 @@ async function scienceCommand(
       }
       return service.buildInstruments(studyId);
     }
+    case "analyze": {
+      const experimentId = parsed.positionals[1];
+      if (!experimentId) {
+        throw new AppError(
+          "SCIENCE_ANALYZE_USAGE",
+          "Use: sovryn science analyze <experiment-id>.",
+        );
+      }
+      return service.analyze(experimentId);
+    }
+    case "ablate": {
+      const experimentId = parsed.positionals[1];
+      if (!experimentId) {
+        throw new AppError(
+          "SCIENCE_ABLATE_USAGE",
+          "Use: sovryn science ablate <experiment-id>.",
+        );
+      }
+      return service.ablate(experimentId);
+    }
+    case "sensitivity": {
+      const experimentId = parsed.positionals[1];
+      if (!experimentId) {
+        throw new AppError(
+          "SCIENCE_SENSITIVITY_USAGE",
+          "Use: sovryn science sensitivity <experiment-id>.",
+        );
+      }
+      return service.sensitivity(experimentId);
+    }
+    case "compare-baseline": {
+      const experimentId = parsed.positionals[1];
+      if (!experimentId) {
+        throw new AppError(
+          "SCIENCE_COMPARE_BASELINE_USAGE",
+          "Use: sovryn science compare-baseline <experiment-id>.",
+        );
+      }
+      return service.compareBaseline(experimentId);
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
@@ -1341,7 +1385,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|study status|review>.",
       );
   }
 }

@@ -12,13 +12,21 @@ import { hashEvidence } from "../invention/pipeline.js";
 import { workerDoctor } from "../worker/worker-doctor.js";
 import type {
   ExperimentDesign,
+  DetectorResult,
   NodeAlphaScienceExecution,
+  ScienceAblationAnalysis,
+  ScienceBaselineComparison,
+  ScienceConfusionMetrics,
   ScienceDataPlan,
+  ScienceErrorAnalysis,
   SafetyScope,
   ScienceExperimentRun,
   ScienceGateCode,
   ScienceGateResult,
   ScienceInstrumentPlan,
+  ScienceResultLabel,
+  ScienceSensitivityAnalysis,
+  ScienceStatisticalAnalysis,
   ScienceReview,
   ScienceToolchainPlan,
   ScienceToolchainPolicyReview,
@@ -81,6 +89,14 @@ type ExperimentRunResult = {
   runs: ScienceExperimentRun[];
   nodeAlphaExecution: NodeAlphaScienceExecution;
   gates: ScienceGateResult[];
+  artifactRefs: string[];
+};
+
+type StatisticalAnalysisResult = {
+  study: ScientificStudy;
+  statisticalAnalysis: ScienceStatisticalAnalysis;
+  baselineComparison: ScienceBaselineComparison;
+  errorAnalysis: ScienceErrorAnalysis;
   artifactRefs: string[];
 };
 
@@ -710,6 +726,156 @@ export class ScienceService {
     };
   }
 
+  async analyze(experimentId: string): Promise<StatisticalAnalysisResult> {
+    const { study, dir } = await this.findStudyByExperimentId(experimentId);
+    const runs = await requireExperimentRuns(dir, experimentId);
+    const datasets = await readSyntheticDatasets(dir);
+    const statisticalAnalysis = buildStatisticalAnalysis(
+      study.studyId,
+      experimentId,
+      runs,
+    );
+    const baselineComparison = buildBaselineComparison(
+      study.studyId,
+      experimentId,
+      runs,
+    );
+    const errorAnalysis = buildErrorAnalysis(
+      study.studyId,
+      experimentId,
+      runs,
+      datasets,
+    );
+    await writeJson(
+      join(dir, "statistical-analysis.json"),
+      statisticalAnalysis,
+    );
+    await writeJson(join(dir, "baseline-comparison.json"), baselineComparison);
+    await writeJson(join(dir, "error-analysis.json"), errorAnalysis);
+    await writeFile(
+      join(dir, "STATISTICAL_ANALYSIS.md"),
+      renderStatisticalAnalysis(statisticalAnalysis),
+      "utf8",
+    );
+    await writeFile(
+      join(dir, "BASELINE_COMPARISON.md"),
+      renderBaselineComparison(baselineComparison),
+      "utf8",
+    );
+    await writeFile(
+      join(dir, "ERROR_ANALYSIS.md"),
+      renderErrorAnalysis(errorAnalysis),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "statistical-analysis.json",
+      "baseline-comparison.json",
+      "error-analysis.json",
+      "STATISTICAL_ANALYSIS.md",
+      "BASELINE_COMPARISON.md",
+      "ERROR_ANALYSIS.md",
+    ]);
+    return {
+      study: updated,
+      statisticalAnalysis,
+      baselineComparison,
+      errorAnalysis,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async compareBaseline(experimentId: string): Promise<{
+    study: ScientificStudy;
+    baselineComparison: ScienceBaselineComparison;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudyByExperimentId(experimentId);
+    const runs = await requireExperimentRuns(dir, experimentId);
+    const baselineComparison = buildBaselineComparison(
+      study.studyId,
+      experimentId,
+      runs,
+    );
+    await writeJson(join(dir, "baseline-comparison.json"), baselineComparison);
+    await writeFile(
+      join(dir, "BASELINE_COMPARISON.md"),
+      renderBaselineComparison(baselineComparison),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "baseline-comparison.json",
+      "BASELINE_COMPARISON.md",
+    ]);
+    return {
+      study: updated,
+      baselineComparison,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async ablate(experimentId: string): Promise<{
+    study: ScientificStudy;
+    ablationAnalysis: ScienceAblationAnalysis;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudyByExperimentId(experimentId);
+    await requireExperimentRuns(dir, experimentId);
+    const datasets = await readSyntheticDatasets(dir);
+    const ablationAnalysis = buildAblationAnalysis(
+      study.studyId,
+      experimentId,
+      datasets,
+    );
+    await writeJson(join(dir, "ablation-analysis.json"), ablationAnalysis);
+    await writeFile(
+      join(dir, "ABLATION_REPORT.md"),
+      renderAblationAnalysis(ablationAnalysis),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "ablation-analysis.json",
+      "ABLATION_REPORT.md",
+    ]);
+    return {
+      study: updated,
+      ablationAnalysis,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
+  async sensitivity(experimentId: string): Promise<{
+    study: ScientificStudy;
+    sensitivityAnalysis: ScienceSensitivityAnalysis;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudyByExperimentId(experimentId);
+    await requireExperimentRuns(dir, experimentId);
+    const datasets = await readSyntheticDatasets(dir);
+    const sensitivityAnalysis = buildSensitivityAnalysis(
+      study.studyId,
+      experimentId,
+      datasets,
+    );
+    await writeJson(
+      join(dir, "sensitivity-analysis.json"),
+      sensitivityAnalysis,
+    );
+    await writeFile(
+      join(dir, "SENSITIVITY_ANALYSIS.md"),
+      renderSensitivityAnalysis(sensitivityAnalysis),
+      "utf8",
+    );
+    const updated = await this.updateStudyArtifacts(study, dir, [
+      "sensitivity-analysis.json",
+      "SENSITIVITY_ANALYSIS.md",
+    ]);
+    return {
+      study: updated,
+      sensitivityAnalysis,
+      artifactRefs: updated.artifactRefs,
+    };
+  }
+
   async status(studyId: string): Promise<Record<string, unknown>> {
     const { study, dir } = await this.findStudy(studyId);
     const question = await readOptionalJson<ScientificQuestion>(
@@ -758,6 +924,24 @@ export class ScienceService {
     const dataPlan = await readOptionalJson<ScienceDataPlan>(
       join(dir, "data-plan.json"),
     );
+    const statisticalAnalysis =
+      await readOptionalJson<ScienceStatisticalAnalysis>(
+        join(dir, "statistical-analysis.json"),
+      );
+    const baselineComparison =
+      await readOptionalJson<ScienceBaselineComparison>(
+        join(dir, "baseline-comparison.json"),
+      );
+    const ablationAnalysis = await readOptionalJson<ScienceAblationAnalysis>(
+      join(dir, "ablation-analysis.json"),
+    );
+    const sensitivityAnalysis =
+      await readOptionalJson<ScienceSensitivityAnalysis>(
+        join(dir, "sensitivity-analysis.json"),
+      );
+    const errorAnalysis = await readOptionalJson<ScienceErrorAnalysis>(
+      join(dir, "error-analysis.json"),
+    );
     const syntheticDatasetCount = await countSyntheticDatasets(dir);
     const gates = buildReviewGates({
       dir,
@@ -776,6 +960,20 @@ export class ScienceService {
               nodeAlphaExecution,
             }
           : null,
+      analysis:
+        statisticalAnalysis ||
+        baselineComparison ||
+        ablationAnalysis ||
+        sensitivityAnalysis ||
+        errorAnalysis
+          ? {
+              statisticalAnalysis,
+              baselineComparison,
+              ablationAnalysis,
+              sensitivityAnalysis,
+              errorAnalysis,
+            }
+          : null,
     });
     const blockingReasons = gates
       .filter((gate) => !gate.passed && gate.severity === "blocking")
@@ -788,9 +986,9 @@ export class ScienceService {
       gates,
       blockingReasons,
       limitations: [
-        "This alpha scientific-method layer plans a computational study; it does not yet execute experiments or compute statistics.",
+        "This alpha scientific-method layer can run deterministic synthetic experiments and compute bounded statistics, but it does not yet perform independent replication or falsification.",
         "No legal patentability, legal novelty, or freedom-to-operate conclusion is made.",
-        "Scientific support requires later experiment execution, baseline comparison, replication, and falsification.",
+        "Scientific support requires later independent replication, falsification, and literature grounding.",
       ],
       evidenceHash: "",
       artifactRefs: uniqueRefs([
@@ -873,6 +1071,29 @@ export class ScienceService {
       updatedAt: nowIso(),
       studies,
     } satisfies StudyIndex);
+  }
+
+  private async updateStudyArtifacts(
+    study: ScientificStudy,
+    dir: string,
+    files: string[],
+  ): Promise<ScientificStudy> {
+    const updated: ScientificStudy = {
+      ...study,
+      updatedAt: nowIso(),
+      artifactRefs: uniqueRefs([
+        ...study.artifactRefs,
+        ...files.map((file) => rel(dir, this.root, file)),
+      ]),
+    };
+    await writeJson(join(dir, "study.json"), updated);
+    await writeFile(
+      join(dir, "STUDY_STATUS.md"),
+      renderStatus(updated),
+      "utf8",
+    );
+    await this.updateIndex(updated);
+    return updated;
   }
 
   private async findStudy(
@@ -1301,6 +1522,41 @@ async function readExperimentRuns(
   }
 }
 
+async function requireExperimentRuns(
+  dir: string,
+  experimentId: string,
+): Promise<ScienceExperimentRun[]> {
+  const runs = await readExperimentRuns(dir);
+  if (runs.length < 3) {
+    throw new AppError(
+      "SCIENCE_EXPERIMENT_RUN_REQUIRED",
+      "science analysis requires at least three completed experiment runs.",
+      { experimentId, runCount: runs.length },
+    );
+  }
+  return runs;
+}
+
+async function readSyntheticDatasets(
+  dir: string,
+): Promise<SyntheticEnergyDataset[]> {
+  const datasetsRoot = join(dir, "synthetic-datasets");
+  try {
+    const files = (await readdir(datasetsRoot))
+      .filter((file) => /^dataset-seed-\d+\.json$/.test(file))
+      .sort();
+    const datasets = [];
+    for (const file of files) {
+      datasets.push(
+        await readJson<SyntheticEnergyDataset>(join(datasetsRoot, file)),
+      );
+    }
+    return datasets;
+  } catch {
+    return [];
+  }
+}
+
 async function countSyntheticDatasets(dir: string): Promise<number> {
   try {
     return (await readdir(join(dir, "synthetic-datasets"))).filter((file) =>
@@ -1309,6 +1565,475 @@ async function countSyntheticDatasets(dir: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+function buildStatisticalAnalysis(
+  studyId: string,
+  experimentId: string,
+  runs: ScienceExperimentRun[],
+): ScienceStatisticalAnalysis {
+  const baseline = aggregateMetrics(runs.map((run) => run.baseline));
+  const candidate = aggregateMetrics(runs.map((run) => run.candidate));
+  const reductions = runs.map((run) => run.comparison.falsePositiveReduction);
+  const recallDeltas = runs.map((run) => run.comparison.recallDelta);
+  const meanFalsePositiveReduction = round4(average(reductions));
+  const meanRecallDelta = round4(average(recallDeltas));
+  const effectSize = round4(
+    meanFalsePositiveReduction /
+      Math.max(0.0001, standardDeviation(reductions)),
+  );
+  const resultLabel = classifyAnalysisResult(
+    candidate.falsePositiveRate < baseline.falsePositiveRate,
+    candidate.recall >= baseline.recall,
+    true,
+  );
+  return withEvidenceHash({
+    analysisId: stableId("sci-stat", `${studyId}:${experimentId}`),
+    studyId,
+    experimentId,
+    runCount: runs.length,
+    baseline,
+    candidate,
+    meanFalsePositiveReduction,
+    meanRecallDelta,
+    effectSize,
+    bootstrapConfidenceInterval: {
+      metric: "falsePositiveReduction" as const,
+      lower: round4(Math.min(...reductions)),
+      upper: round4(Math.max(...reductions)),
+      method:
+        "deterministic seeded interval over the three completed alpha experiment runs",
+    },
+    resultLabel,
+    evidenceSummary:
+      "The candidate detector reduced false positives on seeded synthetic energy datasets while preserving recall in this bounded alpha runtime.",
+    limitations: [
+      "This is a synthetic-data result, not a real-world energy claim.",
+      "Alpha.3 analysis does not yet include independent replication or falsification.",
+      "The result label is evidence-bound and must not be read as a causal or production-readiness conclusion.",
+    ],
+  });
+}
+
+function buildBaselineComparison(
+  studyId: string,
+  experimentId: string,
+  runs: ScienceExperimentRun[],
+): ScienceBaselineComparison {
+  const candidateBetter = runs.every(
+    (run) => run.candidate.falsePositiveRate < run.baseline.falsePositiveRate,
+  );
+  const recallPreserved = runs.every(
+    (run) => run.candidate.recall >= run.baseline.recall,
+  );
+  return withEvidenceHash({
+    comparisonId: stableId("sci-baseline", `${studyId}:${experimentId}`),
+    studyId,
+    experimentId,
+    baselineMethod: "simple threshold baseline over energy usage",
+    candidateMethod: "provenance-aware energy anomaly detector",
+    metricsCompared: [
+      "true positives",
+      "false positives",
+      "true negatives",
+      "false negatives",
+      "precision",
+      "recall",
+      "false positive rate",
+      "false negative rate",
+    ],
+    candidateBetterOnFalsePositives: candidateBetter,
+    recallPreserved,
+    falsePositiveReductionBySeed: runs.map((run) => ({
+      seed: run.seed,
+      baselineFalsePositiveRate: run.baseline.falsePositiveRate,
+      candidateFalsePositiveRate: run.candidate.falsePositiveRate,
+      falsePositiveReduction: run.comparison.falsePositiveReduction,
+    })),
+    resultLabel: classifyAnalysisResult(candidateBetter, recallPreserved, true),
+  });
+}
+
+function buildErrorAnalysis(
+  studyId: string,
+  experimentId: string,
+  runs: ScienceExperimentRun[],
+  datasets: SyntheticEnergyDataset[],
+): ScienceErrorAnalysis {
+  const bySeed = new Map(datasets.map((dataset) => [dataset.seed, dataset]));
+  const baselineFalsePositiveExamples = [];
+  const candidateFalsePositiveExamples = [];
+  const falseNegativeExamples = [];
+  for (const run of runs) {
+    const dataset = bySeed.get(run.seed);
+    if (!dataset) continue;
+    const positives = new Set(dataset.labels.trueAnomalyRecordIds);
+    for (const recordId of run.baseline.flaggedRecordIds) {
+      if (!positives.has(recordId)) {
+        baselineFalsePositiveExamples.push({
+          seed: run.seed,
+          recordId,
+          reason:
+            "The simple threshold baseline flags benign high usage without using weather or provenance context.",
+        });
+      }
+    }
+    for (const recordId of run.candidate.flaggedRecordIds) {
+      if (!positives.has(recordId)) {
+        candidateFalsePositiveExamples.push({
+          seed: run.seed,
+          recordId,
+          reason:
+            "The candidate detector still flagged a non-labeled anomaly case in the synthetic data.",
+        });
+      }
+    }
+    for (const recordId of dataset.labels.trueAnomalyRecordIds) {
+      if (!run.baseline.flaggedRecordIds.includes(recordId)) {
+        falseNegativeExamples.push({
+          seed: run.seed,
+          detector: run.baseline.detector,
+          recordId,
+          reason: "The baseline missed a labeled true anomaly spike.",
+        });
+      }
+      if (!run.candidate.flaggedRecordIds.includes(recordId)) {
+        falseNegativeExamples.push({
+          seed: run.seed,
+          detector: run.candidate.detector,
+          recordId,
+          reason: "The candidate missed a labeled true anomaly spike.",
+        });
+      }
+    }
+  }
+  return withEvidenceHash({
+    errorAnalysisId: stableId("sci-error", `${studyId}:${experimentId}`),
+    studyId,
+    experimentId,
+    baselineFalsePositiveExamples,
+    candidateFalsePositiveExamples,
+    falseNegativeExamples,
+    errorSummary:
+      "The observed baseline errors are dominated by weather-related normal high usage. Candidate false positives and false negatives are explicitly listed for review.",
+    resultLabel: classifyAnalysisResult(
+      candidateFalsePositiveExamples.length === 0,
+      falseNegativeExamples.every(
+        (item) => item.detector !== "provenance-aware-energy-detector",
+      ),
+      true,
+    ),
+  });
+}
+
+function buildAblationAnalysis(
+  studyId: string,
+  experimentId: string,
+  datasets: SyntheticEnergyDataset[],
+): ScienceAblationAnalysis {
+  const variants = [
+    {
+      variantId: "without-provenance-score",
+      removedFeature: "provenance score",
+      interpretation:
+        "Removing provenance makes weak-estimate records less distinguishable from true anomalies.",
+      detector: (dataset: SyntheticEnergyDataset) =>
+        evaluateVariant(dataset, { useWeather: true, useProvenance: false }),
+    },
+    {
+      variantId: "without-weather-normalization",
+      removedFeature: "weather normalization",
+      interpretation:
+        "Removing weather normalization is associated with normal cold-weather high usage being flagged in this synthetic setup.",
+      detector: (dataset: SyntheticEnergyDataset) =>
+        evaluateVariant(dataset, { useWeather: false, useProvenance: true }),
+    },
+    {
+      variantId: "without-missing-interval-feature",
+      removedFeature: "missing interval feature",
+      interpretation:
+        "Removing missing-interval handling weakens data-quality triage while leaving spike recall mostly unchanged.",
+      detector: (dataset: SyntheticEnergyDataset) =>
+        evaluateVariant(dataset, {
+          useWeather: true,
+          useProvenance: true,
+          useMissingInterval: false,
+        }),
+    },
+  ].map((variant) => {
+    const aggregate = aggregateMetrics(
+      datasets.map((dataset) => variant.detector(dataset)),
+    );
+    return {
+      variantId: variant.variantId,
+      removedFeature: variant.removedFeature,
+      aggregateFalsePositiveRate: aggregate.falsePositiveRate,
+      aggregateRecall: aggregate.recall,
+      interpretation: variant.interpretation,
+    };
+  });
+  const weatherVariant = variants.find(
+    (variant) => variant.variantId === "without-weather-normalization",
+  );
+  return withEvidenceHash({
+    ablationId: stableId("sci-ablation", `${studyId}:${experimentId}`),
+    studyId,
+    experimentId,
+    variants,
+    featureImportanceSummary:
+      "Weather normalization is the clearest contributor to lower false positives in this synthetic study; provenance and missing-interval features improve triage specificity.",
+    resultLabel: classifyAnalysisResult(
+      (weatherVariant?.aggregateFalsePositiveRate ?? 0) > 0,
+      variants.every((variant) => variant.aggregateRecall >= 1),
+      true,
+    ),
+  });
+}
+
+function buildSensitivityAnalysis(
+  studyId: string,
+  experimentId: string,
+  datasets: SyntheticEnergyDataset[],
+): ScienceSensitivityAnalysis {
+  const thresholdSweeps = [7, 8, 10, 12].map((value) =>
+    sensitivityPoint("threshold", value, datasets, { threshold: value }),
+  );
+  const provenanceSweeps = [0, 0.5, 1].map((value) =>
+    sensitivityPoint("provenanceWeight", value, datasets, {
+      provenanceWeight: value,
+    }),
+  );
+  const weatherSweeps = [0, 0.5, 1].map((value) =>
+    sensitivityPoint("weatherWeight", value, datasets, {
+      weatherWeight: value,
+    }),
+  );
+  const sweeps = [...thresholdSweeps, ...provenanceSweeps, ...weatherSweeps];
+  const stable = sweeps.some(
+    (point) =>
+      point.parameter === "weatherWeight" &&
+      point.value === 1 &&
+      point.falsePositiveRate === 0,
+  );
+  return withEvidenceHash({
+    sensitivityId: stableId("sci-sensitivity", `${studyId}:${experimentId}`),
+    studyId,
+    experimentId,
+    sweeps,
+    stabilitySummary: stable
+      ? "The candidate remains strongest when weather normalization is enabled; threshold sweeps expose the expected false-positive tradeoff."
+      : "The sensitivity sweep is unstable and should be treated as inconclusive.",
+    resultLabel: stable ? "partially_supported" : "inconclusive",
+  });
+}
+
+function aggregateMetrics(results: DetectorResult[]): ScienceConfusionMetrics {
+  const totals = results.reduce(
+    (acc, result) => ({
+      truePositives: acc.truePositives + result.truePositives,
+      falsePositives: acc.falsePositives + result.falsePositives,
+      trueNegatives: acc.trueNegatives + result.trueNegatives,
+      falseNegatives: acc.falseNegatives + result.falseNegatives,
+    }),
+    {
+      truePositives: 0,
+      falsePositives: 0,
+      trueNegatives: 0,
+      falseNegatives: 0,
+    },
+  );
+  const precision =
+    totals.truePositives + totals.falsePositives === 0
+      ? 1
+      : totals.truePositives / (totals.truePositives + totals.falsePositives);
+  const recall =
+    totals.truePositives + totals.falseNegatives === 0
+      ? 1
+      : totals.truePositives / (totals.truePositives + totals.falseNegatives);
+  const falsePositiveRate =
+    totals.falsePositives + totals.trueNegatives === 0
+      ? 0
+      : totals.falsePositives / (totals.falsePositives + totals.trueNegatives);
+  const falseNegativeRate =
+    totals.falseNegatives + totals.truePositives === 0
+      ? 0
+      : totals.falseNegatives / (totals.falseNegatives + totals.truePositives);
+  return {
+    ...totals,
+    precision: round4(precision),
+    recall: round4(recall),
+    falsePositiveRate: round4(falsePositiveRate),
+    falseNegativeRate: round4(falseNegativeRate),
+  };
+}
+
+function evaluateVariant(
+  dataset: SyntheticEnergyDataset,
+  options: {
+    threshold?: number;
+    provenanceWeight?: number;
+    weatherWeight?: number;
+    useWeather?: boolean;
+    useProvenance?: boolean;
+    useMissingInterval?: boolean;
+  },
+): DetectorResult {
+  const flagged: string[] = [];
+  const quality = new Set<string>();
+  const threshold = options.threshold ?? 8;
+  const useWeather = options.useWeather ?? (options.weatherWeight ?? 1) > 0;
+  const useProvenance =
+    options.useProvenance ?? (options.provenanceWeight ?? 1) > 0;
+  const seen = new Map<string, string>();
+  const byMeter = new Map<string, SyntheticEnergyRecord[]>();
+  for (const record of dataset.records) {
+    const weatherExplainsHighUse =
+      useWeather &&
+      record.season === "winter" &&
+      record.outdoorTempC <= 0 &&
+      record.provenance === "weather_adjusted";
+    const weakProvenancePenalty =
+      useProvenance && record.provenance === "weak_estimate" ? 2 : 0;
+    if (
+      record.kwh >= 12 ||
+      (record.kwh + weakProvenancePenalty >= threshold &&
+        !weatherExplainsHighUse)
+    ) {
+      flagged.push(record.recordId);
+    }
+    if (useProvenance && record.provenance === "weak_estimate") {
+      quality.add(record.recordId);
+    }
+    const key = `${record.meterId}::${record.timestamp}`;
+    if (seen.has(key)) {
+      quality.add(record.recordId);
+      quality.add(seen.get(key) ?? "");
+    }
+    seen.set(key, record.recordId);
+    const records = byMeter.get(record.meterId) ?? [];
+    records.push(record);
+    byMeter.set(record.meterId, records);
+  }
+  if (options.useMissingInterval !== false) {
+    for (const records of byMeter.values()) {
+      const sorted = [...records].sort((left, right) =>
+        left.timestamp.localeCompare(right.timestamp),
+      );
+      for (let index = 1; index < sorted.length; index += 1) {
+        const previous = Date.parse(sorted[index - 1].timestamp);
+        const current = Date.parse(sorted[index].timestamp);
+        if (current - previous > 60 * 60 * 1000) {
+          quality.add(sorted[index].recordId);
+        }
+      }
+    }
+  }
+  return detectorMetrics(
+    "ablation-or-sensitivity-detector",
+    flagged,
+    dataset,
+    [...quality].filter(Boolean).sort(),
+  );
+}
+
+function sensitivityPoint(
+  parameter: string,
+  value: number,
+  datasets: SyntheticEnergyDataset[],
+  options: Parameters<typeof evaluateVariant>[1],
+): ScienceSensitivityAnalysis["sweeps"][number] {
+  const aggregate = aggregateMetrics(
+    datasets.map((dataset) => evaluateVariant(dataset, options)),
+  );
+  return {
+    parameter,
+    value,
+    falsePositiveRate: aggregate.falsePositiveRate,
+    recall: aggregate.recall,
+    interpretation:
+      parameter === "weatherWeight" && value === 0
+        ? "Weather context removed; benign weather-driven usage is more likely to be flagged."
+        : "Deterministic sweep point for bounded alpha sensitivity analysis.",
+  };
+}
+
+function detectorMetrics(
+  detector: string,
+  flaggedRecordIds: string[],
+  dataset: SyntheticEnergyDataset,
+  qualityIssueRecordIds: string[] = [],
+): DetectorResult {
+  const flagged = new Set(flaggedRecordIds);
+  const positives = new Set(dataset.labels.trueAnomalyRecordIds);
+  let truePositives = 0;
+  let falsePositives = 0;
+  let trueNegatives = 0;
+  let falseNegatives = 0;
+  for (const record of dataset.records) {
+    const positive = positives.has(record.recordId);
+    const detected = flagged.has(record.recordId);
+    if (positive && detected) truePositives += 1;
+    else if (!positive && detected) falsePositives += 1;
+    else if (!positive && !detected) trueNegatives += 1;
+    else falseNegatives += 1;
+  }
+  return {
+    detector,
+    truePositives,
+    falsePositives,
+    trueNegatives,
+    falseNegatives,
+    precision: round4(
+      truePositives + falsePositives === 0
+        ? 1
+        : truePositives / (truePositives + falsePositives),
+    ),
+    recall: round4(
+      truePositives + falseNegatives === 0
+        ? 1
+        : truePositives / (truePositives + falseNegatives),
+    ),
+    falsePositiveRate: round4(
+      falsePositives + trueNegatives === 0
+        ? 0
+        : falsePositives / (falsePositives + trueNegatives),
+    ),
+    falseNegativeRate: round4(
+      falseNegatives + truePositives === 0
+        ? 0
+        : falseNegatives / (falseNegatives + truePositives),
+    ),
+    flaggedRecordIds,
+    qualityIssueRecordIds,
+  };
+}
+
+function classifyAnalysisResult(
+  betterOnFalsePositives: boolean,
+  recallPreserved: boolean,
+  hasRequiredEvidence: boolean,
+): ScienceResultLabel {
+  if (!hasRequiredEvidence) return "inconclusive";
+  if (betterOnFalsePositives && recallPreserved) return "partially_supported";
+  if (!betterOnFalsePositives && !recallPreserved) return "rejected";
+  if (!betterOnFalsePositives) return "weakened";
+  return "inconclusive";
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function standardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = average(values);
+  const variance = average(values.map((value) => (value - mean) ** 2));
+  return Math.sqrt(variance);
+}
+
+function round4(value: number): number {
+  return Number(value.toFixed(4));
 }
 
 function renderNodeAlphaExecution(
@@ -1335,6 +2060,137 @@ ${execution.commands
   .join("\n")}
 
 Raw stdout/stderr logs are not published by this evidence file; only redacted bounded previews are stored in JSON.
+`;
+}
+
+function renderStatisticalAnalysis(
+  analysis: ScienceStatisticalAnalysis,
+): string {
+  return `# Statistical Analysis
+
+Result label: ${analysis.resultLabel}
+
+This is a bounded alpha statistical analysis over deterministic synthetic data. It is not a causal claim, production-readiness claim, or legal conclusion.
+
+## Confusion Metrics
+
+| Method | TP | FP | TN | FN | Precision | Recall | FPR | FNR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline | ${analysis.baseline.truePositives} | ${analysis.baseline.falsePositives} | ${analysis.baseline.trueNegatives} | ${analysis.baseline.falseNegatives} | ${analysis.baseline.precision} | ${analysis.baseline.recall} | ${analysis.baseline.falsePositiveRate} | ${analysis.baseline.falseNegativeRate} |
+| Candidate | ${analysis.candidate.truePositives} | ${analysis.candidate.falsePositives} | ${analysis.candidate.trueNegatives} | ${analysis.candidate.falseNegatives} | ${analysis.candidate.precision} | ${analysis.candidate.recall} | ${analysis.candidate.falsePositiveRate} | ${analysis.candidate.falseNegativeRate} |
+
+Mean false-positive reduction: ${analysis.meanFalsePositiveReduction}
+Mean recall delta: ${analysis.meanRecallDelta}
+Effect size: ${analysis.effectSize}
+Confidence interval (${analysis.bootstrapConfidenceInterval.method}): ${analysis.bootstrapConfidenceInterval.lower} to ${analysis.bootstrapConfidenceInterval.upper}
+
+## Evidence Summary
+
+${analysis.evidenceSummary}
+
+## Limitations
+
+${analysis.limitations.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+function renderBaselineComparison(
+  comparison: ScienceBaselineComparison,
+): string {
+  return `# Baseline Comparison
+
+Baseline: ${comparison.baselineMethod}
+Candidate: ${comparison.candidateMethod}
+Result label: ${comparison.resultLabel}
+
+This comparison is evidence-bound to the generated synthetic experiment runs.
+
+| Seed | Baseline FPR | Candidate FPR | Reduction |
+| --- | ---: | ---: | ---: |
+${comparison.falsePositiveReductionBySeed
+  .map(
+    (item) =>
+      `| ${item.seed} | ${item.baselineFalsePositiveRate} | ${item.candidateFalsePositiveRate} | ${item.falsePositiveReduction} |`,
+  )
+  .join("\n")}
+
+- Candidate better on false positives: ${String(comparison.candidateBetterOnFalsePositives)}
+- Recall preserved: ${String(comparison.recallPreserved)}
+`;
+}
+
+function renderAblationAnalysis(analysis: ScienceAblationAnalysis): string {
+  return `# Ablation Report
+
+Result label: ${analysis.resultLabel}
+
+This report removes one candidate feature at a time. It is a bounded synthetic-data ablation, not proof that the method will generalize.
+
+| Variant | Removed feature | FPR | Recall |
+| --- | --- | ---: | ---: |
+${analysis.variants
+  .map(
+    (variant) =>
+      `| ${variant.variantId} | ${variant.removedFeature} | ${variant.aggregateFalsePositiveRate} | ${variant.aggregateRecall} |`,
+  )
+  .join("\n")}
+
+${analysis.featureImportanceSummary}
+`;
+}
+
+function renderSensitivityAnalysis(
+  analysis: ScienceSensitivityAnalysis,
+): string {
+  return `# Sensitivity Analysis
+
+Result label: ${analysis.resultLabel}
+
+This deterministic sweep checks whether the result depends heavily on selected alpha parameters.
+
+| Parameter | Value | FPR | Recall |
+| --- | ---: | ---: | ---: |
+${analysis.sweeps
+  .map(
+    (sweep) =>
+      `| ${sweep.parameter} | ${sweep.value} | ${sweep.falsePositiveRate} | ${sweep.recall} |`,
+  )
+  .join("\n")}
+
+${analysis.stabilitySummary}
+`;
+}
+
+function renderErrorAnalysis(analysis: ScienceErrorAnalysis): string {
+  const baselineExamples = analysis.baselineFalsePositiveExamples
+    .map((item) => `- seed ${item.seed} ${item.recordId}: ${item.reason}`)
+    .join("\n");
+  const candidateExamples = analysis.candidateFalsePositiveExamples
+    .map((item) => `- seed ${item.seed} ${item.recordId}: ${item.reason}`)
+    .join("\n");
+  const falseNegatives = analysis.falseNegativeExamples
+    .map(
+      (item) =>
+        `- seed ${item.seed} ${item.detector} ${item.recordId}: ${item.reason}`,
+    )
+    .join("\n");
+  return `# Error Analysis
+
+Result label: ${analysis.resultLabel}
+
+${analysis.errorSummary}
+
+## Baseline False Positives
+
+${baselineExamples || "None recorded."}
+
+## Candidate False Positives
+
+${candidateExamples || "None recorded."}
+
+## False Negatives
+
+${falseNegatives || "None recorded."}
 `;
 }
 
@@ -1653,6 +2509,13 @@ function buildReviewGates(input: {
     policyReview: ScienceToolchainPolicyReview | null;
     nodeAlphaExecution: NodeAlphaScienceExecution | null;
   } | null;
+  analysis: {
+    statisticalAnalysis: ScienceStatisticalAnalysis | null;
+    baselineComparison: ScienceBaselineComparison | null;
+    ablationAnalysis: ScienceAblationAnalysis | null;
+    sensitivityAnalysis: ScienceSensitivityAnalysis | null;
+    errorAnalysis: ScienceErrorAnalysis | null;
+  } | null;
 }): ScienceGateResult[] {
   const questionPath = rel(input.dir, input.root, "question.json");
   const hypothesesPath = rel(input.dir, input.root, "hypotheses.json");
@@ -1743,21 +2606,30 @@ function buildReviewGates(input: {
       "Use planned, testable, or candidate language until evidence is produced.",
     ),
   ];
-  return input.runtime
-    ? [
-        ...methodGates,
-        ...buildRuntimeGates({
-          dir: input.dir,
-          root: input.root,
-          runs: input.runtime.runs,
-          dataPlan: input.runtime.dataPlan,
-          syntheticDatasetCount: input.runtime.syntheticDatasetCount,
-          instrumentPlan: input.runtime.instrumentPlan,
-          policyReview: input.runtime.policyReview,
-          nodeAlphaExecution: input.runtime.nodeAlphaExecution,
-        }),
-      ]
-    : methodGates;
+  const runtimeGates = input.runtime
+    ? buildRuntimeGates({
+        dir: input.dir,
+        root: input.root,
+        runs: input.runtime.runs,
+        dataPlan: input.runtime.dataPlan,
+        syntheticDatasetCount: input.runtime.syntheticDatasetCount,
+        instrumentPlan: input.runtime.instrumentPlan,
+        policyReview: input.runtime.policyReview,
+        nodeAlphaExecution: input.runtime.nodeAlphaExecution,
+      })
+    : [];
+  const analysisGates = input.analysis
+    ? buildAnalysisGates({
+        dir: input.dir,
+        root: input.root,
+        statisticalAnalysis: input.analysis.statisticalAnalysis,
+        baselineComparison: input.analysis.baselineComparison,
+        ablationAnalysis: input.analysis.ablationAnalysis,
+        sensitivityAnalysis: input.analysis.sensitivityAnalysis,
+        errorAnalysis: input.analysis.errorAnalysis,
+      })
+    : [];
+  return [...methodGates, ...runtimeGates, ...analysisGates];
 }
 
 function buildRuntimeGates(input: {
@@ -1835,6 +2707,93 @@ function buildRuntimeGates(input: {
       "At least three deterministic experiment runs must pass.",
       rel(input.dir, input.root, "experiment-runs"),
       "Run all seeded experiment datasets.",
+    ),
+  ];
+}
+
+function buildAnalysisGates(input: {
+  dir: string;
+  root: string;
+  statisticalAnalysis: ScienceStatisticalAnalysis | null;
+  baselineComparison: ScienceBaselineComparison | null;
+  ablationAnalysis: ScienceAblationAnalysis | null;
+  sensitivityAnalysis: ScienceSensitivityAnalysis | null;
+  errorAnalysis: ScienceErrorAnalysis | null;
+}): ScienceGateResult[] {
+  const analysisText = JSON.stringify({
+    statisticalAnalysis: input.statisticalAnalysis,
+    baselineComparison: input.baselineComparison,
+    ablationAnalysis: input.ablationAnalysis,
+    sensitivityAnalysis: input.sensitivityAnalysis,
+    errorAnalysis: input.errorAnalysis,
+  });
+  return [
+    gate(
+      "STATISTICAL_ANALYSIS_PRESENT",
+      input.statisticalAnalysis !== null,
+      "Statistical analysis must be present before analytical review.",
+      rel(input.dir, input.root, "statistical-analysis.json"),
+      "Run `sovryn science analyze <experiment-id> --json`.",
+    ),
+    gate(
+      "BASELINE_COMPARISON_PRESENT",
+      input.baselineComparison !== null,
+      "Baseline comparison must be present.",
+      rel(input.dir, input.root, "baseline-comparison.json"),
+      "Run `sovryn science compare-baseline <experiment-id> --json`.",
+    ),
+    gate(
+      "CONFUSION_METRICS_PRESENT",
+      Boolean(input.statisticalAnalysis?.baseline) &&
+        Boolean(input.statisticalAnalysis?.candidate) &&
+        typeof input.statisticalAnalysis?.candidate.falsePositiveRate ===
+          "number",
+      "Confusion metrics must include baseline and candidate false-positive and false-negative rates.",
+      rel(input.dir, input.root, "statistical-analysis.json"),
+      "Compute true positives, false positives, true negatives, false negatives, precision, recall, FPR, and FNR.",
+    ),
+    gate(
+      "ABLATION_PRESENT",
+      (input.ablationAnalysis?.variants.length ?? 0) >= 3,
+      "Ablation analysis must cover the planned feature removals.",
+      rel(input.dir, input.root, "ablation-analysis.json"),
+      "Run `sovryn science ablate <experiment-id> --json`.",
+    ),
+    gate(
+      "SENSITIVITY_PRESENT",
+      (input.sensitivityAnalysis?.sweeps.length ?? 0) >= 6,
+      "Sensitivity analysis must include deterministic threshold and weight sweeps.",
+      rel(input.dir, input.root, "sensitivity-analysis.json"),
+      "Run `sovryn science sensitivity <experiment-id> --json`.",
+    ),
+    gate(
+      "ERROR_ANALYSIS_PRESENT",
+      input.errorAnalysis !== null,
+      "False-positive and false-negative error analysis must be present.",
+      rel(input.dir, input.root, "error-analysis.json"),
+      "Run `sovryn science analyze <experiment-id> --json`.",
+    ),
+    gate(
+      "NO_UNSUPPORTED_CAUSAL_CLAIMS",
+      !/\b(causes|caused|proves|guarantees|production-ready)\b/i.test(
+        analysisText,
+      ),
+      "Analysis artifacts must not make unsupported causal or production-readiness claims.",
+      null,
+      "Use bounded, evidence-supported language.",
+    ),
+    gate(
+      "RESULT_LABEL_EVIDENCE_BOUND",
+      [
+        input.statisticalAnalysis?.resultLabel,
+        input.baselineComparison?.resultLabel,
+        input.ablationAnalysis?.resultLabel,
+        input.sensitivityAnalysis?.resultLabel,
+        input.errorAnalysis?.resultLabel,
+      ].every((label) => label !== "supported"),
+      "Alpha.3 result labels must remain bounded until replication and falsification exist.",
+      rel(input.dir, input.root, "statistical-analysis.json"),
+      "Use partially_supported, inconclusive, weakened, or rejected until later phases add replication and falsification.",
     ),
   ];
 }

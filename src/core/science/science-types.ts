@@ -27,7 +27,15 @@ export type ScienceGateCode =
   | "TOOLCHAIN_POLICY_PASSED"
   | "NODE_ALPHA_EXECUTION_PRESENT"
   | "NO_SILENT_FALLBACK"
-  | "EXPERIMENT_RUN_PRESENT";
+  | "EXPERIMENT_RUN_PRESENT"
+  | "STATISTICAL_ANALYSIS_PRESENT"
+  | "BASELINE_COMPARISON_PRESENT"
+  | "CONFUSION_METRICS_PRESENT"
+  | "ABLATION_PRESENT"
+  | "SENSITIVITY_PRESENT"
+  | "ERROR_ANALYSIS_PRESENT"
+  | "NO_UNSUPPORTED_CAUSAL_CLAIMS"
+  | "RESULT_LABEL_EVIDENCE_BOUND";
 
 export type SafetyScope = {
   domain: string;
@@ -268,5 +276,121 @@ export type NodeAlphaScienceExecution = {
     stderrRedactedPreview: string;
   }>;
   passed: boolean;
+  evidenceHash: string;
+};
+
+export type ScienceResultLabel =
+  | "supported"
+  | "partially_supported"
+  | "inconclusive"
+  | "weakened"
+  | "rejected";
+
+export type ScienceConfusionMetrics = {
+  truePositives: number;
+  falsePositives: number;
+  trueNegatives: number;
+  falseNegatives: number;
+  precision: number;
+  recall: number;
+  falsePositiveRate: number;
+  falseNegativeRate: number;
+};
+
+export type ScienceStatisticalAnalysis = {
+  analysisId: string;
+  studyId: string;
+  experimentId: string;
+  runCount: number;
+  baseline: ScienceConfusionMetrics;
+  candidate: ScienceConfusionMetrics;
+  meanFalsePositiveReduction: number;
+  meanRecallDelta: number;
+  effectSize: number;
+  bootstrapConfidenceInterval: {
+    metric: "falsePositiveReduction";
+    lower: number;
+    upper: number;
+    method: string;
+  };
+  resultLabel: ScienceResultLabel;
+  evidenceSummary: string;
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceBaselineComparison = {
+  comparisonId: string;
+  studyId: string;
+  experimentId: string;
+  baselineMethod: string;
+  candidateMethod: string;
+  metricsCompared: string[];
+  candidateBetterOnFalsePositives: boolean;
+  recallPreserved: boolean;
+  falsePositiveReductionBySeed: Array<{
+    seed: number;
+    baselineFalsePositiveRate: number;
+    candidateFalsePositiveRate: number;
+    falsePositiveReduction: number;
+  }>;
+  resultLabel: ScienceResultLabel;
+  evidenceHash: string;
+};
+
+export type ScienceAblationAnalysis = {
+  ablationId: string;
+  studyId: string;
+  experimentId: string;
+  variants: Array<{
+    variantId: string;
+    removedFeature: string;
+    aggregateFalsePositiveRate: number;
+    aggregateRecall: number;
+    interpretation: string;
+  }>;
+  featureImportanceSummary: string;
+  resultLabel: ScienceResultLabel;
+  evidenceHash: string;
+};
+
+export type ScienceSensitivityAnalysis = {
+  sensitivityId: string;
+  studyId: string;
+  experimentId: string;
+  sweeps: Array<{
+    parameter: string;
+    value: number;
+    falsePositiveRate: number;
+    recall: number;
+    interpretation: string;
+  }>;
+  stabilitySummary: string;
+  resultLabel: ScienceResultLabel;
+  evidenceHash: string;
+};
+
+export type ScienceErrorAnalysis = {
+  errorAnalysisId: string;
+  studyId: string;
+  experimentId: string;
+  baselineFalsePositiveExamples: Array<{
+    seed: number;
+    recordId: string;
+    reason: string;
+  }>;
+  candidateFalsePositiveExamples: Array<{
+    seed: number;
+    recordId: string;
+    reason: string;
+  }>;
+  falseNegativeExamples: Array<{
+    seed: number;
+    detector: string;
+    recordId: string;
+    reason: string;
+  }>;
+  errorSummary: string;
+  resultLabel: ScienceResultLabel;
   evidenceHash: string;
 };

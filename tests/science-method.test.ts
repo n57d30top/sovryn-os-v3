@@ -64,10 +64,18 @@ async function createDesignedStudy() {
 let runtimeFixturePromise:
   | Promise<Awaited<ReturnType<typeof createRuntimeStudy>>>
   | undefined;
+let analysisFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createAnalyzedStudy>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
   return runtimeFixturePromise;
+}
+
+async function analysisFixture() {
+  analysisFixturePromise ??= createAnalyzedStudy();
+  return analysisFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -110,13 +118,55 @@ async function createRuntimeStudy() {
   };
 }
 
+async function createAnalyzedStudy() {
+  const context = await createRuntimeStudy();
+  const analyze = await executeCli(
+    ["science", "analyze", context.experimentDesign.experimentId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(analyze.ok, true, JSON.stringify(analyze.errors, null, 2));
+  const compare = await executeCli(
+    [
+      "science",
+      "compare-baseline",
+      context.experimentDesign.experimentId,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(compare.ok, true, JSON.stringify(compare.errors, null, 2));
+  const ablate = await executeCli(
+    ["science", "ablate", context.experimentDesign.experimentId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(ablate.ok, true, JSON.stringify(ablate.errors, null, 2));
+  const sensitivity = await executeCli(
+    ["science", "sensitivity", context.experimentDesign.experimentId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(
+    sensitivity.ok,
+    true,
+    JSON.stringify(sensitivity.errors, null, 2),
+  );
+  return {
+    ...context,
+    statisticalAnalysis: (analyze.data as any).statisticalAnalysis,
+    analyzeBaselineComparison: (analyze.data as any).baselineComparison,
+    errorAnalysis: (analyze.data as any).errorAnalysis,
+    baselineComparison: (compare.data as any).baselineComparison,
+    ablationAnalysis: (ablate.data as any).ablationAnalysis,
+    sensitivityAnalysis: (sensitivity.data as any).sensitivityAnalysis,
+  };
+}
+
 function studyPath(root: string, slug: string, file: string): string {
   return join(root, ".sovryn", "science", "studies", slug, file);
 }
 
 test("v1.1 alpha package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-alpha.2");
+  assert.equal(pkg.version, "3.1.0-alpha.3");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -966,4 +1016,437 @@ test("runtime artifacts do not contain sudo or curl pipe shell execution", async
   const text = JSON.stringify(nodeAlphaExecution);
   assert.doesNotMatch(text, /\bsudo\b/);
   assert.doesNotMatch(text, /curl.+\|\s*sh/);
+});
+
+test("alpha.3 science analyze command is listed in help", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  const help = (response.data as any).help;
+  assert.match(help, /sovryn science analyze/);
+});
+
+test("alpha.3 ablation sensitivity and compare commands are listed in help", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  const help = (response.data as any).help;
+  assert.match(help, /sovryn science ablate/);
+  assert.match(help, /sovryn science sensitivity/);
+  assert.match(help, /sovryn science compare-baseline/);
+});
+
+test("science analyze requires completed experiment runs", async () => {
+  const { repo, experimentDesign } = await createDesignedStudy();
+  const response = await executeCli(
+    ["science", "analyze", experimentDesign.experimentId, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_EXPERIMENT_RUN_REQUIRED");
+});
+
+test("science analyze writes statistical analysis", async () => {
+  const { repo, study, statisticalAnalysis } = await analysisFixture();
+  assert.equal(statisticalAnalysis.runCount, 3);
+  await access(studyPath(repo.root, study.slug, "statistical-analysis.json"));
+});
+
+test("science analyze writes baseline comparison", async () => {
+  const { repo, study, analyzeBaselineComparison } = await analysisFixture();
+  assert.equal(
+    analyzeBaselineComparison.falsePositiveReductionBySeed.length,
+    3,
+  );
+  await access(studyPath(repo.root, study.slug, "baseline-comparison.json"));
+});
+
+test("science analyze writes error analysis", async () => {
+  const { repo, study, errorAnalysis } = await analysisFixture();
+  assert.ok(errorAnalysis.baselineFalsePositiveExamples.length > 0);
+  await access(studyPath(repo.root, study.slug, "error-analysis.json"));
+});
+
+test("science analyze writes statistical markdown report", async () => {
+  const { repo, study } = await analysisFixture();
+  const report = await readFile(
+    studyPath(repo.root, study.slug, "STATISTICAL_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.match(report, /Confusion Metrics/);
+});
+
+test("science analyze writes baseline markdown report", async () => {
+  const { repo, study } = await analysisFixture();
+  const report = await readFile(
+    studyPath(repo.root, study.slug, "BASELINE_COMPARISON.md"),
+    "utf8",
+  );
+  assert.match(report, /Baseline Comparison/);
+});
+
+test("science analyze writes error markdown report", async () => {
+  const { repo, study } = await analysisFixture();
+  const report = await readFile(
+    studyPath(repo.root, study.slug, "ERROR_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.match(report, /Baseline False Positives/);
+});
+
+test("statistical analysis includes confusion metrics", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.equal(typeof statisticalAnalysis.baseline.truePositives, "number");
+  assert.equal(
+    typeof statisticalAnalysis.candidate.falsePositiveRate,
+    "number",
+  );
+});
+
+test("precision calculation is correct for candidate aggregate", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  const metric = statisticalAnalysis.candidate;
+  assert.equal(
+    metric.precision,
+    Number(
+      (
+        metric.truePositives /
+        (metric.truePositives + metric.falsePositives)
+      ).toFixed(4),
+    ),
+  );
+});
+
+test("recall calculation is correct for candidate aggregate", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  const metric = statisticalAnalysis.candidate;
+  assert.equal(
+    metric.recall,
+    Number(
+      (
+        metric.truePositives /
+        (metric.truePositives + metric.falseNegatives)
+      ).toFixed(4),
+    ),
+  );
+});
+
+test("false positive rate calculation is correct for baseline aggregate", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  const metric = statisticalAnalysis.baseline;
+  assert.equal(
+    metric.falsePositiveRate,
+    Number(
+      (
+        metric.falsePositives /
+        (metric.falsePositives + metric.trueNegatives)
+      ).toFixed(4),
+    ),
+  );
+});
+
+test("false negative rate calculation is correct for candidate aggregate", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  const metric = statisticalAnalysis.candidate;
+  assert.equal(
+    metric.falseNegativeRate,
+    Number(
+      (
+        metric.falseNegatives /
+        (metric.falseNegatives + metric.truePositives)
+      ).toFixed(4),
+    ),
+  );
+});
+
+test("candidate false positive rate is lower than baseline", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.ok(
+    statisticalAnalysis.candidate.falsePositiveRate <
+      statisticalAnalysis.baseline.falsePositiveRate,
+  );
+});
+
+test("mean false positive reduction is positive", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.ok(statisticalAnalysis.meanFalsePositiveReduction > 0);
+});
+
+test("statistical effect size is recorded", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.equal(typeof statisticalAnalysis.effectSize, "number");
+});
+
+test("bootstrap interval is ordered", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.ok(
+    statisticalAnalysis.bootstrapConfidenceInterval.lower <=
+      statisticalAnalysis.bootstrapConfidenceInterval.upper,
+  );
+});
+
+test("alpha.3 statistical result label is conservative", async () => {
+  const { statisticalAnalysis } = await analysisFixture();
+  assert.notEqual(statisticalAnalysis.resultLabel, "supported");
+});
+
+test("baseline comparison includes seed-level reductions", async () => {
+  const { baselineComparison } = await analysisFixture();
+  assert.deepEqual(
+    baselineComparison.falsePositiveReductionBySeed.map(
+      (item: any) => item.seed,
+    ),
+    [1, 2, 3],
+  );
+});
+
+test("baseline comparison says candidate improves false positives", async () => {
+  const { baselineComparison } = await analysisFixture();
+  assert.equal(baselineComparison.candidateBetterOnFalsePositives, true);
+});
+
+test("baseline comparison records recall preservation", async () => {
+  const { baselineComparison } = await analysisFixture();
+  assert.equal(baselineComparison.recallPreserved, true);
+});
+
+test("compare-baseline output is hash-bound", async () => {
+  const { baselineComparison } = await analysisFixture();
+  assert.equal(typeof baselineComparison.evidenceHash, "string");
+  assert.equal(baselineComparison.evidenceHash.length, 64);
+});
+
+test("science ablate requires completed experiment runs", async () => {
+  const { repo, experimentDesign } = await createDesignedStudy();
+  const response = await executeCli(
+    ["science", "ablate", experimentDesign.experimentId, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_EXPERIMENT_RUN_REQUIRED");
+});
+
+test("science ablate writes ablation artifacts", async () => {
+  const { repo, study, ablationAnalysis } = await analysisFixture();
+  assert.equal(ablationAnalysis.variants.length, 3);
+  await access(studyPath(repo.root, study.slug, "ablation-analysis.json"));
+  await access(studyPath(repo.root, study.slug, "ABLATION_REPORT.md"));
+});
+
+test("ablation removes provenance feature", async () => {
+  const { ablationAnalysis } = await analysisFixture();
+  assert.ok(
+    ablationAnalysis.variants.some(
+      (variant: any) => variant.variantId === "without-provenance-score",
+    ),
+  );
+});
+
+test("ablation without weather normalization worsens false positives", async () => {
+  const { ablationAnalysis } = await analysisFixture();
+  const variant = ablationAnalysis.variants.find(
+    (item: any) => item.variantId === "without-weather-normalization",
+  );
+  assert.ok(variant.aggregateFalsePositiveRate > 0);
+});
+
+test("ablation includes missing-interval feature removal", async () => {
+  const { ablationAnalysis } = await analysisFixture();
+  assert.ok(
+    ablationAnalysis.variants.some(
+      (variant: any) =>
+        variant.variantId === "without-missing-interval-feature",
+    ),
+  );
+});
+
+test("ablation result label is conservative", async () => {
+  const { ablationAnalysis } = await analysisFixture();
+  assert.notEqual(ablationAnalysis.resultLabel, "supported");
+});
+
+test("science sensitivity requires completed experiment runs", async () => {
+  const { repo, experimentDesign } = await createDesignedStudy();
+  const response = await executeCli(
+    ["science", "sensitivity", experimentDesign.experimentId, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_EXPERIMENT_RUN_REQUIRED");
+});
+
+test("science sensitivity writes artifacts", async () => {
+  const { repo, study, sensitivityAnalysis } = await analysisFixture();
+  assert.ok(sensitivityAnalysis.sweeps.length >= 6);
+  await access(studyPath(repo.root, study.slug, "sensitivity-analysis.json"));
+  await access(studyPath(repo.root, study.slug, "SENSITIVITY_ANALYSIS.md"));
+});
+
+test("sensitivity records threshold sweep", async () => {
+  const { sensitivityAnalysis } = await analysisFixture();
+  assert.ok(
+    sensitivityAnalysis.sweeps.some(
+      (sweep: any) => sweep.parameter === "threshold",
+    ),
+  );
+});
+
+test("sensitivity records provenance weight sweep", async () => {
+  const { sensitivityAnalysis } = await analysisFixture();
+  assert.ok(
+    sensitivityAnalysis.sweeps.some(
+      (sweep: any) => sweep.parameter === "provenanceWeight",
+    ),
+  );
+});
+
+test("sensitivity records weather normalization sweep", async () => {
+  const { sensitivityAnalysis } = await analysisFixture();
+  assert.ok(
+    sensitivityAnalysis.sweeps.some(
+      (sweep: any) => sweep.parameter === "weatherWeight",
+    ),
+  );
+});
+
+test("weather normalization sensitivity changes false positive behavior", async () => {
+  const { sensitivityAnalysis } = await analysisFixture();
+  const off = sensitivityAnalysis.sweeps.find(
+    (sweep: any) => sweep.parameter === "weatherWeight" && sweep.value === 0,
+  );
+  const on = sensitivityAnalysis.sweeps.find(
+    (sweep: any) => sweep.parameter === "weatherWeight" && sweep.value === 1,
+  );
+  assert.ok(off.falsePositiveRate > on.falsePositiveRate);
+});
+
+test("sensitivity result label is conservative", async () => {
+  const { sensitivityAnalysis } = await analysisFixture();
+  assert.notEqual(sensitivityAnalysis.resultLabel, "supported");
+});
+
+test("science review includes alpha.3 analysis gates", async () => {
+  const { repo, study } = await analysisFixture();
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  const codes = (response.data as any).gates.map((gate: any) => gate.code);
+  for (const code of [
+    "STATISTICAL_ANALYSIS_PRESENT",
+    "BASELINE_COMPARISON_PRESENT",
+    "CONFUSION_METRICS_PRESENT",
+    "ABLATION_PRESENT",
+    "SENSITIVITY_PRESENT",
+    "ERROR_ANALYSIS_PRESENT",
+    "NO_UNSUPPORTED_CAUSAL_CLAIMS",
+    "RESULT_LABEL_EVIDENCE_BOUND",
+  ]) {
+    assert.ok(codes.includes(code), code);
+  }
+});
+
+test("science review passes after analysis artifacts exist", async () => {
+  const { repo, study } = await analysisFixture();
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  assert.equal((response.data as any).status, "passed");
+});
+
+test("missing ablation blocks analysis review", async () => {
+  const context = await createRuntimeStudy();
+  await executeCli(
+    ["science", "analyze", context.experimentDesign.experimentId, "--json"],
+    context.repo.root,
+  );
+  const response = await executeCli(
+    ["science", "review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "ABLATION_PRESENT",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("unsupported causal analysis claim blocks review", async () => {
+  const { repo, study } = await analysisFixture();
+  const path = studyPath(repo.root, study.slug, "statistical-analysis.json");
+  const analysis = await readJson<any>(path);
+  analysis.evidenceSummary = "This proves the method causes real-world gains.";
+  await writeFile(path, JSON.stringify(analysis, null, 2), "utf8");
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "NO_UNSUPPORTED_CAUSAL_CLAIMS",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("supported alpha.3 label blocks review before replication", async () => {
+  const { repo, study } = await analysisFixture();
+  const path = studyPath(repo.root, study.slug, "statistical-analysis.json");
+  const analysis = await readJson<any>(path);
+  analysis.resultLabel = "supported";
+  await writeFile(path, JSON.stringify(analysis, null, 2), "utf8");
+  const response = await executeCli(
+    ["science", "review", study.studyId, "--json"],
+    repo.root,
+  );
+  const gate = (response.data as any).gates.find(
+    (item: any) => item.code === "RESULT_LABEL_EVIDENCE_BOUND",
+  );
+  assert.equal(gate.passed, false);
+});
+
+test("analysis artifact refs are added to study", async () => {
+  const { repo, study } = await analysisFixture();
+  const current = await readJson<any>(
+    studyPath(repo.root, study.slug, "study.json"),
+  );
+  assert.ok(
+    current.artifactRefs.some((ref: string) =>
+      ref.endsWith("statistical-analysis.json"),
+    ),
+  );
+});
+
+test("statistical markdown avoids legal patent claims", async () => {
+  const { repo, study } = await analysisFixture();
+  const report = await readFile(
+    studyPath(repo.root, study.slug, "STATISTICAL_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    report,
+    /\bpatentable\b|\blegally novel\b|\bfreedom to operate\b/i,
+  );
+});
+
+test("error analysis includes weather-high baseline false positives", async () => {
+  const { errorAnalysis } = await analysisFixture();
+  assert.ok(
+    errorAnalysis.baselineFalsePositiveExamples.some((item: any) =>
+      item.recordId.includes("weather-high"),
+    ),
+  );
+});
+
+test("candidate false negative examples are not present in happy analysis", async () => {
+  const { errorAnalysis } = await analysisFixture();
+  assert.equal(
+    errorAnalysis.falseNegativeExamples.some(
+      (item: any) => item.detector === "provenance-aware-energy-detector",
+    ),
+    false,
+  );
+});
+
+test("analysis markdown avoids fake statistical guarantees", async () => {
+  const { repo, study } = await analysisFixture();
+  const report = await readFile(
+    studyPath(repo.root, study.slug, "STATISTICAL_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(report, /\bguarantees\b|\bproduction-ready\b/i);
 });

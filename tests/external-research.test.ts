@@ -32,7 +32,7 @@ let realSourceFallbackFixturePromise: Promise<{
 
 test("package version is rc.1", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-alpha.2");
+  assert.equal(pkg.version, "3.1.0-alpha.3");
 });
 
 test("CLI help lists external research command", async () => {

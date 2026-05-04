@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.1.0-alpha.2`
+Current version: `3.1.0-alpha.3`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -30,17 +30,20 @@ novelty, patentability, or freedom-to-operate opinions.
 ## Current v1.1 Line
 
 Sovryn OS v1.1 starts the transition from autonomous open-invention researcher
-to autonomous computational scientist. Alpha.1 added the formal study structure:
-question, hypothesis, null hypothesis, experiment design, baseline, metrics,
-falsification criteria, replication plan, and safety scope. Alpha.2 adds the
-first deterministic data/instrument/runtime path for safe synthetic
-computational experiments. It still does not claim scientific support until
-later statistics, ablations, replication, and falsification phases exist.
+to autonomous computational scientist. Alpha.1 added the formal study
+structure: question, hypothesis, null hypothesis, experiment design, baseline,
+metrics, falsification criteria, replication plan, and safety scope. Alpha.2
+added the first deterministic data/instrument/runtime path for safe synthetic
+computational experiments. Alpha.3 adds bounded statistical analysis, baseline
+comparison, ablations, sensitivity sweeps, and error analysis. It still does not
+claim full scientific support until later replication and falsification phases
+exist.
 
 | Version         | Focus                       | Result                                                                                                                                                     |
 | --------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `3.1.0-alpha.1` | Scientific Method Core      | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.      |
 | `3.1.0-alpha.2` | Data and Instrument Runtime | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates. |
+| `3.1.0-alpha.3` | Statistics and Ablations    | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.        |
 
 New science commands:
 
@@ -52,6 +55,10 @@ sovryn science data generate <study-id> --json
 sovryn science instrument build <study-id> --json
 sovryn science experiment run <experiment-id> --json
 sovryn science experiment status <experiment-id> --json
+sovryn science analyze <experiment-id> --json
+sovryn science ablate <experiment-id> --json
+sovryn science sensitivity <experiment-id> --json
+sovryn science compare-baseline <experiment-id> --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```

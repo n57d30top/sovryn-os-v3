@@ -14,7 +14,10 @@ import {
   buildFactoryScore,
   buildSourceDiscovery,
 } from "../src/core/factory/factory-builders.js";
-import { normalizeFactoryConfig } from "../src/core/factory/factory-service.js";
+import {
+  assertSandboxCommandAllowed,
+  normalizeFactoryConfig,
+} from "../src/core/factory/factory-service.js";
 import { ResearchPlanBuilder } from "../src/core/factory/research-plan-builder.js";
 import type {
   CandidateInventions,
@@ -23,6 +26,7 @@ import type {
   NoveltyGapMap,
   SelectedCandidates,
 } from "../src/core/factory/factory-types.js";
+import { hashEvidence } from "../src/core/invention/pipeline.js";
 import type { PriorArtSearchResult } from "../src/core/invention/providers.js";
 import { makeTempRepo } from "../src/testkit/temp-repo.js";
 
@@ -254,6 +258,7 @@ test("strict mode blocks runs with no concrete prior art", async () => {
   await executeCli(["init"], repo.root);
   const configPath = join(repo.root, ".sovryn", "config.json");
   const config = await readJson(configPath);
+  config.research.factory.strictEvidenceMode = true;
   config.research.factory.requireConcreteSources = true;
   config.research.factory.allowMockMode = false;
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
@@ -270,6 +275,309 @@ test("strict mode blocks runs with no concrete prior art", async () => {
     ),
     false,
   );
+  assert.equal(
+    checkPassed(
+      (response.data as any).review,
+      "STRICT_EVIDENCE_MODE_SATISFIED",
+    ),
+    false,
+  );
+});
+
+test("strict mode passes with fixture concrete sources and readings", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const packaged = await executeCli(
+    ["factory", "package", run.id, "--json"],
+    repo.root,
+  );
+  assert.equal(packaged.ok, true);
+  assert.equal((packaged.data as any).review.allowed, true);
+  assert.equal((packaged.data as any).run.status, "packaged");
+  assert.equal(
+    checkPassed(
+      (packaged.data as any).review,
+      "STRICT_EVIDENCE_MODE_SATISFIED",
+    ),
+    true,
+  );
+});
+
+test("source cards are generated for concrete sources", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const base = join(repo.root, ".sovryn", "factory", run.slug);
+  const index = await readJson(join(base, "source-cards.json"));
+  assert.equal(index.cards.length >= 2, true);
+  await access(join(base, "source-cards", `${index.cards[0].sourceId}.json`));
+  await access(join(base, "source-cards", `${index.cards[0].sourceId}.md`));
+});
+
+test("source cards are hash-bound", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const base = join(repo.root, ".sovryn", "factory", run.slug);
+  const index = await readJson(join(base, "source-cards.json"));
+  const first = index.cards[0];
+  assert.equal(
+    first.evidenceHash,
+    hashEvidence({ ...first, evidenceHash: "" }),
+  );
+  assert.equal(
+    index.evidenceHash,
+    hashEvidence({ ...index, evidenceHash: "" }),
+  );
+  assert.equal(run.evidenceHashes.source_cards, index.evidenceHash);
+});
+
+test("claim-feature matrix includes source-card refs", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const base = join(repo.root, ".sovryn", "factory", run.slug);
+  const matrix = await readJson(join(base, "feature-matrix.json"));
+  assert.equal(
+    matrix.features.some(
+      (feature: any) => feature.supportingSourceCards?.length > 0,
+    ),
+    true,
+  );
+  const report = await readFile(join(base, "CLAIM_FEATURE_MATRIX.md"), "utf8");
+  assert.match(report, /possible differentiator/i);
+  assert.match(report, /not a legal novelty conclusion/i);
+});
+
+test("novelty gap report is generated", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const report = await readFile(
+    join(repo.root, ".sovryn", "factory", run.slug, "NOVELTY_GAP_REPORT.md"),
+    "utf8",
+  );
+  assert.match(report, /candidate novelty gaps/i);
+  assert.match(report, /Required experiment/i);
+});
+
+test("candidate selection uses evidence-derived score", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const selected = await readJson(
+    join(repo.root, ".sovryn", "factory", run.slug, "selected-candidates.json"),
+  );
+  const candidate = selected.selectedCandidates[0];
+  assert.equal(typeof candidate.selectionScore, "number");
+  assert.equal(candidate.scoreBreakdown.sourceEvidenceStrength > 0, true);
+  assert.match(selected.selectionReason, /source evidence strength/i);
+});
+
+test("weak candidate is rejected with rationale", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const selected = await readJson(
+    join(repo.root, ".sovryn", "factory", run.slug, "selected-candidates.json"),
+  );
+  assert.equal(selected.rejectedCandidates.length > 0, true);
+  const rationale = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "factory",
+      run.slug,
+      "candidate-selection-rationale.md",
+    ),
+    "utf8",
+  );
+  assert.match(rationale, /Rejected Candidates/);
+  assert.match(rationale, /weak/i);
+});
+
+test("sandbox-local execution runs prototype test", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const execution = await readJson(
+    join(
+      repo.root,
+      ".sovryn",
+      "factory",
+      run.slug,
+      "execution",
+      "prototype-execution.json",
+    ),
+  );
+  assert.equal(execution.executionProfile, "sandbox-local");
+  assert.equal(execution.command, "npm test");
+  assert.equal(execution.passed, true);
+  assert.equal(execution.cwd, "prototype");
+});
+
+test("sandbox-local blocks disallowed commands", () => {
+  assert.throws(
+    () => assertSandboxCommandAllowed("npm test; curl https://example.com"),
+    (error: any) => error.code === "SANDBOX_COMMAND_BLOCKED",
+  );
+  assert.throws(
+    () => assertSandboxCommandAllowed("git clone https://github.com/a/b"),
+    (error: any) => error.code === "SANDBOX_COMMAND_BLOCKED",
+  );
+});
+
+test("prototype execution evidence hash is bound into score", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const base = join(repo.root, ".sovryn", "factory", run.slug);
+  const execution = await readJson(
+    join(base, "execution", "prototype-execution.json"),
+  );
+  const score = await readJson(join(base, "factory-score.json"));
+  assert.equal(score.executionEvidenceHash, execution.evidenceHash);
+  assert.equal(run.evidenceHashes.prototype_execution, execution.evidenceHash);
+});
+
+test("factory review blocks stale execution evidence", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const path = join(
+    repo.root,
+    ".sovryn",
+    "factory",
+    run.slug,
+    "execution",
+    "prototype-execution.json",
+  );
+  const execution = await readJson(path);
+  execution.stdout = "tampered output";
+  await writeFile(path, `${JSON.stringify(execution, null, 2)}\n`, "utf8");
+  const review = await executeCli(
+    ["factory", "review", run.id, "--json"],
+    repo.root,
+  );
+  assert.equal(review.ok, true);
+  assert.equal(
+    checkPassed((review.data as any).review, "EXECUTION_HASH_BOUND"),
+    false,
+  );
+});
+
+test("public release excludes absolute local paths", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const packaged = await executeCli(
+    ["factory", "package", run.id, "--json"],
+    repo.root,
+  );
+  assert.equal(packaged.ok, true);
+  await writeFile(
+    join((packaged.data as any).releasePath, "FACTORY_REPORT.md"),
+    "leaked path /Users/sovryn/private/file\n",
+    "utf8",
+  );
+  const review = await executeCli(
+    ["factory", "review", run.id, "--json"],
+    repo.root,
+  );
+  assert.equal(review.ok, true);
+  assert.equal(
+    checkPassed(
+      (review.data as any).review,
+      "NO_LOCAL_ABSOLUTE_PATHS_IN_PUBLIC_RELEASE",
+    ),
+    false,
+  );
+});
+
+test("public release excludes raw command log content", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const packaged = await executeCli(
+    ["factory", "package", run.id, "--json"],
+    repo.root,
+  );
+  assert.equal(packaged.ok, true);
+  const files = await readdir((packaged.data as any).releasePath);
+  assert.equal(files.includes("command-journal.redacted.json"), false);
+  for (const file of files) {
+    const content = await readFile(
+      join((packaged.data as any).releasePath, file),
+      "utf8",
+    );
+    assert.doesNotMatch(content, /command-journal|command-logs/);
+  }
+});
+
+test("factory publish-github dry-run creates publication intent", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const response = await executeCli(
+    ["factory", "publish-github", run.id, "--dry-run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  const intent = await readJson(
+    join(
+      repo.root,
+      ".sovryn",
+      "factory",
+      run.slug,
+      "factory-publication-intent.json",
+    ),
+  );
+  assert.equal(intent.dryRun, true);
+  assert.equal(intent.factoryRunId, run.id);
+});
+
+test("factory publish-github dry-run does not require real publish", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure: enableStrictFixtureEvidence,
+    args: ["--mode", "autonomous", "--max-cycles", "3"],
+  });
+  const response = await executeCli(
+    ["factory", "publish-github", run.id, "--dry-run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.equal((response.data as any).publication.dryRun, true);
+  assert.equal((response.data as any).publication.pushed, false);
+});
+
+test("factory publish-github dry-run blocks weak factory review", async () => {
+  const { repo, run } = await createFactoryRun({
+    configure(config) {
+      config.research.factory.strictEvidenceMode = true;
+      config.research.factory.requireConcreteSources = true;
+      config.research.factory.allowMockMode = false;
+    },
+  });
+  const response = await executeCli(
+    ["factory", "publish-github", run.id, "--dry-run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "FACTORY_PUBLICATION_BLOCKED");
 });
 
 test("malformed factory config is clamped safely", async () => {
@@ -284,6 +592,13 @@ test("malformed factory config is clamped safely", async () => {
       allowMockMode: true,
       packagePublicEvidence: true,
       blockHighSafetyRisk: true,
+      strictEvidenceMode: "true" as any,
+      minConcreteSources: -10,
+      minConcreteSourcesRead: 999,
+      minEvidenceStrengthScore: 999,
+      minReproducibilityScore: -1,
+      requireSourceDiversity: "true" as any,
+      requireDryRunPublishPackage: "false" as any,
     }),
     {
       enabled: true,
@@ -295,8 +610,21 @@ test("malformed factory config is clamped safely", async () => {
       allowMockMode: true,
       packagePublicEvidence: true,
       blockHighSafetyRisk: true,
+      strictEvidenceMode: false,
+      minConcreteSources: 0,
+      minConcreteSourcesRead: 25,
+      minEvidenceStrengthScore: 100,
+      minReproducibilityScore: 0,
+      requireSourceDiversity: false,
+      requireDryRunPublishPackage: false,
     },
   );
+});
+
+test("CLI help lists factory publish command", async () => {
+  const response = await executeCli(["--help", "--json"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /factory publish-github/);
 });
 
 test("CLI factory run returns JSON and factory status works", async () => {
@@ -319,14 +647,20 @@ test("release packaging includes only curated public files", async () => {
   assert.equal(packaged.ok, true);
   const files = (await readdir((packaged.data as any).releasePath)).sort();
   assert.deepEqual(files, [
+    "CLAIM_FEATURE_MATRIX.md",
     "FACTORY_REPORT.md",
     "LIMITATIONS.md",
+    "NOVELTY_GAP_REPORT.md",
     "candidate-inventions.summary.json",
+    "candidate-selection-rationale.md",
+    "claim-feature-matrix.summary.json",
     "factory-run.summary.json",
     "factory-score.summary.json",
     "feature-matrix.summary.json",
     "novelty-gap-map.summary.json",
+    "prototype-execution.summary.json",
     "selected-candidates.summary.json",
+    "source-cards.summary.json",
     "source-discovery.summary.json",
     "source-readings.summary.json",
   ]);
@@ -336,20 +670,59 @@ async function createFactoryRun(): Promise<{
   repo: { root: string };
   response: Awaited<ReturnType<typeof executeCli>>;
   run: any;
+}>;
+async function createFactoryRun(options: {
+  configure?: (config: any) => void;
+  args?: string[];
+}): Promise<{
+  repo: { root: string };
+  response: Awaited<ReturnType<typeof executeCli>>;
+  run: any;
+}>;
+async function createFactoryRun(
+  options: {
+    configure?: (config: any) => void;
+    args?: string[];
+  } = {},
+): Promise<{
+  repo: { root: string };
+  response: Awaited<ReturnType<typeof executeCli>>;
+  run: any;
 }> {
   const repo = await makeTempRepo();
   await executeCli(["init"], repo.root);
+  if (options.configure) {
+    const configPath = join(repo.root, ".sovryn", "config.json");
+    const config = await readJson(configPath);
+    options.configure(config);
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  }
   const response = await executeCli(
     [
       "factory",
       "run",
       "Develop open-source methods for self-verifying autonomous research agents",
+      ...(options.args ?? []),
       "--json",
     ],
     repo.root,
   );
   assert.equal(response.ok, true);
   return { repo, response, run: (response.data as any).run };
+}
+
+function enableStrictFixtureEvidence(config: any): void {
+  config.research.publicSearch.enabled = true;
+  config.research.publicSearch.fixtureMode = true;
+  config.research.sourceReading.enabled = true;
+  config.research.sourceReading.fixtureMode = true;
+  config.research.factory.strictEvidenceMode = true;
+  config.research.factory.allowMockMode = false;
+  config.research.factory.requireConcreteSources = true;
+  config.research.factory.minConcreteSources = 2;
+  config.research.factory.minConcreteSourcesRead = 2;
+  config.research.factory.minEvidenceStrengthScore = 60;
+  config.research.factory.minReproducibilityScore = 60;
 }
 
 function priorArt(
@@ -402,8 +775,16 @@ function scoreInput(
       {
         featureId: "feature-1",
         description: "Feature",
+        featureText: "Feature",
+        sourceSupport: "single_source",
+        supportingSourceCards: ["source-1"],
+        knownOverlap: "Known overlap.",
+        candidateDifferentiator: "Possible differentiator.",
+        verificationMethod: "Run prototype test.",
+        prototypeRelevance: "high",
         seenInSources: ["source-1"],
         confidence: "high",
+        noveltyRisk: "medium",
         evidenceRefs: ["source-1"],
         riskLevel: "low",
       },
@@ -423,6 +804,12 @@ function scoreInput(
       {
         gapId: "gap-1",
         description: "Gap",
+        sourceOverlapSummary: "Overlap summary.",
+        missingInSources: [],
+        possibleDifferentiator: "Possible differentiator.",
+        whyItCouldMatter: "Could matter for research quality.",
+        whyItMayAlreadyExist: "Existing systems may overlap.",
+        requiredExperiment: "Run prototype.",
         supportingEvidence: ["feature-1"],
         whyItMayBeNovel: "Possible differentiator.",
         whyItMayNotBeNovel: "May overlap with existing systems.",
@@ -454,6 +841,17 @@ function scoreInput(
         feasibilityScore: 90,
         evidenceStrengthScore: 80,
         publicationReadinessScore: 80,
+        selectionScore: 85,
+        scoreBreakdown: {
+          sourceEvidenceStrength: 80,
+          sourceDiversity: 50,
+          noveltyRisk: 60,
+          safetyRisk: 90,
+          prototypeFeasibility: 90,
+          testability: 90,
+          defensivePublicationValue: 90,
+          reproducibility: 90,
+        },
         recommended: true,
       },
     ],
@@ -463,6 +861,7 @@ function scoreInput(
     kind: "factory_selected_candidates",
     candidateInventionsEvidenceHash: candidates.evidenceHash,
     selectedCandidates: candidates.candidates,
+    rejectedCandidates: [],
     selectionReason: "Selected for tests.",
     evidenceHash: "selected-hash",
   };

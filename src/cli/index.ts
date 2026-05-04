@@ -45,6 +45,7 @@ Commands:
   sovryn factory status <factory-id> [--json]
   sovryn factory review <factory-id> [--json]
   sovryn factory package <factory-id> [--json]
+  sovryn factory publish-github <factory-id> --dry-run [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -53,7 +54,7 @@ Commands:
   sovryn publish-github <mission-id> --org <org> --repo <repo> [--dry-run] [--json]
   sovryn node register alpha --host local [--json]
   sovryn node status alpha [--json]
-  sovryn node run alpha <mission-id> [--mode validation|autonomous] [--max-steps 25] [--json]
+  sovryn node run alpha <mission-id> [--mode validation|autonomous|validate] [--profile sandbox-local] [--max-steps 25] [--json]
   sovryn node logs alpha <mission-id> [--json]
   sovryn node artifacts alpha <mission-id> [--json]
   sovryn plugin list [--json]
@@ -194,8 +195,16 @@ export async function executeCli(
       }
       case "node":
         return okEnvelope("node", await nodeCommand(parsed, root));
-      case "factory":
-        return okEnvelope("factory", await factoryCommand(parsed, root));
+      case "factory": {
+        const result = await factoryCommand(parsed, root);
+        return okEnvelope("factory", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
@@ -409,7 +418,7 @@ async function factoryCommand(
   if (!subcommand)
     throw new AppError(
       "FACTORY_COMMAND_REQUIRED",
-      "Use: sovryn factory <plan|run|status|review|package>",
+      "Use: sovryn factory <plan|run|status|review|package|publish-github>",
     );
   const service = new FactoryService(root);
   switch (subcommand) {
@@ -461,6 +470,21 @@ async function factoryCommand(
         );
       return service.package(id);
     }
+    case "publish-github": {
+      const id = parsed.positionals[1];
+      if (!id)
+        throw new AppError(
+          "FACTORY_ID_REQUIRED",
+          "factory publish-github requires a factory id.",
+        );
+      if (!flagBool(parsed.flags, "--dry-run")) {
+        throw new AppError(
+          "FACTORY_PUBLISH_DRY_RUN_REQUIRED",
+          "Factory GitHub publication MVP only supports --dry-run.",
+        );
+      }
+      return service.publishGithubDryRun(id);
+    }
     default:
       throw new AppError(
         "UNKNOWN_FACTORY_COMMAND",
@@ -503,6 +527,7 @@ async function nodeCommand(
       return manager.run(nodeId, missionId, {
         mode: flagRunMode(parsed.flags),
         maxSteps: flagInt(parsed.flags, "--max-steps", 25),
+        profile: flagNodeProfile(parsed.flags),
       });
     }
     case "logs": {
@@ -535,14 +560,27 @@ function flagRunMode(
   flags: Map<string, string | boolean>,
 ): "validation" | "autonomous" {
   const value = flagString(flags, "--mode") ?? "validation";
+  if (value === "validate") return "validation";
   if (value !== "validation" && value !== "autonomous") {
     throw new AppError(
       "NODE_RUN_MODE_INVALID",
-      "--mode must be validation or autonomous.",
+      "--mode must be validation, validate, or autonomous.",
       { mode: value },
     );
   }
   return value;
+}
+
+function flagNodeProfile(
+  flags: Map<string, string | boolean>,
+): "default" | "sandbox-local" {
+  const value = flagString(flags, "--profile") ?? "default";
+  if (value === "default" || value === "sandbox-local") return value;
+  throw new AppError(
+    "NODE_RUN_PROFILE_INVALID",
+    "--profile must be default or sandbox-local.",
+    { profile: value },
+  );
 }
 
 function flagFactoryRunMode(

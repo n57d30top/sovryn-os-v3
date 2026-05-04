@@ -66,12 +66,16 @@ export type SovrynConfig = {
       timeoutMs: number;
       includeQueryLinks: boolean;
       githubTokenEnv: string | null;
+      fixtureMode?: boolean;
+      fixturePath?: string | null;
     };
     sourceReading: {
       enabled: boolean;
       timeoutMs: number;
       maxReadBytes: number;
       githubTokenEnv: string | null;
+      fixtureMode?: boolean;
+      fixturePath?: string | null;
     };
     factory?: {
       enabled: boolean;
@@ -83,6 +87,13 @@ export type SovrynConfig = {
       allowMockMode: boolean;
       packagePublicEvidence: boolean;
       blockHighSafetyRisk: boolean;
+      strictEvidenceMode: boolean;
+      minConcreteSources: number;
+      minConcreteSourcesRead: number;
+      minEvidenceStrengthScore: number;
+      minReproducibilityScore: number;
+      requireSourceDiversity: boolean;
+      requireDryRunPublishPackage: boolean;
     };
   };
 };
@@ -150,12 +161,16 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       timeoutMs: 8000,
       includeQueryLinks: true,
       githubTokenEnv: null,
+      fixtureMode: false,
+      fixturePath: null,
     },
     sourceReading: {
       enabled: false,
       timeoutMs: 8000,
       maxReadBytes: 20000,
       githubTokenEnv: null,
+      fixtureMode: false,
+      fixturePath: null,
     },
     factory: {
       enabled: true,
@@ -167,6 +182,13 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       allowMockMode: true,
       packagePublicEvidence: true,
       blockHighSafetyRisk: true,
+      strictEvidenceMode: false,
+      minConcreteSources: 1,
+      minConcreteSourcesRead: 1,
+      minEvidenceStrengthScore: 60,
+      minReproducibilityScore: 60,
+      requireSourceDiversity: false,
+      requireDryRunPublishPackage: false,
     },
   },
 };

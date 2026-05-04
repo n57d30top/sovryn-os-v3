@@ -81,6 +81,13 @@ export type FactoryConfig = {
   allowMockMode: boolean;
   packagePublicEvidence: boolean;
   blockHighSafetyRisk: boolean;
+  strictEvidenceMode: boolean;
+  minConcreteSources: number;
+  minConcreteSourcesRead: number;
+  minEvidenceStrengthScore: number;
+  minReproducibilityScore: number;
+  requireSourceDiversity: boolean;
+  requireDryRunPublishPackage: boolean;
 };
 
 export type ResearchPlan = {
@@ -115,6 +122,7 @@ export type FactorySourceDiscovery = {
 
 export type FactorySourceReading = {
   sourceId: string;
+  kind: PriorArtSearchResult["kind"];
   sourceType: DeepSourceReading["sourceType"];
   title: string;
   url: string | null;
@@ -145,8 +153,16 @@ export type FactorySourceReadings = {
 export type FeatureMatrixRow = {
   featureId: string;
   description: string;
+  featureText: string;
+  sourceSupport: "none" | "single_source" | "multi_source" | "system_only";
+  supportingSourceCards: string[];
+  knownOverlap: string;
+  candidateDifferentiator: string;
+  verificationMethod: string;
+  prototypeRelevance: "low" | "medium" | "high";
   seenInSources: string[];
   confidence: "low" | "medium" | "high";
+  noveltyRisk: "low" | "medium" | "high";
   evidenceRefs: string[];
   riskLevel: "low" | "medium" | "high";
 };
@@ -168,6 +184,12 @@ export type FeatureMatrix = {
 export type NoveltyGap = {
   gapId: string;
   description: string;
+  sourceOverlapSummary: string;
+  missingInSources: string[];
+  possibleDifferentiator: string;
+  whyItCouldMatter: string;
+  whyItMayAlreadyExist: string;
+  requiredExperiment: string;
   supportingEvidence: string[];
   whyItMayBeNovel: string;
   whyItMayNotBeNovel: string;
@@ -200,6 +222,17 @@ export type CandidateInvention = {
   feasibilityScore: number;
   evidenceStrengthScore: number;
   publicationReadinessScore: number;
+  selectionScore: number;
+  scoreBreakdown: {
+    sourceEvidenceStrength: number;
+    sourceDiversity: number;
+    noveltyRisk: number;
+    safetyRisk: number;
+    prototypeFeasibility: number;
+    testability: number;
+    defensivePublicationValue: number;
+    reproducibility: number;
+  };
   recommended: boolean;
 };
 
@@ -214,13 +247,65 @@ export type SelectedCandidates = {
   kind: "factory_selected_candidates";
   candidateInventionsEvidenceHash: string;
   selectedCandidates: CandidateInvention[];
+  rejectedCandidates: Array<{
+    candidateId: string;
+    title: string;
+    reason: string;
+    selectionScore: number;
+  }>;
   selectionReason: string;
+  evidenceHash: string;
+};
+
+export type SourceCard = {
+  kind: "factory_source_card";
+  sourceId: string;
+  sourceType: DeepSourceReading["sourceType"];
+  title: string;
+  url: string | null;
+  externalId: string | null;
+  readStatus: DeepSourceReading["readStatus"];
+  extractedSummary: string;
+  extractedTechnicalClaims: string[];
+  extractedMethods: string[];
+  extractedLimitations: string[];
+  overlapWithResearchGoal: string;
+  possibleDifferentiators: string[];
+  evidenceStrength: "low" | "medium" | "high";
+  noveltyRisk: "low" | "medium" | "high" | "unknown";
+  citation: string | null;
+  evidenceHash: string;
+};
+
+export type SourceCardIndex = {
+  kind: "factory_source_cards";
+  sourceDiscoveryEvidenceHash: string;
+  sourceReadingsEvidenceHash: string;
+  cards: SourceCard[];
+  evidenceHash: string;
+};
+
+export type PrototypeExecutionEvidence = {
+  kind: "prototype_execution";
+  missionId: string;
+  prototypePath: string;
+  executionProfile: "sandbox-local";
+  command: string;
+  cwd: string;
+  startedAt: string;
+  finishedAt: string;
+  exitCode: number;
+  passed: boolean;
+  stdout: string;
+  stderr: string;
   evidenceHash: string;
 };
 
 export type FactoryScore = {
   kind: "factory_score";
   selectedCandidatesEvidenceHash: string;
+  sourceCardsEvidenceHash: string | null;
+  executionEvidenceHash: string | null;
   concreteSourcesFound: number;
   concreteSourcesRead: number;
   queryLinksOnly: number;
@@ -232,6 +317,8 @@ export type FactoryScore = {
   selectedCandidateCount: number;
   prototypePresent: boolean;
   testsPresent: boolean;
+  prototypeExecuted: boolean;
+  prototypeExecutionPassed: boolean;
   publicEvidencePackaged: boolean;
   limitationsPresent: boolean;
   safetyRisk: "low" | "medium" | "high";

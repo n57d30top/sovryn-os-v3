@@ -58,3 +58,27 @@ Node Alpha participation remains bounded. The local MVP can prepare and verify
 research artifacts, but it is not a host security sandbox. Use a dedicated user,
 container, VM, firewall, or network namespace before granting broad autonomous
 execution on a real research machine.
+
+Factory Alpha.13 adds a `sandbox-local` execution profile for generated
+prototype validation:
+
+```bash
+sovryn node run alpha <mission-id> --mode validate --profile sandbox-local --json
+```
+
+Factory runs also use the same profile internally for generated prototype
+execution evidence. The profile runs only inside the generated prototype
+directory, allows only the generated prototype test commands, rejects shell
+metacharacters, blocks network/publication commands through the existing command
+policy, records redacted stdout/stderr, and writes summary-only public evidence.
+
+`sandbox-local` is not a kernel-level sandbox. It does not provide process,
+filesystem, syscall, or network isolation by itself. Treat it as a constrained
+command profile suitable for Alpha evidence collection. For strong isolation,
+pair Node Alpha with a container, VM, dedicated Linux user, firewall rules, or a
+future `sovryn-agentd` backend.
+
+Factory public release packages are allowlisted. They must not include raw
+command journals, raw stdout/stderr logs, private config, tokens, local absolute
+paths, full raw source content, or files outside the curated public evidence
+set. Review gates fail if these checks fail.

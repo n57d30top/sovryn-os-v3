@@ -1,0 +1,25 @@
+{
+  "research": {
+    "publicSearch": {
+      "enabled": true,
+      "fixtureMode": true
+    },
+    "sourceReading": {
+      "enabled": true,
+      "fixtureMode": true
+    },
+    "factory": {
+      "strictEvidenceMode": true,
+      "allowMockMode": false,
+      "requireConcreteSources": true,
+      "minConcreteSources": 2,
+      "minConcreteSourcesRead": 2,
+      "minEvidenceStrengthScore": 60,
+      "minReproducibilityScore": 60,
+      "requirePrototype": true,
+      "requireTests": true,
+      "packagePublicEvidence": true,
+      "blockHighSafetyRisk": true
+    }
+  }
+}

@@ -112,6 +112,7 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
     options: NodeRunOptions = { mode: "validation", maxSteps: 25 },
   ): Promise<NodeRunResult> {
     const startedAt = nowIso();
+    const profile = options.profile ?? "default";
     const workspacePath = join(this.workspacesPath(), mission.id);
     const artifactsPath = join(this.artifactsPath(), mission.id);
     const logPath = join(this.logsPath(), `${mission.id}.log`);
@@ -147,7 +148,7 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
       entries: [],
       updatedAt: startedAt,
     };
-    let log = `# Node Alpha Run ${mission.id}\n\nMode: ${options.mode}\nStarted: ${startedAt}\nWorkspace: ${workspacePath}\n\n`;
+    let log = `# Node Alpha Run ${mission.id}\n\nMode: ${options.mode}\nProfile: ${profile}\nStarted: ${startedAt}\nWorkspace: ${workspacePath}\n\n`;
     const results = [];
     const boundedSteps = plan.steps.slice(0, Math.max(1, options.maxSteps));
     for (const step of boundedSteps) {
@@ -156,6 +157,16 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
           ? workspacePrototypePath
           : workspaceInventionPath;
       assertNodeCommandAllowed(step.command);
+      if (profile === "sandbox-local") {
+        assertSandboxLocalCommandAllowed(step.command);
+        if (step.cwd !== "prototype") {
+          throw new AppError(
+            "NODE_SANDBOX_CWD_BLOCKED",
+            "sandbox-local Node Alpha profile only runs inside the generated prototype directory.",
+            { stepId: step.id, cwd: step.cwd },
+          );
+        }
+      }
       step.status = "running";
       step.startedAt = nowIso();
       const result = await runCommand(step.command, cwd, {
@@ -273,6 +284,7 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
       nodeId: this.registration.id,
       missionId: mission.id,
       mode: options.mode,
+      profile,
       workspacePath,
       artifactsPath,
       logPath,
@@ -290,6 +302,7 @@ export class LocalNodeAlphaBackend implements NodeAlphaBackend {
       nodeId: this.registration.id,
       missionId: mission.id,
       mode: options.mode,
+      profile,
       workspacePath,
       logPath,
       artifactsPath,
@@ -332,6 +345,16 @@ function createResearchPlan(
   options: NodeRunOptions,
 ): ResearchPlan {
   const createdAt = nowIso();
+  const sandboxSteps = [
+    planStep(
+      "sandbox-prototype-test",
+      "verification",
+      "Run sandbox-local prototype tests",
+      "Execute only the generated prototype test command inside the prototype directory.",
+      "npm test",
+      "prototype",
+    ),
+  ];
   const autonomousSteps = [
     planStep(
       "inspect-node",
@@ -474,7 +497,12 @@ function createResearchPlan(
     maxSteps: options.maxSteps,
     createdAt,
     updatedAt: createdAt,
-    steps: options.mode === "autonomous" ? autonomousSteps : validationSteps,
+    steps:
+      options.profile === "sandbox-local"
+        ? sandboxSteps
+        : options.mode === "autonomous"
+          ? autonomousSteps
+          : validationSteps,
   };
 }
 
@@ -505,6 +533,24 @@ function planStep(
 function writeFileCommand(path: string, content: string): string {
   const source = `import { mkdirSync, writeFileSync } from "node:fs"; import { dirname } from "node:path"; const path = ${JSON.stringify(path)}; mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, ${JSON.stringify(content)}, "utf8");`;
   return `node --input-type=module -e ${shellQuote(source)}`;
+}
+
+function assertSandboxLocalCommandAllowed(command: string): void {
+  const normalized = command.trim();
+  if (/[;&|`$<>\\\n\r]/.test(normalized)) {
+    throw new AppError(
+      "NODE_SANDBOX_COMMAND_BLOCKED",
+      "sandbox-local profile blocks shell metacharacters.",
+      { command: normalized },
+    );
+  }
+  if (!["npm test", "node tests/prototype.test.js"].includes(normalized)) {
+    throw new AppError(
+      "NODE_SANDBOX_COMMAND_BLOCKED",
+      "sandbox-local profile only allows generated prototype test commands.",
+      { command: normalized },
+    );
+  }
 }
 
 async function scoreArtifactCompleteness(

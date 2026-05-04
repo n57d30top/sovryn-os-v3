@@ -52,9 +52,11 @@ sovryn factory run "Develop a method for verifiable autonomous research agents" 
 sovryn factory status <factory-id> --json
 sovryn factory review <factory-id> --json
 sovryn factory package <factory-id> --json
+sovryn factory publish-github <factory-id> --dry-run --json
 sovryn node register alpha --host local --json
 sovryn node run alpha <mission-id> --json
 sovryn node run alpha <mission-id> --mode autonomous --max-steps 25 --json
+sovryn node run alpha <mission-id> --mode validate --profile sandbox-local --json
 sovryn invention review <mission-id> --json
 sovryn invention finalize <mission-id> --json
 sovryn publish-github <mission-id> --dry-run --json
@@ -180,6 +182,14 @@ Factory strictness is controlled under `research.factory`:
 ```json
 {
   "research": {
+    "publicSearch": {
+      "enabled": false,
+      "fixtureMode": false
+    },
+    "sourceReading": {
+      "enabled": false,
+      "fixtureMode": false
+    },
     "factory": {
       "maxCycles": 1,
       "maxCandidates": 3,
@@ -188,15 +198,55 @@ Factory strictness is controlled under `research.factory`:
       "requireTests": true,
       "allowMockMode": true,
       "packagePublicEvidence": true,
-      "blockHighSafetyRisk": true
+      "blockHighSafetyRisk": true,
+      "strictEvidenceMode": false,
+      "minConcreteSources": 1,
+      "minConcreteSourcesRead": 1,
+      "minEvidenceStrengthScore": 60,
+      "minReproducibilityScore": 60,
+      "requireSourceDiversity": false,
+      "requireDryRunPublishPackage": false
     }
   }
 }
 ```
 
 Enable `research.publicSearch.enabled` and `research.sourceReading.enabled` to
-make factory evidence stronger. Defaults remain deterministic and do not require
-paid APIs or an LLM.
+make factory evidence stronger. Fixture mode can simulate concrete GitHub and
+paper sources, patent/standards query links, and adapter failures without
+network access for tests and demos. Defaults remain deterministic and do not
+require paid APIs or an LLM.
+
+Strict evidence mode makes the factory more conservative:
+
+- no concrete sources blocks review;
+- no concrete source readings blocks review;
+- query links, adapter failures, and mock placeholders do not count as concrete
+  source evidence;
+- weak evidence or reproducibility scores block review;
+- source cards, `CLAIM_FEATURE_MATRIX.md`, `NOVELTY_GAP_REPORT.md`,
+  `candidate-selection-rationale.md`, prototype execution evidence, and curated
+  public release checks must pass.
+
+The factory now writes compact source cards under
+`.sovryn/factory/<slug>/source-cards/`, a source-card-backed claim/feature
+matrix, a novelty gap report, candidate-selection rationale, and sandbox-local
+prototype execution evidence under `.sovryn/factory/<slug>/execution/`.
+`sandbox-local` is a constrained command profile, not a kernel-level sandbox: it
+runs only allowlisted generated prototype test commands inside the prototype
+directory and records redacted evidence. Use containers, VMs, network namespaces,
+or a dedicated Linux user for strong isolation.
+
+Factory dry-run publication is controller-owned:
+
+```bash
+sovryn factory publish-github <factory-id> --dry-run --json
+```
+
+It packages curated factory evidence, reviews the generated Open Invention
+mission, calls the existing GitHub dry-run path, and writes
+`factory-publication-intent.json`. It does not expose GitHub credentials and it
+does not perform real publication.
 
 GitHub credentials stay with Sovryn Controller. The autonomous agent prepares
 artifacts, but `publish-github` is gated by dossier, license, verification,

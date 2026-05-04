@@ -42,6 +42,7 @@ export type NodeRunResult = {
   nodeId: string;
   missionId: string;
   mode: NodeRunMode;
+  profile: NodeExecutionProfile;
   workspacePath: string;
   logPath: string;
   artifactsPath: string;
@@ -80,10 +81,12 @@ export type NodeCapabilityRequest = {
 };
 
 export type NodeRunMode = "validation" | "autonomous";
+export type NodeExecutionProfile = "default" | "sandbox-local";
 
 export type NodeRunOptions = {
   mode: NodeRunMode;
   maxSteps: number;
+  profile?: NodeExecutionProfile;
 };
 
 export type ResearchPlanStepStatus =

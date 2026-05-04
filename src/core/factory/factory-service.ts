@@ -13,6 +13,7 @@ import { runCommand } from "../../adapters/shell/command.js";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
 import { createMissionId } from "../../shared/ids.js";
+import { redactSecrets } from "../../shared/redaction.js";
 import { nowIso } from "../../shared/time.js";
 import { configExists, loadConfig, type SovrynConfig } from "../config.js";
 import { InventionService } from "../invention/invention-service.js";
@@ -21,6 +22,7 @@ import {
   createPriorArtSearchAdapter,
   type PriorArtSearchResult,
 } from "../invention/providers.js";
+import { hashEvidence } from "../invention/pipeline.js";
 import {
   createSourceReadingEvidence,
   createSourceReadingProvider,
@@ -32,9 +34,14 @@ import {
   buildFeatureMatrix,
   buildNoveltyGapMap,
   buildQuestionMap,
+  buildSourceCards,
   buildSourceDiscovery,
   selectCandidates,
 } from "./factory-builders.js";
+import {
+  factoryPriorArtFixtures,
+  factorySourceReadingFixtures,
+} from "./factory-fixtures.js";
 import {
   evaluateFactoryGates,
   type FactoryReviewResult,
@@ -51,9 +58,12 @@ import type {
   FactorySourceReadings,
   FeatureMatrix,
   NoveltyGapMap,
+  PrototypeExecutionEvidence,
   ResearchFactoryRun,
   ResearchPlan,
   SelectedCandidates,
+  SourceCard,
+  SourceCardIndex,
 } from "./factory-types.js";
 import { ResearchPlanBuilder } from "./research-plan-builder.js";
 
@@ -79,6 +89,13 @@ export const DEFAULT_FACTORY_CONFIG: FactoryConfig = {
   allowMockMode: true,
   packagePublicEvidence: true,
   blockHighSafetyRisk: true,
+  strictEvidenceMode: false,
+  minConcreteSources: 1,
+  minConcreteSourcesRead: 1,
+  minEvidenceStrengthScore: 60,
+  minReproducibilityScore: 60,
+  requireSourceDiversity: false,
+  requireDryRunPublishPackage: false,
 };
 
 export class FactoryService {
@@ -134,13 +151,15 @@ export class FactoryService {
     await writeJson(join(factoryDir, "question-map.json"), questionMap);
 
     const queries = plan.sourceQueries.slice(0, maxCycles);
+    const sovrynConfig = await this.config();
     const searchResults: PriorArtSearchResult[] = [];
-    const adapter = createPriorArtSearchAdapter(await this.config());
+    const adapter = createPriorArtSearchAdapter(sovrynConfig);
     for (const query of queries) {
       searchResults.push(
-        ...(await adapter.search({
+        ...(await this.searchSources({
+          adapter,
+          config: sovrynConfig,
           brief: query,
-          sources: ["web", "github", "papers", "standards", "patents"],
         })),
       );
     }
@@ -148,16 +167,16 @@ export class FactoryService {
       researchGoal,
       queries,
       results: searchResults,
-      publicSearchEnabled: Boolean(
-        (await this.config()).research?.publicSearch?.enabled,
-      ),
+      publicSearchEnabled:
+        sovrynConfig.research?.publicSearch?.enabled === true,
     });
     const sourceReadingsEvidence = createSourceReadingEvidence(
-      await createSourceReadingProvider(await this.config()).read({
+      await this.readSources({
+        config: sovrynConfig,
         brief: researchGoal,
         sources: discovery.results,
       }),
-      (await this.config()).research?.sourceReading?.enabled
+      sovrynConfig.research?.sourceReading?.enabled === true
         ? "deep_source"
         : "disabled",
       nowIso(),
@@ -167,7 +186,12 @@ export class FactoryService {
       sourceDiscoveryEvidenceHash: discovery.evidenceHash,
       sourceReadingEvidence: sourceReadingsEvidence,
     });
-    const matrix = buildFeatureMatrix({ discovery, sourceReadings });
+    const sourceCards = buildSourceCards({ discovery, sourceReadings });
+    const matrix = buildFeatureMatrix({
+      discovery,
+      sourceReadings,
+      sourceCards,
+    });
     const gapMap = buildNoveltyGapMap(matrix);
     const candidates = buildCandidateInventions({
       goal: researchGoal,
@@ -181,11 +205,29 @@ export class FactoryService {
       questionMap,
       discovery,
       sourceReadings,
+      sourceCards,
       matrix,
       gapMap,
       candidates,
       selected,
     });
+
+    await this.writeSourceCards(factoryDir, sourceCards);
+    await writeFile(
+      join(factoryDir, "CLAIM_FEATURE_MATRIX.md"),
+      renderClaimFeatureMatrix(matrix),
+      "utf8",
+    );
+    await writeFile(
+      join(factoryDir, "NOVELTY_GAP_REPORT.md"),
+      renderNoveltyGapReport(gapMap),
+      "utf8",
+    );
+    await writeFile(
+      join(factoryDir, "candidate-selection-rationale.md"),
+      renderCandidateSelectionRationale(candidates, selected),
+      "utf8",
+    );
 
     const generatedMissionIds: string[] = [];
     for (const candidate of selected.selectedCandidates) {
@@ -200,6 +242,12 @@ export class FactoryService {
       });
       generatedMissionIds.push(missionId);
     }
+    const execution = generatedMissionIds[0]
+      ? await this.executePrototypeSandbox({
+          factoryDir,
+          missionId: generatedMissionIds[0],
+        })
+      : null;
 
     await writeFile(
       join(factoryDir, "LIMITATIONS.md"),
@@ -208,9 +256,8 @@ export class FactoryService {
         discovery,
         sourceReadings,
         run,
-        publicSearchEnabled: Boolean(
-          (await this.config()).research?.publicSearch?.enabled,
-        ),
+        publicSearchEnabled:
+          sovrynConfig.research?.publicSearch?.enabled === true,
       }),
       "utf8",
     );
@@ -224,6 +271,8 @@ export class FactoryService {
       gapMap,
       candidates,
       selected,
+      sourceCards,
+      execution,
       prototypePresent,
       testsPresent,
       publicEvidencePackaged: false,
@@ -260,7 +309,7 @@ export class FactoryService {
       ...sourceReadings.limitations,
       ...(score.blockingReasons.length > 0 ? score.blockingReasons : []),
     ];
-    run.publicSummary = `${run.status === "completed" ? "Completed" : "Degraded"} factory run for ${researchGoal}. Selected ${run.selectedCandidateIds.join(", ")}.`;
+    run.publicSummary = `${factoryStatusLabel(run.status)} factory run for ${researchGoal}. Selected ${run.selectedCandidateIds.join(", ")}.`;
     run.evidencePaths = evidenceRefs(run.slug);
     run.evidenceHashes = {
       research_plan: plan.evidenceHash,
@@ -271,7 +320,9 @@ export class FactoryService {
       novelty_gap_map: gapMap.evidenceHash,
       candidate_inventions: candidates.evidenceHash,
       selected_candidates: selected.evidenceHash,
+      source_cards: sourceCards.evidenceHash,
       factory_score: score.evidenceHash,
+      ...(execution ? { prototype_execution: execution.evidenceHash } : {}),
     };
     run.updatedAt = nowIso();
     await this.writeRun(run);
@@ -333,7 +384,6 @@ export class FactoryService {
     const releasePath = join(factoryDir, "release", "public");
     await rm(releasePath, { recursive: true, force: true });
     await mkdir(releasePath, { recursive: true });
-    await this.writePublicEvidence(run, releasePath);
 
     const score = await this.rebuildScore(run, true);
     await writeJson(join(factoryDir, "factory-score.json"), score);
@@ -343,6 +393,7 @@ export class FactoryService {
     run.status = "packaged";
     run.updatedAt = nowIso();
     await this.writeRun(run);
+    await this.writePublicEvidence(run, releasePath);
 
     const review = await evaluateFactoryGates({ factoryDir, run, config });
     run.gateResults = review.checks;
@@ -355,6 +406,85 @@ export class FactoryService {
       review,
       releasePath,
       artifactRefs: [this.factoryRef(run.slug, "release/public")],
+    };
+  }
+
+  async publishGithubDryRun(id: string): Promise<{
+    run: ResearchFactoryRun;
+    review: FactoryReviewResult;
+    publication: Record<string, unknown>;
+    artifactRefs: string[];
+  }> {
+    const packaged = await this.package(id);
+    if (!packaged.review.allowed) {
+      throw new AppError(
+        "FACTORY_PUBLICATION_BLOCKED",
+        "Factory dry-run publication blocked by factory gates.",
+        { checks: packaged.review.checks },
+      );
+    }
+    const missionId = packaged.run.generatedInventionMissionIds[0];
+    if (!missionId) {
+      throw new AppError(
+        "FACTORY_PUBLICATION_NO_MISSION",
+        "Factory dry-run publication requires a generated Open Invention mission.",
+      );
+    }
+    const inventionService = new InventionService(this.root);
+    const review = await inventionService.review(missionId);
+    if (!review.review.allowed) {
+      throw new AppError(
+        "FACTORY_PUBLICATION_INVENTION_REVIEW_BLOCKED",
+        "Generated Open Invention mission review blocked factory dry-run publication.",
+        { checks: review.review.checks },
+      );
+    }
+    const publication = await inventionService.publishGithub(missionId, {
+      org: null,
+      repo: null,
+      dryRun: true,
+    });
+    const run = await this.readRun(id);
+    const factoryDir = this.factoryDir(run.slug);
+    const intent = {
+      kind: "factory_publication_intent",
+      factoryRunId: run.id,
+      missionId,
+      dryRun: true,
+      requestedAt: nowIso(),
+      publication: publication.publication,
+      note: "Factory dry-run publication uses Sovryn Controller and does not expose GitHub credentials.",
+      evidenceHash: "",
+    };
+    intent.evidenceHash = hashObject(intent);
+    await writeJson(
+      join(factoryDir, "factory-publication-intent.json"),
+      intent,
+    );
+    await writeJson(
+      join(factoryDir, "factory-publication-intent.summary.json"),
+      {
+        kind: intent.kind,
+        factoryRunId: intent.factoryRunId,
+        missionId,
+        dryRun: true,
+        requestedAt: intent.requestedAt,
+        evidenceHash: intent.evidenceHash,
+      },
+    );
+    run.evidenceHashes.factory_publication_intent = intent.evidenceHash;
+    run.updatedAt = nowIso();
+    await this.writeRun(run);
+    await this.writePublicEvidence(run, join(factoryDir, "release", "public"));
+    await this.updateIndex(run);
+    return {
+      run,
+      review: packaged.review,
+      publication: publication.publication,
+      artifactRefs: [
+        this.factoryRef(run.slug, "factory-publication-intent.json"),
+        ...publication.artifactRefs,
+      ],
     };
   }
 
@@ -414,6 +544,7 @@ export class FactoryService {
       questionMap: Record<string, unknown>;
       discovery: FactorySourceDiscovery;
       sourceReadings: FactorySourceReadings;
+      sourceCards: SourceCardIndex;
       matrix: FeatureMatrix;
       gapMap: NoveltyGapMap;
       candidates: CandidateInventions;
@@ -433,6 +564,10 @@ export class FactoryService {
       join(factoryDir, "source-readings.json"),
       evidence.sourceReadings,
     );
+    await writeJson(
+      join(factoryDir, "source-cards.json"),
+      evidence.sourceCards,
+    );
     await writeJson(join(factoryDir, "feature-matrix.json"), evidence.matrix);
     await writeJson(join(factoryDir, "novelty-gap-map.json"), evidence.gapMap);
     await writeJson(
@@ -443,6 +578,143 @@ export class FactoryService {
       join(factoryDir, "selected-candidates.json"),
       evidence.selected,
     );
+  }
+
+  private async searchSources(input: {
+    adapter: ReturnType<typeof createPriorArtSearchAdapter>;
+    config: SovrynConfig;
+    brief: string;
+  }): Promise<PriorArtSearchResult[]> {
+    const settings = input.config.research?.publicSearch;
+    if (settings?.fixtureMode === true) {
+      if (
+        typeof settings.fixturePath === "string" &&
+        settings.fixturePath.trim().length > 0
+      ) {
+        return readJson<PriorArtSearchResult[]>(
+          join(this.root, settings.fixturePath),
+        );
+      }
+      return factoryPriorArtFixtures(input.brief);
+    }
+    return input.adapter.search({
+      brief: input.brief,
+      sources: ["web", "github", "papers", "standards", "patents"],
+    });
+  }
+
+  private async readSources(input: {
+    config: SovrynConfig;
+    brief: string;
+    sources: PriorArtSearchResult[];
+  }) {
+    const settings = input.config.research?.sourceReading;
+    if (settings?.fixtureMode === true) {
+      if (
+        typeof settings.fixturePath === "string" &&
+        settings.fixturePath.trim().length > 0
+      ) {
+        return readJson<ReturnType<typeof factorySourceReadingFixtures>>(
+          join(this.root, settings.fixturePath),
+        );
+      }
+      return factorySourceReadingFixtures(input.sources, input.brief);
+    }
+    return createSourceReadingProvider(input.config).read({
+      brief: input.brief,
+      sources: input.sources,
+    });
+  }
+
+  private async writeSourceCards(
+    factoryDir: string,
+    sourceCards: SourceCardIndex,
+  ): Promise<void> {
+    const cardsDir = join(factoryDir, "source-cards");
+    await rm(cardsDir, { recursive: true, force: true });
+    await mkdir(cardsDir, { recursive: true });
+    for (const card of sourceCards.cards) {
+      await writeJson(join(cardsDir, `${card.sourceId}.json`), card);
+      await writeFile(
+        join(cardsDir, `${card.sourceId}.md`),
+        renderSourceCard(card),
+        "utf8",
+      );
+    }
+  }
+
+  private async executePrototypeSandbox(input: {
+    factoryDir: string;
+    missionId: string;
+  }): Promise<PrototypeExecutionEvidence> {
+    const mission = await this.findInventionMission(input.missionId);
+    if (!mission) {
+      throw new AppError(
+        "FACTORY_EXECUTION_MISSION_NOT_FOUND",
+        "Generated invention mission not found for prototype execution.",
+        { missionId: input.missionId },
+      );
+    }
+    const prototypePath = join(
+      this.root,
+      ".sovryn",
+      "inventions",
+      mission.slug,
+      "prototype",
+    );
+    const relativePrototypePath = relative(this.root, prototypePath);
+    const command = "npm test";
+    assertSandboxCommandAllowed(command);
+    const startedAt = nowIso();
+    const result = await runCommand(command, prototypePath, {
+      allowNetwork: false,
+    });
+    const finishedAt = nowIso();
+    const evidence: PrototypeExecutionEvidence = {
+      kind: "prototype_execution",
+      missionId: input.missionId,
+      prototypePath: relativePrototypePath,
+      executionProfile: "sandbox-local",
+      command,
+      cwd: "prototype",
+      startedAt,
+      finishedAt,
+      exitCode: result.exitCode,
+      passed: result.exitCode === 0,
+      stdout: redactSecrets(result.stdout).slice(0, 4000),
+      stderr: redactSecrets(result.stderr).slice(0, 4000),
+      evidenceHash: "",
+    };
+    evidence.evidenceHash = hashObject(evidence);
+    const executionDir = join(input.factoryDir, "execution");
+    await mkdir(executionDir, { recursive: true });
+    await writeJson(join(executionDir, "prototype-execution.json"), evidence);
+    await writeJson(join(executionDir, "prototype-execution.summary.json"), {
+      kind: evidence.kind,
+      missionId: evidence.missionId,
+      prototypePath: evidence.prototypePath,
+      executionProfile: evidence.executionProfile,
+      command: evidence.command,
+      cwd: evidence.cwd,
+      startedAt: evidence.startedAt,
+      finishedAt: evidence.finishedAt,
+      exitCode: evidence.exitCode,
+      passed: evidence.passed,
+      evidenceHash: evidence.evidenceHash,
+    });
+    await writeJson(join(executionDir, "command-journal.redacted.json"), {
+      entries: [
+        {
+          missionId: evidence.missionId,
+          command: evidence.command,
+          cwd: evidence.cwd,
+          startedAt: evidence.startedAt,
+          finishedAt: evidence.finishedAt,
+          exitCode: evidence.exitCode,
+        },
+      ],
+    });
+    return evidence;
   }
 
   private async generateInventionFromCandidate(input: {
@@ -529,6 +801,12 @@ export class FactoryService {
       selected: await readJson<SelectedCandidates>(
         join(factoryDir, "selected-candidates.json"),
       ),
+      sourceCards: await readJson<SourceCardIndex>(
+        join(factoryDir, "source-cards.json"),
+      ).catch(() => undefined),
+      execution: await readJson<PrototypeExecutionEvidence>(
+        join(factoryDir, "execution", "prototype-execution.json"),
+      ).catch(() => null),
       prototypePresent: await this.generatedPrototypePresent(
         run.generatedInventionMissionIds,
       ),
@@ -560,6 +838,7 @@ export class FactoryService {
     for (const [source, target] of [
       ["source-discovery.json", "source-discovery.summary.json"],
       ["source-readings.json", "source-readings.summary.json"],
+      ["source-cards.json", "source-cards.summary.json"],
       ["feature-matrix.json", "feature-matrix.summary.json"],
       ["novelty-gap-map.json", "novelty-gap-map.summary.json"],
       ["candidate-inventions.json", "candidate-inventions.summary.json"],
@@ -574,6 +853,15 @@ export class FactoryService {
         ),
       );
     }
+    await writeJson(
+      join(releasePath, "claim-feature-matrix.summary.json"),
+      publicSummaryFor(
+        "feature-matrix.json",
+        await readJson<Record<string, unknown>>(
+          join(factoryDir, "feature-matrix.json"),
+        ),
+      ),
+    );
     await cp(
       join(factoryDir, "FACTORY_REPORT.md"),
       join(releasePath, "FACTORY_REPORT.md"),
@@ -581,6 +869,21 @@ export class FactoryService {
     await cp(
       join(factoryDir, "LIMITATIONS.md"),
       join(releasePath, "LIMITATIONS.md"),
+    );
+    for (const file of [
+      "CLAIM_FEATURE_MATRIX.md",
+      "NOVELTY_GAP_REPORT.md",
+      "candidate-selection-rationale.md",
+    ]) {
+      await cp(join(factoryDir, file), join(releasePath, file));
+    }
+    await copyIfExists(
+      join(factoryDir, "execution", "prototype-execution.summary.json"),
+      join(releasePath, "prototype-execution.summary.json"),
+    );
+    await copyIfExists(
+      join(factoryDir, "factory-publication-intent.summary.json"),
+      join(releasePath, "factory-publication-intent.summary.json"),
     );
   }
 
@@ -747,6 +1050,42 @@ export function normalizeFactoryConfig(
       value?.blockHighSafetyRisk,
       DEFAULT_FACTORY_CONFIG.blockHighSafetyRisk,
     ),
+    strictEvidenceMode: boolOrDefault(
+      value?.strictEvidenceMode,
+      DEFAULT_FACTORY_CONFIG.strictEvidenceMode,
+    ),
+    minConcreteSources: clampInt(
+      value?.minConcreteSources,
+      DEFAULT_FACTORY_CONFIG.minConcreteSources,
+      0,
+      25,
+    ),
+    minConcreteSourcesRead: clampInt(
+      value?.minConcreteSourcesRead,
+      DEFAULT_FACTORY_CONFIG.minConcreteSourcesRead,
+      0,
+      25,
+    ),
+    minEvidenceStrengthScore: clampInt(
+      value?.minEvidenceStrengthScore,
+      DEFAULT_FACTORY_CONFIG.minEvidenceStrengthScore,
+      0,
+      100,
+    ),
+    minReproducibilityScore: clampInt(
+      value?.minReproducibilityScore,
+      DEFAULT_FACTORY_CONFIG.minReproducibilityScore,
+      0,
+      100,
+    ),
+    requireSourceDiversity: boolOrDefault(
+      value?.requireSourceDiversity,
+      DEFAULT_FACTORY_CONFIG.requireSourceDiversity,
+    ),
+    requireDryRunPublishPackage: boolOrDefault(
+      value?.requireDryRunPublishPackage,
+      DEFAULT_FACTORY_CONFIG.requireDryRunPublishPackage,
+    ),
   };
 }
 
@@ -806,6 +1145,11 @@ function statusForScore(
   config: FactoryConfig,
 ): FactoryRunStatus {
   if (
+    (config.strictEvidenceMode &&
+      (score.concreteSourcesFound < config.minConcreteSources ||
+        score.concreteSourcesRead < config.minConcreteSourcesRead ||
+        score.evidenceStrengthScore < config.minEvidenceStrengthScore ||
+        score.reproducibilityScore < config.minReproducibilityScore)) ||
     (config.requireConcreteSources && score.concreteSourcesFound === 0) ||
     (config.blockHighSafetyRisk && score.safetyRisk === "high") ||
     (!config.allowMockMode && score.mockPlaceholders > 0)
@@ -815,6 +1159,15 @@ function statusForScore(
   return score.blockingReasons.length > 0 || score.factoryReadinessScore < 60
     ? "degraded"
     : "completed";
+}
+
+function factoryStatusLabel(status: FactoryRunStatus): string {
+  if (status === "completed") return "Completed";
+  if (status === "blocked") return "Blocked";
+  if (status === "packaged") return "Packaged";
+  if (status === "running") return "Running";
+  if (status === "planned") return "Planned";
+  return "Degraded";
 }
 
 function renderFactoryReport(input: {
@@ -933,6 +1286,166 @@ function renderLimitations(input: {
     "",
     `High safety risk blocks packaging: ${String(input.config.blockHighSafetyRisk)}`,
     "The conservative safety scanner is not a sandbox and does not replace OS-level isolation.",
+    "",
+  ].join("\n");
+}
+
+function renderSourceCard(card: SourceCard): string {
+  return [
+    `# Source Card: ${card.title}`,
+    "",
+    `Source ID: ${card.sourceId}`,
+    `Source type: ${card.sourceType}`,
+    `Read status: ${card.readStatus}`,
+    `URL or external ID: ${card.url ?? card.externalId ?? "not available"}`,
+    `Citation: ${card.citation ?? "not available"}`,
+    `Evidence strength: ${card.evidenceStrength}`,
+    `Novelty risk: ${card.noveltyRisk}`,
+    "",
+    "## Extracted Summary",
+    "",
+    card.extractedSummary,
+    "",
+    "## Extracted Technical Claims",
+    "",
+    ...listOrFallback(card.extractedTechnicalClaims),
+    "",
+    "## Extracted Methods",
+    "",
+    ...listOrFallback(card.extractedMethods),
+    "",
+    "## Extracted Limitations",
+    "",
+    ...listOrFallback(card.extractedLimitations),
+    "",
+    "## Overlap With Research Goal",
+    "",
+    card.overlapWithResearchGoal,
+    "",
+    "## Possible Differentiators",
+    "",
+    ...listOrFallback(card.possibleDifferentiators),
+    "",
+    "This source card is a compact evidence artifact. It is not a legal novelty, patentability, or freedom-to-operate conclusion.",
+    "",
+  ].join("\n");
+}
+
+function renderClaimFeatureMatrix(matrix: FeatureMatrix): string {
+  return [
+    "# Claim/Feature Matrix",
+    "",
+    "This matrix maps public-source evidence to possible differentiators and candidate novelty axes. It is not a legal novelty conclusion and requires human review.",
+    "",
+    `Feature rows: ${matrix.features.length}`,
+    "",
+    "| Feature | Source support | Source cards | Known overlap | Possible differentiator | Verification method | Confidence | Novelty risk |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...matrix.features.map((feature) =>
+      [
+        mdCell(`${feature.featureId}: ${feature.featureText}`),
+        feature.sourceSupport,
+        mdCell(feature.supportingSourceCards.join(", ") || "none"),
+        mdCell(feature.knownOverlap),
+        mdCell(feature.candidateDifferentiator),
+        mdCell(feature.verificationMethod),
+        feature.confidence,
+        feature.noveltyRisk,
+      ].join(" | "),
+    ),
+    "",
+    "## Candidate Novelty Axes",
+    "",
+    ...listOrFallback(matrix.candidateNoveltyAxes),
+    "",
+    "## Missing Evidence",
+    "",
+    ...listOrFallback(matrix.missingEvidence),
+    "",
+  ].join("\n");
+}
+
+function renderNoveltyGapReport(gapMap: NoveltyGapMap): string {
+  const lines = [
+    "# Novelty Gap Report",
+    "",
+    "The items below are candidate novelty gaps and possible differentiators. They are not patentability conclusions, legal novelty opinions, or freedom-to-operate opinions.",
+    "",
+  ];
+  for (const gap of gapMap.gaps) {
+    lines.push(`## ${gap.gapId}`);
+    lines.push("");
+    lines.push(gap.description);
+    lines.push("");
+    lines.push(`Source overlap summary: ${gap.sourceOverlapSummary}`);
+    lines.push(`Possible differentiator: ${gap.possibleDifferentiator}`);
+    lines.push(`Why it could matter: ${gap.whyItCouldMatter}`);
+    lines.push(`Why it may already exist: ${gap.whyItMayAlreadyExist}`);
+    lines.push(`Required experiment: ${gap.requiredExperiment}`);
+    lines.push(`Prototype feasibility: ${gap.prototypeFeasibility}`);
+    lines.push(`Evidence strength: ${gap.evidenceStrength}`);
+    lines.push(`Novelty risk: ${gap.researchRisk}`);
+    lines.push(`Recommended next action: ${gap.recommendedNextAction}`);
+    lines.push("");
+    lines.push("Missing in sources:");
+    lines.push(...listOrFallback(gap.missingInSources));
+    lines.push("");
+  }
+  lines.push("## Limitations");
+  lines.push("");
+  lines.push(...listOrFallback(gapMap.limitations));
+  lines.push("");
+  return lines.join("\n");
+}
+
+function renderCandidateSelectionRationale(
+  candidates: CandidateInventions,
+  selected: SelectedCandidates,
+): string {
+  return [
+    "# Candidate Selection Rationale",
+    "",
+    selected.selectionReason,
+    "",
+    "## Selected Candidates",
+    "",
+    ...selected.selectedCandidates.flatMap((candidate) => [
+      `### ${candidate.candidateId}: ${candidate.title}`,
+      "",
+      `Selection score: ${candidate.selectionScore}`,
+      `Evidence strength score: ${candidate.evidenceStrengthScore}`,
+      `Feasibility score: ${candidate.feasibilityScore}`,
+      `Publication readiness score: ${candidate.publicationReadinessScore}`,
+      `Novelty risk: ${candidate.noveltyRisk}`,
+      `Safety risk: ${candidate.safetyRisk}`,
+      "",
+      "Why selected: evidence-derived scoring favored this candidate's balance of source support, prototype feasibility, testability, low safety risk, reproducibility, and defensive-publication value.",
+      "",
+      "Supporting evidence:",
+      ...listOrFallback(candidate.requiredSources),
+      "",
+      "Weak evidence and strengthening experiment:",
+      `- ${candidate.evidenceStrengthScore < 70 ? "Evidence is moderate and should be strengthened with more concrete source reading." : "Evidence is sufficient for Alpha review but still requires human source comparison."}`,
+      `- ${candidate.expectedPrototype}`,
+      "",
+    ]),
+    "## Rejected Candidates",
+    "",
+    ...selected.rejectedCandidates.flatMap((candidate) => [
+      `### ${candidate.candidateId}: ${candidate.title}`,
+      "",
+      `Selection score: ${candidate.selectionScore}`,
+      `Reason: ${candidate.reason}`,
+      "",
+    ]),
+    "## Candidate Score Inputs",
+    "",
+    ...candidates.candidates.map(
+      (candidate) =>
+        `- ${candidate.candidateId}: score=${candidate.selectionScore}, sourceEvidence=${candidate.scoreBreakdown.sourceEvidenceStrength}, diversity=${candidate.scoreBreakdown.sourceDiversity}, reproducibility=${candidate.scoreBreakdown.reproducibility}`,
+    ),
+    "",
+    "This rationale is for open-source research selection only. It is not a patent filing or legal claim chart.",
     "",
   ].join("\n");
 }
@@ -1098,6 +1611,31 @@ function publicSummaryFor(
       evidenceHash: value.evidenceHash,
     };
   }
+  if (source === "source-cards.json") {
+    return {
+      kind: value.kind,
+      sourceDiscoveryEvidenceHash: value.sourceDiscoveryEvidenceHash,
+      sourceReadingsEvidenceHash: value.sourceReadingsEvidenceHash,
+      cardCount: Array.isArray(value.cards) ? value.cards.length : 0,
+      cards: Array.isArray(value.cards)
+        ? value.cards.map((card) => {
+            const record = card as Record<string, unknown>;
+            return {
+              sourceId: record.sourceId,
+              sourceType: record.sourceType,
+              title: record.title,
+              url: record.url,
+              readStatus: record.readStatus,
+              evidenceStrength: record.evidenceStrength,
+              noveltyRisk: record.noveltyRisk,
+              citation: record.citation,
+              evidenceHash: record.evidenceHash,
+            };
+          })
+        : [],
+      evidenceHash: value.evidenceHash,
+    };
+  }
   return {
     kind: value.kind,
     evidenceHash: value.evidenceHash,
@@ -1132,6 +1670,7 @@ function evidenceRefs(slug: string): string[] {
     "question-map.json",
     "source-discovery.json",
     "source-readings.json",
+    "source-cards.json",
     "feature-matrix.json",
     "novelty-gap-map.json",
     "candidate-inventions.json",
@@ -1139,6 +1678,10 @@ function evidenceRefs(slug: string): string[] {
     "factory-score.json",
     "FACTORY_REPORT.md",
     "LIMITATIONS.md",
+    "CLAIM_FEATURE_MATRIX.md",
+    "NOVELTY_GAP_REPORT.md",
+    "candidate-selection-rationale.md",
+    "execution/prototype-execution.json",
   ].map((file) => join(".sovryn", "factory", slug, file));
 }
 
@@ -1196,4 +1739,58 @@ function clampInt(
 
 function boolOrDefault(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function listOrFallback(
+  items: string[],
+  fallback = "Not available.",
+): string[] {
+  return items.length > 0
+    ? items.map((item) => `- ${item}`)
+    : [`- ${fallback}`];
+}
+
+function mdCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+}
+
+function hashObject(
+  value: { evidenceHash: string } & Record<string, unknown>,
+): string {
+  return hashEvidence({ ...value, evidenceHash: "" });
+}
+
+async function copyIfExists(from: string, to: string): Promise<void> {
+  if (!(await exists(from))) return;
+  await mkdir(join(to, ".."), { recursive: true });
+  await cp(from, to, { recursive: true, force: true });
+}
+
+export function assertSandboxCommandAllowed(command: string): void {
+  const normalized = command.trim();
+  if (/[;&|`$<>\\\n\r]/.test(normalized)) {
+    throw new AppError(
+      "SANDBOX_COMMAND_BLOCKED",
+      "sandbox-local blocks shell metacharacters.",
+      { command: redactSecrets(command) },
+    );
+  }
+  if (!["npm test", "node tests/prototype.test.js"].includes(normalized)) {
+    throw new AppError(
+      "SANDBOX_COMMAND_BLOCKED",
+      "sandbox-local only allows generated prototype test commands.",
+      { command: redactSecrets(command) },
+    );
+  }
+  if (
+    /\b(curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet|git|npm\s+install|npm\s+publish)\b/i.test(
+      normalized,
+    )
+  ) {
+    throw new AppError(
+      "SANDBOX_COMMAND_BLOCKED",
+      "sandbox-local blocks network and publication commands.",
+      { command: redactSecrets(command) },
+    );
+  }
 }

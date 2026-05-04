@@ -1,0 +1,17 @@
+release/public/
+  FACTORY_REPORT.md
+  LIMITATIONS.md
+  CLAIM_FEATURE_MATRIX.md
+  NOVELTY_GAP_REPORT.md
+  candidate-selection-rationale.md
+  factory-run.summary.json
+  source-discovery.summary.json
+  source-readings.summary.json
+  source-cards.summary.json
+  claim-feature-matrix.summary.json
+  feature-matrix.summary.json
+  novelty-gap-map.summary.json
+  candidate-inventions.summary.json
+  selected-candidates.summary.json
+  factory-score.summary.json
+  prototype-execution.summary.json

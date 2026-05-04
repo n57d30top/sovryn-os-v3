@@ -25,6 +25,7 @@ const REQUIRED_EVIDENCE = [
   "question-map.json",
   "source-discovery.json",
   "source-readings.json",
+  "source-cards.json",
   "feature-matrix.json",
   "novelty-gap-map.json",
   "candidate-inventions.json",
@@ -32,6 +33,9 @@ const REQUIRED_EVIDENCE = [
   "factory-score.json",
   "FACTORY_REPORT.md",
   "LIMITATIONS.md",
+  "CLAIM_FEATURE_MATRIX.md",
+  "NOVELTY_GAP_REPORT.md",
+  "candidate-selection-rationale.md",
 ];
 
 const HASHED_EVIDENCE = [
@@ -39,6 +43,7 @@ const HASHED_EVIDENCE = [
   "question-map.json",
   "source-discovery.json",
   "source-readings.json",
+  "source-cards.json",
   "feature-matrix.json",
   "novelty-gap-map.json",
   "candidate-inventions.json",
@@ -113,6 +118,9 @@ export async function evaluateFactoryGates(input: {
   const sourceReadings = await readRecord(
     join(input.factoryDir, "source-readings.json"),
   );
+  const sourceCards = await readRecord(
+    join(input.factoryDir, "source-cards.json"),
+  );
   const featureMatrix = await readRecord(
     join(input.factoryDir, "feature-matrix.json"),
   );
@@ -126,6 +134,9 @@ export async function evaluateFactoryGates(input: {
     join(input.factoryDir, "selected-candidates.json"),
   );
   const score = await readRecord(join(input.factoryDir, "factory-score.json"));
+  const execution = await readRecord(
+    join(input.factoryDir, "execution", "prototype-execution.json"),
+  );
 
   const concreteSources = numberValue(discovery.concreteSourceCount);
   const mockPlaceholders = numberValue(discovery.mockPlaceholderCount);
@@ -146,6 +157,60 @@ export async function evaluateFactoryGates(input: {
       },
     ),
   );
+  const concreteSourcesRead = numberValue(sourceReadings.concreteSourcesRead);
+  const sourceTypesRead = concreteSourceTypesRead(sourceReadings);
+  const strictSatisfied =
+    !input.config.strictEvidenceMode ||
+    (concreteSources >= input.config.minConcreteSources &&
+      concreteSourcesRead >= input.config.minConcreteSourcesRead &&
+      numberValue(score.evidenceStrengthScore) >=
+        input.config.minEvidenceStrengthScore &&
+      numberValue(score.reproducibilityScore) >=
+        input.config.minReproducibilityScore &&
+      (!input.config.requireSourceDiversity || sourceTypesRead.length >= 2) &&
+      mockPlaceholders === 0);
+  checks.push(
+    check(
+      "STRICT_EVIDENCE_MODE_SATISFIED",
+      strictSatisfied,
+      "Strict evidence mode requires concrete discovered and read sources, strong evidence/reproducibility scores, no mock-only evidence, and optional source diversity.",
+      {
+        strictEvidenceMode: input.config.strictEvidenceMode,
+        concreteSources,
+        minConcreteSources: input.config.minConcreteSources,
+        concreteSourcesRead,
+        minConcreteSourcesRead: input.config.minConcreteSourcesRead,
+        evidenceStrengthScore: score.evidenceStrengthScore ?? null,
+        minEvidenceStrengthScore: input.config.minEvidenceStrengthScore,
+        reproducibilityScore: score.reproducibilityScore ?? null,
+        minReproducibilityScore: input.config.minReproducibilityScore,
+        sourceTypesRead,
+        requireSourceDiversity: input.config.requireSourceDiversity,
+        mockPlaceholders,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "MIN_CONCRETE_SOURCES_SATISFIED",
+      !input.config.strictEvidenceMode ||
+        concreteSources >= input.config.minConcreteSources,
+      "Strict mode requires the configured minimum concrete source count.",
+      { concreteSources, minConcreteSources: input.config.minConcreteSources },
+    ),
+  );
+  checks.push(
+    check(
+      "MIN_CONCRETE_SOURCES_READ_SATISFIED",
+      !input.config.strictEvidenceMode ||
+        concreteSourcesRead >= input.config.minConcreteSourcesRead,
+      "Strict mode requires the configured minimum concrete source reading count.",
+      {
+        concreteSourcesRead,
+        minConcreteSourcesRead: input.config.minConcreteSourcesRead,
+      },
+    ),
+  );
 
   const sourceDiscoveryHash = stringValue(discovery.evidenceHash);
   const sourceDiscoveryHashValid = evidenceHashValid(discovery);
@@ -161,6 +226,57 @@ export async function evaluateFactoryGates(input: {
         sourceDiscoveryHashValid,
         boundHash: sourceReadings.sourceDiscoveryEvidenceHash ?? null,
       },
+    ),
+  );
+  const cards = Array.isArray(sourceCards.cards) ? sourceCards.cards : [];
+  checks.push(
+    check(
+      "SOURCE_CARDS_PRESENT",
+      !missingEvidence.includes("source-cards.json") &&
+        stringValue(sourceCards.sourceDiscoveryEvidenceHash) ===
+          sourceDiscoveryHash &&
+        stringValue(sourceCards.sourceReadingsEvidenceHash) ===
+          stringValue(sourceReadings.evidenceHash) &&
+        (!input.config.strictEvidenceMode ||
+          cards.length >= input.config.minConcreteSourcesRead),
+      "Concrete source cards must exist and bind to discovery and reading hashes.",
+      {
+        cardCount: cards.length,
+        sourceCardsHash: sourceCards.evidenceHash ?? null,
+        sourceDiscoveryEvidenceHash:
+          sourceCards.sourceDiscoveryEvidenceHash ?? null,
+        sourceReadingsEvidenceHash:
+          sourceCards.sourceReadingsEvidenceHash ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "CLAIM_FEATURE_MATRIX_PRESENT",
+      !missingEvidence.includes("CLAIM_FEATURE_MATRIX.md") &&
+        (await nonEmpty(join(input.factoryDir, "CLAIM_FEATURE_MATRIX.md"))),
+      "Human-readable claim/feature matrix must exist.",
+      {},
+    ),
+  );
+  checks.push(
+    check(
+      "NOVELTY_GAP_REPORT_PRESENT",
+      !missingEvidence.includes("NOVELTY_GAP_REPORT.md") &&
+        (await nonEmpty(join(input.factoryDir, "NOVELTY_GAP_REPORT.md"))),
+      "Human-readable novelty gap report must exist.",
+      {},
+    ),
+  );
+  checks.push(
+    check(
+      "CANDIDATE_SELECTION_RATIONALE_PRESENT",
+      !missingEvidence.includes("candidate-selection-rationale.md") &&
+        (await nonEmpty(
+          join(input.factoryDir, "candidate-selection-rationale.md"),
+        )),
+      "Candidate selection rationale must exist.",
+      {},
     ),
   );
   checks.push(
@@ -200,6 +316,50 @@ export async function evaluateFactoryGates(input: {
       { testsPresent: score.testsPresent ?? null },
     ),
   );
+  const executionHashValid = evidenceHashValid(execution);
+  checks.push(
+    check(
+      "PROTOTYPE_EXECUTION_EVIDENCE_PRESENT",
+      !input.config.requireTests ||
+        (await exists(
+          join(input.factoryDir, "execution", "prototype-execution.json"),
+        )),
+      "Factory must record sandbox-local prototype execution evidence.",
+      {
+        prototypeExecuted: score.prototypeExecuted ?? null,
+        executionEvidenceHash: execution.evidenceHash ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "PROTOTYPE_EXECUTION_PASSED",
+      !input.config.requireTests || Boolean(score.prototypeExecutionPassed),
+      "Factory prototype execution must pass.",
+      {
+        prototypeExecutionPassed: score.prototypeExecutionPassed ?? null,
+        exitCode: execution.exitCode ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "EXECUTION_HASH_BOUND",
+      !input.config.requireTests ||
+        (executionHashValid &&
+          stringValue(score.executionEvidenceHash) ===
+            stringValue(execution.evidenceHash) &&
+          input.run.evidenceHashes.prototype_execution ===
+            stringValue(execution.evidenceHash)),
+      "Prototype execution evidence hash must be valid and bound to the factory score and run.",
+      {
+        executionHashValid,
+        scoreExecutionHash: score.executionEvidenceHash ?? null,
+        runExecutionHash: input.run.evidenceHashes.prototype_execution ?? null,
+        executionHash: execution.evidenceHash ?? null,
+      },
+    ),
+  );
   checks.push(
     check(
       "SAFETY_REVIEW_PRESENT",
@@ -226,6 +386,22 @@ export async function evaluateFactoryGates(input: {
   );
   checks.push(
     check(
+      "FACTORY_DRY_RUN_PUBLICATION_READY",
+      !input.config.requireDryRunPublishPackage ||
+        (Boolean(score.publicEvidencePackaged) &&
+          input.run.generatedInventionMissionIds.length > 0),
+      "Factory dry-run publication requires a curated package and a generated Open Invention mission.",
+      {
+        requireDryRunPublishPackage: input.config.requireDryRunPublishPackage,
+        publicEvidencePackaged: score.publicEvidencePackaged ?? null,
+        generatedInventionMissionIds: input.run.generatedInventionMissionIds,
+        publicationIntent:
+          input.run.evidenceHashes.factory_publication_intent ?? null,
+      },
+    ),
+  );
+  checks.push(
+    check(
       "NO_RAW_COMMAND_LOGS_IN_PUBLIC_RELEASE",
       (await listRawPublicLogs(join(input.factoryDir, "release", "public")))
         .length === 0,
@@ -237,9 +413,42 @@ export async function evaluateFactoryGates(input: {
       },
     ),
   );
+  const publicDir = join(input.factoryDir, "release", "public");
+  checks.push(
+    check(
+      "NO_LOCAL_ABSOLUTE_PATHS_IN_PUBLIC_RELEASE",
+      (await listLocalAbsolutePathFindings(publicDir)).length === 0,
+      "Curated public release must not contain local absolute paths.",
+      {
+        findings: await listLocalAbsolutePathFindings(publicDir),
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "PUBLIC_RELEASE_SIZE_LIMITED",
+      (await directorySize(publicDir)) <= 1_000_000,
+      "Curated public release must remain size-limited.",
+      {
+        maxBytes: 1_000_000,
+        bytes: await directorySize(publicDir),
+      },
+    ),
+  );
+  checks.push(
+    check(
+      "PUBLIC_RELEASE_CURATED_ONLY",
+      (await nonCuratedPublicFiles(publicDir)).length === 0,
+      "Curated public release may contain only the factory public evidence allowlist.",
+      {
+        nonCuratedFiles: await nonCuratedPublicFiles(publicDir),
+      },
+    ),
+  );
   const hashBinding = await hashesBound(input.factoryDir, input.run, {
     discovery,
     sourceReadings,
+    sourceCards,
     featureMatrix,
     gapMap,
     candidates,
@@ -379,6 +588,77 @@ async function listRawPublicLogs(publicDir: string): Promise<string[]> {
     .filter((file) =>
       /(?:stdout|stderr|command-journal|command-logs)/i.test(file),
     );
+}
+
+async function listLocalAbsolutePathFindings(
+  publicDir: string,
+): Promise<string[]> {
+  const findings: string[] = [];
+  for (const file of await listFiles(publicDir)) {
+    const content = await readTextIfSafe(file);
+    if (content === null) continue;
+    if (
+      /(^|[\s:"'])\/(?:Users|home|private|tmp|var|Volumes)\//m.test(content)
+    ) {
+      findings.push(relative(publicDir, file));
+    }
+  }
+  return findings.sort();
+}
+
+async function directorySize(publicDir: string): Promise<number> {
+  let total = 0;
+  for (const file of await listFiles(publicDir)) {
+    try {
+      total += (await stat(file)).size;
+    } catch {
+      // Ignore disappearing files during review.
+    }
+  }
+  return total;
+}
+
+async function nonCuratedPublicFiles(publicDir: string): Promise<string[]> {
+  const allowed = new Set([
+    "FACTORY_REPORT.md",
+    "LIMITATIONS.md",
+    "CLAIM_FEATURE_MATRIX.md",
+    "NOVELTY_GAP_REPORT.md",
+    "candidate-selection-rationale.md",
+    "factory-run.summary.json",
+    "source-discovery.summary.json",
+    "source-readings.summary.json",
+    "source-cards.summary.json",
+    "feature-matrix.summary.json",
+    "claim-feature-matrix.summary.json",
+    "novelty-gap-map.summary.json",
+    "candidate-inventions.summary.json",
+    "selected-candidates.summary.json",
+    "factory-score.summary.json",
+    "prototype-execution.summary.json",
+    "factory-publication-intent.summary.json",
+  ]);
+  return (await listFiles(publicDir))
+    .map((file) => relative(publicDir, file))
+    .filter((file) => !allowed.has(file))
+    .sort();
+}
+
+function concreteSourceTypesRead(record: Record<string, unknown>): string[] {
+  const readings = Array.isArray(record.readings) ? record.readings : [];
+  const types = new Set<string>();
+  for (const reading of readings) {
+    if (!reading || typeof reading !== "object") continue;
+    const value = reading as Record<string, unknown>;
+    if (
+      value.kind === "concrete_source" &&
+      value.readStatus === "read" &&
+      typeof value.sourceType === "string"
+    ) {
+      types.add(value.sourceType);
+    }
+  }
+  return [...types].sort();
 }
 
 async function listFiles(dir: string): Promise<string[]> {

@@ -1,7 +1,7 @@
 import { nowIso } from "./time.js";
 import { toAppError } from "./errors.js";
 
-export const SOVRYN_VERSION = "3.0.0-beta.14";
+export const SOVRYN_VERSION = "3.0.0-beta.15";
 
 export type JsonError = {
   code: string;

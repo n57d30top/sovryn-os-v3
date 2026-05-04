@@ -27,9 +27,9 @@ type AutopublishFixture = {
 
 let fixturePromise: Promise<AutopublishFixture> | null = null;
 
-test("package version is beta.14", async () => {
+test("package version is beta.15", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.0.0-beta.14");
+  assert.equal(pkg.version, "3.0.0-beta.15");
 });
 
 test("CLI help lists corpus autopublish", async () => {
@@ -757,7 +757,58 @@ async function writePilotFixture(
   await mkdir(join(root, releasePath), { recursive: true });
   await writeFile(
     join(root, releasePath, "FACTORY_REPORT.md"),
-    `# ${title}\n\nOpen research artifact.\n`,
+    `# ${title}
+
+Problem: autonomous research agents need replayable evidence-chain records that
+bind source cards, claim features, prototype outputs, worker validation, and
+publication intent.
+
+Method: the fixture uses source-card evidence, claim-feature mapping,
+counter-evidence review, container-netoff worker evidence, and reproducibility
+scoring.
+
+Limitations: this is a deterministic fixture and not a legal patentability,
+legal novelty, or freedom-to-operate conclusion.
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(root, releasePath, "CLAIM_FEATURE_MATRIX.md"),
+    `# Claim Feature Matrix
+
+- Feature: replayable source-card evidence chain.
+- Source support: concrete source cards and worker evidence summaries.
+- Possible differentiator: evidence-chain binding is connected to prototype
+  execution and corpus publication hygiene.
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(root, releasePath, "COUNTER_EVIDENCE.md"),
+    `# Counter Evidence
+
+Existing CI provenance and software bill-of-materials workflows may already
+cover parts of evidence-chain verification. This weakens standalone novelty and
+requires human review.
+`,
+    "utf8",
+  );
+  await mkdir(join(root, releasePath, "prototype", "tests"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, releasePath, "prototype", "tests", "prototype.test.js"),
+    `import assert from "node:assert/strict";
+
+const result = { duplicate: false, provenance: "source-card", score: 91 };
+assert.equal(result.provenance, "source-card");
+assert.equal(result.score >= 80, true);
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(root, releasePath, "TOOL_LIMITATIONS.md"),
+    "# Limitations\n\nThis fixture is scoped to evidence-chain metadata and needs human review.\n",
     "utf8",
   );
   await writeJson(join(root, releasePath, "factory-score.summary.json"), {

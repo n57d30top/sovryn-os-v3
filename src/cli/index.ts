@@ -127,6 +127,7 @@ Commands:
   sovryn corpus autopublish --target-repo <path> [--max-results 10] [--dry-run] [--json]
   sovryn corpus publish-status --target-repo <path> [--json]
   sovryn corpus publish-audit --target-repo <path> [--json]
+  sovryn corpus quality-audit --target-repo <path> [--json]
   sovryn release candidates build --max 3 [--json]
   sovryn release candidates review [--json]
   sovryn release candidates package [--json]
@@ -136,6 +137,8 @@ Commands:
   sovryn quality compare <factory-id-a> <factory-id-b> [--json]
   sovryn quality report [--json]
   sovryn quality leaderboard [--json]
+  sovryn quality anti-template <result-id> [--json]
+  sovryn quality readability <result-id> [--json]
   sovryn overnight plan --goal "<broad-goal>" [--json]
   sovryn overnight run --goal "<broad-goal>" [--max-hours 8] [--max-runs 5] [--json]
   sovryn overnight status [--json]
@@ -667,6 +670,16 @@ async function corpusCommand(
     }
     return new CorpusAutopublisher(root).audit({ targetRepo });
   }
+  if (subcommand === "quality-audit") {
+    const targetRepo = flagString(parsed.flags, "--target-repo");
+    if (!targetRepo) {
+      throw new AppError(
+        "CORPUS_QUALITY_AUDIT_TARGET_REQUIRED",
+        "corpus quality-audit requires --target-repo <path>.",
+      );
+    }
+    return new CorpusAutopublisher(root).qualityAudit({ targetRepo });
+  }
   switch (subcommand) {
     case "index":
       return service.index();
@@ -775,10 +788,30 @@ async function qualityCommand(
       return evaluator.report();
     case "leaderboard":
       return evaluator.leaderboard();
+    case "anti-template": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "QUALITY_RESULT_ID_REQUIRED",
+          "quality anti-template requires a result id.",
+        );
+      }
+      return evaluator.antiTemplate(id);
+    }
+    case "readability": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "QUALITY_RESULT_ID_REQUIRED",
+          "quality readability requires a result id.",
+        );
+      }
+      return evaluator.readability(id);
+    }
     default:
       throw new AppError(
         "QUALITY_COMMAND_REQUIRED",
-        "Use: sovryn quality <evaluate|evaluate-invention|compare|report|leaderboard>.",
+        "Use: sovryn quality <evaluate|evaluate-invention|compare|report|leaderboard|anti-template|readability>.",
       );
   }
 }

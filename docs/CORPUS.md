@@ -101,5 +101,20 @@ sovryn external-research campaign multi-domain --fixture-install --json
 The campaign binds three safe external domains: chemistry-style data quality,
 synthetic energy anomaly auditing, and defensive software patch-risk auditing.
 The software-supply-chain result uses `patch-risk-auditor` and synthetic toy
-patches only. It must not include exploit instructions, malware, real target
-systems, raw logs, secrets, local paths, or legal patentability claims.
+patches only. It must not include unsafe operational instructions, harmful code,
+real target systems, raw logs, secrets, local paths, or legal patentability
+claims.
+
+## Beta.15 Anti-Template Quality Gates
+
+Beta.15 adds quality gates for specificity, source specificity, prototype
+relevance, test nontriviality, limitation honesty, non-template language,
+claim/evidence grounding, counter-evidence relevance, and public readability.
+
+```bash
+sovryn corpus quality-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```
+
+The audit is read-only against the public corpus repository and writes
+`.sovryn/quality/corpus-quality-audit.json` plus `CORPUS_QUALITY_AUDIT.md`.
+Autopublish now rejects results that are hygienic but too generic or shallow.

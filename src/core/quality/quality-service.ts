@@ -37,6 +37,10 @@ import type {
   QualityReport,
   QualityRubric,
 } from "./quality-types.js";
+import {
+  analyzePublicResultQuality,
+  buildReadabilityReport,
+} from "./anti-template.js";
 
 const LEGAL_PATENT_CLAIM_RE =
   /\b(is patentable|guaranteed patent|guaranteed novelty|legally novel|freedom to operate is cleared|provides patent protection|legal novelty is established)\b/i;
@@ -167,6 +171,58 @@ export class QualityEvaluator {
     return {
       leaderboard,
       artifactRefs: [this.qualityRef("quality-leaderboard.json")],
+    };
+  }
+
+  async antiTemplate(resultId: string): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const releaseRoot = await this.resolveResultReleaseRoot(resultId);
+    const report = await analyzePublicResultQuality({
+      resultId,
+      root: releaseRoot,
+    });
+    await mkdir(this.qualityRoot(), { recursive: true });
+    await writeJson(
+      join(this.qualityRoot(), "anti-template-report.json"),
+      report,
+    );
+    await writeFile(
+      join(this.qualityRoot(), "ANTI_TEMPLATE_REPORT.md"),
+      renderAntiTemplateReport(report),
+      "utf8",
+    );
+    return {
+      report,
+      artifactRefs: [
+        this.qualityRef("anti-template-report.json"),
+        this.qualityRef("ANTI_TEMPLATE_REPORT.md"),
+      ],
+    };
+  }
+
+  async readability(resultId: string): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const releaseRoot = await this.resolveResultReleaseRoot(resultId);
+    const readme = await readFile(join(releaseRoot, "README.md"), "utf8").catch(
+      () => "",
+    );
+    const report = buildReadabilityReport(resultId, readme);
+    await mkdir(this.qualityRoot(), { recursive: true });
+    await writeJson(
+      join(this.qualityRoot(), "readability-report.json"),
+      report,
+    );
+    await writeFile(
+      join(this.qualityRoot(), "READABILITY_REPORT.md"),
+      renderReadabilityReport(report),
+      "utf8",
+    );
+    return {
+      report,
+      artifactRefs: [
+        this.qualityRef("readability-report.json"),
+        this.qualityRef("READABILITY_REPORT.md"),
+      ],
     };
   }
 
@@ -575,6 +631,35 @@ export class QualityEvaluator {
       .index()
       .then((result) => result.index)
       .catch(() => null);
+  }
+
+  private async resolveResultReleaseRoot(resultId: string): Promise<string> {
+    const pilot = await readJson<Record<string, unknown>>(
+      join(this.root, ".sovryn", "pilots", resultId, "pilot-run.json"),
+    ).catch(() => null);
+    if (pilot && typeof pilot.releasePath === "string") {
+      return join(this.root, pilot.releasePath);
+    }
+    const externalRoot = join(
+      this.root,
+      ".sovryn",
+      "external-research",
+      resultId,
+      "release",
+      "public",
+    );
+    if (
+      await stat(externalRoot)
+        .then((info) => info.isDirectory())
+        .catch(() => false)
+    ) {
+      return externalRoot;
+    }
+    throw new AppError(
+      "QUALITY_RESULT_NOT_FOUND",
+      "quality anti-template/readability requires a known pilot or external research result id.",
+      { resultId },
+    );
   }
 
   private async qualityConfig(): Promise<QualityConfig> {
@@ -1261,4 +1346,44 @@ function renderLeaderboard(leaderboard: QualityLeaderboard): string {
     ),
     "",
   ].join("\n");
+}
+
+function renderAntiTemplateReport(report: Record<string, unknown>): string {
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  return [
+    "# Anti-Template Report",
+    "",
+    `Result: ${String(report.resultId)}`,
+    `Specificity score: ${String(report.specificityScore)}`,
+    `Status recommendation: ${String(report.statusRecommendation)}`,
+    "",
+    "This report checks whether public research artifacts are specific, domain-grounded, readable, and backed by non-trivial prototype/tests. It is not a legal patentability, legal novelty, or freedom-to-operate opinion.",
+    "",
+    "## Findings",
+    "",
+    ...findings.map((item) =>
+      isRecord(item)
+        ? `- ${String(item.severity).toUpperCase()} ${String(item.findingId)}: ${String(item.message)}`
+        : "- Unknown finding",
+    ),
+    "",
+  ].join("\n");
+}
+
+function renderReadabilityReport(report: Record<string, unknown>): string {
+  return [
+    "# Readability Report",
+    "",
+    `Result: ${String(report.resultId)}`,
+    `Readability score: ${String(report.readabilityScore)}`,
+    `Sections: ${String(report.sectionCount)}`,
+    `Average words per sentence: ${String(report.averageWordsPerSentence)}`,
+    "",
+    "The report checks whether a non-expert reader can identify the problem, method, limitations, and safety scope.",
+    "",
+  ].join("\n");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

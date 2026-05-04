@@ -15,6 +15,7 @@ import { nowIso } from "../../shared/time.js";
 import { runCommand } from "../../adapters/shell/command.js";
 import { configExists, loadConfig, type SovrynConfig } from "../config.js";
 import { hashEvidence } from "../invention/pipeline.js";
+import { analyzePublicResultQuality } from "../quality/anti-template.js";
 
 const ALLOWED_CORPUS_REMOTE =
   "https://github.com/n57d30top/sovryn-open-inventions";
@@ -29,10 +30,15 @@ type QualityLabel =
   | "good"
   | "excellent";
 type CandidateStatus =
+  | "draft"
   | "publish_blocked"
   | "needs_revision"
   | "review_ready"
-  | "dry_run_ready";
+  | "dry_run_ready"
+  | "autopublished"
+  | "blocked"
+  | "superseded"
+  | "demo_pilot";
 
 export type CorpusAutopublishPolicy = {
   enabled: boolean;
@@ -97,6 +103,16 @@ export type CorpusAutopublishCandidate = {
   dangerousGoal: boolean;
   legalClaimDetected: boolean;
   hygieneFindings: CorpusHygieneFinding[];
+  specificityScore?: number;
+  sourceSpecificityScore?: number;
+  prototypeRelevanceScore?: number;
+  testNontrivialityScore?: number;
+  limitationHonestyScore?: number;
+  nonTemplateLanguageScore?: number;
+  claimEvidenceGroundingScore?: number;
+  counterEvidenceRelevanceScore?: number;
+  publicReadabilityScore?: number;
+  qualityStatusRecommendation?: string;
   evidenceHash: string;
 };
 
@@ -138,6 +154,8 @@ type AutopublishRecord = {
   publicationDryRunPresent: boolean;
   noPublicLeaks: boolean;
   noCriticalFailures: boolean;
+  specificityScore?: number;
+  antiTemplateStatus?: string;
   disclaimer: string;
   evidenceHash: string;
 };
@@ -227,6 +245,96 @@ export class CorpusAutopublisher {
       artifactRefs: [
         autopublishRef("publish-audit.json"),
         autopublishRef("PUBLISH_AUDIT.md"),
+      ],
+    };
+  }
+
+  async qualityAudit(input: {
+    targetRepo: string;
+  }): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const target = resolve(input.targetRepo);
+    const repo = await this.inspectTargetRepo(target);
+    const slugs = await listResultSlugs(target);
+    const results = [];
+    for (const slug of slugs) {
+      const resultRoot = join(target, "results", slug);
+      const summary = await readJson<Record<string, unknown>>(
+        join(resultRoot, "SUMMARY.json"),
+      ).catch((): Record<string, unknown> => ({}));
+      const record = await readJson<Record<string, unknown>>(
+        join(resultRoot, "AUTOPUBLISH_RECORD.json"),
+      ).catch((): Record<string, unknown> => ({}));
+      const hygiene = await scanCorpusPublicHygiene(resultRoot);
+      const quality = await analyzePublicResultQuality({
+        resultId: slug,
+        root: resultRoot,
+      });
+      const existingStatus = text(
+        record.candidateStatus,
+        text(summary.candidateStatus, "unknown"),
+      );
+      const statusRecommendation = statusFromQualityAudit({
+        slug,
+        existingStatus,
+        hygienePassed: hygiene.passed,
+        specificityScore: quality.specificityScore,
+      });
+      results.push({
+        slug,
+        title: text(summary.title, text(record.title, titleFromSlug(slug))),
+        existingStatus,
+        statusRecommendation,
+        qualityLabel: text(record.qualityLabel, text(summary.qualityLabel, "")),
+        specificityScore: quality.specificityScore,
+        sourceSpecificityScore: quality.sourceSpecificityScore,
+        prototypeRelevanceScore: quality.prototypeRelevanceScore,
+        testNontrivialityScore: quality.testNontrivialityScore,
+        counterEvidenceRelevanceScore: quality.counterEvidenceRelevanceScore,
+        publicReadabilityScore: quality.publicReadabilityScore,
+        hygienePassed: hygiene.passed,
+        findingCount: quality.findings.length + hygiene.findings.length,
+        findings: [...quality.findings, ...hygiene.findings],
+      });
+    }
+    const audit = withHash({
+      kind: "corpus_quality_audit" as const,
+      auditedAt: nowIso(),
+      targetRepo: target,
+      targetRepoExists: repo.exists,
+      remoteAllowed: repo.remoteAllowed,
+      resultCount: results.length,
+      statusCounts: countBy(results, (item) =>
+        text(item.statusRecommendation, "unknown"),
+      ),
+      results: results.sort((left, right) =>
+        left.slug.localeCompare(right.slug),
+      ),
+      passed:
+        repo.exists &&
+        repo.remoteAllowed &&
+        results.every(
+          (item) =>
+            item.statusRecommendation !== "blocked" && item.hygienePassed,
+        ),
+      disclaimer: AUTOPUBLISH_DISCLAIMER,
+      evidenceHash: "",
+    });
+    await mkdir(join(this.root, ".sovryn", "quality"), { recursive: true });
+    await writeJson(
+      join(this.root, ".sovryn", "quality", "corpus-quality-audit.json"),
+      audit,
+    );
+    await writeFile(
+      join(this.root, ".sovryn", "quality", "CORPUS_QUALITY_AUDIT.md"),
+      renderCorpusQualityAudit(audit),
+      "utf8",
+    );
+    return {
+      audit,
+      artifactRefs: [
+        ".sovryn/quality/corpus-quality-audit.json",
+        ".sovryn/quality/CORPUS_QUALITY_AUDIT.md",
       ],
     };
   }
@@ -708,6 +816,10 @@ export class CorpusAutopublisher {
         Record<string, unknown>
       >(join(pilotDir, "worker-execution.json")).catch(() => ({}));
       const hygiene = await scanCorpusPublicHygiene(resolvedRelease);
+      const qualityReview = await analyzePublicResultQuality({
+        resultId: pilotId,
+        root: resolvedRelease,
+      });
       const dangerousGoal = DANGEROUS_GOAL_PATTERNS.some((pattern) =>
         pattern.test(text(pilot.goal, "")),
       );
@@ -762,6 +874,17 @@ export class CorpusAutopublisher {
         dangerousGoal,
         legalClaimDetected,
         hygieneFindings: hygiene.findings,
+        specificityScore: qualityReview.specificityScore,
+        sourceSpecificityScore: qualityReview.sourceSpecificityScore,
+        prototypeRelevanceScore: qualityReview.prototypeRelevanceScore,
+        testNontrivialityScore: qualityReview.testNontrivialityScore,
+        limitationHonestyScore: qualityReview.limitationHonestyScore,
+        nonTemplateLanguageScore: qualityReview.nonTemplateLanguageScore,
+        claimEvidenceGroundingScore: qualityReview.claimEvidenceGroundingScore,
+        counterEvidenceRelevanceScore:
+          qualityReview.counterEvidenceRelevanceScore,
+        publicReadabilityScore: qualityReview.publicReadabilityScore,
+        qualityStatusRecommendation: qualityReview.statusRecommendation,
         evidenceHash: "",
       });
       candidates.push(candidate);
@@ -844,6 +967,8 @@ export class CorpusAutopublisher {
         publicationDryRunPresent: candidate.publicationDryRunPresent,
         noPublicLeaks: candidate.noPublicLeaks,
         noCriticalFailures: candidate.noCriticalFailures,
+        specificityScore: candidate.specificityScore,
+        antiTemplateStatus: candidate.qualityStatusRecommendation,
         disclaimer: AUTOPUBLISH_DISCLAIMER,
         evidenceHash: "",
       });
@@ -913,6 +1038,8 @@ export class CorpusAutopublisher {
         evidenceStrengthScore: record.evidenceStrengthScore,
         reproducibilityScore: record.reproducibilityScore,
         publicationSafetyScore: record.publicationSafetyScore,
+        specificityScore: record.specificityScore,
+        antiTemplateStatus: record.antiTemplateStatus,
         humanReviewRequired: false,
         path: join("results", record.slug),
         disclaimer: AUTOPUBLISH_DISCLAIMER,
@@ -1309,6 +1436,76 @@ export function evaluateAutopublishCandidate(
       },
     ),
     gate(
+      "RESULT_SPECIFICITY_PASSED",
+      metric(candidate.specificityScore, 100) >= 60,
+      "Result must be domain-specific and not template-like.",
+      {
+        specificityScore: metric(candidate.specificityScore, 100),
+      },
+    ),
+    gate(
+      "SOURCE_SPECIFICITY_PASSED",
+      metric(candidate.sourceSpecificityScore, 100) >= 50,
+      "Source cards and public evidence must name concrete source context.",
+      {
+        sourceSpecificityScore: metric(candidate.sourceSpecificityScore, 100),
+      },
+    ),
+    gate(
+      "PROTOTYPE_RELEVANCE_PASSED",
+      metric(candidate.prototypeRelevanceScore, 100) >= 45,
+      "Prototype must be relevant to the result domain.",
+      {
+        prototypeRelevanceScore: metric(candidate.prototypeRelevanceScore, 100),
+      },
+    ),
+    gate(
+      "TEST_NONTRIVIALITY_PASSED",
+      metric(candidate.testNontrivialityScore, 100) >= 45,
+      "Prototype tests must exercise non-trivial domain behavior.",
+      {
+        testNontrivialityScore: metric(candidate.testNontrivialityScore, 100),
+      },
+    ),
+    gate(
+      "LIMITATION_HONESTY_PASSED",
+      metric(candidate.limitationHonestyScore, 100) >= 50,
+      "Limitations must be explicit and result-specific.",
+      {
+        limitationHonestyScore: metric(candidate.limitationHonestyScore, 100),
+      },
+    ),
+    gate(
+      "CLAIM_EVIDENCE_GROUNDED",
+      metric(candidate.claimEvidenceGroundingScore, 100) >= 35,
+      "Claim/feature evidence must be grounded rather than generic.",
+      {
+        claimEvidenceGroundingScore: metric(
+          candidate.claimEvidenceGroundingScore,
+          100,
+        ),
+      },
+    ),
+    gate(
+      "COUNTER_EVIDENCE_SPECIFIC",
+      metric(candidate.counterEvidenceRelevanceScore, 100) >= 35,
+      "Counter-evidence must be specific enough to pressure the candidate.",
+      {
+        counterEvidenceRelevanceScore: metric(
+          candidate.counterEvidenceRelevanceScore,
+          100,
+        ),
+      },
+    ),
+    gate(
+      "PUBLIC_READABILITY_PASSED",
+      metric(candidate.publicReadabilityScore, 100) >= 55,
+      "Public README must explain the result clearly enough for review.",
+      {
+        publicReadabilityScore: metric(candidate.publicReadabilityScore, 100),
+      },
+    ),
+    gate(
       "CANDIDATE_STATUS_ALLOWED",
       candidate.candidateStatus === "dry_run_ready" ||
         candidate.candidateStatus === "review_ready",
@@ -1496,6 +1693,13 @@ function recommendedFixes(failedGates: string[]): string[] {
     if (/QUALITY|EVIDENCE|REPRODUCIBILITY/.test(gateCode)) {
       return "Improve the Factory run, source evidence, prototype execution, and quality evaluation.";
     }
+    if (
+      /SPECIFICITY|TEMPLATE|PROTOTYPE_RELEVANCE|TEST_NONTRIVIALITY|READABILITY|COUNTER_EVIDENCE|CLAIM_EVIDENCE|LIMITATION/.test(
+        gateCode,
+      )
+    ) {
+      return "Make the public result more domain-specific, improve non-trivial tests, and ground claims/counter-evidence in concrete artifacts.";
+    }
     if (/SECURITY|HYGIENE|RAW|SECRET|LOCAL|LEGAL|DANGEROUS/.test(gateCode)) {
       return "Remove unsafe or leaky public artifacts and rerun security, safety, and publication dry-run checks.";
     }
@@ -1509,6 +1713,30 @@ function recommendedFixes(failedGates: string[]): string[] {
   });
 }
 
+function statusFromQualityAudit(input: {
+  slug: string;
+  existingStatus: string;
+  hygienePassed: boolean;
+  specificityScore: number;
+}): string {
+  if (!input.hygienePassed) return "blocked";
+  if (
+    /^(evidence-chain|evidence-chain-v2|toolchain-policy|corpus-deduplication)$/.test(
+      input.slug,
+    )
+  ) {
+    return input.specificityScore < 72 ? "demo_pilot" : input.existingStatus;
+  }
+  if (input.specificityScore < 60) return "needs_revision";
+  if (
+    input.existingStatus === "dry_run_ready" ||
+    input.existingStatus === "review_ready"
+  ) {
+    return "autopublished";
+  }
+  return input.existingStatus || "review_ready";
+}
+
 function publicDecision(
   decision: AutopublishDecision,
 ): Record<string, unknown> {
@@ -1520,6 +1748,8 @@ function publicDecision(
     failedGates: decision.failedGates,
     qualityLabel: decision.candidate.qualityLabel,
     candidateStatus: decision.candidate.candidateStatus,
+    specificityScore: decision.candidate.specificityScore,
+    antiTemplateStatus: decision.candidate.qualityStatusRecommendation,
   };
 }
 
@@ -1540,6 +1770,8 @@ function resultSummary(
     evidenceStrengthScore: candidate.evidenceStrengthScore,
     reproducibilityScore: candidate.reproducibilityScore,
     publicationSafetyScore: candidate.publicationSafetyScore,
+    specificityScore: candidate.specificityScore,
+    antiTemplateStatus: candidate.qualityStatusRecommendation,
     humanReviewRequired: false,
     disclaimer: AUTOPUBLISH_DISCLAIMER,
     evidenceHash: candidate.evidenceHash,
@@ -1564,6 +1796,8 @@ Candidate status: ${candidate.candidateStatus}
 - Reproducibility: ${candidate.reproducibilityScore}
 - Publication safety: ${candidate.publicationSafetyScore}
 - Replay critical pass rate: ${candidate.replayCriticalPassRate}
+- Specificity score: ${metric(candidate.specificityScore, 0)}
+- Anti-template status: ${text(candidate.qualityStatusRecommendation, "unknown")}
 
 ## Automated Publication Record
 
@@ -1684,6 +1918,30 @@ ${results
 - Failed gates: ${Array.isArray(item.failedGates) ? item.failedGates.join(", ") : "unknown"}
 - Recommended fix: ${text(item.recommendedFix, "Inspect the failed gates.")}
 `,
+  )
+  .join("\n")}
+`;
+}
+
+function renderCorpusQualityAudit(audit: Record<string, unknown>): string {
+  const results = Array.isArray(audit.results)
+    ? audit.results.filter(isRecord)
+    : [];
+  return `# Corpus Quality Audit
+
+Results audited: ${String(audit.resultCount)}
+Passed: ${String(audit.passed)}
+
+This audit checks specificity, non-template language, prototype relevance,
+non-trivial tests, limitation honesty, and public readability. It does not make
+legal novelty, patentability, or freedom-to-operate conclusions.
+
+## Results
+
+${results
+  .map(
+    (item) =>
+      `- ${text(item.slug, "result")}: ${text(item.statusRecommendation, "unknown")} (specificity ${number(item.specificityScore, 0)})`,
   )
   .join("\n")}
 `;
@@ -1921,15 +2179,24 @@ function qualityLabel(value: string): QualityLabel {
 function candidateStatus(value: string): CandidateStatus {
   if (
     [
+      "draft",
       "publish_blocked",
       "needs_revision",
       "review_ready",
       "dry_run_ready",
+      "autopublished",
+      "blocked",
+      "superseded",
+      "demo_pilot",
     ].includes(value)
   ) {
     return value as CandidateStatus;
   }
   return "needs_revision";
+}
+
+function metric(value: unknown, fallback: number): number {
+  return score(typeof value === "number" ? value : fallback);
 }
 
 function qualityRank(value: QualityLabel | "good" | "excellent"): number {

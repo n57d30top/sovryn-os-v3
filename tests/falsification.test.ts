@@ -23,7 +23,7 @@ test("Beta.21 CLI help lists evaluate falsify", async () => {
 
 test("Beta.21 package version is beta.21", async () => {
   const pkg: any = await readJson(join(process.cwd(), "package.json"));
-  assert.equal(pkg.version, "3.0.0-beta.21");
+  assert.equal(pkg.version, "3.0.0-beta.22");
 });
 
 test("falsify chemistry result writes FALSIFICATION.md", async () => {

@@ -476,7 +476,7 @@ export class V1RcGateService {
     const check = withHash({
       kind: "v1_rc_check" as const,
       checkedAt: nowIso(),
-      targetVersion: "3.0.0-beta.21",
+      targetVersion: "3.0.0-beta.22",
       passed: gates.every((item) => item.passed),
       readinessLabel: gates.every((item) => item.passed)
         ? "v1_rc_ready"
@@ -689,7 +689,7 @@ function renderV1GateReport(report: Record<string, unknown>): string {
   return `# v1-RC Gate Report
 
 Passed: ${String(report.passed)}
-Target version: ${text(report.targetVersion, "3.0.0-beta.21")}
+Target version: ${text(report.targetVersion, "3.0.0-beta.22")}
 
 ${gates.map((item) => `- ${text(item.code, "gate")}: ${String(item.passed)}`).join("\n")}
 

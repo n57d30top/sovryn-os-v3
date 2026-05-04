@@ -1245,6 +1245,7 @@ function renderIndexHtml(model: PublicCorpusModel): string {
     <h1>Sovryn Open Inventions Corpus</h1>
     <p class="notice">${escapeHtml(CORPUS_DISCLAIMER)}</p>
     <p class="meta">Results: ${model.resultCount}. Showcase: <a href="showcase.html">showcase.html</a>. Public API: <a href="corpus.json">corpus.json</a>, <a href="search-index.json">search-index.json</a>.</p>
+    <p class="meta">Public beta readers should start with showcase results, verification notes, limitations, and reproducibility artifacts before interpreting any result.</p>
   </header>
   <main>
     <section>
@@ -1356,6 +1357,7 @@ function renderShowcaseHtml(model: PublicCorpusModel): string {
     <p><a href="index.html">Back to corpus</a></p>
     <h1>Showcase Results</h1>
     <p>${escapeHtml(CORPUS_DISCLAIMER)}</p>
+    <p>Showcase entries are selected for public beta review because they have stronger specificity, reproducibility, safety scope, public hygiene, and falsification evidence than ordinary corpus entries. They still require human interpretation before use.</p>
     ${model.showcaseResults
       .map(
         (result) => `<article>
@@ -1386,6 +1388,14 @@ ${CORPUS_DISCLAIMER}
 - Search index: [public-corpus/search-index.json](public-corpus/search-index.json)
 - Results API: [public-corpus/api/results.json](public-corpus/api/results.json)
 - Showcase page: [public-corpus/showcase.html](public-corpus/showcase.html)
+
+## Public Beta Reading Path
+
+Start with [public-corpus/showcase.html](public-corpus/showcase.html), then open
+the result README, SHOWCASE.md, REPRODUCE.md, LIMITATIONS.md, EXAMPLES.md, and
+FALSIFICATION.md. The corpus is intended for public beta review and reproducible
+research inspection, not for legal patent conclusions or operational deployment
+without human review.
 
 ## Showcase Results
 

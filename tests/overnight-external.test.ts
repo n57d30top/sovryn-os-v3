@@ -200,7 +200,7 @@ test("launch v1-rc-check passes with fixture external suite", async () => {
 
 test("launch v1-rc-check reports target version beta20", async () => {
   const { v1 } = await trialFixture();
-  assert.equal(v1.targetVersion, "3.0.0-beta.21");
+  assert.equal(v1.targetVersion, "3.0.0-beta.22");
 });
 
 test("launch v1-rc-check includes corpus site audit gate", async () => {
@@ -423,7 +423,7 @@ test("launch v1-rc-check blocks missing public corpus site", async () => {
 
 test("package version is beta.20", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.0.0-beta.21");
+  assert.equal(pkg.version, "3.0.0-beta.22");
 });
 
 async function trialFixture(): Promise<TrialFixture> {

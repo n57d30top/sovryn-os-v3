@@ -414,7 +414,7 @@ test("corpus site build rejects disallowed remote", async () => {
 
 test("package version is beta.20", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.0.0-beta.21");
+  assert.equal(pkg.version, "3.0.0-beta.22");
 });
 
 test("Beta.18 version groups are created", async () => {
@@ -680,7 +680,7 @@ test("Beta.18 duplicate slugs are versioned without deletion", async () => {
 
 test("Beta.20 package version is beta.20", async () => {
   const pkg: any = await readJson(join(process.cwd(), "package.json"));
-  assert.equal(pkg.version, "3.0.0-beta.21");
+  assert.equal(pkg.version, "3.0.0-beta.22");
 });
 
 test("Beta.20 showcase writes SHOWCASE.md", async () => {
@@ -965,6 +965,24 @@ test("Beta.20 showcase public page links docs", async () => {
   assert.match(html, /EXAMPLES\.md/);
 });
 
+test("Beta.22 public corpus landing page explains public beta reading path", async () => {
+  const { targetRepo } = await lifecycleFixture();
+  const html = await readFile(
+    join(targetRepo, "public-corpus", "index.html"),
+    "utf8",
+  );
+  assert.match(html, /Public beta readers should start with showcase results/);
+});
+
+test("Beta.22 showcase page says human interpretation is required", async () => {
+  const { targetRepo } = await lifecycleFixture();
+  const html = await readFile(
+    join(targetRepo, "public-corpus", "showcase.html"),
+    "utf8",
+  );
+  assert.match(html, /human interpretation before use/);
+});
+
 test("Beta.20 result page links showcase docs", async () => {
   const { targetRepo } = await lifecycleFixture();
   const html = await readFile(
@@ -979,6 +997,13 @@ test("Beta.20 root README explains showcase documents", async () => {
   const { targetRepo } = await lifecycleFixture();
   const readme = await readFile(join(targetRepo, "README.md"), "utf8");
   assert.match(readme, /SHOWCASE\.md, METHOD\.md, REPRODUCE\.md/);
+});
+
+test("Beta.22 root README includes public beta reading path", async () => {
+  const { targetRepo } = await lifecycleFixture();
+  const readme = await readFile(join(targetRepo, "README.md"), "utf8");
+  assert.match(readme, /Public Beta Reading Path/);
+  assert.match(readme, /FALSIFICATION\.md/);
 });
 
 test("Beta.20 verification explains showcase thresholds", async () => {

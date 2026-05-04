@@ -1,6 +1,6 @@
 {
   "name": "sovryn-os-v3",
-  "version": "3.0.0-beta.21",
+  "version": "3.0.0-beta.22",
   "description": "A local-first evidence kernel for AI-assisted coding and research work.",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "test": "npm run build && node --test dist/tests/*.test.js"
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "demo:public-beta": "npm run build && node dist/cli.js public-beta demo --json"
   },
   "workspaces": [
     "packages/*"

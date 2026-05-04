@@ -568,14 +568,14 @@ test("safety scan-goal returns stable JSON envelope command", async () => {
     repo.root,
   );
   assert.equal(response.command, "safety");
-  assert.equal(response.version, "3.0.0-beta.21");
+  assert.equal(response.version, "3.0.0-beta.22");
 });
 
 test("security audit returns stable JSON envelope command", async () => {
   const repo = await initializedRepo();
   const response = await executeCli(["security", "audit", "--json"], repo.root);
   assert.equal(response.command, "security");
-  assert.equal(response.version, "3.0.0-beta.21");
+  assert.equal(response.version, "3.0.0-beta.22");
 });
 
 test("reliability audit returns stable JSON envelope command", async () => {
@@ -585,7 +585,7 @@ test("reliability audit returns stable JSON envelope command", async () => {
     repo.root,
   );
   assert.equal(response.command, "reliability");
-  assert.equal(response.version, "3.0.0-beta.21");
+  assert.equal(response.version, "3.0.0-beta.22");
 });
 
 async function initializedRepo() {

@@ -149,3 +149,20 @@ user installs are not allowed for autonomous Node Alpha. Missing tools are
 reported as missing/blocked and require an approved worker profile or manual
 operator action. The MVP can check `container-local` availability but does not
 pretend that a disposable container check is persistent tool installation.
+
+## Public Beta Worker Expectations
+
+Beta.22 adds a public beta demo path that prefers `container-netoff` for
+generated prototype validation:
+
+```bash
+node dist/cli.js worker doctor --profile container-netoff --json
+node dist/cli.js public-beta check --json
+npm run demo:public-beta
+```
+
+If Docker or Podman is unavailable, Sovryn records the limitation explicitly and
+does not silently fall back from the requested container profile to host
+execution. `sandbox-local` remains a lower-assurance constrained command
+profile, not a kernel-level sandbox. For stronger isolation, use a hardened
+container, VM, dedicated user, and network controls.

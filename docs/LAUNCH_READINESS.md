@@ -1,6 +1,6 @@
 # Launch Readiness
 
-Sovryn OS v3 `3.0.0-beta.21` includes launch-readiness commands for local
+Sovryn OS v3 `3.0.0-beta.22` includes launch-readiness commands for local
 public beta or v1.0-RC review:
 
 ```bash
@@ -78,6 +78,18 @@ results should either have `passes_falsification` or be explicitly unevaluated
 before the falsification pass is required. Results labeled `needs_revision`,
 `overclaims`, `insufficient_tests`, or `blocked` must not remain showcase until
 the public result is fixed and `sovryn evaluate falsify-all` is rerun.
+
+Beta.22 adds public beta UX readiness:
+
+```bash
+sovryn public-beta check --json
+npm run demo:public-beta
+```
+
+The public beta check records Node/build/doc status, worker doctor evidence,
+corpus target configuration, safe corpus-autopublish defaults, and dry-run-only
+demo evidence. It is a tester-facing readiness layer and does not replace
+security, reliability, falsification, corpus site, or v1-RC gates.
 
 ## v1.0 Gate Set
 

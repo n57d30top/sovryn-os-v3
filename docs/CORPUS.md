@@ -318,3 +318,16 @@ evidence grounding. A failed result is not hidden, but its
 `falsificationStatus` can move it to `needs_revision`, `overclaims`, or
 `blocked`, which removes showcase eligibility until the public result is fixed
 and re-evaluated.
+
+## Beta.22 Public Beta Corpus Dry-Run
+
+`npm run demo:public-beta` creates a temporary corpus target and runs corpus
+autopublish in dry-run mode only. This proves that public corpus packaging works
+for external testers without pushing to GitHub or requiring a token.
+
+Before any real corpus update, run:
+
+```bash
+sovryn corpus publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```

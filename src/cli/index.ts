@@ -7,6 +7,7 @@ import {
 import { AppError } from "../shared/errors.js";
 import { AuditService } from "../core/audit/audit-service.js";
 import { BetaService } from "../core/beta/beta-service.js";
+import { PublicBetaService } from "../core/beta/public-beta-service.js";
 import { configExists, loadConfig } from "../core/config.js";
 import { CorpusAutopublisher } from "../core/corpus/corpus-autopublisher.js";
 import { CorpusProductService } from "../core/corpus/corpus-product-service.js";
@@ -169,6 +170,8 @@ Commands:
   sovryn beta check [--json]
   sovryn beta demo [--json]
   sovryn beta package [--json]
+  sovryn public-beta check [--target-repo <path>] [--json]
+  sovryn public-beta demo [--target-repo <path>] [--json]
   sovryn launch check [--json]
   sovryn launch demo [--json]
   sovryn launch package [--json]
@@ -482,6 +485,16 @@ export async function executeCli(
       case "beta": {
         const result = await betaCommand(parsed, root);
         return okEnvelope("beta", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "public-beta": {
+        const result = await publicBetaCommand(parsed, root);
+        return okEnvelope("public-beta", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1728,6 +1741,29 @@ async function betaCommand(
       throw new AppError(
         "BETA_COMMAND_REQUIRED",
         "Use: sovryn beta <check|demo|package>.",
+      );
+  }
+}
+
+async function publicBetaCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new PublicBetaService(root);
+  switch (subcommand) {
+    case "check":
+      return service.check({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    case "demo":
+      return service.demo({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    default:
+      throw new AppError(
+        "PUBLIC_BETA_COMMAND_REQUIRED",
+        "Use: sovryn public-beta <check|demo>.",
       );
   }
 }

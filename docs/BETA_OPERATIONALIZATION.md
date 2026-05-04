@@ -1,6 +1,6 @@
 # Beta Operationalization
 
-Sovryn OS v3 `3.0.0-beta.21` adds an operational proof layer above the Alpha
+Sovryn OS v3 `3.0.0-beta.22` adds an operational proof layer above the Alpha
 Factory. The goal is to show that Sovryn can run bounded autonomous research
 workflows, measure quality, keep publication governed, execute worker jobs
 without silent fallback, export a public corpus, and produce three
@@ -274,3 +274,30 @@ The pass does not claim legal novelty or patentability. It can only keep a
 result reviewable, mark it as `needs_revision`, flag `overclaims`, mark
 `insufficient_tests`, or block it. Corpus showcase selection uses that status
 so failed falsification removes showcase eligibility without deleting evidence.
+
+## Beta.22 Public Beta UX
+
+```bash
+sovryn public-beta check --json
+npm run demo:public-beta
+```
+
+The public beta layer is tester-facing. It checks Node.js, build output,
+onboarding docs, worker doctor evidence, corpus target configuration,
+safe corpus-autopublish defaults, and demo evidence. The one-command demo
+creates a temporary repository, runs a safe external research fixture, validates
+through Node Alpha, and prepares corpus autopublish as a dry-run only.
+
+Generated artifacts:
+
+```text
+.sovryn/public-beta/
+  public-beta-check.json
+  public-beta-demo.json
+  PUBLIC_BETA_READINESS.md
+  PUBLIC_BETA_DEMO_REPORT.md
+```
+
+The public beta demo does not push to GitHub and does not create standalone
+repositories. Public beta outputs remain Open Source Research Artifacts, not
+legal patent filings or legal opinions.

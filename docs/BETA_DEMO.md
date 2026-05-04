@@ -31,9 +31,22 @@ The package is a public demo bundle, not a real publication. Human review is
 required before any GitHub publication. Sovryn does not file legal patents and
 does not provide legal novelty, patentability, or freedom-to-operate opinions.
 
+## Public Beta Demo
+
+Beta.22 adds a one-command public beta demo:
+
+```bash
+npm run demo:public-beta
+```
+
+The command builds the CLI, creates a temporary repository, runs a small safe
+external research fixture, validates with Node Alpha when available, and
+prepares corpus autopublish as a dry-run only. It writes
+`.sovryn/public-beta/PUBLIC_BETA_DEMO_REPORT.md` and does not push to GitHub.
+
 ## Beta Operations
 
-`3.0.0-beta.21` includes the operational proof commands, corpus lifecycle
+`3.0.0-beta.22` includes the operational proof commands, corpus lifecycle
 curation, and real-source external campaign path around the demo:
 
 ```bash

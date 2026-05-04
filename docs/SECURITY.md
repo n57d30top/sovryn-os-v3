@@ -300,6 +300,14 @@ still local evidence systems. Autonomy campaigns and E2E validation record
 by default; worker jobs do not perform host installation by default; and
 unavailable container profiles must not silently fall back to host execution.
 
+Beta.22 public beta demo remains dry-run only. `npm run demo:public-beta`
+creates temporary repositories, runs a safe fixture-backed external research
+flow, and prepares corpus autopublish without pushing. The public beta report
+must not include raw command logs, tokens, environment variables, local absolute
+paths, private config, or legal patentability/freedom-to-operate claims.
+`sovryn public-beta check --json` records `container-netoff` availability
+honestly and does not treat a missing container runtime as proof of isolation.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

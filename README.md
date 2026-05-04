@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-beta.21`
+Current version: `3.0.0-beta.22`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -48,7 +48,7 @@ Alpha.26 was the first integrated beta-candidate path: release candidates,
 quality evaluation, security audit, reliability audit, public corpus export, and
 curated beta packaging are all connected.
 
-The current Beta.1-Beta.21 operationalization line builds on Alpha.26:
+The current Beta.1-Beta.22 operationalization line builds on Alpha.26:
 
 | Version         | Focus                         | Result                                                                                                                                                                                   |
 | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,8 +73,9 @@ The current Beta.1-Beta.21 operationalization line builds on Alpha.26:
 | `3.0.0-beta.19` | Real-Source External Campaign | Adds a three-domain real-source campaign that uses public-source adapter/cache evidence, source cards, fallback declarations, and real-source autopublish gates.                         |
 | `3.0.0-beta.20` | High-Quality Showcase Results | Upgrades three public corpus results with human-readable showcase docs, stricter specificity/anti-template thresholds, reproduction notes, examples, limitations, and site-audit gates.  |
 | `3.0.0-beta.21` | Falsification Evaluation      | Adds public-corpus falsification reports, domain-specific negative tests, overclaim checks, and showcase demotion for failed results.                                                    |
+| `3.0.0-beta.22` | Public Beta UX and Demo       | Adds public-beta check/demo commands, one-command fixture demo, onboarding docs, install/quickstart guidance, and dry-run-only corpus publication proof for external testers.            |
 
-At `3.0.0-beta.21`, Sovryn can run local autonomy campaigns, build release
+At `3.0.0-beta.22`, Sovryn can run local autonomy campaigns, build release
 candidates, govern publication queues, execute worker jobs, benchmark research
 quality, export a public corpus API/site shell, and produce launch/pilot
 evidence, then validate the full path through a deterministic fresh-repo E2E
@@ -152,6 +153,12 @@ Falsification checks false-positive and false-negative risks, malformed inputs,
 unsupported assumptions, overclaiming language, weak evidence grounding, and
 public hygiene. Results that fail falsification move to `needs_revision`,
 `overclaims`, or `blocked` status and cannot remain showcase.
+Beta.22 adds the public beta onboarding layer:
+`sovryn public-beta check --json` verifies Node, build output, docs, worker
+doctor evidence, corpus target configuration, safe corpus-autopublish defaults,
+and demo evidence. `npm run demo:public-beta` creates a temporary repository,
+runs a safe fixture-backed external research flow, validates through Node Alpha,
+and prepares corpus autopublish as a dry-run only.
 
 The beta operations line preserves the same operating rules:
 
@@ -852,6 +859,36 @@ The beta package is a public demo bundle and still requires human review before
 real publication. Sovryn produces Open Inventions, Defensive Publications, and
 Open Source Research Artifacts; it does not file legal patents or provide legal
 novelty, patentability, or freedom-to-operate opinions.
+
+## Public Beta
+
+Beta.22 adds a tester-facing public beta path:
+
+```bash
+npm install
+npm run build
+node dist/cli.js public-beta check --json
+npm run demo:public-beta
+```
+
+`public-beta check` verifies the local Node version, built CLI, public beta
+docs, worker doctor evidence, corpus repo configuration, safe corpus
+autopublish defaults, and whether a public beta demo has passed.
+`npm run demo:public-beta` creates a temporary repository, runs a safe
+fixture-backed external research flow, validates the generated prototype through
+Node Alpha, and prepares corpus autopublish as a dry-run only. It does not push
+to GitHub.
+
+Public beta onboarding docs:
+
+- `docs/GETTING_STARTED_PUBLIC_BETA.md`
+- `docs/INSTALL.md`
+- `docs/QUICKSTART.md`
+- `docs/WHAT_SOVRYN_IS.md`
+- `docs/WHAT_SOVRYN_IS_NOT.md`
+- `docs/RUN_EXTERNAL_RESEARCH.md`
+- `docs/CORPUS_AUTOPUBLISH.md`
+- `docs/NODE_ALPHA.md`
 
 ## Beta Operations
 

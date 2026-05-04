@@ -41,6 +41,41 @@ The project is still Alpha software, but Alpha.26 is the first integrated beta
 candidate path: release candidates, quality, security audit, reliability audit,
 public corpus export, and curated beta packaging are all connected.
 
+## Beta Operationalization Roadmap
+
+After Alpha.26 the goal shifts from adding core Alpha features to proving that
+Sovryn can operate as a repeatable, safe, useful beta system. The next line is
+planned as Beta operationalization: empirical autonomy validation, publication
+governance, persistent worker operations, research benchmarking, public corpus
+discovery, and launch readiness.
+
+| Target                        | Focus                         | Planned result                                                                                                                            |
+| ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `3.0.0-beta.1` or `.alpha.27` | Real Autonomy Validation      | Run bounded autonomy campaigns, measure success/block/replay/quality rates, and write autonomy scorecards without real publication.       |
+| `3.0.0-beta.2`                | GitHub Publication Governance | Add publication queue, approval ledger, strict real-publish policy, org/token-scope checks, and dry-run-first release operations.         |
+| `3.0.0-beta.3`                | Persistent Node Alpha Worker  | Add opt-in worker registration, job queues, heartbeat, toolchain policy enforcement, controlled execution, evidence upload, and cleanup.  |
+| `3.0.0-beta.4`                | Research Quality Benchmarking | Add a curated benchmark suite for source quality, claim mapping, counter-evidence, prototypes, tests, reproducibility, and safety.        |
+| `3.0.0-beta.5`                | Public Corpus Discovery/API   | Export a public corpus site/API with inventions, sources, quality labels, duplicate clusters, release readiness, and explanation reports. |
+| `3.0.0-beta.6` or `v1.0-rc.1` | Launch Readiness              | Run real-world pilots, package a public launch demo, document v1.0 gates, and decide whether the repo is ready for a release candidate.   |
+
+The version becomes `3.0.0-beta.1` only if beta gates pass. If autonomy,
+quality, security, reliability, or demo gates are not yet strong enough, the
+next implementation should remain `3.0.0-alpha.27`.
+
+Planned beta work must preserve the same operating rules:
+
+- do not weaken gates;
+- do not fake research strength;
+- do not claim patentability, legal novelty, or freedom-to-operate;
+- do not publish raw logs, secrets, private config, local absolute paths, or
+  unredacted command journals;
+- do not use host `sudo` or host package installation by default;
+- do not silently fall back from isolated worker profiles;
+- keep real GitHub publication disabled unless explicit strict policy and human
+  approval allow it;
+- write evidence for every autonomous workflow;
+- keep tests, docs, smoke flows, and reports attached to each milestone.
+
 ## Install
 
 ```bash

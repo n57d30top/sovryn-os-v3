@@ -205,7 +205,7 @@ test("launch v1-rc-check passes with fixture external suite", async () => {
 
 test("launch v1-rc-check reports target version rc1", async () => {
   const { v1 } = await trialFixture();
-  assert.equal(v1.targetVersion, "3.1.0-alpha.5");
+  assert.equal(v1.targetVersion, "3.1.0-rc.1");
 });
 
 test("launch v1-rc-check includes corpus site audit gate", async () => {
@@ -502,7 +502,7 @@ for (const file of [
 }
 
 for (const [field, expected] of [
-  ["targetVersion", "3.1.0-alpha.5"],
+  ["targetVersion", "3.1.0-rc.1"],
   ["readinessLabel", "v1_rc_ready"],
   ["replayCriticalPassRate", 100],
   ["securityAuditPassed", true],
@@ -592,7 +592,7 @@ test("v1-RC launch decision states human interpretation remains required", async
 
 test("package version is rc.1", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-alpha.5");
+  assert.equal(pkg.version, "3.1.0-rc.1");
 });
 
 async function trialFixture(): Promise<TrialFixture> {

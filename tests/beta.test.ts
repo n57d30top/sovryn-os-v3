@@ -72,7 +72,7 @@ test("beta check passes after beta demo", async () => {
 
 test("beta check targets Beta.20", async () => {
   const { check } = await betaFixture();
-  assert.equal(check.targetVersion, "3.1.0-alpha.5");
+  assert.equal(check.targetVersion, "3.1.0-rc.1");
 });
 
 test("beta check reports beta candidate readiness", async () => {

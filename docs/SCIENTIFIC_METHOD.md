@@ -1,10 +1,13 @@
 # Scientific Method Core
 
-Sovryn OS `3.1.0-alpha.5` includes the first autonomous
+Sovryn OS `3.1.0-rc.1` includes the first autonomous
 computational-science layer, a deterministic experiment/data/instrument
 runtime, bounded statistical analysis, replication, and falsification for safe
 synthetic energy-data studies. Alpha.5 adds scientific memory, fixture-backed
-literature grounding, source cards, and follow-up question generation.
+literature grounding, source cards, and follow-up question generation. v1.1
+RC.1 adds a deterministic science-campaign runner that completes two safe
+hypothesis-driven studies, writes paper-style reports, updates scientific
+memory, and prepares curated local public corpus packages.
 
 The core flow is:
 
@@ -24,6 +27,8 @@ The core flow is:
 14. Update scientific memory ledgers.
 15. Review the study against scientific-method, runtime, analysis,
     replication, falsification, memory, literature-grounding, and safety gates.
+16. Optionally run a science campaign that selects safe questions, completes
+    studies, writes paper-style reports, and prepares curated public packages.
 
 ```bash
 sovryn science question "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?" --json
@@ -46,6 +51,7 @@ sovryn science next-questions <study-id> --json
 sovryn science memory update <study-id> --json
 sovryn science memory search "energy anomaly provenance" --json
 sovryn science memory report --json
+sovryn science campaign run --goal "Run safe computational science studies" --studies 2 --autopublish-corpus --json
 sovryn science review <study-id> --json
 ```
 
@@ -100,6 +106,33 @@ Study artifacts are written under:
   SCIENCE_REVIEW.md
 ```
 
+Campaign artifacts are written under:
+
+```text
+.sovryn/science/campaigns/<campaign-slug>/
+  campaign-run.json
+  candidate-questions.json
+  selected-studies.json
+  SCIENCE_CAMPAIGN_REPORT.md
+  PUBLICATION_SUMMARY.md
+  public-corpus/
+    results/<study-slug>/
+      README.md
+      SCIENTIFIC_REPORT.md
+      PAPER.md
+      HYPOTHESES.md
+      EXPERIMENT_DESIGN.md
+      STATISTICAL_ANALYSIS.md
+      REPLICATION.md
+      FALSIFICATION.md
+      LITERATURE_GROUNDING.md
+      LIMITATIONS.md
+      SUMMARY.json
+      AUTOPUBLISH_RECORD.json
+      release/
+      evidence/public/
+```
+
 Scientific memory is stored separately so later studies can search and reuse
 bounded lessons:
 
@@ -133,11 +166,20 @@ unsupported publication of results. Alpha.5 memory gates require scientific
 memory updates, hypothesis/study/dataset/instrument ledgers,
 literature-grounding evidence, at least three study-bound source cards, next
 questions, rejected-hypothesis tracking, and no unsupported literature claims.
+RC.1 campaign gates require candidate questions, two completed safe studies,
+hypotheses with null hypotheses, experiment designs, datasets, instruments,
+Node Alpha execution, statistics, baselines, ablations, replication,
+falsification, memory updates, paper reports, public hygiene, safety scope, and
+curated corpus package preparation.
 
 Alpha.5 can mark a hypothesis `supported` only within the bounded synthetic
 study when replication is stable and falsification has no material failures.
 Otherwise the status remains `partially_supported`, `inconclusive`, `weakened`,
 or `rejected`.
+
+RC.1 campaigns still use deterministic fixture-backed studies for CI
+reproducibility. `--autopublish-corpus` prepares curated local science-result
+packages; it does not create new GitHub repositories or push by itself.
 
 Literature grounding in the deterministic alpha test path uses fixture-backed
 source-card summaries. Query links and adapter failures do not count as reviewed

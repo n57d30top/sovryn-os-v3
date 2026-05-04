@@ -210,6 +210,7 @@ Commands:
   sovryn science memory update <study-id> [--json]
   sovryn science memory search "<query>" [--json]
   sovryn science memory report [--json]
+  sovryn science campaign run --goal "<goal>" [--studies 2] [--autopublish-corpus] [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1465,6 +1466,22 @@ async function scienceCommand(
         "Use: sovryn science memory <update|search|report>.",
       );
     }
+    case "campaign": {
+      const action = parsed.positionals[1];
+      const goal =
+        flagString(parsed.flags, "--goal") ??
+        parsed.positionals.slice(2).join(" ").trim();
+      if (action !== "run" || !goal) {
+        throw new AppError(
+          "SCIENCE_CAMPAIGN_USAGE",
+          'Use: sovryn science campaign run --goal "<goal>" [--studies 2] [--autopublish-corpus].',
+        );
+      }
+      return service.campaignRun(goal, {
+        studies: flagInt(parsed.flags, "--studies", 2),
+        autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
+      });
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
@@ -1489,7 +1506,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|study status|review>.",
       );
   }
 }

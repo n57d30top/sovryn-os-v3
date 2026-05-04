@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.1.0-alpha.5`
+Current version: `3.1.0-rc.1`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -38,16 +38,20 @@ computational experiments. Alpha.3 added bounded statistical analysis, baseline
 comparison, ablations, sensitivity sweeps, and error analysis. Alpha.4 adds
 replication, negative tests, falsification reports, and hypothesis status
 updates. Alpha.5 adds scientific memory ledgers, study-bound source cards,
-literature grounding, and next-question generation. Scientific support remains
-bounded to the evidence actually produced.
+literature grounding, and next-question generation. v1.1 RC.1 adds a
+deterministic autonomous computational-science campaign that selects safe
+questions, completes two hypothesis-driven studies, writes paper-style reports,
+updates scientific memory, and prepares curated local corpus packages.
+Scientific support remains bounded to the evidence actually produced.
 
-| Version         | Focus                           | Result                                                                                                                                                     |
-| --------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `3.1.0-alpha.1` | Scientific Method Core          | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.      |
-| `3.1.0-alpha.2` | Data and Instrument Runtime     | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates. |
-| `3.1.0-alpha.3` | Statistics and Ablations        | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.        |
-| `3.1.0-alpha.4` | Replication and Falsification   | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                            |
-| `3.1.0-alpha.5` | Memory and Literature Grounding | Adds scientific memory ledgers, fixture-backed source cards, literature-grounding reports, and follow-up question generation.                              |
+| Version         | Focus                           | Result                                                                                                                                                                        |
+| --------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `3.1.0-alpha.1` | Scientific Method Core          | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.                         |
+| `3.1.0-alpha.2` | Data and Instrument Runtime     | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates.                    |
+| `3.1.0-alpha.3` | Statistics and Ablations        | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.                           |
+| `3.1.0-alpha.4` | Replication and Falsification   | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                                               |
+| `3.1.0-alpha.5` | Memory and Literature Grounding | Adds scientific memory ledgers, fixture-backed source cards, literature-grounding reports, and follow-up question generation.                                                 |
+| `3.1.0-rc.1`    | Science Campaign                | Adds `sovryn science campaign run` for two-study autonomous computational-science campaigns with statistics, replication, falsification, memory, and curated public packages. |
 
 New science commands:
 
@@ -72,6 +76,7 @@ sovryn science next-questions <study-id> --json
 sovryn science memory update <study-id> --json
 sovryn science memory search "energy anomaly provenance" --json
 sovryn science memory report --json
+sovryn science campaign run --goal "Run safe computational science studies" --studies 2 --autopublish-corpus --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```
@@ -85,12 +90,16 @@ metrics, missing falsification criteria, unsupported scientific claims, and
 unsafe wet-lab, hazardous chemistry, exploit-development, biological
 optimization, or medical-treatment scopes. Alpha.5 gates also block missing
 scientific memory, missing study-bound source cards, missing next questions, and
-unsupported literature claims. The layer is limited to safe computational
-science over synthetic data, public non-sensitive data, simulations, statistics,
-benchmarks, and software instruments.
+unsupported literature claims. RC.1 campaign gates additionally require selected
+safe questions, completed studies, datasets, instruments, Node Alpha execution,
+statistics, baselines, ablations, replication, falsification, paper reports,
+scientific memory updates, public hygiene, and curated corpus package evidence.
+The layer is limited to safe computational science over synthetic data, public
+non-sensitive data, simulations, statistics, benchmarks, and software
+instruments.
 
-See [docs/SCIENTIFIC_METHOD.md](docs/SCIENTIFIC_METHOD.md) for the alpha
-science workflow and safety boundaries.
+See [docs/SCIENTIFIC_METHOD.md](docs/SCIENTIFIC_METHOD.md) for the
+computational-science workflow and safety boundaries.
 
 ## Current Beta Line
 

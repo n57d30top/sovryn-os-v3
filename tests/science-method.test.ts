@@ -73,6 +73,9 @@ let replicationFixturePromise:
 let memoryFixturePromise:
   | Promise<Awaited<ReturnType<typeof createMemoryStudy>>>
   | undefined;
+let campaignFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createScienceCampaign>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -92,6 +95,11 @@ async function replicationFixture() {
 async function memoryFixture() {
   memoryFixturePromise ??= createMemoryStudy();
   return memoryFixturePromise;
+}
+
+async function campaignFixture() {
+  campaignFixturePromise ??= createScienceCampaign();
+  return campaignFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -277,13 +285,37 @@ async function createMemoryStudy() {
   };
 }
 
+async function createScienceCampaign() {
+  const repo = await initRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "campaign",
+      "run",
+      "--goal",
+      "Run safe computational science studies on data quality, anomaly detection, and reproducible research tooling",
+      "--studies",
+      "2",
+      "--autopublish-corpus",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  return {
+    repo,
+    response,
+    campaign: (response.data as any).campaign,
+  };
+}
+
 function studyPath(root: string, slug: string, file: string): string {
   return join(root, ".sovryn", "science", "studies", slug, file);
 }
 
-test("v1.1 alpha package version is set", async () => {
+test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-alpha.5");
+  assert.equal(pkg.version, "3.1.0-rc.1");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -2652,4 +2684,1038 @@ test("unsupported literature claim blocks review status", async () => {
     context.repo.root,
   );
   assert.equal((response.data as any).status, "blocked");
+});
+
+test("science campaign command creates campaign run", async () => {
+  const { campaign } = await campaignFixture();
+  assert.equal(campaign.kind, "science_campaign_run");
+});
+
+test("science campaign reaches rc-ready readiness", async () => {
+  const { campaign } = await campaignFixture();
+  assert.equal(campaign.readinessLabel, "rc-ready");
+});
+
+test("science campaign creates at least three candidate questions", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(campaign.candidateQuestions.length >= 3);
+});
+
+test("science campaign selects two safe studies", async () => {
+  const { campaign } = await campaignFixture();
+  assert.equal(campaign.selectedQuestionIds.length, 2);
+});
+
+test("science campaign includes energy question", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.candidateQuestions.some((item: any) =>
+      item.question.includes("energy-usage"),
+    ),
+  );
+});
+
+test("science campaign includes chemistry question", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.candidateQuestions.some((item: any) =>
+      item.question.includes("chemistry-style molecular property"),
+    ),
+  );
+});
+
+test("science campaign includes optional software question", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.candidateQuestions.some((item: any) =>
+      item.domain.includes("software"),
+    ),
+  );
+});
+
+test("science campaign selected questions are safe", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.candidateQuestions
+      .filter((item: any) => item.selected)
+      .every((item: any) => item.safe === true),
+  );
+});
+
+test("science campaign completes two studies", async () => {
+  const { campaign } = await campaignFixture();
+  assert.equal(campaign.completedStudies.length, 2);
+});
+
+test("science campaign has passed study reviews", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.completedStudies.every(
+      (study: any) => study.reviewStatus === "passed",
+    ),
+  );
+});
+
+test("science campaign result labels are supported", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.completedStudies.every(
+      (study: any) => study.resultLabel === "supported",
+    ),
+  );
+});
+
+test("science campaign writes campaign-run artifact", async () => {
+  const { repo, campaign } = await campaignFixture();
+  await access(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "campaigns",
+      campaign.slug,
+      "campaign-run.json",
+    ),
+  );
+});
+
+test("science campaign writes candidate questions artifact", async () => {
+  const { repo, campaign } = await campaignFixture();
+  await access(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "campaigns",
+      campaign.slug,
+      "candidate-questions.json",
+    ),
+  );
+});
+
+test("science campaign writes selected studies artifact", async () => {
+  const { repo, campaign } = await campaignFixture();
+  await access(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "campaigns",
+      campaign.slug,
+      "selected-studies.json",
+    ),
+  );
+});
+
+test("science campaign writes markdown report", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "campaigns",
+      campaign.slug,
+      "SCIENCE_CAMPAIGN_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /Autonomous Computational Science Campaign/);
+});
+
+test("science campaign writes publication summary", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "campaigns",
+      campaign.slug,
+      "PUBLICATION_SUMMARY.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /curated local public corpus packages/i);
+});
+
+test("science campaign gates all pass", async () => {
+  const { campaign } = await campaignFixture();
+  assert.deepEqual(
+    campaign.gates
+      .filter((gate: any) => !gate.passed)
+      .map((gate: any) => gate.code),
+    [],
+  );
+});
+
+test("science campaign includes campaign-present gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "SCIENCE_CAMPAIGN_PRESENT",
+    ),
+  );
+});
+
+test("science campaign includes two-studies gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "TWO_STUDIES_COMPLETED"),
+  );
+});
+
+test("science campaign includes questions gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "QUESTIONS_PRESENT"),
+  );
+});
+
+test("science campaign includes hypothesis-null gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "HYPOTHESES_WITH_NULLS_PRESENT",
+    ),
+  );
+});
+
+test("science campaign includes experiments-designed gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "EXPERIMENTS_DESIGNED"),
+  );
+});
+
+test("science campaign includes datasets gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "DATASETS_PRESENT"),
+  );
+});
+
+test("science campaign includes instruments gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "INSTRUMENTS_BUILT_OR_REUSED",
+    ),
+  );
+});
+
+test("science campaign includes node alpha gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "NODE_ALPHA_EXECUTION_PRESENT",
+    ),
+  );
+});
+
+test("science campaign includes statistics gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "STATISTICS_PRESENT"),
+  );
+});
+
+test("science campaign includes baseline gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "BASELINES_PRESENT"),
+  );
+});
+
+test("science campaign includes ablation gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "ABLATIONS_PRESENT"),
+  );
+});
+
+test("science campaign includes replication gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "REPLICATION_PRESENT"),
+  );
+});
+
+test("science campaign includes falsification gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "FALSIFICATION_PRESENT"),
+  );
+});
+
+test("science campaign includes memory gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(campaign.gates.some((gate: any) => gate.code === "MEMORY_UPDATED"));
+});
+
+test("science campaign includes paper report gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "PAPER_REPORTS_PRESENT"),
+  );
+});
+
+test("science campaign includes public hygiene gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "PUBLIC_HYGIENE_PASSED"),
+  );
+});
+
+test("science campaign includes safety gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some((gate: any) => gate.code === "SAFETY_SCOPE_PASSED"),
+  );
+});
+
+test("science campaign includes no fake science gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "NO_FAKE_SCIENTIFIC_CLAIMS",
+    ),
+  );
+});
+
+test("science campaign includes no unsupported causal claims gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "NO_UNSUPPORTED_CAUSAL_CLAIMS",
+    ),
+  );
+});
+
+test("science campaign includes no dangerous content gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "NO_DANGEROUS_DOMAIN_CONTENT",
+    ),
+  );
+});
+
+test("science campaign includes corpus autopublish gate", async () => {
+  const { campaign } = await campaignFixture();
+  assert.ok(
+    campaign.gates.some(
+      (gate: any) => gate.code === "CORPUS_AUTOPUBLISH_PASSED",
+    ),
+  );
+});
+
+test("campaign studies write question artifacts", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "question.json"));
+  }
+});
+
+test("campaign studies write hypotheses artifacts", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "hypotheses.json"));
+  }
+});
+
+test("campaign hypotheses include null hypotheses", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const hypotheses = await readJson<any>(
+      studyPath(repo.root, study.slug, "hypotheses.json"),
+    );
+    assert.ok(
+      hypotheses.hypotheses.every((hypothesis: any) =>
+        hypothesis.nullHypothesis.includes("not"),
+      ),
+    );
+  }
+});
+
+test("campaign studies write experiment designs", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "experiment-design.json"));
+  }
+});
+
+test("campaign experiment designs include baselines", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const design = await readJson<any>(
+      studyPath(repo.root, study.slug, "experiment-design.json"),
+    );
+    assert.equal(typeof design.baseline, "string");
+    assert.ok(design.baseline.length > 10);
+  }
+});
+
+test("campaign studies write data plans", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "data-plan.json"));
+  }
+});
+
+test("campaign includes chemistry synthetic data kind", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const chemistry = campaign.completedStudies.find((study: any) =>
+    study.domain.includes("chemistry"),
+  );
+  const dataPlan = await readJson<any>(
+    studyPath(repo.root, chemistry.slug, "data-plan.json"),
+  );
+  assert.equal(dataPlan.datasetKind, "synthetic_chemistry_records");
+});
+
+test("campaign includes energy synthetic data kind", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const energy = campaign.completedStudies.find((study: any) =>
+    study.domain.includes("energy"),
+  );
+  const dataPlan = await readJson<any>(
+    studyPath(repo.root, energy.slug, "data-plan.json"),
+  );
+  assert.equal(dataPlan.datasetKind, "synthetic_energy_usage");
+});
+
+test("campaign studies write three synthetic datasets", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(
+      studyPath(
+        repo.root,
+        study.slug,
+        "synthetic-datasets/dataset-seed-1.json",
+      ),
+    );
+    await access(
+      studyPath(
+        repo.root,
+        study.slug,
+        "synthetic-datasets/dataset-seed-2.json",
+      ),
+    );
+    await access(
+      studyPath(
+        repo.root,
+        study.slug,
+        "synthetic-datasets/dataset-seed-3.json",
+      ),
+    );
+  }
+});
+
+test("campaign studies write instrument plans", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "instrument-plan.json"));
+  }
+});
+
+test("campaign chemistry study builds chemistry runner", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const chemistry = campaign.completedStudies.find((study: any) =>
+    study.domain.includes("chemistry"),
+  );
+  await access(
+    studyPath(
+      repo.root,
+      chemistry.slug,
+      "instruments/chemistry-experiment-runner/src/index.js",
+    ),
+  );
+});
+
+test("campaign energy study builds experiment runner", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const energy = campaign.completedStudies.find((study: any) =>
+    study.domain.includes("energy"),
+  );
+  await access(
+    studyPath(
+      repo.root,
+      energy.slug,
+      "instruments/experiment-runner/src/index.js",
+    ),
+  );
+});
+
+test("campaign studies write Node Alpha execution evidence", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "node-alpha-execution.json"));
+  }
+});
+
+test("campaign Node Alpha evidence records no silent fallback", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const execution = await readJson<any>(
+      studyPath(repo.root, study.slug, "node-alpha-execution.json"),
+    );
+    assert.equal(execution.noSilentFallback, true);
+  }
+});
+
+test("campaign Node Alpha execution passed for each study", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const execution = await readJson<any>(
+      studyPath(repo.root, study.slug, "node-alpha-execution.json"),
+    );
+    assert.equal(execution.passed, true);
+  }
+});
+
+test("campaign studies write statistical analysis", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "statistical-analysis.json"));
+  }
+});
+
+test("campaign statistical analysis has confusion metrics", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const analysis = await readJson<any>(
+      studyPath(repo.root, study.slug, "statistical-analysis.json"),
+    );
+    assert.equal(typeof analysis.candidate.falsePositiveRate, "number");
+    assert.equal(typeof analysis.baseline.falsePositiveRate, "number");
+  }
+});
+
+test("campaign studies write baseline comparison", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "baseline-comparison.json"));
+  }
+});
+
+test("campaign baseline comparison preserves recall", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const comparison = await readJson<any>(
+      studyPath(repo.root, study.slug, "baseline-comparison.json"),
+    );
+    assert.equal(comparison.recallPreserved, true);
+  }
+});
+
+test("campaign studies write ablation analysis", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "ablation-analysis.json"));
+  }
+});
+
+test("campaign ablations include at least three variants", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const ablation = await readJson<any>(
+      studyPath(repo.root, study.slug, "ablation-analysis.json"),
+    );
+    assert.ok(ablation.variants.length >= 3);
+  }
+});
+
+test("campaign studies write sensitivity analysis", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "sensitivity-analysis.json"));
+  }
+});
+
+test("campaign sensitivity analysis includes sweeps", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const sensitivity = await readJson<any>(
+      studyPath(repo.root, study.slug, "sensitivity-analysis.json"),
+    );
+    assert.ok(sensitivity.sweeps.length >= 6);
+  }
+});
+
+test("campaign studies write error analysis", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "error-analysis.json"));
+  }
+});
+
+test("campaign studies write replication summary", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "replication-summary.json"));
+  }
+});
+
+test("campaign replication completes three runs", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const replication = await readJson<any>(
+      studyPath(repo.root, study.slug, "replication-summary.json"),
+    );
+    assert.equal(replication.completedRuns, 3);
+  }
+});
+
+test("campaign studies write falsification report", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "falsification-report.json"));
+  }
+});
+
+test("campaign falsification records no material failures", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const falsification = await readJson<any>(
+      studyPath(repo.root, study.slug, "falsification-report.json"),
+    );
+    assert.equal(falsification.materialFailures, 0);
+  }
+});
+
+test("campaign studies write negative tests", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "negative-tests.json"));
+  }
+});
+
+test("campaign studies write hypothesis status", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "hypothesis-status.json"));
+  }
+});
+
+test("campaign hypothesis status is evidence-supported", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const status = await readJson<any>(
+      studyPath(repo.root, study.slug, "hypothesis-status.json"),
+    );
+    assert.equal(status.status, "supported");
+    assert.equal(status.replicationStable, true);
+    assert.equal(status.falsificationPassed, true);
+  }
+});
+
+test("campaign studies write literature grounding", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "literature-grounding.json"));
+  }
+});
+
+test("campaign studies write source cards", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(
+      studyPath(
+        repo.root,
+        study.slug,
+        "source-cards/energy-anomaly-baselines.json",
+      ),
+    );
+  }
+});
+
+test("campaign studies write next questions", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "next-questions.json"));
+  }
+});
+
+test("campaign studies write memory update", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "memory-update.json"));
+  }
+});
+
+test("campaign updates scientific memory report", async () => {
+  const { repo } = await campaignFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "memory", "memory-report.json"),
+  );
+});
+
+test("campaign scientific memory retains both studies", async () => {
+  const { repo } = await campaignFixture();
+  const report = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "memory", "memory-report.json"),
+  );
+  assert.equal(report.studyCount, 2);
+  assert.equal(report.hypothesisCount, 4);
+});
+
+test("campaign studies write scientific report", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "SCIENTIFIC_REPORT.md"));
+  }
+});
+
+test("campaign studies write paper report", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(studyPath(repo.root, study.slug, "PAPER.md"));
+  }
+});
+
+test("campaign scientific report includes abstract", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Abstract/);
+});
+
+test("campaign scientific report includes research question", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Research question/);
+});
+
+test("campaign scientific report includes methods", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Methods/);
+});
+
+test("campaign scientific report includes dataset", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Dataset/);
+});
+
+test("campaign scientific report includes instruments", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Instruments/);
+});
+
+test("campaign scientific report includes metrics", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Metrics/);
+});
+
+test("campaign scientific report includes ablations", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Ablations/);
+});
+
+test("campaign scientific report includes sensitivity", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Sensitivity/);
+});
+
+test("campaign scientific report includes replication", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Replication/);
+});
+
+test("campaign scientific report includes falsification", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Falsification/);
+});
+
+test("campaign scientific report includes limitations", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Limitations/);
+});
+
+test("campaign scientific report includes safety scope", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Safety scope/);
+});
+
+test("campaign scientific report includes reproducibility instructions", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Reproducibility instructions/);
+});
+
+test("campaign scientific report includes next questions", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const report = await readFile(
+    studyPath(
+      repo.root,
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /## Next questions/);
+});
+
+test("campaign public result packages are generated", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(join(repo.root, study.publicResultPath, "README.md"));
+  }
+});
+
+test("campaign public summaries are generated", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(join(repo.root, study.publicResultPath, "SUMMARY.json"));
+  }
+});
+
+test("campaign autopublish records are generated", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    await access(
+      join(repo.root, study.publicResultPath, "AUTOPUBLISH_RECORD.json"),
+    );
+  }
+});
+
+test("campaign autopublish records are dry-run only", async () => {
+  const { repo, campaign } = await campaignFixture();
+  for (const study of campaign.completedStudies) {
+    const record = await readJson<any>(
+      join(repo.root, study.publicResultPath, "AUTOPUBLISH_RECORD.json"),
+    );
+    assert.equal(record.dryRun, true);
+    assert.equal(record.pushed, false);
+  }
+});
+
+test("campaign public result includes legal disclaimer", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const readme = await readFile(
+    join(repo.root, campaign.completedStudies[0].publicResultPath, "README.md"),
+    "utf8",
+  );
+  assert.match(readme, /not a patent filing/i);
+});
+
+test("campaign public result excludes raw stdout fields", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const summary = await readFile(
+    join(
+      repo.root,
+      campaign.completedStudies[0].publicResultPath,
+      "SUMMARY.json",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(summary, /stdout|stderr/i);
+});
+
+test("campaign public result excludes local absolute paths", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const readme = await readFile(
+    join(repo.root, campaign.completedStudies[0].publicResultPath, "README.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(readme, /\/Users\/|\/home\/|C:\\/);
+});
+
+test("campaign public result excludes fake legal claims", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const readme = await readFile(
+    join(repo.root, campaign.completedStudies[0].publicResultPath, "README.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    readme,
+    /\bpatentable\b|\blegally novel\b|\bfreedom to operate\b/i,
+  );
+});
+
+test("campaign public evidence manifest excludes raw logs", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const manifest = await readJson<any>(
+    join(
+      repo.root,
+      campaign.completedStudies[0].publicResultPath,
+      "evidence",
+      "public",
+      "manifest.json",
+    ),
+  );
+  assert.equal(manifest.rawLogsIncluded, false);
+});
+
+test("campaign public evidence manifest excludes local paths", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const manifest = await readJson<any>(
+    join(
+      repo.root,
+      campaign.completedStudies[0].publicResultPath,
+      "evidence",
+      "public",
+      "manifest.json",
+    ),
+  );
+  assert.equal(manifest.localPathsIncluded, false);
+});
+
+test("campaign public evidence manifest excludes secrets", async () => {
+  const { repo, campaign } = await campaignFixture();
+  const manifest = await readJson<any>(
+    join(
+      repo.root,
+      campaign.completedStudies[0].publicResultPath,
+      "evidence",
+      "public",
+      "manifest.json",
+    ),
+  );
+  assert.equal(manifest.secretsIncluded, false);
+});
+
+test("science campaign one-study mode respects study count", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "campaign",
+      "run",
+      "--goal",
+      "Run safe computational science studies",
+      "--studies",
+      "1",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).campaign.completedStudies.length, 1);
+});
+
+test("science campaign blocks unsafe goals", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "campaign",
+      "run",
+      "--goal",
+      "Design a wet-lab protocol for hazardous chemistry synthesis",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(
+    response.errors[0].code,
+    "SCIENCE_CAMPAIGN_UNSAFE_DOMAIN_BLOCKED",
+  );
+});
+
+test("CLI help lists science campaign command", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match(JSON.stringify(response.data), /science campaign run/);
 });

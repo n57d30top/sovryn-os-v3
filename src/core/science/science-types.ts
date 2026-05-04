@@ -53,7 +53,24 @@ export type ScienceGateCode =
   | "SOURCE_CARDS_BOUND_TO_STUDY"
   | "NEXT_QUESTIONS_PRESENT"
   | "REJECTED_HYPOTHESES_RECORDED"
-  | "NO_UNSUPPORTED_LITERATURE_CLAIMS";
+  | "NO_UNSUPPORTED_LITERATURE_CLAIMS"
+  | "SCIENCE_CAMPAIGN_PRESENT"
+  | "TWO_STUDIES_COMPLETED"
+  | "QUESTIONS_PRESENT"
+  | "HYPOTHESES_WITH_NULLS_PRESENT"
+  | "EXPERIMENTS_DESIGNED"
+  | "DATASETS_PRESENT"
+  | "INSTRUMENTS_BUILT_OR_REUSED"
+  | "STATISTICS_PRESENT"
+  | "BASELINES_PRESENT"
+  | "ABLATIONS_PRESENT"
+  | "MEMORY_UPDATED"
+  | "PAPER_REPORTS_PRESENT"
+  | "PUBLIC_HYGIENE_PASSED"
+  | "SAFETY_SCOPE_PASSED"
+  | "NO_FAKE_SCIENTIFIC_CLAIMS"
+  | "NO_DANGEROUS_DOMAIN_CONTENT"
+  | "CORPUS_AUTOPUBLISH_PASSED";
 
 export type SafetyScope = {
   domain: string;
@@ -166,12 +183,53 @@ export type ScienceDataPlan = {
   dataPlanId: string;
   studyId: string;
   experimentId: string;
-  datasetKind: "synthetic_energy_usage";
+  datasetKind: "synthetic_energy_usage" | "synthetic_chemistry_records";
   seeds: number[];
   requiredPatterns: string[];
   schema: string[];
   privacyScope: string;
   limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceCampaignQuestion = {
+  questionId: string;
+  question: string;
+  domain: string;
+  selected: boolean;
+  safe: boolean;
+  blockedReasons: string[];
+};
+
+export type ScienceCampaignStudyResult = {
+  studyId: string;
+  slug: string;
+  question: string;
+  domain: string;
+  resultLabel: ScienceResultLabel;
+  reviewStatus: "passed" | "blocked";
+  completed: boolean;
+  autopublishEligible: boolean;
+  publicResultPath: string | null;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type ScienceCampaignRun = {
+  kind: "science_campaign_run";
+  campaignId: string;
+  slug: string;
+  goal: string;
+  requestedStudies: number;
+  autopublishCorpus: boolean;
+  candidateQuestions: ScienceCampaignQuestion[];
+  selectedQuestionIds: string[];
+  completedStudies: ScienceCampaignStudyResult[];
+  gates: ScienceGateResult[];
+  readinessLabel: "blocked" | "degraded" | "pass" | "rc-ready";
+  corpusAutopublishPassed: boolean;
+  limitations: string[];
+  artifactRefs: string[];
   evidenceHash: string;
 };
 

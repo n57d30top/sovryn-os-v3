@@ -30,3 +30,21 @@ Generated artifacts:
 The package is a public demo bundle, not a real publication. Human review is
 required before any GitHub publication. Sovryn does not file legal patents and
 does not provide legal novelty, patentability, or freedom-to-operate opinions.
+
+## Beta Operations
+
+`3.0.0-beta.6` adds operational proof commands around the demo:
+
+```bash
+sovryn autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json
+sovryn autonomy campaign run --json
+sovryn publication queue --json
+sovryn benchmark research run --json
+sovryn corpus api export --json
+sovryn launch check --json
+```
+
+These commands write autonomy, publication-governance, benchmark, public corpus
+API, and launch evidence. They prove repeatability and operational safety before
+any real publication. Real GitHub publication remains disabled by default and
+requires Sovryn publication gates plus human approval.

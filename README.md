@@ -1,16 +1,17 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-alpha.26`
+Current version: `3.0.0-beta.6`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
 records artifacts, enforces policy, and requires review before finalization.
 
-Sovryn OS is also becoming an autonomous open-source research factory. It can
+Sovryn OS also includes an autonomous open-source research factory. It can
 discover research opportunities, run Factory Mode, generate Open Invention
 release candidates, evaluate quality, run overnight operator cycles, export a
-curated public corpus, audit security/reliability evidence, and package a beta
-demo bundle.
+curated public corpus, audit security/reliability evidence, run autonomy
+campaigns, govern publication queues, execute persistent worker jobs, benchmark
+research quality, and package launch/pilot evidence.
 
 Sovryn OS is not a blind agent framework. It does not judge truth with an LLM,
 does not require paid APIs, does not mutate the main tree by default, does not
@@ -23,7 +24,7 @@ Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal
 novelty, patentability, or freedom-to-operate opinions.
 
-## Current Alpha Line
+## Current Alpha And Beta Line
 
 The latest Alpha line turns the early Open-Invention Factory into a
 beta-demonstrable autonomous research system:
@@ -41,28 +42,18 @@ The project is still Alpha software, but Alpha.26 is the first integrated beta
 candidate path: release candidates, quality, security audit, reliability audit,
 public corpus export, and curated beta packaging are all connected.
 
-## Beta Operationalization Roadmap
+The Beta.1-Beta.6 operationalization line builds on Alpha.26:
 
-After Alpha.26 the goal shifts from adding core Alpha features to proving that
-Sovryn can operate as a repeatable, safe, useful beta system. The next line is
-planned as Beta operationalization: empirical autonomy validation, publication
-governance, persistent worker operations, research benchmarking, public corpus
-discovery, and launch readiness.
+| Version        | Focus                         | Result                                                                                                                                     |
+| -------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `3.0.0-beta.1` | Real Autonomy Validation      | Runs bounded autonomy campaigns, measures success/block/replay/quality rates, and writes autonomy scorecards without real publication.     |
+| `3.0.0-beta.2` | GitHub Publication Governance | Adds publication queue, approval ledger, strict real-publish policy, org/token-scope checks, and dry-run-first release operations.         |
+| `3.0.0-beta.3` | Persistent Node Alpha Worker  | Adds opt-in worker registration, job queues, heartbeat, toolchain policy enforcement, controlled execution, evidence upload, and cleanup.  |
+| `3.0.0-beta.4` | Research Quality Benchmarking | Adds a curated benchmark suite for source quality, claim mapping, counter-evidence, prototypes, tests, reproducibility, and safety.        |
+| `3.0.0-beta.5` | Public Corpus Discovery/API   | Exports a public corpus site/API with inventions, sources, quality labels, duplicate clusters, release readiness, and explanation reports. |
+| `3.0.0-beta.6` | Launch Readiness              | Adds launch check/demo/package and pilot run/report flows for public beta or v1.0-RC readiness decisions.                                  |
 
-| Target                        | Focus                         | Planned result                                                                                                                            |
-| ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `3.0.0-beta.1` or `.alpha.27` | Real Autonomy Validation      | Run bounded autonomy campaigns, measure success/block/replay/quality rates, and write autonomy scorecards without real publication.       |
-| `3.0.0-beta.2`                | GitHub Publication Governance | Add publication queue, approval ledger, strict real-publish policy, org/token-scope checks, and dry-run-first release operations.         |
-| `3.0.0-beta.3`                | Persistent Node Alpha Worker  | Add opt-in worker registration, job queues, heartbeat, toolchain policy enforcement, controlled execution, evidence upload, and cleanup.  |
-| `3.0.0-beta.4`                | Research Quality Benchmarking | Add a curated benchmark suite for source quality, claim mapping, counter-evidence, prototypes, tests, reproducibility, and safety.        |
-| `3.0.0-beta.5`                | Public Corpus Discovery/API   | Export a public corpus site/API with inventions, sources, quality labels, duplicate clusters, release readiness, and explanation reports. |
-| `3.0.0-beta.6` or `v1.0-rc.1` | Launch Readiness              | Run real-world pilots, package a public launch demo, document v1.0 gates, and decide whether the repo is ready for a release candidate.   |
-
-The version becomes `3.0.0-beta.1` only if beta gates pass. If autonomy,
-quality, security, reliability, or demo gates are not yet strong enough, the
-next implementation should remain `3.0.0-alpha.27`.
-
-Planned beta work must preserve the same operating rules:
+The beta operations line preserves the same operating rules:
 
 - do not weaken gates;
 - do not fake research strength;
@@ -161,6 +152,11 @@ sovryn corpus site build --json
 sovryn corpus graph --json
 sovryn corpus compare --json
 sovryn corpus explain <invention-id> --json
+sovryn corpus serve --port 7331 --json
+sovryn corpus api export --json
+sovryn corpus badges build --json
+sovryn corpus graph explain <node-id> --json
+sovryn corpus release-notes build --json
 sovryn release candidates build --max 3 --json
 sovryn release candidates review --json
 sovryn release candidates package --json
@@ -175,6 +171,20 @@ sovryn overnight run --goal "Improve autonomous open-source research agents" --m
 sovryn overnight status --json
 sovryn overnight stop --json
 sovryn overnight report --json
+sovryn autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json
+sovryn autonomy campaign run --json
+sovryn autonomy campaign status --json
+sovryn autonomy campaign report --json
+sovryn autonomy scorecard --json
+sovryn publication queue --json
+sovryn publication review <candidate-id> --json
+sovryn publication approve <candidate-id> --json
+sovryn publication publish <candidate-id> --dry-run --json
+sovryn publication audit <candidate-id> --json
+sovryn benchmark research run --json
+sovryn benchmark research report --json
+sovryn benchmark quality calibrate --json
+sovryn benchmark compare-baseline --json
 sovryn security audit --json
 sovryn security audit-public-release .sovryn/factory/<slug>/release/public --json
 sovryn security audit-worker --profile container-netoff --json
@@ -185,10 +195,21 @@ sovryn safety scan-release .sovryn/factory/<slug>/release/public --json
 sovryn beta check --json
 sovryn beta demo --json
 sovryn beta package --json
+sovryn launch check --json
+sovryn launch demo --json
+sovryn launch package --json
+sovryn pilot run --scenario autonomous-research --json
+sovryn pilot report --json
 sovryn worker doctor --profile container-local --json
 sovryn worker doctor --profile container-netoff --json
 sovryn worker doctor --all --json
 sovryn worker policy check --json
+sovryn worker register alpha --json
+sovryn worker jobs list --json
+sovryn worker jobs run <job-id> --profile container-netoff --json
+sovryn worker jobs status <job-id> --json
+sovryn worker jobs cleanup <job-id> --json
+sovryn worker heartbeat --json
 sovryn worker run <mission-id> --profile container-netoff --json
 sovryn node register alpha --host local --json
 sovryn node run alpha <mission-id> --json
@@ -503,6 +524,44 @@ The beta package is a public demo bundle and still requires human review before
 real publication. Sovryn produces Open Inventions, Defensive Publications, and
 Open Source Research Artifacts; it does not file legal patents or provide legal
 novelty, patentability, or freedom-to-operate opinions.
+
+## Beta Operations
+
+Beta.1 through Beta.6 add operational proof workflows around the Alpha factory.
+They are local Evidence workflows: they measure autonomy, govern publication
+queues, coordinate worker jobs, benchmark research quality, export a public
+corpus API, and package launch/pilot evidence. They do not perform real GitHub
+publication by default.
+
+```bash
+sovryn autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json
+sovryn autonomy campaign run --json
+sovryn publication queue --json
+sovryn publication publish <candidate-id> --dry-run --json
+sovryn worker register alpha --json
+sovryn worker jobs list --json
+sovryn benchmark research run --json
+sovryn corpus api export --json
+sovryn launch check --json
+sovryn pilot run --scenario autonomous-research --json
+```
+
+Operational artifacts are written under:
+
+```text
+.sovryn/autonomy/
+.sovryn/publication/
+.sovryn/workers/alpha/
+.sovryn/benchmarks/
+.sovryn/launch/
+public-corpus/api/
+```
+
+Publication Governance is dry-run-first. Real publication remains disabled by
+default through `publication.allowAutonomousPublish: false`, requires explicit
+approval evidence, and still goes through Sovryn quality, security,
+reliability, Open Invention, and GitHub publication gates. GitHub credentials
+remain controller-owned and are never written to public artifacts.
 
 ## Release Candidates
 

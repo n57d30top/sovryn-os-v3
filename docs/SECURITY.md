@@ -212,6 +212,14 @@ and full raw source content. It is a demo/review bundle only; human review and
 existing publication gates are still required before any real GitHub
 publication.
 
+Beta.6 operationalization adds `.sovryn/autonomy/`, `.sovryn/publication/`,
+`.sovryn/workers/alpha/`, `.sovryn/benchmarks/`, `.sovryn/launch/`, and
+`public-corpus/api/` evidence roots. These workflows are still local evidence
+systems. Autonomy campaigns record `noRealPublication: true`; publication
+governance keeps real publish disabled by default; worker jobs do not perform
+host installation by default; and unavailable container profiles must not
+silently fall back to host execution.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

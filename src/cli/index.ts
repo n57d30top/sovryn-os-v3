@@ -18,6 +18,14 @@ import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
 import { NodeAlphaToolchainManager } from "../core/node/toolchain-manager.js";
 import { OvernightOperator } from "../core/overnight/overnight-operator.js";
+import {
+  AutonomyCampaignService,
+  CorpusDiscoveryService,
+  LaunchService,
+  PublicationGovernanceService,
+  ResearchBenchmarkService,
+  WorkerJobService,
+} from "../core/operations/operations-service.js";
 import { QualityEvaluator } from "../core/quality/quality-service.js";
 import { ReleaseCandidateService } from "../core/release/release-candidate-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
@@ -75,9 +83,26 @@ Commands:
   sovryn research adapters doctor [--json]
   sovryn research cache status [--json]
   sovryn research cache prune [--json]
+  sovryn autonomy campaign plan --goal "<broad-goal>" --runs 10 [--json]
+  sovryn autonomy campaign run [--json]
+  sovryn autonomy campaign status [--json]
+  sovryn autonomy campaign report [--json]
+  sovryn autonomy scorecard [--json]
+  sovryn publication queue [--json]
+  sovryn publication review <candidate-id> [--json]
+  sovryn publication approve <candidate-id> [--json]
+  sovryn publication publish <candidate-id> --dry-run [--json]
+  sovryn publication publish <candidate-id> --real [--json]
+  sovryn publication audit <candidate-id> [--json]
   sovryn worker doctor --profile container-local|container-netoff [--json]
   sovryn worker doctor --all [--json]
   sovryn worker policy check [--json]
+  sovryn worker register alpha [--json]
+  sovryn worker jobs list [--json]
+  sovryn worker jobs run <job-id> --profile container-netoff [--json]
+  sovryn worker jobs status <job-id> [--json]
+  sovryn worker jobs cleanup <job-id> [--json]
+  sovryn worker heartbeat [--json]
   sovryn worker run <mission-id> --profile container-netoff [--json]
   sovryn corpus index [--json]
   sovryn corpus search "<query>" [--json]
@@ -88,6 +113,11 @@ Commands:
   sovryn corpus graph [--json]
   sovryn corpus compare [--json]
   sovryn corpus explain <invention-id|factory-id|source-id> [--json]
+  sovryn corpus serve --port 7331 [--json]
+  sovryn corpus api export [--json]
+  sovryn corpus badges build [--json]
+  sovryn corpus graph explain <node-id> [--json]
+  sovryn corpus release-notes build [--json]
   sovryn release candidates build --max 3 [--json]
   sovryn release candidates review [--json]
   sovryn release candidates package [--json]
@@ -102,6 +132,10 @@ Commands:
   sovryn overnight status [--json]
   sovryn overnight stop [--json]
   sovryn overnight report [--json]
+  sovryn benchmark research run [--json]
+  sovryn benchmark research report [--json]
+  sovryn benchmark quality calibrate [--json]
+  sovryn benchmark compare-baseline [--json]
   sovryn security audit [--json]
   sovryn security audit-public-release <path> [--json]
   sovryn security audit-worker --profile container-netoff [--json]
@@ -112,6 +146,11 @@ Commands:
   sovryn beta check [--json]
   sovryn beta demo [--json]
   sovryn beta package [--json]
+  sovryn launch check [--json]
+  sovryn launch demo [--json]
+  sovryn launch package [--json]
+  sovryn pilot run --scenario autonomous-research [--json]
+  sovryn pilot report [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -335,6 +374,36 @@ export async function executeCli(
             : [],
         });
       }
+      case "autonomy": {
+        const result = await autonomyCommand(parsed, root);
+        return okEnvelope("autonomy", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "publication": {
+        const result = await publicationCommand(parsed, root);
+        return okEnvelope("publication", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "benchmark": {
+        const result = await benchmarkCommand(parsed, root);
+        return okEnvelope("benchmark", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "security": {
         const result = await securityCommand(parsed, root);
         return okEnvelope("security", result, {
@@ -368,6 +437,26 @@ export async function executeCli(
       case "beta": {
         const result = await betaCommand(parsed, root);
         return okEnvelope("beta", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "launch": {
+        const result = await launchCommand(parsed, root);
+        return okEnvelope("launch", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "pilot": {
+        const result = await pilotCommand(parsed, root);
+        return okEnvelope("pilot", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -482,8 +571,28 @@ async function corpusCommand(
 ): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0];
   const service = new CorpusService(root);
+  const discovery = new CorpusDiscoveryService(root);
   if (subcommand === "site" && parsed.positionals[1] === "build") {
     return service.buildPublicSite();
+  }
+  if (subcommand === "api" && parsed.positionals[1] === "export") {
+    return discovery.apiExport();
+  }
+  if (subcommand === "badges" && parsed.positionals[1] === "build") {
+    return discovery.badgesBuild();
+  }
+  if (subcommand === "graph" && parsed.positionals[1] === "explain") {
+    const id = parsed.positionals[2];
+    if (!id) {
+      throw new AppError(
+        "CORPUS_GRAPH_EXPLAIN_ID_REQUIRED",
+        "corpus graph explain requires an id.",
+      );
+    }
+    return discovery.graphExplain(id);
+  }
+  if (subcommand === "release-notes" && parsed.positionals[1] === "build") {
+    return discovery.releaseNotesBuild();
   }
   switch (subcommand) {
     case "index":
@@ -512,10 +621,12 @@ async function corpusCommand(
       }
       return service.explain(id);
     }
+    case "serve":
+      return discovery.serve(flagInt(parsed.flags, "--port", 7331));
     default:
       throw new AppError(
         "CORPUS_COMMAND_REQUIRED",
-        "Use: sovryn corpus <index|search|dedupe|report|export-public|site|graph|compare|explain>.",
+        "Use: sovryn corpus <index|search|dedupe|report|export-public|site|graph|compare|explain|serve|api|badges|release-notes>.",
       );
   }
 }
@@ -643,6 +754,168 @@ async function overnightCommand(
       throw new AppError(
         "OVERNIGHT_COMMAND_REQUIRED",
         "Use: sovryn overnight <plan|run|status|stop|report>.",
+      );
+  }
+}
+
+async function autonomyCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new AutonomyCampaignService(root);
+  if (subcommand === "scorecard") return service.scorecardResult();
+  if (subcommand !== "campaign") {
+    throw new AppError(
+      "AUTONOMY_COMMAND_REQUIRED",
+      "Use: sovryn autonomy <campaign|scorecard>.",
+    );
+  }
+  const action = parsed.positionals[1];
+  switch (action) {
+    case "plan": {
+      const goal = flagString(parsed.flags, "--goal");
+      if (!goal) {
+        throw new AppError(
+          "AUTONOMY_GOAL_REQUIRED",
+          "autonomy campaign plan requires --goal.",
+        );
+      }
+      return service.plan(goal, flagInt(parsed.flags, "--runs", 10));
+    }
+    case "run":
+      return service.run();
+    case "status":
+      return service.status();
+    case "report":
+      return service.report();
+    default:
+      throw new AppError(
+        "AUTONOMY_CAMPAIGN_COMMAND_REQUIRED",
+        "Use: sovryn autonomy campaign <plan|run|status|report>.",
+      );
+  }
+}
+
+async function publicationCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new PublicationGovernanceService(root);
+  switch (subcommand) {
+    case "queue":
+      return service.queue();
+    case "review": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "PUBLICATION_CANDIDATE_ID_REQUIRED",
+          "publication review requires a candidate id.",
+        );
+      }
+      return service.review(id);
+    }
+    case "approve": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "PUBLICATION_CANDIDATE_ID_REQUIRED",
+          "publication approve requires a candidate id.",
+        );
+      }
+      return service.approve(id);
+    }
+    case "publish": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "PUBLICATION_CANDIDATE_ID_REQUIRED",
+          "publication publish requires a candidate id.",
+        );
+      }
+      return service.publish(id, {
+        dryRun: flagBool(parsed.flags, "--dry-run"),
+        real: flagBool(parsed.flags, "--real"),
+      });
+    }
+    case "audit": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "PUBLICATION_CANDIDATE_ID_REQUIRED",
+          "publication audit requires a candidate id.",
+        );
+      }
+      return service.audit(id);
+    }
+    default:
+      throw new AppError(
+        "PUBLICATION_COMMAND_REQUIRED",
+        "Use: sovryn publication <queue|review|approve|publish|audit>.",
+      );
+  }
+}
+
+async function benchmarkCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new ResearchBenchmarkService(root);
+  if (subcommand === "research") {
+    const action = parsed.positionals[1];
+    if (action === "run") return service.run();
+    if (action === "report") return service.report();
+  }
+  if (subcommand === "quality" && parsed.positionals[1] === "calibrate") {
+    return service.calibrate();
+  }
+  if (subcommand === "compare-baseline") return service.compareBaseline();
+  throw new AppError(
+    "BENCHMARK_COMMAND_REQUIRED",
+    "Use: sovryn benchmark <research run|research report|quality calibrate|compare-baseline>.",
+  );
+}
+
+async function launchCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new LaunchService(root);
+  switch (subcommand) {
+    case "check":
+      return service.check();
+    case "demo":
+      return service.demo();
+    case "package":
+      return service.package();
+    default:
+      throw new AppError(
+        "LAUNCH_COMMAND_REQUIRED",
+        "Use: sovryn launch <check|demo|package>.",
+      );
+  }
+}
+
+async function pilotCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new LaunchService(root);
+  switch (subcommand) {
+    case "run":
+      return service.pilotRun(
+        flagString(parsed.flags, "--scenario") ?? "autonomous-research",
+      );
+    case "report":
+      return service.pilotReport();
+    default:
+      throw new AppError(
+        "PILOT_COMMAND_REQUIRED",
+        "Use: sovryn pilot <run|report>.",
       );
   }
 }
@@ -948,10 +1221,60 @@ async function workerCommand(
   root: string,
 ): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0];
+  const jobs = new WorkerJobService(root);
   switch (subcommand) {
     case "doctor": {
       if (flagBool(parsed.flags, "--all")) return workerDoctorAll(root);
       return workerDoctor(root, flagWorkerProfile(parsed.flags));
+    }
+    case "register": {
+      if (parsed.positionals[1] !== "alpha") {
+        throw new AppError(
+          "WORKER_REGISTER_TARGET_REQUIRED",
+          "Use: sovryn worker register alpha.",
+        );
+      }
+      return jobs.registerAlpha();
+    }
+    case "heartbeat":
+      return jobs.heartbeat();
+    case "jobs": {
+      const action = parsed.positionals[1];
+      if (action === "list") return jobs.listJobs();
+      if (action === "run") {
+        const jobId = parsed.positionals[2];
+        if (!jobId) {
+          throw new AppError(
+            "WORKER_JOB_ID_REQUIRED",
+            "worker jobs run requires a job id.",
+          );
+        }
+        return jobs.runJob(jobId, flagWorkerProfile(parsed.flags));
+      }
+      if (action === "status") {
+        const jobId = parsed.positionals[2];
+        if (!jobId) {
+          throw new AppError(
+            "WORKER_JOB_ID_REQUIRED",
+            "worker jobs status requires a job id.",
+          );
+        }
+        return jobs.jobStatus(jobId);
+      }
+      if (action === "cleanup") {
+        const jobId = parsed.positionals[2];
+        if (!jobId) {
+          throw new AppError(
+            "WORKER_JOB_ID_REQUIRED",
+            "worker jobs cleanup requires a job id.",
+          );
+        }
+        return jobs.cleanup(jobId);
+      }
+      throw new AppError(
+        "WORKER_JOBS_COMMAND_REQUIRED",
+        "Use: sovryn worker jobs <list|run|status|cleanup>.",
+      );
     }
     case "policy": {
       if (parsed.positionals[1] !== "check") {
@@ -989,7 +1312,7 @@ async function workerCommand(
     default:
       throw new AppError(
         "WORKER_COMMAND_REQUIRED",
-        "Use: sovryn worker <doctor|policy|run>.",
+        "Use: sovryn worker <doctor|policy|register|jobs|heartbeat|run>.",
       );
   }
 }

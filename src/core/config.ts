@@ -57,6 +57,16 @@ export type SovrynConfig = {
     tokenEnv: string;
     defaultVisibility: "public" | "private";
   };
+  publication?: {
+    allowAutonomousPublish: boolean;
+    requireHumanApproval: boolean;
+    minimumQualityLabel: "acceptable" | "good" | "excellent";
+    requireSecurityAudit: boolean;
+    requireReliabilityReplay: boolean;
+    requireNoPublicLeaks: boolean;
+    maxReposPerDay: number;
+    allowedOrg: string | null;
+  };
   research?: {
     requireConcretePriorArtForPublish: boolean;
     publicSearch: {
@@ -143,6 +153,17 @@ export type SovrynConfig = {
       packageReleaseCandidates: boolean;
       updateCorpus: boolean;
     };
+    autonomy?: {
+      enabled: boolean;
+      minReplayRate: number;
+      maxCampaignRuns: number;
+      allowRealPublication: boolean;
+    };
+    benchmarks?: {
+      enabled: boolean;
+      minTasks: number;
+      minRegressionScore: number;
+    };
   };
 };
 
@@ -199,6 +220,16 @@ export const DEFAULT_CONFIG: SovrynConfig = {
     defaultOrg: null,
     tokenEnv: "SOVRYN_GITHUB_TOKEN",
     defaultVisibility: "public",
+  },
+  publication: {
+    allowAutonomousPublish: false,
+    requireHumanApproval: true,
+    minimumQualityLabel: "excellent",
+    requireSecurityAudit: true,
+    requireReliabilityReplay: true,
+    requireNoPublicLeaks: true,
+    maxReposPerDay: 3,
+    allowedOrg: "sovryn-open-inventions",
   },
   research: {
     requireConcretePriorArtForPublish: false,
@@ -286,6 +317,17 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       packageReleaseCandidates: true,
       updateCorpus: true,
     },
+    autonomy: {
+      enabled: true,
+      minReplayRate: 80,
+      maxCampaignRuns: 30,
+      allowRealPublication: false,
+    },
+    benchmarks: {
+      enabled: true,
+      minTasks: 20,
+      minRegressionScore: 70,
+    },
   },
 };
 
@@ -341,6 +383,11 @@ async function ensureGitignore(root: string): Promise<void> {
     ".sovryn/overnight/",
     ".sovryn/audits/",
     ".sovryn/beta/",
+    ".sovryn/autonomy/",
+    ".sovryn/publication/",
+    ".sovryn/benchmarks/",
+    ".sovryn/launch/",
+    "public-corpus/",
   ];
   const missing = required.filter(
     (line) => !existing.split("\n").includes(line),

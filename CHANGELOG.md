@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.0.0-beta.6
+
+- Added Beta operationalization commands for autonomy campaigns, publication
+  governance, persistent worker jobs, research benchmarks, public corpus API
+  exports, launch checks, and pilot runs.
+- Added `.sovryn/autonomy/`, `.sovryn/publication/`,
+  `.sovryn/workers/alpha/`, `.sovryn/benchmarks/`, `.sovryn/launch/`, and
+  `public-corpus/api/` evidence roots.
+- Added dry-run-first publication governance with approval ledgers and real
+  publication disabled by default.
+- Added worker job registration, queue, heartbeat, execution, and cleanup
+  evidence with no silent fallback from unavailable container profiles.
+- Added a 20-task research benchmark suite and calibration artifacts.
+- Added launch and pilot reports for public beta / v1.0-RC readiness review.
+
 ## 3.0.0-alpha.26
 
 - Added beta-readiness commands: `sovryn beta check`, `sovryn beta demo`, and

@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-beta.12`
+Current version: `3.0.0-beta.13`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -48,7 +48,7 @@ Alpha.26 was the first integrated beta-candidate path: release candidates,
 quality evaluation, security audit, reliability audit, public corpus export, and
 curated beta packaging are all connected.
 
-The current Beta.1-Beta.12 operationalization line builds on Alpha.26:
+The current Beta.1-Beta.13 operationalization line builds on Alpha.26:
 
 | Version         | Focus                         | Result                                                                                                                                                                                   |
 | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -64,8 +64,9 @@ The current Beta.1-Beta.12 operationalization line builds on Alpha.26:
 | `3.0.0-beta.10` | Corpus Autopublish            | Publishes eligible, policy-gated results into the existing `n57d30top/sovryn-open-inventions` corpus repo without creating new repos or requiring human review.                          |
 | `3.0.0-beta.11` | External Research Autopublish | Runs a safe non-Sovryn chemistry-data-quality research campaign, builds `mol-record-auditor`, provisions `pint`, validates through Node Alpha, and corpus-autopublishes if gates pass.   |
 | `3.0.0-beta.12` | High-Assurance Tool Execution | Adds a versioned chemistry auditor v2 path that separates package provisioning from final `container-netoff` validation and records worker-assurance evidence before corpus autopublish. |
+| `3.0.0-beta.13` | External Energy Research      | Adds `energy-record-auditor`, a safe synthetic energy-data anomaly auditor using policy-provisioned `pandas`, container-netoff validation, and corpus autopublish gates.                 |
 
-At `3.0.0-beta.12`, Sovryn can run local autonomy campaigns, build release
+At `3.0.0-beta.13`, Sovryn can run local autonomy campaigns, build release
 candidates, govern publication queues, execute worker jobs, benchmark research
 quality, export a public corpus API/site shell, and produce launch/pilot
 evidence, then validate the full path through a deterministic fresh-repo E2E
@@ -88,6 +89,12 @@ Beta.12 upgrades that proof with a versioned
 external package and version, while final validation prefers `container-netoff`
 with network disabled and no silent fallback before autopublish eligibility is
 granted.
+Beta.13 adds a second external-domain proof:
+`energy-usage-anomaly-auditor`, which audits synthetic anonymized energy-style
+records for duplicate timestamps, missing intervals, weather-normalized
+anomalies, high-usage spikes, and weak provenance. It uses policy-provisioned
+`pandas` evidence and remains scoped away from private smart-meter data,
+surveillance, and energy-market trading.
 
 The beta operations line preserves the same operating rules:
 
@@ -105,7 +112,7 @@ The beta operations line preserves the same operating rules:
 - write evidence for every autonomous workflow;
 - keep tests, docs, smoke flows, and reports attached to each milestone.
 
-### What Beta.11/Beta.12 Is And Is Not
+### What Beta.11-Beta.13 Is And Is Not
 
 Beta.11 is a local, reproducible operating proof that the Sovryn research
 factory can leave its own domain, build a custom research tool, provision a
@@ -120,11 +127,12 @@ blockers, prepare public-reviewable Open Invention release candidates, and copy
 eligible results into an existing open corpus repository without creating new
 GitHub repositories.
 
-Beta.11/Beta.12 is not a chemistry discovery system, not a synthesis assistant, not a
-drug-design system, not hazardous-substance optimization, not an autonomous
-legal-patent system, not a guarantee of novelty, not a freedom-to-operate
-opinion, and not a permissionless autopublisher. Corpus autopublish does not
-require human review, but it is limited to
+Beta.11-Beta.13 is not a chemistry discovery system, not a synthesis assistant,
+not a drug-design system, not hazardous-substance optimization, not private
+smart-meter analytics, not surveillance tooling, not energy-market trading, not
+an autonomous legal-patent system, not a guarantee of novelty, not a
+freedom-to-operate opinion, and not a permissionless autopublisher. Corpus
+autopublish does not require human review, but it is limited to
 `n57d30top/sovryn-open-inventions` and is blocked by automated gates. Real
 publication to newly created or standalone GitHub repositories remains disabled
 unless explicit strict policy, approval evidence, and existing Sovryn
@@ -599,6 +607,19 @@ worker-assurance report, and prepares the versioned corpus slug
 silently falls back, the run is degraded and cannot be treated as high
 assurance.
 
+Beta.13 adds a second external-domain run:
+
+```bash
+sovryn external-research run energy-record-auditor --profile container-netoff --json
+```
+
+The energy flow writes `energy-usage-anomaly-auditor/` evidence, provisions
+`pandas`, validates a synthetic anonymized dataset through `container-netoff`,
+and prepares the public corpus slug `energy-usage-anomaly-auditor` only if
+automated quality, replay, safety, public-hygiene, and no-silent-fallback gates
+pass. It does not use private smart-meter data, personal identifiers,
+surveillance logic, or energy-market trading advice.
+
 Autopublish writes `.sovryn/corpus-autopublish/` with
 `autopublish-plan.json`, `AUTOPUBLISH_PLAN.md`, `rejected-results.json`, and
 `REJECTED_RESULTS.md`. A real run updates `results/<slug>/`, `INDEX.json`,
@@ -655,14 +676,15 @@ novelty, patentability, or freedom-to-operate opinions.
 
 ## Beta Operations
 
-Beta.1 through Beta.12 add operational proof workflows around the Alpha factory.
+Beta.1 through Beta.13 add operational proof workflows around the Alpha factory.
 They are local Evidence workflows: they measure autonomy, govern publication
 queues, coordinate worker jobs, benchmark research quality, export a public
 corpus API, package launch/pilot evidence, and validate the whole path with a
 fresh-repo E2E harness. Beta.11 adds policy-gated publication into the existing
 `sovryn-open-inventions` corpus repo only. It does not create new repos and it
 blocks on automated gate failure. Beta.12 adds the versioned
-`container-netoff` chemistry-auditor v2 proof.
+`container-netoff` chemistry-auditor v2 proof. Beta.13 adds the synthetic
+energy-data anomaly auditor as a second external-domain proof.
 
 ```bash
 sovryn autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json

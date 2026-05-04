@@ -17,10 +17,11 @@ type ExternalResearchFixture = {
 
 let fixturePromise: Promise<ExternalResearchFixture> | null = null;
 let v2FixturePromise: Promise<ExternalResearchFixture> | null = null;
+let energyFixturePromise: Promise<ExternalResearchFixture> | null = null;
 
-test("package version is beta.12", async () => {
+test("package version is beta.13", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.0.0-beta.12");
+  assert.equal(pkg.version, "3.0.0-beta.13");
 });
 
 test("CLI help lists external research command", async () => {
@@ -624,6 +625,205 @@ test("Beta.12 v2 retains chemistry safety scope", async () => {
   assert.match(readme, /not wet-lab guidance/i);
 });
 
+test("Beta.13 energy run creates deterministic external result", async () => {
+  const { run } = await externalEnergyFixture();
+  assert.equal(run.runId, "energy-usage-anomaly-auditor");
+  assert.equal(run.slug, "energy-usage-anomaly-auditor");
+  assert.equal(run.customToolName, "energy-record-auditor");
+});
+
+test("Beta.13 energy run provisions pandas under policy", async () => {
+  const { run, root } = await externalEnergyFixture();
+  assert.equal(run.externalPackageSelected, "pandas");
+  assert.equal(run.externalPackageStatus, "provisioned_fixture");
+  const evidence = await readJson<any>(
+    join(
+      root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "install-evidence.json",
+    ),
+  );
+  assert.equal(evidence.packageName, "pandas");
+  assert.equal(evidence.sudoUsed, false);
+  assert.equal(evidence.curlPipeShellUsed, false);
+});
+
+test("Beta.13 energy run uses container-netoff validation", async () => {
+  const { run, root } = await externalEnergyFixture();
+  assert.equal(run.requestedWorkerProfile, "container-netoff");
+  assert.equal(run.workerProfileUsed, "container-netoff");
+  const execution = await readJson<any>(
+    join(
+      root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "container-netoff-execution.json",
+    ),
+  );
+  assert.equal(execution.noSilentFallback, true);
+  assert.equal(execution.finalNetworkAccess, false);
+});
+
+test("Beta.13 energy sample output records pandas usage", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(output.externalToolEvidence.package, "pandas");
+  assert.equal(output.externalToolEvidence.usedForTabularValidation, true);
+});
+
+test("Beta.13 energy tool detects duplicate timestamps", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(hasEnergyIssue(output, "duplicate_timestamp"), true);
+});
+
+test("Beta.13 energy tool detects missing intervals", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(hasEnergyIssue(output, "missing_interval"), true);
+});
+
+test("Beta.13 energy tool detects high usage spikes", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(hasEnergyIssue(output, "high_usage_spike"), true);
+});
+
+test("Beta.13 energy tool detects weather-normalized anomalies", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(hasEnergyIssue(output, "weather_normalized_anomaly"), true);
+});
+
+test("Beta.13 energy tool detects weak provenance", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(hasEnergyIssue(output, "weak_provenance"), true);
+});
+
+test("Beta.13 energy output is deterministic and scored", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const output = await readJson<any>(join(prototypeRoot, "sample-output.json"));
+  assert.equal(output.kind, "energy_record_auditor_output");
+  assert.equal(typeof output.datasetReliabilityScore, "number");
+});
+
+test("Beta.13 energy tool writes audit report and limitations", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const report = await readFile(
+    join(prototypeRoot, "ENERGY_AUDIT_REPORT.md"),
+    "utf8",
+  );
+  const limitations = await readFile(
+    join(prototypeRoot, "TOOL_LIMITATIONS.md"),
+    "utf8",
+  );
+  assert.match(report, /Dataset reliability score/);
+  assert.match(limitations, /not a surveillance system/i);
+});
+
+test("Beta.13 energy package lock records pandas version", async () => {
+  const { prototypeRoot } = await externalEnergyFixture();
+  const lock = await readJson<any>(
+    join(prototypeRoot, "package-lock-summary.json"),
+  );
+  assert.equal(lock.packages[0].name, "pandas");
+  assert.equal(typeof lock.packages[0].version, "string");
+});
+
+test("Beta.13 energy public release excludes raw logs and local paths", async () => {
+  const { releaseRoot } = await externalEnergyFixture();
+  const scan = await scanCorpusPublicHygiene(releaseRoot);
+  assert.equal(scan.passed, true, JSON.stringify(scan.findings, null, 2));
+  const text = await readAllText(releaseRoot);
+  assert.doesNotMatch(text, /install-log\.redacted/i);
+  assert.doesNotMatch(text, /\.venv\/bin/);
+});
+
+test("Beta.13 energy public README states safety scope", async () => {
+  const { releaseRoot } = await externalEnergyFixture();
+  const readme = await readFile(join(releaseRoot, "README.md"), "utf8");
+  assert.match(readme, /No private smart-meter data/i);
+  assert.match(readme, /not an energy-market trading system/i);
+});
+
+test("Beta.13 energy claim and counter evidence use careful language", async () => {
+  const { root } = await externalEnergyFixture();
+  const matrix = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "CLAIM_FEATURE_MATRIX.md",
+    ),
+    "utf8",
+  );
+  const counter = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "COUNTER_EVIDENCE.md",
+    ),
+    "utf8",
+  );
+  assert.match(matrix, /possible differentiator/);
+  assert.match(counter, /not a legal novelty conclusion/);
+});
+
+test("Beta.13 energy pilot record is autopublish eligible", async () => {
+  const { root } = await externalEnergyFixture();
+  const results = await readJson<any>(
+    join(root, ".sovryn", "pilots", "pilot-results.json"),
+  );
+  assert.equal(results.pilots[0].pilotId, "energy-usage-anomaly-auditor");
+  assert.equal(results.pilots[0].qualityLabel, "good");
+  assert.equal(results.pilots[0].candidateStatus, "dry_run_ready");
+});
+
+test("Beta.13 energy autopublish dry-run discovers result", async () => {
+  const { root } = await externalEnergyFixture();
+  const targetRepo = await makeTargetCorpusRepo();
+  const response = await must(
+    executeCli(
+      [
+        "corpus",
+        "autopublish",
+        "--target-repo",
+        targetRepo,
+        "--dry-run",
+        "--json",
+      ],
+      root,
+    ),
+  );
+  assert.equal(response.eligibleResults, 1);
+  await access(
+    join(
+      root,
+      ".sovryn",
+      "corpus-autopublish",
+      "staged",
+      "results",
+      "energy-usage-anomaly-auditor",
+      "AUTOPUBLISH_RECORD.json",
+    ),
+  );
+});
+
+test("Beta.13 CLI help lists energy external research command", async () => {
+  const help = await executeCli(["--help", "--json"]);
+  assert.match(
+    (help.data as any).help,
+    /external-research run energy-record-auditor/,
+  );
+});
+
 async function externalResearchFixture(): Promise<ExternalResearchFixture> {
   fixturePromise ??= createExternalResearchFixture();
   return fixturePromise;
@@ -632,6 +832,11 @@ async function externalResearchFixture(): Promise<ExternalResearchFixture> {
 async function externalResearchV2Fixture(): Promise<ExternalResearchFixture> {
   v2FixturePromise ??= createExternalResearchV2Fixture();
   return v2FixturePromise;
+}
+
+async function externalEnergyFixture(): Promise<ExternalResearchFixture> {
+  energyFixturePromise ??= createExternalEnergyFixture();
+  return energyFixturePromise;
 }
 
 async function createExternalResearchFixture(): Promise<ExternalResearchFixture> {
@@ -710,6 +915,45 @@ async function createExternalResearchV2Fixture(): Promise<ExternalResearchFixtur
   };
 }
 
+async function createExternalEnergyFixture(): Promise<ExternalResearchFixture> {
+  const repo = await makeTempRepo();
+  await executeCli(["init", "--json"], repo.root);
+  const response = await must(
+    executeCli(
+      [
+        "external-research",
+        "run",
+        "energy-record-auditor",
+        "--profile",
+        "container-netoff",
+        "--fixture-install",
+        "--json",
+      ],
+      repo.root,
+    ),
+  );
+  return {
+    root: repo.root,
+    run: response.run,
+    releaseRoot: join(
+      repo.root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "release",
+      "public",
+    ),
+    prototypeRoot: join(
+      repo.root,
+      ".sovryn",
+      "external-research",
+      "energy-usage-anomaly-auditor",
+      "prototype",
+      "energy-record-auditor",
+    ),
+  };
+}
+
 async function makeTargetCorpusRepo(): Promise<string> {
   const repo = await makeTempRepo({ noVerify: true });
   await mkdir(join(repo.root, "aggregate"), { recursive: true });
@@ -753,6 +997,10 @@ async function must(responsePromise: Promise<any>): Promise<any> {
 
 function compound(output: any, name: string): any {
   return output.compounds.find((item: any) => item.compound === name);
+}
+
+function hasEnergyIssue(output: any, issueType: string): boolean {
+  return output.datasetIssues.some((item: any) => item.issueType === issueType);
 }
 
 async function readAllText(root: string): Promise<string> {

@@ -74,3 +74,18 @@ entry is eligible only when package provisioning evidence exists, final
 validation uses `container-netoff` with network disabled, no silent fallback is
 recorded, public hygiene passes, replay-critical evidence remains fresh, and the
 same automated corpus-autopublish gates pass.
+
+## Beta.13 External Energy Result
+
+Beta.13 adds a second external-domain run:
+
+```bash
+sovryn external-research run energy-record-auditor --profile container-netoff --json
+```
+
+The generated slug is `energy-usage-anomaly-auditor`. It uses a synthetic,
+anonymized toy energy dataset and policy-provisioned `pandas` evidence to audit
+duplicate timestamps, missing intervals, high-usage spikes, weather-normalized
+anomalies, and weak provenance. The public result must not include private
+smart-meter data, household-identifying data, surveillance workflows, or
+energy-market trading advice.

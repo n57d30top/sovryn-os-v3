@@ -180,6 +180,13 @@ with network disabled. `container-netoff` must not silently fall back to host
 execution; if the profile is unavailable or fails, the run records degraded
 evidence and does not qualify as high-assurance autopublish input.
 
+Beta.13 adds a safe synthetic energy-data anomaly run. It must not use private
+smart-meter data, household-identifying data, surveillance workflows, personal
+data publication, or energy-market trading advice. The external package
+provisioning rules remain unchanged: no host `sudo`, no curl-pipe-shell, no
+global install by default, redacted logs only, and final validation through the
+requested worker profile with no silent fallback.
+
 Alpha.22 adds `.sovryn/quality/` evaluator artifacts. The quality evaluator
 scans curated public releases for secret-like text, raw log references, local
 absolute paths, and unsafe legal patentability language. These checks are an

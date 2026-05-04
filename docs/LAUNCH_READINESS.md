@@ -1,6 +1,6 @@
 # Launch Readiness
 
-Sovryn OS v3 `3.0.0-beta.12` includes launch-readiness commands for local
+Sovryn OS v3 `3.0.0-beta.13` includes launch-readiness commands for local
 public beta or v1.0-RC review:
 
 ```bash

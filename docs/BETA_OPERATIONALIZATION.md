@@ -1,6 +1,6 @@
 # Beta Operationalization
 
-Sovryn OS v3 `3.0.0-beta.12` adds an operational proof layer above the Alpha
+Sovryn OS v3 `3.0.0-beta.13` adds an operational proof layer above the Alpha
 Factory. The goal is to show that Sovryn can run bounded autonomous research
 workflows, measure quality, keep publication governed, execute worker jobs
 without silent fallback, export a public corpus, and produce three
@@ -10,7 +10,12 @@ builds a custom tool, provisions `pint` under policy, validates through Node
 Alpha, and feeds the existing corpus autopublish path. Beta.12 adds the
 versioned v2 flow, where package provisioning and final `container-netoff`
 validation are separated and worker-assurance evidence is written before corpus
-autopublish eligibility is granted.
+autopublish eligibility is granted. Beta.13 adds a second external-domain proof
+with `energy-record-auditor`, a synthetic anonymized energy-data anomaly
+auditor that provisions `pandas`, detects duplicate timestamps, missing
+intervals, high-usage spikes, weather-normalized anomalies, and weak provenance,
+and stays outside private smart-meter, surveillance, and energy-market trading
+use cases.
 
 Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal

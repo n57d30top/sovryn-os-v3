@@ -21,7 +21,7 @@ node dist/cli.js beta check --json
 node dist/cli.js beta package --json
 ```
 
-For the Beta.11/Beta.12 operational path:
+For the Beta.11-Beta.13 operational path:
 
 ```bash
 node dist/cli.js autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json
@@ -35,6 +35,7 @@ node dist/cli.js pilot review --json
 node dist/cli.js pilot package --json
 node dist/cli.js e2e run --profile beta-fixture --release-candidates 3 --json
 node dist/cli.js external-research run chemistry-record-auditor --profile container-netoff --json
+node dist/cli.js external-research run energy-record-auditor --profile container-netoff --json
 ```
 
 Sovryn is not a legal patent filing system and does not provide legal novelty,

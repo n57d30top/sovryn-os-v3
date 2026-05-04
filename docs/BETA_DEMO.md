@@ -33,7 +33,7 @@ does not provide legal novelty, patentability, or freedom-to-operate opinions.
 
 ## Beta Operations
 
-`3.0.0-beta.12` adds operational proof commands around the demo:
+`3.0.0-beta.13` adds operational proof commands around the demo:
 
 ```bash
 sovryn autonomy campaign plan --goal "Improve autonomous open-source research agents" --runs 10 --json

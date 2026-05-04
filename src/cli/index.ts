@@ -16,6 +16,7 @@ import {
 } from "../core/factory/factory-service.js";
 import { E2EService } from "../core/e2e/e2e-service.js";
 import { ChemistryRecordAuditorResearchService } from "../core/external-research/chemistry-record-auditor.js";
+import { EnergyRecordAuditorResearchService } from "../core/external-research/energy-record-auditor.js";
 import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
@@ -164,6 +165,7 @@ Commands:
   sovryn e2e run --profile beta-fixture [--release-candidates 3] [--json]
   sovryn e2e report [--json]
   sovryn external-research run chemistry-record-auditor [--profile sandbox-local|container-netoff] [--fixture-install] [--json]
+  sovryn external-research run energy-record-auditor [--profile sandbox-local|container-netoff] [--fixture-install] [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -1024,22 +1026,36 @@ async function externalResearchCommand(
 ): Promise<Record<string, unknown>> {
   const subcommand = parsed.positionals[0];
   const target = parsed.positionals[1];
-  if (subcommand !== "run" || target !== "chemistry-record-auditor") {
+  if (subcommand !== "run") {
     throw new AppError(
       "EXTERNAL_RESEARCH_COMMAND_REQUIRED",
-      "Use: sovryn external-research run chemistry-record-auditor.",
+      "Use: sovryn external-research run <chemistry-record-auditor|energy-record-auditor>.",
     );
   }
-  return new ChemistryRecordAuditorResearchService(root).run({
-    fixtureInstall: flagBool(parsed.flags, "--fixture-install"),
-    profile: flagExternalResearchProfile(parsed.flags),
-  });
+  if (target === "chemistry-record-auditor") {
+    return new ChemistryRecordAuditorResearchService(root).run({
+      fixtureInstall: flagBool(parsed.flags, "--fixture-install"),
+      profile: flagExternalResearchProfile(parsed.flags, "sandbox-local"),
+    });
+  }
+  if (target === "energy-record-auditor") {
+    return new EnergyRecordAuditorResearchService(root).run({
+      fixtureInstall: flagBool(parsed.flags, "--fixture-install"),
+      profile: flagExternalResearchProfile(parsed.flags, "container-netoff"),
+    });
+  }
+  throw new AppError(
+    "EXTERNAL_RESEARCH_TARGET_UNSUPPORTED",
+    "Supported external research targets are chemistry-record-auditor and energy-record-auditor.",
+    { target },
+  );
 }
 
 function flagExternalResearchProfile(
   flags: Map<string, string | boolean>,
+  defaultProfile: "sandbox-local" | "container-netoff",
 ): "sandbox-local" | "container-netoff" {
-  const value = flagString(flags, "--profile") ?? "sandbox-local";
+  const value = flagString(flags, "--profile") ?? defaultProfile;
   if (value === "sandbox-local" || value === "container-netoff") return value;
   throw new AppError(
     "EXTERNAL_RESEARCH_PROFILE_INVALID",

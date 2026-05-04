@@ -206,6 +206,12 @@ but they prevent obvious abusive goals and unsafe public-release text from
 being treated as acceptable research evidence. They do not weaken existing
 Factory, Worker, Open Invention, secret, replay, quality, or publication gates.
 
+Alpha.26 beta packaging writes curated summaries under `.sovryn/beta/package/`.
+The package excludes raw logs, private config, secrets, local absolute paths,
+and full raw source content. It is a demo/review bundle only; human review and
+existing publication gates are still required before any real GitHub
+publication.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

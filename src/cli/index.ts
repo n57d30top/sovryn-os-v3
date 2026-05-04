@@ -6,6 +6,7 @@ import {
 } from "../shared/json-envelope.js";
 import { AppError } from "../shared/errors.js";
 import { AuditService } from "../core/audit/audit-service.js";
+import { BetaService } from "../core/beta/beta-service.js";
 import { configExists, loadConfig } from "../core/config.js";
 import { CorpusService } from "../core/corpus/corpus-service.js";
 import {
@@ -108,6 +109,9 @@ Commands:
   sovryn reliability replay-all [--json]
   sovryn safety scan-goal "<goal>" [--json]
   sovryn safety scan-release <release-path> [--json]
+  sovryn beta check [--json]
+  sovryn beta demo [--json]
+  sovryn beta package [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -354,6 +358,16 @@ export async function executeCli(
       case "safety": {
         const result = await safetyCommand(parsed, root);
         return okEnvelope("safety", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "beta": {
+        const result = await betaCommand(parsed, root);
+        return okEnvelope("beta", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1061,6 +1075,29 @@ async function safetyCommand(
       throw new AppError(
         "SAFETY_COMMAND_REQUIRED",
         "Use: sovryn safety <scan-goal|scan-release>.",
+      );
+  }
+}
+
+async function betaCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new BetaService(root);
+  switch (subcommand) {
+    case "check":
+      return service.check();
+    case "demo":
+      return service.demo({
+        maxCandidates: flagInt(parsed.flags, "--max-candidates", 3),
+      });
+    case "package":
+      return service.package();
+    default:
+      throw new AppError(
+        "BETA_COMMAND_REQUIRED",
+        "Use: sovryn beta <check|demo|package>.",
       );
   }
 }

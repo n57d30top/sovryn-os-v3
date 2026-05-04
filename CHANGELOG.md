@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.0.0-alpha.26
+
+- Added beta-readiness commands: `sovryn beta check`, `sovryn beta demo`, and
+  `sovryn beta package`.
+- Added `.sovryn/beta/` artifacts for beta checks, demo runs, and curated beta
+  packages.
+- Added beta gates for docs completeness, demo evidence, security audit,
+  reliability audit, quality evaluator presence, public corpus export, release
+  candidates, public leak absence, legal-claim safety, test-count minimums, and
+  local CI-equivalent checks.
+- Added curated beta package summaries for beta check, demo, security audit,
+  reliability audit, quality report, public corpus, and release candidates.
+- Added beta docs and example demo materials.
+
 ## 3.0.0-alpha.25
 
 - Added security, reliability, and abuse audit commands:

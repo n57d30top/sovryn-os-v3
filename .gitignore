@@ -10,10 +10,11 @@ dist/
 .sovryn/releases/
 .sovryn/quality/
 .sovryn/overnight/
+.sovryn/audits/
+.sovryn/beta/
 .sovryn/postgres-artifacts/
 coverage/
 *.log
 graphify-out/cache/
 graphify-out/graph.html
 graphify-out/graph.json
-.sovryn/audits/

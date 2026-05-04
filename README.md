@@ -93,6 +93,9 @@ sovryn reliability audit --json
 sovryn reliability replay-all --json
 sovryn safety scan-goal "Improve autonomous research agents" --json
 sovryn safety scan-release .sovryn/factory/<slug>/release/public --json
+sovryn beta check --json
+sovryn beta demo --json
+sovryn beta package --json
 sovryn worker doctor --profile container-local --json
 sovryn worker doctor --profile container-netoff --json
 sovryn worker doctor --all --json
@@ -389,6 +392,28 @@ are ignored by default.
 
 Audits do not publish anything and they do not replace Factory, Quality, Worker,
 Open Invention, secret, replay, final verification, or GitHub publication gates.
+
+## Beta Prep
+
+Alpha.26 adds beta-readiness commands:
+
+```bash
+sovryn beta demo --json
+sovryn beta check --json
+sovryn beta package --json
+```
+
+`beta demo` runs a reproducible local demo using the release-candidate workflow,
+quality evaluator, public corpus export/site shell, security audit, and
+reliability audit. `beta check` evaluates beta gates such as docs completeness,
+demo evidence, security/reliability pass state, release candidates, public
+corpus export, legal-language safety, and test-count minimums. `beta package`
+creates a curated `.sovryn/beta/package/` with summary JSON and reports only.
+
+The beta package is a public demo bundle and still requires human review before
+real publication. Sovryn produces Open Inventions, Defensive Publications, and
+Open Source Research Artifacts; it does not file legal patents or provide legal
+novelty, patentability, or freedom-to-operate opinions.
 
 ## Release Candidates
 

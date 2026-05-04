@@ -1,12 +1,13 @@
 # Launch Readiness
 
-Sovryn OS v3 `3.0.0-beta.16` includes launch-readiness commands for local
+Sovryn OS v3 `3.0.0-beta.17` includes launch-readiness commands for local
 public beta or v1.0-RC review:
 
 ```bash
 sovryn launch check --json
 sovryn launch demo --json
 sovryn launch package --json
+sovryn launch v1-rc-check --json
 sovryn pilot run --all --json
 sovryn pilot review --json
 sovryn pilot package --json
@@ -28,6 +29,18 @@ The generated `public-corpus/` site and API make release candidates easier to
 inspect while retaining the same public-hygiene restrictions: no raw logs, no
 secrets, no local absolute paths, no private config, no unsafe content, and no
 legal patentability or freedom-to-operate claims.
+
+Beta.17 adds a stricter v1-RC gate check for the overnight external trial:
+
+```bash
+sovryn overnight run --goal "Generate safe external open inventions" --max-runs 3 --autopublish-corpus --json
+sovryn launch v1-rc-check --json
+```
+
+The v1-RC check requires replay-critical evidence, security and reliability
+audits, public corpus site audit, public hygiene, at least five corpus results,
+three external-domain trial results, at least two custom tools, at least two
+successful Node Alpha executions, and no standalone repo creation.
 
 Beta.9 writes three pilot release-candidate records under `.sovryn/pilots/`.
 Each pilot includes Factory/Open Invention bindings, quality evaluation,

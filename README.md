@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-beta.16`
+Current version: `3.0.0-beta.17`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -48,7 +48,7 @@ Alpha.26 was the first integrated beta-candidate path: release candidates,
 quality evaluation, security audit, reliability audit, public corpus export, and
 curated beta packaging are all connected.
 
-The current Beta.1-Beta.16 operationalization line builds on Alpha.26:
+The current Beta.1-Beta.17 operationalization line builds on Alpha.26:
 
 | Version         | Focus                         | Result                                                                                                                                                                                   |
 | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -68,8 +68,9 @@ The current Beta.1-Beta.16 operationalization line builds on Alpha.26:
 | `3.0.0-beta.14` | Multi-Domain Campaign         | Adds a bounded campaign that combines chemistry data quality, energy anomaly auditing, and defensive software patch-risk auditing with custom tools and worker evidence.                 |
 | `3.0.0-beta.15` | Anti-Template Quality Gates   | Adds specificity, readability, counter-evidence, non-trivial-test, and corpus-quality audit checks so generic results are rejected or marked for revision.                               |
 | `3.0.0-beta.16` | Public Corpus Product Layer   | Builds a readable public corpus site/API, result pages, badges, status summaries, graph export, site audit, and result explanation commands for `sovryn-open-inventions`.                |
+| `3.0.0-beta.17` | Overnight External Trial      | Runs a bounded external-domain overnight trial, dry-run or corpus-autopublishes eligible results, and writes a v1-RC gate report.                                                        |
 
-At `3.0.0-beta.16`, Sovryn can run local autonomy campaigns, build release
+At `3.0.0-beta.17`, Sovryn can run local autonomy campaigns, build release
 candidates, govern publication queues, execute worker jobs, benchmark research
 quality, export a public corpus API/site shell, and produce launch/pilot
 evidence, then validate the full path through a deterministic fresh-repo E2E
@@ -109,6 +110,11 @@ Beta.16 turns the public `sovryn-open-inventions` repository into a product
 surface: `public-corpus/` now contains static result pages, API JSON, search
 metadata, badges, status summaries, graph exports, and an auditable
 machine-readable corpus model.
+Beta.17 adds the launch-grade overnight external trial:
+`sovryn overnight run --goal "<safe external goal>" --max-runs 3 --autopublish-corpus --json`
+coordinates external opportunities, custom tools, package evidence, Node Alpha
+execution, safety summaries, optional corpus autopublish, and
+`sovryn launch v1-rc-check --json` for a final v1-RC gate report.
 
 The beta operations line preserves the same operating rules:
 
@@ -672,6 +678,22 @@ The site build writes `public-corpus/index.html`, result pages under
 metadata, search indexes, and aggregate status/domain/graph summaries. The site
 audit blocks raw logs, secrets, local paths, private config, unsafe content, and
 fake legal claims before the product layer is pushed.
+
+Beta.17 adds a bounded overnight external research trial and v1-RC gate:
+
+```bash
+sovryn overnight run \
+  --goal "Generate safe external open inventions" \
+  --max-runs 3 \
+  --autopublish-corpus \
+  --json
+sovryn launch v1-rc-check --json
+```
+
+The trial keeps publication restricted to the existing corpus repo, records
+dangerous-goal blocks, package/tool evidence, worker no-silent-fallback
+evidence, quality and safety summaries, and a morning brief. Real standalone
+GitHub repo creation remains disabled.
 
 Autopublish writes `.sovryn/corpus-autopublish/` with
 `autopublish-plan.json`, `AUTOPUBLISH_PLAN.md`, `rejected-results.json`, and

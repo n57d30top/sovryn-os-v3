@@ -11,6 +11,7 @@ dist/
 .sovryn/releases/
 .sovryn/quality/
 .sovryn/overnight/
+.sovryn/overnight-external/
 .sovryn/audits/
 .sovryn/beta/
 .sovryn/postgres-artifacts/

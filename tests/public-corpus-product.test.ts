@@ -15,18 +15,18 @@ type ProductFixture = {
 
 let fixturePromise: Promise<ProductFixture> | null = null;
 
-test("Beta.16 CLI help lists target repo corpus site build", async () => {
+test("Beta.17 CLI help lists target repo corpus site build", async () => {
   const help = await executeCli(["--help", "--json"]);
   assert.match((help.data as any).help, /corpus site build/);
   assert.match((help.data as any).help, /--target-repo <path>/);
 });
 
-test("Beta.16 CLI help lists corpus site audit", async () => {
+test("Beta.17 CLI help lists corpus site audit", async () => {
   const help = await executeCli(["--help", "--json"]);
   assert.match((help.data as any).help, /corpus site audit/);
 });
 
-test("Beta.16 CLI help lists corpus explain-result", async () => {
+test("Beta.17 CLI help lists corpus explain-result", async () => {
   const help = await executeCli(["--help", "--json"]);
   assert.match((help.data as any).help, /corpus explain-result/);
 });

@@ -802,7 +802,11 @@ export class AuditService {
     const entries = [];
     for (const root of roots) {
       if (await pathExists(root))
-        entries.push(...(await readTextEntries(root)));
+        entries.push(
+          ...(await readTextEntries(root)).filter(
+            (entry) => !isDependencyOrCachePath(entry.path),
+          ),
+        );
     }
     const commandEntries = entries.filter(
       (entry) =>
@@ -1066,6 +1070,12 @@ function countKind(
   kind: AuditFinding["kind"],
 ): number {
   return findings.filter((finding) => finding.kind === kind).length;
+}
+
+function isDependencyOrCachePath(path: string): boolean {
+  return /(?:^|\/)(?:\.venv|venv|node_modules|site-packages|__pycache__|\.pytest_cache|\.mypy_cache)(?:\/|$)/.test(
+    path,
+  );
 }
 
 function compareFinding(a: AuditFinding, b: AuditFinding): number {

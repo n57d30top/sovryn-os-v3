@@ -167,3 +167,17 @@ config, unsafe content, and fake legal claims.
 This product layer is still an open-research corpus. It is not a patent filing,
 not a patentability opinion, not a legal novelty opinion, and not a
 freedom-to-operate opinion.
+
+## Beta.17 Overnight External Trial
+
+Beta.17 uses the corpus autopublish and site-audit layers as launch gates for a
+bounded external overnight trial:
+
+```bash
+sovryn overnight run --goal "Generate safe external open inventions" --max-runs 3 --autopublish-corpus --json
+sovryn launch v1-rc-check --json
+```
+
+Eligible outputs are still published only to the existing
+`sovryn-open-inventions` corpus repo. Weak, unsafe, non-specific, or leaky
+outputs remain rejected or marked for revision.

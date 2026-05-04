@@ -19,6 +19,10 @@ import { E2EService } from "../core/e2e/e2e-service.js";
 import { ChemistryRecordAuditorResearchService } from "../core/external-research/chemistry-record-auditor.js";
 import { EnergyRecordAuditorResearchService } from "../core/external-research/energy-record-auditor.js";
 import { MultiDomainExternalCampaignService } from "../core/external-research/multi-domain-campaign.js";
+import {
+  OvernightExternalTrialService,
+  V1RcGateService,
+} from "../core/external-research/overnight-external-trial.js";
 import { PatchRiskAuditorResearchService } from "../core/external-research/patch-risk-auditor.js";
 import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
@@ -143,7 +147,7 @@ Commands:
   sovryn quality anti-template <result-id> [--json]
   sovryn quality readability <result-id> [--json]
   sovryn overnight plan --goal "<broad-goal>" [--json]
-  sovryn overnight run --goal "<broad-goal>" [--max-hours 8] [--max-runs 5] [--json]
+  sovryn overnight run --goal "<broad-goal>" [--max-hours 8] [--max-runs 5] [--autopublish-corpus] [--json]
   sovryn overnight status [--json]
   sovryn overnight stop [--json]
   sovryn overnight report [--json]
@@ -164,13 +168,14 @@ Commands:
   sovryn launch check [--json]
   sovryn launch demo [--json]
   sovryn launch package [--json]
+  sovryn launch v1-rc-check [--target-repo <path>] [--json]
   sovryn pilot run --scenario evidence-chain|toolchain-policy|corpus-deduplication [--json]
   sovryn pilot run --all [--json]
   sovryn pilot review [--json]
   sovryn pilot package [--json]
   sovryn pilot report [--json]
   sovryn e2e doctor [--json]
-  sovryn e2e run --profile beta-fixture [--release-candidates 3] [--json]
+  sovryn e2e run --profile beta-fixture [--release-candidates 3] [--external-domains 3] [--json]
   sovryn e2e report [--json]
   sovryn external-research run chemistry-record-auditor [--profile sandbox-local|container-netoff] [--fixture-install] [--json]
   sovryn external-research run energy-record-auditor [--profile sandbox-local|container-netoff] [--fixture-install] [--json]
@@ -878,6 +883,21 @@ async function overnightCommand(
           "overnight run requires --goal.",
         );
       }
+      if (flagBool(parsed.flags, "--autopublish-corpus")) {
+        return new OvernightExternalTrialService(root).run({
+          goal,
+          maxHours: flagInt(parsed.flags, "--max-hours", 8),
+          maxRuns: flagInt(parsed.flags, "--max-runs", 5),
+          autopublishCorpus: true,
+          autopublishDryRun: flagBool(parsed.flags, "--dry-run"),
+          targetRepo: flagString(parsed.flags, "--target-repo"),
+          fixtureInstall: !flagBool(parsed.flags, "--real-install"),
+          profile:
+            flagString(parsed.flags, "--profile") === "sandbox-local"
+              ? "sandbox-local"
+              : "container-netoff",
+        });
+      }
       return operator.run(goal, {
         maxHours: flagInt(parsed.flags, "--max-hours", 8),
         maxRuns: flagInt(parsed.flags, "--max-runs", 5),
@@ -1031,10 +1051,14 @@ async function launchCommand(
       return service.demo();
     case "package":
       return service.package();
+    case "v1-rc-check":
+      return new V1RcGateService(root).check({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
     default:
       throw new AppError(
         "LAUNCH_COMMAND_REQUIRED",
-        "Use: sovryn launch <check|demo|package>.",
+        "Use: sovryn launch <check|demo|package|v1-rc-check>.",
       );
   }
 }
@@ -1079,6 +1103,7 @@ async function e2eCommand(
         flagString(parsed.flags, "--profile") ?? "beta-fixture",
         {
           releaseCandidates: flagInt(parsed.flags, "--release-candidates", 1),
+          externalDomains: flagInt(parsed.flags, "--external-domains", 0),
         },
       );
     case "report":

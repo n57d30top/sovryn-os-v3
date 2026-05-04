@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import { makeTempRepo } from "../src/testkit/temp-repo.js";
@@ -313,6 +313,36 @@ test("security audit detects sudo usage", async () => {
   assert.equal(hasMainFinding(response, "host_sudo"), true);
 });
 
+test("security audit ignores provisioned dependency source trees", async () => {
+  const repo = await initializedRepo();
+  const dependencyFile = join(
+    repo.root,
+    ".sovryn",
+    "node-alpha",
+    "workspaces",
+    "demo",
+    "prototype",
+    ".venv",
+    "lib",
+    "python3.14",
+    "site-packages",
+    "pip",
+    "_internal",
+    "commands",
+    "install.py",
+  );
+  await mkdir(dirname(dependencyFile), { recursive: true });
+  await writeFile(
+    dependencyFile,
+    "documentation mentions sudo and shell snippets like `echo ok`",
+    "utf8",
+  );
+  const response = await executeCli(["security", "audit", "--json"], repo.root);
+  assert.equal(hasMainFinding(response, "host_sudo"), false);
+  assert.equal(hasMainFinding(response, "command_injection"), false);
+  assert.equal((response.data as any).audit.passed, true);
+});
+
 test("security audit detects global npm install", async () => {
   const repo = await initializedRepo();
   await writeCommandEvidence(repo.root, "npm install -g dangerous-tool");
@@ -538,14 +568,14 @@ test("safety scan-goal returns stable JSON envelope command", async () => {
     repo.root,
   );
   assert.equal(response.command, "safety");
-  assert.equal(response.version, "3.0.0-beta.16");
+  assert.equal(response.version, "3.0.0-beta.17");
 });
 
 test("security audit returns stable JSON envelope command", async () => {
   const repo = await initializedRepo();
   const response = await executeCli(["security", "audit", "--json"], repo.root);
   assert.equal(response.command, "security");
-  assert.equal(response.version, "3.0.0-beta.16");
+  assert.equal(response.version, "3.0.0-beta.17");
 });
 
 test("reliability audit returns stable JSON envelope command", async () => {
@@ -555,7 +585,7 @@ test("reliability audit returns stable JSON envelope command", async () => {
     repo.root,
   );
   assert.equal(response.command, "reliability");
-  assert.equal(response.version, "3.0.0-beta.16");
+  assert.equal(response.version, "3.0.0-beta.17");
 });
 
 async function initializedRepo() {

@@ -34,12 +34,17 @@ test("CLI help lists e2e commands", async () => {
   assert.match(text, /e2e report/);
 });
 
+test("CLI help lists e2e external-domains mode", async () => {
+  const help = await executeCli(["--help", "--json"]);
+  assert.match((help.data as any).help, /--external-domains 3/);
+});
+
 test("E2E doctor checks dist CLI and command groups", async () => {
   const repo = await makeTempRepo();
   const response = await executeCli(["e2e", "doctor", "--json"], repo.root);
   assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
   const doctor = (response.data as any).doctor;
-  assert.equal(doctor.targetVersion, "3.0.0-beta.16");
+  assert.equal(doctor.targetVersion, "3.0.0-beta.17");
   assert.equal(doctor.ready, true);
 });
 

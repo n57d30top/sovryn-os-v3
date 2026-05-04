@@ -215,7 +215,7 @@ type E2EPhaseInput = {
   degradedReasons?: string[];
 };
 
-const TARGET_VERSION = "3.0.0-beta.16";
+const TARGET_VERSION = "3.0.0-beta.17";
 const MAX_OUTPUT_CHARS = 6000;
 const MAX_PARSE_OUTPUT_CHARS = 2_000_000;
 
@@ -264,7 +264,7 @@ export class E2EService {
 
   async run(
     profile: string,
-    options: { releaseCandidates?: number } = {},
+    options: { releaseCandidates?: number; externalDomains?: number } = {},
   ): Promise<Record<string, unknown>> {
     if (profile !== "beta-fixture") {
       throw new AppError(
@@ -279,7 +279,10 @@ export class E2EService {
     const toolRoot = this.toolRoot();
     const freshRepo = await mkdtemp(join(tmpdir(), "sovryn-beta9-e2e-"));
     const cliPath = await this.findCliPath();
-    const releaseCandidateTarget = clampInt(options.releaseCandidates, 1, 1, 3);
+    const releaseCandidateTarget = Math.max(
+      clampInt(options.releaseCandidates, 1, 1, 3),
+      clampInt(options.externalDomains, 0, 0, 3),
+    );
     const context: CommandContext = {
       results: [],
       toolRoot,
@@ -291,6 +294,7 @@ export class E2EService {
       event: "e2e_started",
       profile,
       releaseCandidateTarget,
+      externalDomainTarget: clampInt(options.externalDomains, 0, 0, 3),
       toolRoot: "<tool-root>",
       freshRepo: "<fresh-repo>",
     });

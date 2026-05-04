@@ -194,7 +194,7 @@ flag risky dependency and script patterns for defensive review, but public
 outputs must remain curated summaries and must not include raw command logs,
 secrets, local absolute paths, or unsafe operational instructions.
 
-Beta.16 adds anti-template quality gates so public corpus publication can block
+Beta.15 adds anti-template quality gates so public corpus publication can block
 generic or shallow outputs even when hygiene scans pass.
 
 Alpha.22 adds `.sovryn/quality/` evaluator artifacts. The quality evaluator
@@ -223,6 +223,11 @@ site audit --target-repo <repo>` scans the generated static site, JSON API,
 badges, aggregate summaries, and result pages for raw logs, secret-like values,
 local absolute paths, private configuration, unsafe content, and fake legal
 claims before operators commit and push the public corpus site.
+
+Beta.17 uses the same restrictions during the overnight external trial and
+`launch v1-rc-check`: corpus publication is restricted to the existing public
+corpus repo, dangerous goals are blocked, worker no-silent-fallback evidence is
+required, and the trial must not create standalone GitHub repositories.
 
 Alpha.25 adds security, reliability, and abuse audit commands:
 

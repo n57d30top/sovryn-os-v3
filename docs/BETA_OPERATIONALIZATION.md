@@ -1,6 +1,6 @@
 # Beta Operationalization
 
-Sovryn OS v3 `3.0.0-beta.16` adds an operational proof layer above the Alpha
+Sovryn OS v3 `3.0.0-beta.17` adds an operational proof layer above the Alpha
 Factory. The goal is to show that Sovryn can run bounded autonomous research
 workflows, measure quality, keep publication governed, execute worker jobs
 without silent fallback, export a public corpus, and produce three
@@ -28,6 +28,10 @@ Beta.16 adds the public corpus product layer: the existing
 `sovryn-open-inventions` repo can be built into a static `public-corpus/` site
 with result pages, JSON API exports, badges, status/domain summaries, graph
 metadata, and a site audit that blocks public leaks before push.
+Beta.17 adds the bounded overnight external trial and v1-RC gate path. Operators
+can run a safe external-domain trial with corpus autopublish enabled, then run
+`sovryn launch v1-rc-check --json` to verify replay, security, public hygiene,
+corpus-site, custom-tool, and Node Alpha execution gates.
 
 Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal
@@ -104,6 +108,24 @@ worker output, command journals, local absolute paths, secrets, private config,
 or full raw source dumps. It gives readers a human-facing entry point into the
 corpus while preserving machine-readable JSON for search, quality, result
 status, and graph traversal.
+
+## Overnight External Trial and v1-RC Gate
+
+```bash
+sovryn overnight run \
+  --goal "Generate safe external open inventions" \
+  --max-runs 3 \
+  --autopublish-corpus \
+  --json
+sovryn launch v1-rc-check --json
+```
+
+The Beta.17 trial coordinates safe external domains, custom research tools,
+policy-provisioned package evidence, Node Alpha execution, worker
+no-silent-fallback evidence, quality and safety summaries, optional corpus
+autopublish, a morning brief, and a v1-RC gate report. It does not create
+standalone GitHub repositories, does not run dangerous goals, and does not
+publish raw logs or private local state.
 
 ## Persistent Worker Jobs
 

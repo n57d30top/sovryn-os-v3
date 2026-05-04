@@ -1,19 +1,45 @@
 # Sovryn OS v3
 
+Current version: `3.0.0-alpha.26`
+
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
 records artifacts, enforces policy, and requires review before finalization.
 
-Sovryn OS also supports Open Invention missions: deterministic research missions
-that create open-source invention dossiers, defensive publications, prototypes,
-tests, and publication evidence under `.sovryn/inventions/<slug>/`.
+Sovryn OS is also becoming an autonomous open-source research factory. It can
+discover research opportunities, run Factory Mode, generate Open Invention
+release candidates, evaluate quality, run overnight operator cycles, export a
+curated public corpus, audit security/reliability evidence, and package a beta
+demo bundle.
 
-Sovryn OS is not an agent framework. It does not judge with an LLM. It does not
-run a daemon. It does not mutate the main tree by default. It does not trust
-agent output.
+Sovryn OS is not a blind agent framework. It does not judge truth with an LLM,
+does not require paid APIs, does not mutate the main tree by default, does not
+publish automatically, and does not trust agent output.
 
 > Agents act. Sovryn verifies. Git isolates. Policy gates. Evidence persists.
 > Humans approve.
+
+Sovryn produces Open Inventions, Defensive Publications, and Open Source
+Research Artifacts. It does not file legal patents and does not provide legal
+novelty, patentability, or freedom-to-operate opinions.
+
+## Current Alpha Line
+
+The latest Alpha line turns the early Open-Invention Factory into a
+beta-demonstrable autonomous research system:
+
+| Version          | Focus                             | Result                                                                                                                        |
+| ---------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `3.0.0-alpha.21` | Release candidates                | Builds, reviews, and packages human-reviewable Open Invention release candidates.                                             |
+| `3.0.0-alpha.22` | Research Quality Evaluator        | Scores Factory runs, Open Inventions, tests, counter-evidence, publication clarity, and corpus uniqueness.                    |
+| `3.0.0-alpha.23` | Overnight Operator                | Coordinates opportunity queues, Factory runs, improve cycles, quality evaluation, corpus updates, and morning briefs.         |
+| `3.0.0-alpha.24` | Public Corpus Discovery           | Exports curated public corpus data, graph views, duplicate clusters, quality labels, and source summaries.                    |
+| `3.0.0-alpha.25` | Security/Reliability/Abuse Audits | Adds repo-level audits for public leaks, unsafe commands, replay consistency, dangerous goals, and fake legal/sandbox claims. |
+| `3.0.0-alpha.26` | Beta Prep                         | Adds beta check, beta demo, and beta package commands for a reproducible public demo path.                                    |
+
+The project is still Alpha software, but Alpha.26 is the first integrated beta
+candidate path: release candidates, quality, security audit, reliability audit,
+public corpus export, and curated beta packaging are all connected.
 
 ## Install
 
@@ -29,6 +55,34 @@ For development:
 npm run format:check
 node dist/cli.js --help
 ```
+
+## Beta Demo Quickstart
+
+Run this in a clean Git repository after building Sovryn:
+
+```bash
+node /path/to/sovryn-os-v3/dist/cli.js init --json
+node /path/to/sovryn-os-v3/dist/cli.js beta demo --json
+node /path/to/sovryn-os-v3/dist/cli.js beta check --json
+node /path/to/sovryn-os-v3/dist/cli.js beta package --json
+```
+
+The demo creates:
+
+```text
+.sovryn/beta/
+  beta-demo.json
+  beta-check.json
+  beta-package.json
+  BETA_DEMO.md
+  BETA_CHECK.md
+  BETA_PACKAGE.md
+  package/
+```
+
+`beta package` writes only curated summaries and reports. It excludes raw
+stdout/stderr, command journals, secrets, private config, local absolute paths,
+and full raw source content. The package is review evidence, not publication.
 
 ## Commands
 

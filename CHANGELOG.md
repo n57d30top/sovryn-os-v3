@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.0.0-alpha.23
+
+- Added the Autonomous Overnight Operator for coordinating opportunity queues,
+  Factory runs, Quality evaluation, bounded improve cycles, replay, curated
+  packaging, corpus updates, and morning briefs.
+- Added `sovryn overnight plan`, `run`, `status`, `stop`, and `report`.
+- Added `.sovryn/overnight/` artifacts including plans, budgets, decisions,
+  events, results, operator reports, and morning briefs.
+- Added overnight gates for budget enforcement, blocked-opportunity isolation,
+  quality binding, worker execution binding, corpus updates, morning brief
+  evidence, and no-real-publication guarantees.
+- Kept overnight operation dry-run/packaging only; it does not perform real
+  GitHub publication or bypass existing Factory, Quality, Worker, or Open
+  Invention gates.
+
 ## 3.0.0-alpha.22
 
 - Added the Research Quality Evaluator for grading Factory runs and Open

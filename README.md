@@ -76,6 +76,11 @@ sovryn quality evaluate-invention <mission-id> --json
 sovryn quality compare <factory-id-a> <factory-id-b> --json
 sovryn quality report --json
 sovryn quality leaderboard --json
+sovryn overnight plan --goal "Improve autonomous open-source research agents" --json
+sovryn overnight run --goal "Improve autonomous open-source research agents" --max-hours 8 --max-runs 1 --json
+sovryn overnight status --json
+sovryn overnight stop --json
+sovryn overnight report --json
 sovryn worker doctor --profile container-local --json
 sovryn worker doctor --profile container-netoff --json
 sovryn worker doctor --all --json
@@ -404,6 +409,44 @@ Release-candidate review now includes quality evidence when available. A
 candidate with a quality score below `research.quality.minReleaseQualityScore`
 is blocked from being queued as publish-ready. This is still not a legal
 patentability, legal novelty, or freedom-to-operate opinion.
+
+## Autonomous Overnight Operator
+
+Alpha.23 adds an overnight operating mode above the Opportunity Engine, Factory
+Mode, Quality Evaluator, Worker evidence, Corpus Memory, and release packaging.
+It is a coordinator, not a publisher: it can plan a bounded work session, build
+an opportunity queue, execute selected Factory runs, evaluate quality, run
+bounded improve cycles for weak runs, replay evidence, package curated public
+Factory evidence when quality passes, update the corpus, and write a morning
+brief.
+
+```bash
+sovryn overnight plan --goal "Improve autonomous open-source research agents" --json
+sovryn overnight run --goal "Improve autonomous open-source research agents" --max-hours 8 --max-runs 1 --json
+sovryn overnight status --json
+sovryn overnight report --json
+sovryn overnight stop --json
+```
+
+Overnight artifacts are written under `.sovryn/overnight/`:
+
+```text
+.sovryn/overnight/
+  overnight-plan.json
+  overnight-run.json
+  overnight-events.jsonl
+  overnight-budget.json
+  overnight-decisions.json
+  overnight-results.json
+  OVERNIGHT_REPORT.md
+  MORNING_BRIEF.md
+```
+
+The operator enforces max runs, improve-cycle limits, worker-execution limits,
+high-safety-risk stops, corpus updates, and no-real-publication guarantees. It
+does not publish to GitHub, does not install host tools, does not override
+Factory or Quality gates, and does not make legal patentability, legal novelty,
+or freedom-to-operate conclusions.
 
 ## Node Alpha Toolchains
 

@@ -269,6 +269,27 @@ release candidate from being marked publish-ready when evidence is weak, tests
 are trivial, counter-evidence is missing, or publication language is unsafe. It
 is not a legal novelty, patentability, or freedom-to-operate opinion.
 
+## Overnight Operator
+
+Alpha.23 adds an autonomous overnight coordinator:
+
+```bash
+sovryn overnight plan --goal "Improve autonomous open-source research agents" --json
+sovryn overnight run --goal "Improve autonomous open-source research agents" --max-hours 8 --max-runs 1 --json
+sovryn overnight status --json
+sovryn overnight report --json
+```
+
+The operator builds an opportunity queue, starts selected Factory runs,
+evaluates quality, runs bounded improve cycles when evidence is weak, replays
+Factory evidence, packages curated Factory public evidence only when quality
+passes, updates the corpus, and writes `MORNING_BRIEF.md`.
+
+It does not perform real GitHub publication. Overnight output remains local
+evidence under `.sovryn/overnight/` and is still subject to Factory, Quality,
+Worker, Open Invention, safety, secret, replay, finalization, and human-review
+gates.
+
 ## Dossier
 
 Each invention has a typed dossier with technical field, problem, background,

@@ -15,6 +15,7 @@ import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
 import { NodeAlphaToolchainManager } from "../core/node/toolchain-manager.js";
+import { OvernightOperator } from "../core/overnight/overnight-operator.js";
 import { QualityEvaluator } from "../core/quality/quality-service.js";
 import { ReleaseCandidateService } from "../core/release/release-candidate-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
@@ -89,6 +90,11 @@ Commands:
   sovryn quality compare <factory-id-a> <factory-id-b> [--json]
   sovryn quality report [--json]
   sovryn quality leaderboard [--json]
+  sovryn overnight plan --goal "<broad-goal>" [--json]
+  sovryn overnight run --goal "<broad-goal>" [--max-hours 8] [--max-runs 5] [--json]
+  sovryn overnight status [--json]
+  sovryn overnight stop [--json]
+  sovryn overnight report [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -302,6 +308,16 @@ export async function executeCli(
             : [],
         });
       }
+      case "overnight": {
+        const result = await overnightCommand(parsed, root);
+        return okEnvelope("overnight", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
@@ -503,6 +519,54 @@ async function qualityCommand(
       throw new AppError(
         "QUALITY_COMMAND_REQUIRED",
         "Use: sovryn quality <evaluate|evaluate-invention|compare|report|leaderboard>.",
+      );
+  }
+}
+
+async function overnightCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const operator = new OvernightOperator(root);
+  switch (subcommand) {
+    case "plan": {
+      const goal = flagString(parsed.flags, "--goal");
+      if (!goal) {
+        throw new AppError(
+          "OVERNIGHT_GOAL_REQUIRED",
+          "overnight plan requires --goal.",
+        );
+      }
+      return operator.plan(goal, {
+        maxHours: flagInt(parsed.flags, "--max-hours", 8),
+        maxRuns: flagInt(parsed.flags, "--max-runs", 5),
+      });
+    }
+    case "run": {
+      const goal = flagString(parsed.flags, "--goal");
+      if (!goal) {
+        throw new AppError(
+          "OVERNIGHT_GOAL_REQUIRED",
+          "overnight run requires --goal.",
+        );
+      }
+      return operator.run(goal, {
+        maxHours: flagInt(parsed.flags, "--max-hours", 8),
+        maxRuns: flagInt(parsed.flags, "--max-runs", 5),
+        maxImproveCycles: flagInt(parsed.flags, "--max-improve-cycles", 2),
+      });
+    }
+    case "status":
+      return operator.status();
+    case "stop":
+      return operator.stop();
+    case "report":
+      return operator.report();
+    default:
+      throw new AppError(
+        "OVERNIGHT_COMMAND_REQUIRED",
+        "Use: sovryn overnight <plan|run|status|stop|report>.",
       );
   }
 }

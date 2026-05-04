@@ -77,6 +77,11 @@ Quality gates include:
 Release-candidate review uses quality evidence. A candidate below
 `research.quality.minReleaseQualityScore` is blocked from publish-ready queueing.
 
+Alpha.23 overnight mode also uses quality evidence. `sovryn overnight run`
+evaluates each completed Factory run, triggers bounded improve cycles for weak
+or below-threshold work, and only packages curated Factory public evidence when
+the quality evaluation passes. Overnight mode still does not publish.
+
 ## Scope
 
 The evaluator is deterministic and evidence-based. It is not a legal patent

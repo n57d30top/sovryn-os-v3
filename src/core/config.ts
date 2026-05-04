@@ -129,6 +129,20 @@ export type SovrynConfig = {
       requireCounterEvidence: boolean;
       requirePrototypeRelevance: boolean;
     };
+    overnight?: {
+      enabled: boolean;
+      maxHours: number;
+      maxRuns: number;
+      maxImproveCycles: number;
+      maxWorkerExecutions: number;
+      maxNetworkCalls: number;
+      maxDiskUsageMB: number;
+      stopOnHighSafetyRisk: boolean;
+      stopOnRepeatedWorkerFailures: boolean;
+      stopOnInflatedQuality: boolean;
+      packageReleaseCandidates: boolean;
+      updateCorpus: boolean;
+    };
   };
 };
 
@@ -258,6 +272,20 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       requireCounterEvidence: true,
       requirePrototypeRelevance: true,
     },
+    overnight: {
+      enabled: true,
+      maxHours: 8,
+      maxRuns: 5,
+      maxImproveCycles: 2,
+      maxWorkerExecutions: 5,
+      maxNetworkCalls: 0,
+      maxDiskUsageMB: 2048,
+      stopOnHighSafetyRisk: true,
+      stopOnRepeatedWorkerFailures: true,
+      stopOnInflatedQuality: true,
+      packageReleaseCandidates: true,
+      updateCorpus: true,
+    },
   },
 };
 
@@ -310,6 +338,7 @@ async function ensureGitignore(root: string): Promise<void> {
     ".sovryn/corpus/",
     ".sovryn/releases/",
     ".sovryn/quality/",
+    ".sovryn/overnight/",
   ];
   const missing = required.filter(
     (line) => !existing.split("\n").includes(line),

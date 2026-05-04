@@ -9,6 +9,7 @@ dist/
 .sovryn/corpus/
 .sovryn/releases/
 .sovryn/quality/
+.sovryn/overnight/
 .sovryn/postgres-artifacts/
 coverage/
 *.log

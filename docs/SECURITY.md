@@ -162,6 +162,14 @@ absolute paths, and unsafe legal patentability language. These checks are an
 additional audit layer; they do not replace publication gates, secret scanning,
 worker isolation, or human review.
 
+Alpha.23 adds `.sovryn/overnight/` operator artifacts. Overnight mode can
+coordinate opportunity queues, Factory runs, Quality evaluation, improve cycles,
+replay, curated packaging, corpus updates, and morning briefs. It is not a
+publication mode. The operator records a `NO_REAL_PUBLICATION_DURING_OVERNIGHT`
+gate, keeps GitHub credentials with Sovryn Controller, writes redacted JSONL
+events, and does not copy raw stdout/stderr or command journals into reports.
+High-safety-risk opportunities are blocked before execution.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

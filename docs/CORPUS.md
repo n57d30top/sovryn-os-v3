@@ -9,7 +9,10 @@ sovryn corpus index --json
 sovryn corpus search "verifiable evidence" --json
 sovryn corpus export-public --json
 sovryn corpus site build --json
+sovryn corpus site build --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn corpus explain <id> --json
+sovryn corpus explain-result chemistry-record-auditor-tool-v2 --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn corpus publish-status --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn corpus publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn corpus autopublish --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --dry-run --json
@@ -118,3 +121,49 @@ sovryn corpus quality-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inve
 The audit is read-only against the public corpus repository and writes
 `.sovryn/quality/corpus-quality-audit.json` plus `CORPUS_QUALITY_AUDIT.md`.
 Autopublish now rejects results that are hygienic but too generic or shallow.
+
+## Beta.16 Public Corpus Product Layer
+
+Beta.16 turns the existing `sovryn-open-inventions` repo into a readable public
+corpus surface rather than only a folder/JSON archive.
+
+```bash
+sovryn corpus site build --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus explain-result patch-risk-auditor --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```
+
+The target repo receives:
+
+```text
+public-corpus/
+  index.html
+  corpus.json
+  search-index.json
+  results.json
+  quality.json
+  sources.json
+  status.json
+  api/
+    results.json
+    sources.json
+    quality.json
+    releases.json
+    graph.json
+  badges/
+  results/<slug>.html
+aggregate/
+  status-summary.json
+  domain-summary.json
+  result-graph.json
+```
+
+Each public result page shows the problem, method summary, custom tool,
+external package/tool evidence, Node Alpha worker profile, quality scores,
+limitations, safety scope, and links to curated public artifacts. The site
+audit scans the whole target repo for raw logs, secrets, local paths, private
+config, unsafe content, and fake legal claims.
+
+This product layer is still an open-research corpus. It is not a patent filing,
+not a patentability opinion, not a legal novelty opinion, and not a
+freedom-to-operate opinion.

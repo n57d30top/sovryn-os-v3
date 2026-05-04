@@ -1,6 +1,6 @@
 # Launch Readiness
 
-Sovryn OS v3 `3.0.0-beta.15` includes launch-readiness commands for local
+Sovryn OS v3 `3.0.0-beta.16` includes launch-readiness commands for local
 public beta or v1.0-RC review:
 
 ```bash
@@ -16,6 +16,18 @@ Launch readiness is not a publication command. It aggregates beta evidence,
 security audit evidence, reliability replay evidence, public corpus export
 evidence, and pilot results. Real GitHub publication remains governed by Sovryn
 publication gates and human approval.
+
+Beta.16 adds a public corpus product check path for launch reviewers:
+
+```bash
+sovryn corpus site build --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```
+
+The generated `public-corpus/` site and API make release candidates easier to
+inspect while retaining the same public-hygiene restrictions: no raw logs, no
+secrets, no local absolute paths, no private config, no unsafe content, and no
+legal patentability or freedom-to-operate claims.
 
 Beta.9 writes three pilot release-candidate records under `.sovryn/pilots/`.
 Each pilot includes Factory/Open Invention bindings, quality evaluation,
@@ -41,6 +53,7 @@ replay-critical pass rate for readiness decisions.
 - `RELIABILITY_AUDIT_GREEN`
 - `QUALITY_BENCHMARK_PASSING`
 - `PUBLIC_CORPUS_EXPORT_GREEN`
+- `PUBLIC_CORPUS_SITE_AUDIT_GREEN`
 - `THREE_RELEASE_CANDIDATES_PRESENT`
 - `NO_PUBLIC_LEAKS`
 - `NO_FAKE_LEGAL_CLAIMS`

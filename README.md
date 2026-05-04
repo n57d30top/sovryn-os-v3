@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.0.0-beta.15`
+Current version: `3.0.0-beta.16`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -48,7 +48,7 @@ Alpha.26 was the first integrated beta-candidate path: release candidates,
 quality evaluation, security audit, reliability audit, public corpus export, and
 curated beta packaging are all connected.
 
-The current Beta.1-Beta.15 operationalization line builds on Alpha.26:
+The current Beta.1-Beta.16 operationalization line builds on Alpha.26:
 
 | Version         | Focus                         | Result                                                                                                                                                                                   |
 | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,8 +67,9 @@ The current Beta.1-Beta.15 operationalization line builds on Alpha.26:
 | `3.0.0-beta.13` | External Energy Research      | Adds `energy-record-auditor`, a safe synthetic energy-data anomaly auditor using policy-provisioned `pandas`, container-netoff validation, and corpus autopublish gates.                 |
 | `3.0.0-beta.14` | Multi-Domain Campaign         | Adds a bounded campaign that combines chemistry data quality, energy anomaly auditing, and defensive software patch-risk auditing with custom tools and worker evidence.                 |
 | `3.0.0-beta.15` | Anti-Template Quality Gates   | Adds specificity, readability, counter-evidence, non-trivial-test, and corpus-quality audit checks so generic results are rejected or marked for revision.                               |
+| `3.0.0-beta.16` | Public Corpus Product Layer   | Builds a readable public corpus site/API, result pages, badges, status summaries, graph export, site audit, and result explanation commands for `sovryn-open-inventions`.                |
 
-At `3.0.0-beta.15`, Sovryn can run local autonomy campaigns, build release
+At `3.0.0-beta.16`, Sovryn can run local autonomy campaigns, build release
 candidates, govern publication queues, execute worker jobs, benchmark research
 quality, export a public corpus API/site shell, and produce launch/pilot
 evidence, then validate the full path through a deterministic fresh-repo E2E
@@ -104,6 +105,10 @@ auditing without publishing unsafe operational guidance.
 Beta.15 hardens quality scoring and corpus autopublish with anti-template,
 readability, prototype-relevance, test-nontriviality, limitation-honesty, and
 claim/counter-evidence grounding checks.
+Beta.16 turns the public `sovryn-open-inventions` repository into a product
+surface: `public-corpus/` now contains static result pages, API JSON, search
+metadata, badges, status summaries, graph exports, and an auditable
+machine-readable corpus model.
 
 The beta operations line preserves the same operating rules:
 
@@ -652,6 +657,21 @@ sovryn corpus quality-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inve
 These checks keep generic, repetitive, shallow, or weakly grounded results out
 of corpus autopublish. Existing demo-style results can remain in the corpus, but
 they are reported as `demo_pilot` or `needs_revision` when specificity is weak.
+
+Beta.16 adds product-layer corpus site commands for the existing public corpus
+repo:
+
+```bash
+sovryn corpus site build --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus explain-result chemistry-record-auditor-tool-v2 --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```
+
+The site build writes `public-corpus/index.html`, result pages under
+`public-corpus/results/`, JSON API files under `public-corpus/api/`, badge
+metadata, search indexes, and aggregate status/domain/graph summaries. The site
+audit blocks raw logs, secrets, local paths, private config, unsafe content, and
+fake legal claims before the product layer is pushed.
 
 Autopublish writes `.sovryn/corpus-autopublish/` with
 `autopublish-plan.json`, `AUTOPUBLISH_PLAN.md`, `rejected-results.json`, and

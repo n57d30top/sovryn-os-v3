@@ -1,6 +1,6 @@
 # Beta Operationalization
 
-Sovryn OS v3 `3.0.0-beta.15` adds an operational proof layer above the Alpha
+Sovryn OS v3 `3.0.0-beta.16` adds an operational proof layer above the Alpha
 Factory. The goal is to show that Sovryn can run bounded autonomous research
 workflows, measure quality, keep publication governed, execute worker jobs
 without silent fallback, export a public corpus, and produce three
@@ -24,6 +24,10 @@ systems, generate harmful code, or publish unsafe payloads. Beta.15 adds
 anti-template quality gates and corpus quality audit reports so generic,
 repetitive, shallow, or weakly grounded results are rejected or marked for
 revision.
+Beta.16 adds the public corpus product layer: the existing
+`sovryn-open-inventions` repo can be built into a static `public-corpus/` site
+with result pages, JSON API exports, badges, status/domain summaries, graph
+metadata, and a site audit that blocks public leaks before push.
 
 Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal
@@ -85,6 +89,21 @@ Real publication is disabled by default:
 
 Dry-run publication writes intent and ledger evidence. Real publication requires
 strict policy, approval evidence, and existing Sovryn publication gates.
+
+## Public Corpus Product Layer
+
+```bash
+sovryn corpus site build --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus site audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn corpus explain-result chemistry-record-auditor-tool-v2 --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+```
+
+The product layer is generated from curated `results/<slug>/` summaries and
+autopublish records only. It does not publish raw internal `.sovryn` state, raw
+worker output, command journals, local absolute paths, secrets, private config,
+or full raw source dumps. It gives readers a human-facing entry point into the
+corpus while preserving machine-readable JSON for search, quality, result
+status, and graph traversal.
 
 ## Persistent Worker Jobs
 

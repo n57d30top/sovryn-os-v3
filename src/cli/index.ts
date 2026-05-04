@@ -9,6 +9,7 @@ import { AuditService } from "../core/audit/audit-service.js";
 import { BetaService } from "../core/beta/beta-service.js";
 import { configExists, loadConfig } from "../core/config.js";
 import { CorpusAutopublisher } from "../core/corpus/corpus-autopublisher.js";
+import { CorpusProductService } from "../core/corpus/corpus-product-service.js";
 import { CorpusService } from "../core/corpus/corpus-service.js";
 import {
   FactoryService,
@@ -115,7 +116,8 @@ Commands:
   sovryn corpus dedupe [--json]
   sovryn corpus report [--json]
   sovryn corpus export-public [--json]
-  sovryn corpus site build [--json]
+  sovryn corpus site build [--target-repo <path>] [--json]
+  sovryn corpus site audit --target-repo <path> [--json]
   sovryn corpus graph [--json]
   sovryn corpus compare [--json]
   sovryn corpus explain <invention-id|factory-id|source-id> [--json]
@@ -123,6 +125,7 @@ Commands:
   sovryn corpus api export [--json]
   sovryn corpus badges build [--json]
   sovryn corpus graph explain <node-id> [--json]
+  sovryn corpus explain-result <slug> --target-repo <path> [--json]
   sovryn corpus release-notes build [--json]
   sovryn corpus autopublish --target-repo <path> [--max-results 10] [--dry-run] [--json]
   sovryn corpus publish-status --target-repo <path> [--json]
@@ -615,7 +618,21 @@ async function corpusCommand(
   const service = new CorpusService(root);
   const discovery = new CorpusDiscoveryService(root);
   if (subcommand === "site" && parsed.positionals[1] === "build") {
+    const targetRepo = flagString(parsed.flags, "--target-repo");
+    if (targetRepo) {
+      return new CorpusProductService(root).buildSite({ targetRepo });
+    }
     return service.buildPublicSite();
+  }
+  if (subcommand === "site" && parsed.positionals[1] === "audit") {
+    const targetRepo = flagString(parsed.flags, "--target-repo");
+    if (!targetRepo) {
+      throw new AppError(
+        "CORPUS_SITE_AUDIT_TARGET_REQUIRED",
+        "corpus site audit requires --target-repo <path>.",
+      );
+    }
+    return new CorpusProductService(root).auditSite({ targetRepo });
   }
   if (subcommand === "api" && parsed.positionals[1] === "export") {
     return discovery.apiExport();
@@ -632,6 +649,23 @@ async function corpusCommand(
       );
     }
     return discovery.graphExplain(id);
+  }
+  if (subcommand === "explain-result") {
+    const slug = parsed.positionals[1];
+    const targetRepo = flagString(parsed.flags, "--target-repo");
+    if (!slug) {
+      throw new AppError(
+        "CORPUS_EXPLAIN_RESULT_REQUIRED",
+        "corpus explain-result requires a result slug.",
+      );
+    }
+    if (!targetRepo) {
+      throw new AppError(
+        "CORPUS_EXPLAIN_RESULT_TARGET_REQUIRED",
+        "corpus explain-result requires --target-repo <path>.",
+      );
+    }
+    return new CorpusProductService(root).explainResult({ targetRepo, slug });
   }
   if (subcommand === "release-notes" && parsed.positionals[1] === "build") {
     return discovery.releaseNotesBuild();
@@ -712,7 +746,7 @@ async function corpusCommand(
     default:
       throw new AppError(
         "CORPUS_COMMAND_REQUIRED",
-        "Use: sovryn corpus <index|search|dedupe|report|export-public|site|graph|compare|explain|serve|api|badges|release-notes|autopublish|publish-status|publish-audit>.",
+        "Use: sovryn corpus <index|search|dedupe|report|export-public|site|graph|compare|explain|explain-result|serve|api|badges|release-notes|autopublish|publish-status|publish-audit>.",
       );
   }
 }

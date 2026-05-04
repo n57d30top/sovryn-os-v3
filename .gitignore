@@ -35,6 +35,8 @@ graphify-out/graph.json
 public-corpus/
 .sovryn/pilots/
 .sovryn/corpus-autopublish/
+.sovryn/corpus-product/
 .sovryn/config.json
 .sovryn/plugins.json
 .sovryn/policy.json
+.sovryn/.DS_Store

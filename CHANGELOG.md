@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.0-alpha.20
+
+- Added Corpus Memory under `.sovryn/corpus/` for indexing Factory runs, Open
+  Inventions, concrete source cards, duplicate-risk relationships, and release
+  metadata.
+- Added `sovryn corpus index`, `sovryn corpus search`, `sovryn corpus dedupe`,
+  `sovryn corpus report`, and `sovryn release registry update`.
+- Added source and invention registries, duplicate maps, corpus quality reports,
+  feedback-index placeholders, and `PUBLIC_RELEASES.md` as a public Open
+  Invention registry.
+- Wired corpus signals into opportunity scans so future research queues can
+  reuse source evidence and detect duplicate-like research earlier.
+
 ## 3.0.0-alpha.19
 
 - Added secure worker runtime profiles for `sandbox-local`, `container-local`,

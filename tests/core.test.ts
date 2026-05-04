@@ -22,6 +22,7 @@ test("init creates config and directories", async () => {
   const gitignore = await readFile(join(repo.root, ".gitignore"), "utf8");
   assert.match(gitignore, /\.sovryn\/missions\//);
   assert.match(gitignore, /\.sovryn\/memory\//);
+  assert.match(gitignore, /\.sovryn\/corpus\//);
 });
 
 test("spawn creates a worktree and mission state with fake runner", async () => {
@@ -250,7 +251,7 @@ test("--json envelope shape is stable", async () => {
   const response = await executeCli(["doctor", "--json"], repo.root);
   assert.equal(typeof response.ok, "boolean");
   assert.equal(typeof response.command, "string");
-  assert.equal(response.version, "3.0.0-alpha.19");
+  assert.equal(response.version, "3.0.0-alpha.20");
   assert.equal(typeof response.timestamp, "string");
   assert.ok(Array.isArray(response.errors));
   assert.ok(Array.isArray(response.warnings));

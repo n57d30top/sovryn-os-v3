@@ -6,6 +6,7 @@ import {
 } from "../shared/json-envelope.js";
 import { AppError } from "../shared/errors.js";
 import { configExists, loadConfig } from "../core/config.js";
+import { CorpusService } from "../core/corpus/corpus-service.js";
 import {
   FactoryService,
   type FactoryRunMode,
@@ -73,6 +74,11 @@ Commands:
   sovryn worker doctor --all [--json]
   sovryn worker policy check [--json]
   sovryn worker run <mission-id> --profile container-netoff [--json]
+  sovryn corpus index [--json]
+  sovryn corpus search "<query>" [--json]
+  sovryn corpus dedupe [--json]
+  sovryn corpus report [--json]
+  sovryn release registry update [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -256,6 +262,26 @@ export async function executeCli(
             : [],
         });
       }
+      case "corpus": {
+        const result = await corpusCommand(parsed, root);
+        return okEnvelope("corpus", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "release": {
+        const result = await releaseCommand(parsed, root);
+        return okEnvelope("release", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
@@ -355,6 +381,47 @@ async function researchCommand(
         `Unknown research command: ${subcommand}`,
       );
   }
+}
+
+async function corpusCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new CorpusService(root);
+  switch (subcommand) {
+    case "index":
+      return service.index();
+    case "search": {
+      const query = parsed.positionals.slice(1).join(" ").trim();
+      return service.search(query);
+    }
+    case "dedupe":
+      return service.dedupe();
+    case "report":
+      return service.report();
+    default:
+      throw new AppError(
+        "CORPUS_COMMAND_REQUIRED",
+        "Use: sovryn corpus <index|search|dedupe|report>.",
+      );
+  }
+}
+
+async function releaseCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  if (
+    parsed.positionals[0] !== "registry" ||
+    parsed.positionals[1] !== "update"
+  ) {
+    throw new AppError(
+      "RELEASE_COMMAND_REQUIRED",
+      "Use: sovryn release registry update.",
+    );
+  }
+  return new CorpusService(root).updateReleaseRegistry();
 }
 
 function parseArgs(argv: string[]): ParsedArgs {

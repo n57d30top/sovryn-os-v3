@@ -197,6 +197,25 @@ uses the same publication philosophy: agents act, Sovryn verifies, evidence
 persists, policy gates block weak or unsafe work, and humans approve public
 release.
 
+## Corpus Memory
+
+Alpha.20 adds local corpus memory:
+
+```bash
+sovryn corpus index --json
+sovryn corpus search "verifiable agent evidence" --json
+sovryn corpus dedupe --json
+sovryn release registry update --json
+```
+
+The corpus indexes Factory runs, generated Open Inventions, concrete source
+cards, duplicate-risk relationships, dry-run release packages, and public
+release metadata. Future opportunity scans can use corpus signals to reduce
+duplicate work and reuse source evidence. The corpus is local by default and is
+not published automatically. Its `PUBLIC_RELEASES.md` registry is an
+open-source research registry, not a legal patent filing or legal novelty
+opinion.
+
 ## Dossier
 
 Each invention has a typed dossier with technical field, problem, background,

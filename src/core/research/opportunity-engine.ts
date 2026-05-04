@@ -6,6 +6,7 @@ import { nowIso } from "../../shared/time.js";
 import { configExists, loadConfig, type SovrynConfig } from "../config.js";
 import { FactoryService } from "../factory/factory-service.js";
 import { factoryPriorArtFixtures } from "../factory/factory-fixtures.js";
+import type { CorpusIndex } from "../corpus/corpus-types.js";
 import type {
   FactoryGateResult,
   FactoryScore,
@@ -99,12 +100,15 @@ export class ResearchOpportunityEngine {
 
     const factoryIndex = await this.readFactoryIndex();
     const inventionIndex = await this.readInventionIndex();
+    const corpusIndex = await this.readCorpusIndex();
     const publicSignals = await this.publicSourceSignals(broadGoal);
+    const corpusSignals = this.corpusSignals(broadGoal, corpusIndex);
     const signals = [
       ...baseSignals(broadGoal, config),
       ...(await this.factorySignals(factoryIndex)),
       ...(await this.inventionSignals(inventionIndex)),
       ...publicSignals,
+      ...corpusSignals,
     ];
     const opportunities = rankAndLimit(
       mergeDuplicateOpportunities(
@@ -131,6 +135,7 @@ export class ResearchOpportunityEngine {
         factoryRunCount: factoryIndex.factoryRuns.length,
         inventionCount: inventionIndex.inventions.length,
         publicSourceSignalCount: publicSignals.length,
+        corpusSourceCount: corpusIndex?.sources.length ?? 0,
         blockedSignalCount: opportunities.filter(
           (item) => item.recommendedAction === "block",
         ).length,
@@ -554,6 +559,12 @@ export class ResearchOpportunityEngine {
     ).catch(() => ({ inventions: [] }));
   }
 
+  private async readCorpusIndex(): Promise<CorpusIndex | null> {
+    return readJson<CorpusIndex>(
+      join(this.root, ".sovryn", "corpus", "corpus-index.json"),
+    ).catch(() => null);
+  }
+
   private async factorySignals(
     index: FactoryIndex,
   ): Promise<OpportunitySignal[]> {
@@ -749,6 +760,51 @@ export class ResearchOpportunityEngine {
       brief: goal,
       sources: ["web", "github", "papers", "standards", "patents"],
     });
+  }
+
+  private corpusSignals(
+    goal: string,
+    corpus: CorpusIndex | null,
+  ): OpportunitySignal[] {
+    if (!corpus) return [];
+    const sourceSignals = corpus.sources.slice(0, 3).map((source, index) => ({
+      signalId: `corpus-source-${index + 1}-${stableSlug(source.title)}`,
+      title: `Reuse corpus source evidence: ${source.title}`,
+      researchGoal: `Use prior corpus source evidence from ${source.title} to improve ${goal}`,
+      sourceType: "corpus" as const,
+      detail: `Corpus source ${source.sourceType} appears in ${source.factoryRunIds.length} prior factory run(s).`,
+      factoryRunId: source.factoryRunIds[0] ?? null,
+      inventionId: source.inventionIds[0] ?? null,
+      evidenceAvailability: source.evidenceStrength === "high" ? 80 : 60,
+      noveltyGapStrength: 55,
+      prototypeFeasibility: 70,
+      defensivePublicationValue: 70,
+      reproducibilityPotential: 75,
+      strategicFit: 80,
+      implementationComplexity: 35,
+      sourceWeakness: source.confidence === "high" ? 15 : 35,
+    }));
+    const duplicateSignals = corpus.duplicates
+      .filter((entry) => entry.duplicateRisk === "high")
+      .slice(0, 2)
+      .map((entry, index) => ({
+        signalId: `corpus-duplicate-${index + 1}-${entry.duplicateId}`,
+        title: `Reduce duplicate research risk: ${entry.leftTitle}`,
+        researchGoal: `Deduplicate or differentiate corpus research related to ${entry.leftTitle}`,
+        sourceType: "corpus" as const,
+        detail: entry.rationale,
+        factoryRunId: entry.leftKind === "factory" ? entry.leftId : null,
+        inventionId: entry.leftKind === "invention" ? entry.leftId : null,
+        evidenceAvailability: 65,
+        noveltyGapStrength: 50,
+        prototypeFeasibility: 60,
+        defensivePublicationValue: 65,
+        reproducibilityPotential: 70,
+        strategicFit: 75,
+        implementationComplexity: 35,
+        sourceWeakness: 30,
+      }));
+    return [...sourceSignals, ...duplicateSignals];
   }
 
   private async config(): Promise<SovrynConfig> {

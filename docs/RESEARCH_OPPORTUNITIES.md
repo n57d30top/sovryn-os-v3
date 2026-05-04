@@ -46,10 +46,16 @@ The engine generates candidates from:
 - failed or blocking review gates,
 - novelty gaps and counter-evidence,
 - optional fixture or public-source search signals.
+- optional corpus memory under `.sovryn/corpus/`.
 
 Network access is not required for the deterministic path. Public-source
 signals are only used when configured through `research.publicSearch` or
 fixture mode.
+
+Alpha.20 lets opportunity scans read `corpus-index.json` when present. Reusable
+source-card evidence and duplicate-risk relationships can become `corpus`
+signals, helping Sovryn reuse earlier work and avoid launching duplicate-like
+research without review.
 
 ## Scoring
 

@@ -115,6 +115,13 @@ export type SovrynConfig = {
       allowSelfImprovementGoals: boolean;
       preferSovrynSelfImprovement: boolean;
     };
+    corpus?: {
+      enabled: boolean;
+      maxSearchResults: number;
+      duplicateSimilarityThreshold: number;
+      publishPublicRegistry: boolean;
+      includePrivateMemoryInPublicRegistry: boolean;
+    };
   };
 };
 
@@ -230,6 +237,13 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       allowSelfImprovementGoals: true,
       preferSovrynSelfImprovement: true,
     },
+    corpus: {
+      enabled: true,
+      maxSearchResults: 10,
+      duplicateSimilarityThreshold: 65,
+      publishPublicRegistry: true,
+      includePrivateMemoryInPublicRegistry: false,
+    },
   },
 };
 
@@ -279,6 +293,7 @@ async function ensureGitignore(root: string): Promise<void> {
     ".sovryn/research-cache/",
     ".sovryn/adapters/",
     ".sovryn/workers/",
+    ".sovryn/corpus/",
   ];
   const missing = required.filter(
     (line) => !existing.split("\n").includes(line),

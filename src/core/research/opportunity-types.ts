@@ -21,7 +21,8 @@ export type OpportunitySourceType =
   | "failed_gate"
   | "novelty_gap"
   | "counter_evidence"
-  | "public_source";
+  | "public_source"
+  | "corpus";
 
 export type ResearchOpportunityConfig = {
   enabled: boolean;
@@ -72,6 +73,7 @@ export type OpportunityScan = {
     factoryRunCount: number;
     inventionCount: number;
     publicSourceSignalCount: number;
+    corpusSourceCount: number;
     blockedSignalCount: number;
   };
   opportunities: ResearchOpportunity[];

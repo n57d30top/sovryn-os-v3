@@ -150,6 +150,12 @@ include tokens, raw stdout/stderr, private config, or full raw source content.
 Offline replay and cache hits improve reproducibility; they do not bypass
 Factory, Open Invention, safety, secret, or publication gates.
 
+Alpha.20 adds local corpus memory under `.sovryn/corpus/`. Corpus artifacts are
+not published automatically and should be treated as local research memory. The
+public registry file `PUBLIC_RELEASES.md` contains curated release metadata
+only; it must not include raw logs, secrets, private config, full raw source
+content, or local absolute workspace paths.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

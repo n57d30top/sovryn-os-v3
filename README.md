@@ -281,6 +281,40 @@ not bypass Factory, Open Invention, safety, secret, replay, or publication
 gates. Blocked opportunities are not executed. Duplicate-like opportunities are
 scored and explained instead of being silently discarded.
 
+## Corpus Memory
+
+Alpha.20 adds a local corpus memory layer. It indexes previous Factory runs,
+generated Open Inventions, source cards, duplicate-risk relationships, dry-run
+release packages, and public release metadata under `.sovryn/corpus/`.
+
+```bash
+sovryn corpus index --json
+sovryn corpus search "source-card trust scoring" --json
+sovryn corpus dedupe --json
+sovryn corpus report --json
+sovryn release registry update --json
+```
+
+Corpus artifacts include:
+
+```text
+.sovryn/corpus/
+  corpus-index.json
+  invention-registry.json
+  source-registry.json
+  duplicate-map.json
+  feedback-index.json
+  corpus-quality-report.json
+  corpus-quality-report.md
+  PUBLIC_RELEASES.md
+```
+
+The corpus improves future opportunity scans by surfacing reusable source
+evidence and duplicate-risk signals. It is local memory by default and is not
+published automatically. `PUBLIC_RELEASES.md` is a public Open Invention
+registry for releases or dry-run release packages; it is not a patent filing,
+not a patentability opinion, and not a freedom-to-operate opinion.
+
 ## Node Alpha Toolchains
 
 Alpha.16 adds controlled toolchain planning for Node Alpha. The toolchain layer

@@ -156,6 +156,12 @@ public registry file `PUBLIC_RELEASES.md` contains curated release metadata
 only; it must not include raw logs, secrets, private config, full raw source
 content, or local absolute workspace paths.
 
+Alpha.22 adds `.sovryn/quality/` evaluator artifacts. The quality evaluator
+scans curated public releases for secret-like text, raw log references, local
+absolute paths, and unsafe legal patentability language. These checks are an
+additional audit layer; they do not replace publication gates, secret scanning,
+worker isolation, or human review.
+
 Factory public release packages are allowlisted. They must not include raw
 command journals, raw stdout/stderr logs, private config, tokens, local absolute
 paths, full raw source content, or files outside the curated public evidence

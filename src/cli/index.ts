@@ -15,6 +15,7 @@ import { InventionService } from "../core/invention/invention-service.js";
 import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
 import { NodeAlphaToolchainManager } from "../core/node/toolchain-manager.js";
+import { QualityEvaluator } from "../core/quality/quality-service.js";
 import { ReleaseCandidateService } from "../core/release/release-candidate-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import {
@@ -83,6 +84,11 @@ Commands:
   sovryn release candidates review [--json]
   sovryn release candidates package [--json]
   sovryn release registry update [--json]
+  sovryn quality evaluate <factory-id> [--json]
+  sovryn quality evaluate-invention <mission-id> [--json]
+  sovryn quality compare <factory-id-a> <factory-id-b> [--json]
+  sovryn quality report [--json]
+  sovryn quality leaderboard [--json]
   sovryn invention status <mission-id> [--json]
   sovryn invention dossier <mission-id> [--json]
   sovryn invention verify <mission-id> [--json]
@@ -286,6 +292,16 @@ export async function executeCli(
             : [],
         });
       }
+      case "quality": {
+        const result = await qualityCommand(parsed, root);
+        return okEnvelope("quality", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "plugin":
         return okEnvelope("plugin", await pluginCommand(parsed, root));
       default:
@@ -439,6 +455,56 @@ async function releaseCommand(
     );
   }
   return new CorpusService(root).updateReleaseRegistry();
+}
+
+async function qualityCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const evaluator = new QualityEvaluator(root);
+  switch (subcommand) {
+    case "evaluate": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "QUALITY_FACTORY_ID_REQUIRED",
+          "quality evaluate requires a factory id.",
+        );
+      }
+      return evaluator.evaluateFactory(id);
+    }
+    case "evaluate-invention": {
+      const id = parsed.positionals[1];
+      if (!id) {
+        throw new AppError(
+          "QUALITY_MISSION_ID_REQUIRED",
+          "quality evaluate-invention requires a mission id.",
+        );
+      }
+      return evaluator.evaluateInvention(id);
+    }
+    case "compare": {
+      const left = parsed.positionals[1];
+      const right = parsed.positionals[2];
+      if (!left || !right) {
+        throw new AppError(
+          "QUALITY_COMPARE_IDS_REQUIRED",
+          "quality compare requires two factory ids.",
+        );
+      }
+      return evaluator.compare(left, right);
+    }
+    case "report":
+      return evaluator.report();
+    case "leaderboard":
+      return evaluator.leaderboard();
+    default:
+      throw new AppError(
+        "QUALITY_COMMAND_REQUIRED",
+        "Use: sovryn quality <evaluate|evaluate-invention|compare|report|leaderboard>.",
+      );
+  }
 }
 
 function parseArgs(argv: string[]): ParsedArgs {

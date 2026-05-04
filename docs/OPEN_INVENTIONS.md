@@ -245,6 +245,30 @@ Release candidates are not automatic public releases. They are a review queue
 for Open Inventions that may later be finalized and published through Sovryn's
 existing publication gates.
 
+## Research Quality
+
+Alpha.22 adds a Research Quality Evaluator:
+
+```bash
+sovryn quality evaluate <factory-id> --json
+sovryn quality evaluate-invention <mission-id> --json
+sovryn quality compare <factory-id-a> <factory-id-b> --json
+sovryn quality report --json
+sovryn quality leaderboard --json
+```
+
+The evaluator grades source quality, reading depth, claim mapping,
+counter-evidence, novelty-risk honesty, prototype relevance, tests,
+reproducibility, safety review, publication clarity, corpus uniqueness, and
+defensive-publication value. It writes `.sovryn/quality/quality-report.json`,
+`QUALITY_REPORT.md`, `quality-leaderboard.json`, `QUALITY_LEADERBOARD.md`,
+`evaluator-rubric.json`, and `evaluator-findings.json`.
+
+Quality evaluation is a deterministic artifact-quality review. It can block a
+release candidate from being marked publish-ready when evidence is weak, tests
+are trivial, counter-evidence is missing, or publication language is unsafe. It
+is not a legal novelty, patentability, or freedom-to-operate opinion.
+
 ## Dossier
 
 Each invention has a typed dossier with technical field, problem, background,

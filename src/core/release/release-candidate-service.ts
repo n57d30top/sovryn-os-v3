@@ -23,6 +23,7 @@ import type {
 import { InventionService } from "../invention/invention-service.js";
 import type { OpenInventionMissionState } from "../invention/invention-types.js";
 import { hashEvidence } from "../invention/pipeline.js";
+import { QualityEvaluator } from "../quality/quality-service.js";
 import type {
   PublicationQueue,
   ReleaseCandidate,
@@ -53,6 +54,7 @@ export class ReleaseCandidateService {
     const candidates: ReleaseCandidate[] = [];
     const factoryService = new FactoryService(this.root);
     const inventionService = new InventionService(this.root);
+    const qualityEvaluator = new QualityEvaluator(this.root);
     await mkdir(this.releaseRoot(), { recursive: true });
     for (const goal of goals) {
       const factory = await factoryService.run(goal, {
@@ -76,6 +78,7 @@ export class ReleaseCandidateService {
       const mission = (await inventionService.readMission(
         missionId,
       )) as OpenInventionMissionState;
+      await qualityEvaluator.evaluateFactory(run.id);
       const candidate = await this.buildCandidate({
         run,
         mission,
@@ -367,6 +370,9 @@ export class ReleaseCandidateService {
         item.text,
       ),
     );
+    const quality = await new QualityEvaluator(this.root).releaseQualityGate(
+      candidate.factoryId,
+    );
     return [
       gate(
         "RELEASE_CANDIDATE_COMPLETE",
@@ -432,6 +438,12 @@ export class ReleaseCandidateService {
         legalClaimHits.length === 0,
         "Release package must not make legal patentability or freedom-to-operate claims.",
         { hits: legalClaimHits.map((item) => item.path) },
+      ),
+      gate(
+        "QUALITY_SCORE_ABOVE_MINIMUM",
+        quality.passed,
+        quality.message,
+        quality.details,
       ),
       gate(
         "HUMAN_REVIEW_REQUIRED_FOR_REAL_PUBLISH",

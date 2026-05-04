@@ -51,12 +51,18 @@ Release-candidate review checks:
 - `NO_RAW_LOGS_IN_RELEASE`
 - `NO_SECRETS_IN_RELEASE`
 - `NO_LEGAL_PATENTABILITY_CLAIMS`
+- `QUALITY_SCORE_ABOVE_MINIMUM`
 - `HUMAN_REVIEW_REQUIRED_FOR_REAL_PUBLISH`
 
 The workflow intentionally keeps real publication separate. Release candidates
 are queued for human review and do not publish to GitHub automatically. Real
 publication still requires the existing Open Invention finalization, safety,
 secret, license, replay, and GitHub publication gates.
+
+Alpha.22 adds the `QUALITY_SCORE_ABOVE_MINIMUM` gate. Release-candidate build
+writes a quality evaluation for each generated Factory run, and review blocks
+publish-ready queueing if the candidate falls below
+`research.quality.minReleaseQualityScore`.
 
 ## Public Package
 

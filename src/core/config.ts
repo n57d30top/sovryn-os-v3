@@ -122,6 +122,13 @@ export type SovrynConfig = {
       publishPublicRegistry: boolean;
       includePrivateMemoryInPublicRegistry: boolean;
     };
+    quality?: {
+      minReleaseQualityScore: number;
+      requireNonTrivialTests: boolean;
+      blockInflatedStrong: boolean;
+      requireCounterEvidence: boolean;
+      requirePrototypeRelevance: boolean;
+    };
   };
 };
 
@@ -244,6 +251,13 @@ export const DEFAULT_CONFIG: SovrynConfig = {
       publishPublicRegistry: true,
       includePrivateMemoryInPublicRegistry: false,
     },
+    quality: {
+      minReleaseQualityScore: 70,
+      requireNonTrivialTests: true,
+      blockInflatedStrong: true,
+      requireCounterEvidence: true,
+      requirePrototypeRelevance: true,
+    },
   },
 };
 
@@ -295,6 +309,7 @@ async function ensureGitignore(root: string): Promise<void> {
     ".sovryn/workers/",
     ".sovryn/corpus/",
     ".sovryn/releases/",
+    ".sovryn/quality/",
   ];
   const missing = required.filter(
     (line) => !existing.split("\n").includes(line),

@@ -71,6 +71,11 @@ sovryn release candidates build --max 3 --json
 sovryn release candidates review --json
 sovryn release candidates package --json
 sovryn release registry update --json
+sovryn quality evaluate <factory-id> --json
+sovryn quality evaluate-invention <mission-id> --json
+sovryn quality compare <factory-id-a> <factory-id-b> --json
+sovryn quality report --json
+sovryn quality leaderboard --json
 sovryn worker doctor --profile container-local --json
 sovryn worker doctor --profile container-netoff --json
 sovryn worker doctor --all --json
@@ -356,6 +361,49 @@ evidence, prototype execution, corpus duplicate review, raw-log exclusion,
 secret scanning, careful non-legal language, and human-review requirements.
 Release candidates are not published automatically. Real GitHub publication
 still goes through Open Invention finalization and Sovryn publication gates.
+
+## Research Quality Evaluator
+
+Alpha.22 adds an independent Research Quality Evaluator. It grades Factory runs,
+Open Invention missions, source cards, claim matrices, counter-evidence,
+prototypes, tests, release packages, and corpus uniqueness using explicit
+criteria. This is a second-opinion evaluator; it does not replace Factory gates
+or publication gates.
+
+```bash
+sovryn quality evaluate <factory-id> --json
+sovryn quality evaluate-invention <mission-id> --json
+sovryn quality compare <factory-id-a> <factory-id-b> --json
+sovryn quality report --json
+sovryn quality leaderboard --json
+```
+
+Quality artifacts are written under `.sovryn/quality/`:
+
+```text
+.sovryn/quality/
+  evaluations/
+  inventions/
+  quality-report.json
+  QUALITY_REPORT.md
+  quality-leaderboard.json
+  QUALITY_LEADERBOARD.md
+  evaluator-rubric.json
+  evaluator-findings.json
+```
+
+The evaluator scores source quality, reading depth, claim mapping,
+counter-evidence, novelty-risk honesty, prototype relevance, test relevance,
+reproducibility, safety review, publication clarity, corpus uniqueness, and
+defensive-publication value. It also detects shallow readings, unsupported
+differentiators, missing counter-evidence, trivial tests, unexecuted benchmark
+claims, unsafe legal language, duplicate-like inventions, and public release
+leakage risks.
+
+Release-candidate review now includes quality evidence when available. A
+candidate with a quality score below `research.quality.minReleaseQualityScore`
+is blocked from being queued as publish-ready. This is still not a legal
+patentability, legal novelty, or freedom-to-operate opinion.
 
 ## Node Alpha Toolchains
 

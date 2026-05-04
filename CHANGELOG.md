@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.0.0-alpha.22
+
+- Added the Research Quality Evaluator for grading Factory runs and Open
+  Invention missions using explicit evidence-based dimensions.
+- Added `sovryn quality evaluate`, `evaluate-invention`, `compare`, `report`,
+  and `leaderboard`.
+- Added `.sovryn/quality/` artifacts including quality reports, leaderboards,
+  evaluator rubrics, findings, and per-target evaluations.
+- Added quality gates for minimum score, inflated strong-label detection,
+  non-trivial prototype tests, meaningful counter-evidence, and safe
+  publication language.
+- Wired release-candidate review to quality evaluations so weak quality blocks
+  publish-ready candidate queueing.
+
 ## 3.0.0-alpha.21
 
 - Added the release-candidate workflow for building, reviewing, and packaging

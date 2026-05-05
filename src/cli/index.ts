@@ -220,6 +220,10 @@ Commands:
   sovryn science publish <study-id> --target-repo <path> [--json]
   sovryn science publish-all --target-repo <path> [--json]
   sovryn science publish-audit --target-repo <path> [--json]
+  sovryn science reproduce plan <source-id-or-url> [--json]
+  sovryn science reproduce run <reproduction-id> [--json]
+  sovryn science reproduce analyze <reproduction-id> [--json]
+  sovryn science reproduce report <reproduction-id> [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1586,6 +1590,50 @@ async function scienceCommand(
       }
       return service.publishAudit(targetRepo);
     }
+    case "reproduce": {
+      const action = parsed.positionals[1];
+      const value = parsed.positionals.slice(2).join(" ").trim();
+      if (action === "plan") {
+        if (!value) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            "Use: sovryn science reproduce plan <source-id-or-url>.",
+          );
+        }
+        return service.planReproduction(value);
+      }
+      if (action === "run") {
+        if (!value) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            "Use: sovryn science reproduce run <reproduction-id>.",
+          );
+        }
+        return service.runReproduction(value);
+      }
+      if (action === "analyze") {
+        if (!value) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            "Use: sovryn science reproduce analyze <reproduction-id>.",
+          );
+        }
+        return service.analyzeReproduction(value);
+      }
+      if (action === "report") {
+        if (!value) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            "Use: sovryn science reproduce report <reproduction-id>.",
+          );
+        }
+        return service.reportReproduction(value);
+      }
+      throw new AppError(
+        "SCIENCE_REPRODUCE_USAGE",
+        "Use: sovryn science reproduce <plan|run|analyze|report>.",
+      );
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
@@ -1610,7 +1658,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|publish|publish-all|publish-audit|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|publish|publish-all|publish-audit|reproduce plan|reproduce run|reproduce analyze|reproduce report|study status|review>.",
       );
   }
 }

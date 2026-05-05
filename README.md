@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.2.0-alpha.1`
+Current version: `3.2.0-alpha.2`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -52,6 +52,10 @@ Sovryn OS 3.2 Alpha.1 adds the first real-data ingestion and provenance layer:
 safe dataset search, deterministic cache, validation, provenance, replay, and
 real-vs-synthetic comparison artifacts. It still treats proxy data
 conservatively and does not make broad real-world performance claims.
+3.2 Alpha.2 adds bounded scientific reproduction: source-claim extraction,
+method/data/metric requirement extraction, reproduction planning, deterministic
+runs, reproduction analysis, and careful reproduced/partially-reproduced/
+inconclusive labels.
 Scientific support remains bounded to the evidence actually produced.
 
 | Version         | Focus                            | Result                                                                                                                                                                       |
@@ -64,6 +68,7 @@ Scientific support remains bounded to the evidence actually produced.
 | `3.1.0-rc.1`    | Science Campaign                 | Adds `sovryn science campaign run` for two-study autonomous computational-science campaigns with statistics, replication, falsification, memory, and curated local packages. |
 | `3.1.0-rc.2`    | Public Science Study Publication | Adds `sovryn science publish`, `publish-all`, and `publish-audit` for publishing completed computational-science studies into the public corpus with strict hygiene gates.   |
 | `3.2.0-alpha.1` | Real Data Ingestion              | Adds `sovryn science data search/ingest/validate/provenance/cache/replay` with safe public/proxy datasets, provenance, validation, replay cache, and study binding.          |
+| `3.2.0-alpha.2` | Scientific Reproduction          | Adds `sovryn science reproduce plan/run/analyze/report` for safe bounded reproduction of external or internal computational claims.                                          |
 
 New science commands:
 
@@ -98,6 +103,10 @@ sovryn science campaign run --goal "Run safe computational science studies" --st
 sovryn science publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-all --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science reproduce plan "safe public energy anomaly detection claim" --json
+sovryn science reproduce run <reproduction-id> --json
+sovryn science reproduce analyze <reproduction-id> --json
+sovryn science reproduce report <reproduction-id> --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```
@@ -121,6 +130,10 @@ and public hygiene before a science study can be written into the corpus.
 3.2 Alpha.1 real-data gates require a real-data plan, public-safe dataset
 provenance, validation, cache or replay evidence, declared limitations,
 real-vs-synthetic comparison, and explicit rejection of private or unsafe data.
+3.2 Alpha.2 reproduction gates require extracted claims, extracted methods,
+data requirements, metric requirements, a reproduction plan, a reproduction run,
+analysis, limitations, safe computational scope, and no overclaimed
+reproduction result.
 The layer is limited to safe computational science over synthetic data, public
 non-sensitive data, simulations, statistics, benchmarks, and software
 instruments.

@@ -1,6 +1,6 @@
 # Scientific Method Core
 
-Sovryn OS `3.2.0-alpha.1` includes the first autonomous
+Sovryn OS `3.2.0-alpha.2` includes the first autonomous
 computational-science layer, a deterministic experiment/data/instrument
 runtime, bounded statistical analysis, replication, and falsification for safe
 synthetic energy-data studies. Alpha.5 adds scientific memory, fixture-backed
@@ -14,6 +14,10 @@ updates, INDEX/API updates, and public-hygiene audit gates.
 3.2 Alpha.1 adds safe real-data ingestion for computational science: dataset
 search, deterministic fixture/cache ingestion, provenance, validation, replay,
 study binding, and real-vs-synthetic comparison with conservative limitations.
+3.2 Alpha.2 adds scientific reproduction planning and execution for safe
+external or internal computational claims, including source-claim extraction,
+method/data/metric requirements, bounded reproduction runs, analysis labels,
+reports, and limitations.
 
 The core flow is:
 
@@ -39,6 +43,9 @@ The core flow is:
     studies, writes paper-style reports, and prepares curated public packages.
 19. Publish completed studies into the public corpus as
     `computational_science_study` results after publication gates pass.
+20. Optionally reproduce a safe external or internal computational claim and
+    report whether it was reproduced, partially reproduced, not reproduced, or
+    inconclusive.
 
 ```bash
 sovryn science question "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?" --json
@@ -71,6 +78,10 @@ sovryn science campaign run --goal "Run safe computational science studies" --st
 sovryn science publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-all --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science reproduce plan "safe public energy anomaly detection claim" --json
+sovryn science reproduce run <reproduction-id> --json
+sovryn science reproduce analyze <reproduction-id> --json
+sovryn science reproduce report <reproduction-id> --json
 sovryn science review <study-id> --json
 ```
 
@@ -129,6 +140,21 @@ Study artifacts are written under:
   NEXT_QUESTIONS.md
   science-review.json
   SCIENCE_REVIEW.md
+```
+
+Reproduction artifacts are written under:
+
+```text
+.sovryn/science/reproductions/<reproduction-slug>/
+  reproduction-plan.json
+  source-claim-extraction.json
+  method-extraction.json
+  data-requirements.json
+  metric-requirements.json
+  reproduction-run.json
+  reproduction-analysis.json
+  REPRODUCTION_REPORT.md
+  REPRODUCTION_LIMITATIONS.md
 ```
 
 Real-data registry artifacts are written under:
@@ -225,6 +251,10 @@ validation, replayable cache evidence, declared limitations, no private data,
 no unsafe data domain, and real-vs-synthetic comparison. Deterministic proxy
 datasets are labeled as such and do not support broad real-world performance
 claims.
+3.2 Alpha.2 reproduction gates require a source claim, method extraction, data
+requirements, metric requirements, reproduction plan, run, analysis,
+limitations, no unsafe reproduction scope, and no overclaimed reproduction
+label.
 
 Alpha.5 can mark a hypothesis `supported` only within the bounded synthetic
 study when replication is stable and falsification has no material failures.

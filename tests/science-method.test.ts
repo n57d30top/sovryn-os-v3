@@ -82,6 +82,9 @@ let sciencePublishFixturePromise:
 let realDataFixturePromise:
   | Promise<Awaited<ReturnType<typeof createRealDataStudy>>>
   | undefined;
+let reproductionFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createReproductionFixture>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -116,6 +119,11 @@ async function sciencePublishFixture() {
 async function realDataFixture() {
   realDataFixturePromise ??= createRealDataStudy();
   return realDataFixturePromise;
+}
+
+async function reproductionFixture() {
+  reproductionFixturePromise ??= createReproductionFixture();
+  return reproductionFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -228,6 +236,61 @@ async function createRealDataStudy() {
     provenance: provenance.data as any,
     cacheStatus: cacheStatus.data as any,
     replay: replay.data as any,
+  };
+}
+
+async function createReproductionFixture() {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(plan.ok, true, JSON.stringify(plan.errors, null, 2));
+  const reproductionPlan = (plan.data as any).reproductionPlan;
+  const run = await executeCli(
+    ["science", "reproduce", "run", reproductionPlan.reproductionId, "--json"],
+    repo.root,
+  );
+  assert.equal(run.ok, true, JSON.stringify(run.errors, null, 2));
+  const analyze = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "analyze",
+      reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(analyze.ok, true, JSON.stringify(analyze.errors, null, 2));
+  const report = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "report",
+      reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(report.ok, true, JSON.stringify(report.errors, null, 2));
+  return {
+    repo,
+    plan: plan.data as any,
+    reproductionPlan,
+    sourceClaimExtraction: (plan.data as any).sourceClaimExtraction,
+    methodExtraction: (plan.data as any).methodExtraction,
+    dataRequirements: (plan.data as any).dataRequirements,
+    metricRequirements: (plan.data as any).metricRequirements,
+    reproductionRun: (run.data as any).reproductionRun,
+    reproductionAnalysis: (analyze.data as any).reproductionAnalysis,
+    report: (report.data as any).report,
   };
 }
 
@@ -435,9 +498,13 @@ function studyPath(root: string, slug: string, file: string): string {
   return join(root, ".sovryn", "science", "studies", slug, file);
 }
 
+function reproductionPath(root: string, slug: string, file: string): string {
+  return join(root, ".sovryn", "science", "reproductions", slug, file);
+}
+
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.2.0-alpha.1");
+  assert.equal(pkg.version, "3.2.0-alpha.2");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -1412,6 +1479,571 @@ test("science data registry records replayability", async () => {
 test("science data registry records provenance confidence", async () => {
   const { ingest } = await realDataFixture();
   assert.ok(ingest.registry.datasets[0].provenanceConfidence >= 0.7);
+});
+
+test("alpha.2 science reproduce commands are listed in help", async () => {
+  const help = (await executeCli(["--help"], process.cwd())).data as any;
+  assert.match(help.help, /science reproduce plan/);
+  assert.match(help.help, /science reproduce run/);
+  assert.match(help.help, /science reproduce analyze/);
+  assert.match(help.help, /science reproduce report/);
+});
+
+test("science reproduce plan extracts a source claim", async () => {
+  const { sourceClaimExtraction } = await reproductionFixture();
+  assert.match(sourceClaimExtraction.externalClaim, /provenance-aware/i);
+  assert.equal(sourceClaimExtraction.reviewedAsComputationalClaim, true);
+});
+
+test("science reproduce plan records external source type", async () => {
+  const { reproductionPlan } = await reproductionFixture();
+  assert.equal(reproductionPlan.sourceType, "external_public_claim");
+});
+
+test("science reproduce plan writes plan artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "reproduction-plan.json",
+    ),
+  );
+});
+
+test("science reproduce plan writes source claim artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "source-claim-extraction.json",
+    ),
+  );
+});
+
+test("science reproduce plan writes method extraction artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "method-extraction.json",
+    ),
+  );
+});
+
+test("science reproduce plan writes data requirements artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "data-requirements.json",
+    ),
+  );
+});
+
+test("science reproduce plan writes metric requirements artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "metric-requirements.json",
+    ),
+  );
+});
+
+test("science reproduce plan includes method steps", async () => {
+  const { methodExtraction } = await reproductionFixture();
+  assert.ok(methodExtraction.methodSteps.length >= 3);
+});
+
+test("science reproduce plan includes baseline and candidate method", async () => {
+  const { methodExtraction } = await reproductionFixture();
+  assert.match(methodExtraction.baselineMethod, /threshold/i);
+  assert.match(methodExtraction.candidateMethod, /provenance/i);
+});
+
+test("science reproduce plan records data substitutions", async () => {
+  const { dataRequirements } = await reproductionFixture();
+  assert.ok(dataRequirements.substitutedData.length >= 1);
+  assert.equal(dataRequirements.publicSafeDataOnly, true);
+});
+
+test("science reproduce plan records metric requirements", async () => {
+  const { metricRequirements } = await reproductionFixture();
+  assert.ok(metricRequirements.primaryMetrics.includes("false positive rate"));
+  assert.ok(metricRequirements.primaryMetrics.includes("recall"));
+});
+
+test("science reproduce plan records safe reproduction gates", async () => {
+  const { reproductionPlan } = await reproductionFixture();
+  assert.ok(
+    reproductionPlan.gates.some(
+      (gate: any) => gate.code === "NO_UNSAFE_REPRODUCTION_SCOPE",
+    ),
+  );
+  assert.equal(
+    reproductionPlan.gates.every((gate: any) => gate.passed),
+    true,
+  );
+});
+
+test("science reproduce blocks unsafe source at run time", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "wet-lab protocol for hazardous chemistry synthesis",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(plan.ok, true, JSON.stringify(plan.errors, null, 2));
+  const response = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "run",
+      (plan.data as any).reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_REPRODUCTION_UNSAFE_SCOPE");
+});
+
+test("science reproduce missing method blocks run", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(plan.ok, true, JSON.stringify(plan.errors, null, 2));
+  const reproductionPlan = (plan.data as any).reproductionPlan;
+  const methodPath = reproductionPath(
+    repo.root,
+    reproductionPlan.slug,
+    "method-extraction.json",
+  );
+  const method = await readJson<any>(methodPath);
+  await writeJson(methodPath, {
+    ...method,
+    methodAvailable: false,
+    methodSteps: [],
+  });
+  const response = await executeCli(
+    ["science", "reproduce", "run", reproductionPlan.reproductionId, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_REPRODUCTION_METHOD_REQUIRED");
+});
+
+test("science reproduce run writes run artifact", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(repo.root, reproductionPlan.slug, "reproduction-run.json"),
+  );
+});
+
+test("science reproduce run records container-netoff profile", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.equal(reproductionRun.workerProfile, "container-netoff");
+});
+
+test("science reproduce run records no silent fallback", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.equal(reproductionRun.noSilentFallback, true);
+});
+
+test("science reproduce run stores redacted output summary only", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.match(reproductionRun.redactedOutputSummary, /redacted/i);
+});
+
+test("science reproduce run compares baseline and candidate metrics", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.ok(
+    reproductionRun.candidateMetrics.falsePositiveRate <
+      reproductionRun.baselineMetrics.falsePositiveRate,
+  );
+});
+
+test("science reproduce run records partial implementation match for external source", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.equal(reproductionRun.implementationMatch, "partial");
+});
+
+test("science reproduce analyze requires run", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  const response = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "analyze",
+      (plan.data as any).reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_REPRODUCTION_RUN_REQUIRED");
+});
+
+test("science reproduce analysis is partially reproduced for substituted external data", async () => {
+  const { reproductionAnalysis } = await reproductionFixture();
+  assert.equal(reproductionAnalysis.result, "partially_reproduced");
+});
+
+test("science reproduce analysis lowers confidence for substitutions", async () => {
+  const { reproductionAnalysis } = await reproductionFixture();
+  assert.ok(reproductionAnalysis.reproductionConfidence < 0.7);
+});
+
+test("science reproduce analysis records confidence deductions", async () => {
+  const { reproductionAnalysis } = await reproductionFixture();
+  assert.ok(
+    reproductionAnalysis.confidenceDeductions.some((item: string) =>
+      /substituted data/i.test(item),
+    ),
+  );
+});
+
+test("science reproduce analysis includes no-overclaim gate", async () => {
+  const { reproductionAnalysis } = await reproductionFixture();
+  assert.ok(
+    reproductionAnalysis.gates.some(
+      (gate: any) => gate.code === "NO_OVERCLAIMED_REPRODUCTION",
+    ),
+  );
+});
+
+test("science reproduce report writes markdown report", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "REPRODUCTION_REPORT.md",
+    ),
+  );
+});
+
+test("science reproduce report writes limitations markdown", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  await access(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "REPRODUCTION_LIMITATIONS.md",
+    ),
+  );
+});
+
+test("science reproduce report includes result label", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const report = await readFile(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "REPRODUCTION_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /partially_reproduced/);
+});
+
+test("science reproduce report includes limitations", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const report = await readFile(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "REPRODUCTION_LIMITATIONS.md",
+    ),
+    "utf8",
+  );
+  assert.match(report, /substituted data/i);
+});
+
+test("science reproduce report avoids legal claims", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const report = await readFile(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "REPRODUCTION_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(report, /patentable|legally novel|freedom to operate/i);
+});
+
+test("science reproduce artifacts exclude raw logs", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const text = await readFile(
+    reproductionPath(repo.root, reproductionPlan.slug, "reproduction-run.json"),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /"stdout"|"stderr"|command-journal/i);
+});
+
+test("science reproduce artifacts exclude local absolute paths", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const text = await readFile(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "reproduction-analysis.json",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /\/Users\/|\/home\/|C:\\Users\\/i);
+});
+
+test("science reproduce artifacts exclude secrets", async () => {
+  const { repo, reproductionPlan } = await reproductionFixture();
+  const text = await readFile(
+    reproductionPath(
+      repo.root,
+      reproductionPlan.slug,
+      "reproduction-plan.json",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /ghp_|GITHUB_TOKEN|OPENAI_API_KEY|private key/i);
+});
+
+test("science reproduce internal baseline can be reproduced", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "internal sovryn energy anomaly result",
+      "--json",
+    ],
+    repo.root,
+  );
+  const reproductionId = (plan.data as any).reproductionPlan.reproductionId;
+  await executeCli(
+    ["science", "reproduce", "run", reproductionId, "--json"],
+    repo.root,
+  );
+  const analyze = await executeCli(
+    ["science", "reproduce", "analyze", reproductionId, "--json"],
+    repo.root,
+  );
+  assert.equal((analyze.data as any).reproductionAnalysis.result, "reproduced");
+});
+
+test("science reproduce internal baseline is labeled internal", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "internal sovryn energy anomaly result",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(
+    (plan.data as any).reproductionPlan.sourceType,
+    "internal_sovryn_baseline",
+  );
+});
+
+test("science reproduce substituted dataset lowers confidence relative to internal", async () => {
+  const external = await reproductionFixture();
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "internal sovryn energy anomaly result",
+      "--json",
+    ],
+    repo.root,
+  );
+  const reproductionId = (plan.data as any).reproductionPlan.reproductionId;
+  await executeCli(
+    ["science", "reproduce", "run", reproductionId, "--json"],
+    repo.root,
+  );
+  const analyze = await executeCli(
+    ["science", "reproduce", "analyze", reproductionId, "--json"],
+    repo.root,
+  );
+  assert.ok(
+    external.reproductionAnalysis.reproductionConfidence <
+      (analyze.data as any).reproductionAnalysis.reproductionConfidence,
+  );
+});
+
+test("science reproduce metric mismatch becomes inconclusive", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  const reproductionPlan = (plan.data as any).reproductionPlan;
+  await executeCli(
+    ["science", "reproduce", "run", reproductionPlan.reproductionId, "--json"],
+    repo.root,
+  );
+  const runPath = reproductionPath(
+    repo.root,
+    reproductionPlan.slug,
+    "reproduction-run.json",
+  );
+  const run = await readJson<any>(runPath);
+  await writeJson(runPath, { ...run, metricMatch: false });
+  const analyze = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "analyze",
+      reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(
+    (analyze.data as any).reproductionAnalysis.result,
+    "inconclusive",
+  );
+});
+
+test("science reproduce candidate losing is not reproduced", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  const reproductionPlan = (plan.data as any).reproductionPlan;
+  await executeCli(
+    ["science", "reproduce", "run", reproductionPlan.reproductionId, "--json"],
+    repo.root,
+  );
+  const runPath = reproductionPath(
+    repo.root,
+    reproductionPlan.slug,
+    "reproduction-run.json",
+  );
+  const run = await readJson<any>(runPath);
+  await writeJson(runPath, {
+    ...run,
+    candidateMetrics: {
+      ...run.candidateMetrics,
+      falsePositiveRate: run.baselineMetrics.falsePositiveRate,
+    },
+  });
+  const analyze = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "analyze",
+      reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(
+    (analyze.data as any).reproductionAnalysis.result,
+    "not_reproduced",
+  );
+});
+
+test("science reproduce report requires analysis", async () => {
+  const repo = await initRepo();
+  const plan = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "plan",
+      "safe public energy anomaly detection claim",
+      "--json",
+    ],
+    repo.root,
+  );
+  const response = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "report",
+      (plan.data as any).reproductionPlan.reproductionId,
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(
+    response.errors[0].code,
+    "SCIENCE_REPRODUCTION_ANALYSIS_REQUIRED",
+  );
+});
+
+test("science reproduce unknown id returns stable error", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    ["science", "reproduce", "run", "missing-reproduction", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_REPRODUCTION_NOT_FOUND");
+});
+
+test("science reproduce plan artifact is hash-bound", async () => {
+  const { reproductionPlan } = await reproductionFixture();
+  assert.match(reproductionPlan.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("science reproduce run artifact is hash-bound", async () => {
+  const { reproductionRun } = await reproductionFixture();
+  assert.match(reproductionRun.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("science reproduce analysis artifact is hash-bound", async () => {
+  const { reproductionAnalysis } = await reproductionFixture();
+  assert.match(reproductionAnalysis.evidenceHash, /^[a-f0-9]{64}$/);
 });
 
 test("science instrument build requires generated data", async () => {

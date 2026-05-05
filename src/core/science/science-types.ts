@@ -88,7 +88,17 @@ export type ScienceGateCode =
   | "REAL_DATA_LIMITATIONS_PRESENT"
   | "NO_PRIVATE_DATA"
   | "NO_UNSAFE_DATA_DOMAIN"
-  | "REAL_VS_SYNTHETIC_COMPARISON_PRESENT";
+  | "REAL_VS_SYNTHETIC_COMPARISON_PRESENT"
+  | "SOURCE_CLAIM_EXTRACTED"
+  | "METHOD_EXTRACTED"
+  | "DATA_REQUIREMENTS_PRESENT"
+  | "METRIC_REQUIREMENTS_PRESENT"
+  | "REPRODUCTION_PLAN_PRESENT"
+  | "REPRODUCTION_RUN_PRESENT"
+  | "REPRODUCTION_ANALYSIS_PRESENT"
+  | "LIMITATIONS_PRESENT"
+  | "NO_UNSAFE_REPRODUCTION_SCOPE"
+  | "NO_OVERCLAIMED_REPRODUCTION";
 
 export type SafetyScope = {
   domain: string;
@@ -335,6 +345,129 @@ export type ScienceRealVsSyntheticComparison = {
   comparableFields: string[];
   mismatchNotes: string[];
   conclusion: string;
+  evidenceHash: string;
+};
+
+export type ScienceReproductionResultLabel =
+  | "reproduced"
+  | "partially_reproduced"
+  | "not_reproduced"
+  | "inconclusive"
+  | "unsafe_scope_blocked";
+
+export type ScienceSourceClaimExtraction = {
+  kind: "science_source_claim_extraction";
+  reproductionId: string;
+  sourceRef: string;
+  sourceType: "external_public_claim" | "internal_sovryn_baseline";
+  sourceSummary: string;
+  externalClaim: string;
+  claimType: "comparative_performance" | "data_quality_method";
+  reviewedAsComputationalClaim: boolean;
+  extractionConfidence: number;
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceMethodExtraction = {
+  kind: "science_method_extraction";
+  reproductionId: string;
+  methodSummary: string;
+  methodAvailable: boolean;
+  methodSteps: string[];
+  implementationDetailsAvailable: "complete" | "partial" | "not_available";
+  baselineMethod: string;
+  candidateMethod: string;
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceDataRequirements = {
+  kind: "science_reproduction_data_requirements";
+  reproductionId: string;
+  requiredData: string[];
+  availableData: string[];
+  substitutedData: string[];
+  substitutionReason: string | null;
+  publicSafeDataOnly: boolean;
+  privacyLimitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceMetricRequirements = {
+  kind: "science_reproduction_metric_requirements";
+  reproductionId: string;
+  primaryMetrics: string[];
+  baselineMetric: string;
+  candidateMetric: string;
+  acceptableTolerance: number;
+  metricMatchConfidence: number;
+  evidenceHash: string;
+};
+
+export type ScienceReproductionPlan = {
+  kind: "science_reproduction_plan";
+  reproductionId: string;
+  slug: string;
+  sourceRef: string;
+  plannedAt: string;
+  sourceType: "external_public_claim" | "internal_sovryn_baseline";
+  externalClaim: string;
+  methodSummary: string;
+  requiredData: string[];
+  availableData: string[];
+  substitutedData: string[];
+  metricRequirements: string[];
+  implementationPlan: string[];
+  safetyScope: SafetyScope;
+  reproductionConfidenceBefore: number;
+  expectedResult: ScienceReproductionResultLabel;
+  limitations: string[];
+  gates: ScienceGateResult[];
+  evidenceHash: string;
+};
+
+export type ScienceReproductionRun = {
+  kind: "science_reproduction_run";
+  reproductionId: string;
+  runId: string;
+  ranAt: string;
+  sourceType: "external_public_claim" | "internal_sovryn_baseline";
+  datasetUsed: string;
+  substitutedDataUsed: boolean;
+  workerProfile: "container-netoff";
+  noSilentFallback: boolean;
+  baselineMetrics: {
+    precision: number;
+    recall: number;
+    falsePositiveRate: number;
+  };
+  candidateMetrics: {
+    precision: number;
+    recall: number;
+    falsePositiveRate: number;
+  };
+  metricMatch: boolean;
+  implementationMatch: "complete" | "partial";
+  exitCode: number;
+  redactedOutputSummary: string;
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceReproductionAnalysis = {
+  kind: "science_reproduction_analysis";
+  reproductionId: string;
+  analyzedAt: string;
+  result: ScienceReproductionResultLabel;
+  reproductionConfidence: number;
+  metricMatch: boolean;
+  implementationMatch: "complete" | "partial";
+  dataSubstituted: boolean;
+  confidenceDeductions: string[];
+  overclaimRisk: "low" | "medium" | "high";
+  gates: ScienceGateResult[];
+  limitations: string[];
   evidenceHash: string;
 };
 

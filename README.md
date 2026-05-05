@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.9.0-rc.1`
+Current version: `4.0.0-rc.1`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -93,6 +93,14 @@ memory, and publishes only curated knowledge-trial summaries. It does not turn
 scores into breakthrough claims and keeps every knowledge assertion bound to
 source evidence and limitations.
 
+The 4.0 RC line adds Reality-Grade Scientific Autonomy. Sovryn can ingest
+structured external source cards for papers, repositories, datasets, benchmark
+docs, and package docs; run a safe benchmark harness; perform independent
+reproduction variants; generate adversarial falsification cases; run a
+multi-domain reality trial; and publish a curated
+`reality_grade_autonomous_science_trial` result when public hygiene and
+scientific claim gates pass.
+
 | Version         | Focus                            | Result                                                                                                                                                                                     |
 | --------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `3.1.0-alpha.1` | Scientific Method Core           | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.                                      |
@@ -127,6 +135,7 @@ source evidence and limitations.
 | `3.7.0-rc.1`    | Tool-Operating Discovery         | Adds scientific program operation, breakthrough search, program-orchestrated discovery pipelines, strict candidate validation, invented discovery tools, and discovery corpus publication. |
 | `3.8.0-rc.1`    | Research Strategist              | Adds memory-driven opportunity extraction, EIG-style ranking, research-program building, adaptive execution, strategic reproduction/falsification queues, and strategy-trial publication.  |
 | `3.9.0-rc.1`    | Scientific Knowledge Engine      | Adds claim graph extraction, confidence scoring, contradiction detection, method atlas, next-best-experiment ranking/execution, and knowledge-trial publication.                           |
+| `4.0.0-rc.1`    | Reality-Grade Autonomy           | Adds real-source ingestion, benchmark harnesses, independent reproduction, adversarial falsification, multi-domain reality trials, and reality-grade trial publication.                    |
 
 New science commands:
 

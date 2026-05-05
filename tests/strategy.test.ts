@@ -440,7 +440,7 @@ test("Full strategy trial creates all Knowledge Engine artifacts and passes audi
   const score = (fixture.trialResponse.data as any).score;
   const audit = (fixture.trialAuditResponse.data as any).audit;
   assert.equal(trial.kind, "autonomous_research_strategy_trial");
-  assert.equal(trial.targetVersion, "3.9.0-rc.1");
+  assert.equal(trial.targetVersion, "4.0.0-rc.1");
   assert.ok(score.opportunitiesFound >= 10);
   assert.equal(score.fakeBreakthroughClaims, 0);
   assert.equal(score.unsupportedClaims, 0);

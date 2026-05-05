@@ -215,8 +215,8 @@ type E2EPhaseInput = {
   degradedReasons?: string[];
 };
 
-const TARGET_VERSION = "3.9.0-rc.1";
-const MAX_OUTPUT_CHARS = 6000;
+const TARGET_VERSION = "4.0.0-rc.1";
+const MAX_OUTPUT_CHARS = 12000;
 const MAX_PARSE_OUTPUT_CHARS = 2_000_000;
 
 export class E2EService {

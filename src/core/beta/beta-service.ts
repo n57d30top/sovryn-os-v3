@@ -26,7 +26,7 @@ import type {
   BetaPackage,
 } from "./beta-types.js";
 
-const TARGET_VERSION = "3.9.0-rc.1";
+const TARGET_VERSION = "4.0.0-rc.1";
 const BETA_MIN_TESTS = 500;
 
 const REQUIRED_DOCS = [

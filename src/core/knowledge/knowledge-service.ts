@@ -200,7 +200,7 @@ type EvidenceSource = {
   summary: Record<string, any>;
 };
 
-const KNOWLEDGE_VERSION = "3.9.0-rc.1";
+const KNOWLEDGE_VERSION = "4.0.0-rc.1";
 const TARGET_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 const TARGET_CORPUS_URL = "https://github.com/n57d30top/sovryn-open-inventions";
 const SAFE_SCOPE =
@@ -1079,6 +1079,12 @@ export class KnowledgeService {
       [".sovryn/discovery", "local_discovery"],
       [".sovryn/strategy", "local_strategy"],
       [".sovryn/lab", "local_lab"],
+      [".sovryn/sources", "local_external_sources"],
+      [".sovryn/benchmarks", "local_reality_benchmarks"],
+      [".sovryn/reproduction", "local_independent_reproduction"],
+      [".sovryn/falsification", "local_adversarial_falsification"],
+      [".sovryn/reality-trials", "local_reality_trials"],
+      [".sovryn/reality-grade", "local_reality_grade_trials"],
     ] as const;
     const sources: EvidenceSource[] = [];
     for (const [relativeRoot, kind] of roots) {
@@ -1358,7 +1364,7 @@ export class KnowledgeService {
         slug: resultSlug,
         publishedBy: "sovryn-knowledge-autopublish",
         humanReviewRequired: false,
-        automatedPolicyVersion: "3.9.0-rc.1-knowledge-policy",
+        automatedPolicyVersion: "4.0.0-rc.1-knowledge-policy",
         targetRepo: TARGET_CORPUS_URL,
         targetPath: `results/${resultSlug}`,
         pushed: true,
@@ -2348,6 +2354,8 @@ function inferDomain(input: string): string {
     return "scientific-knowledge-engine";
   if (/dataset|schema|metadata/i.test(input))
     return "scientific-dataset-reliability";
+  if (/source|benchmark|reproduction|falsification|reality/i.test(input))
+    return "reality-grade-scientific-autonomy";
   return "general-computational-science";
 }
 

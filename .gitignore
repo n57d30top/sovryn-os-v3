@@ -38,6 +38,11 @@ graphify-out/graph.json
 .sovryn/discovery/
 .sovryn/strategy/
 .sovryn/knowledge/
+.sovryn/sources/
+.sovryn/reproduction/
+.sovryn/falsification/
+.sovryn/reality-trials/
+.sovryn/reality-grade/
 .sovryn/external-research/
 .sovryn/multi-domain-campaign/
 public-corpus/

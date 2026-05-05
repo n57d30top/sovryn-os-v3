@@ -447,7 +447,7 @@ const roadmap: Array<{
     ],
   },
   {
-    week: "3.9.0-rc.1 real-source self-building lab trial",
+    week: "4.0.0-rc.1 real-source self-building lab trial",
     minimum: 100,
     cases: [
       ...casesFrom("command", [
@@ -583,7 +583,7 @@ const roadmap: Array<{
         "publicHygienePassed",
         "noCriticalFailures",
       ]),
-      ...casesFrom("version", ["3.9.0-rc.1"]),
+      ...casesFrom("version", ["4.0.0-rc.1"]),
     ],
   },
 ];

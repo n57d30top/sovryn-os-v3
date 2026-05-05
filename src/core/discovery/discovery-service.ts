@@ -688,7 +688,7 @@ export class DiscoveryService {
       kind: "autonomous_scientific_discovery_campaign",
       slug,
       goal: input.goal,
-      targetVersion: "3.9.0-rc.1",
+      targetVersion: "4.0.0-rc.1",
       domainsRequested: input.domains,
       domainsUsed: [
         "energy anomaly detection",
@@ -989,7 +989,7 @@ export class DiscoveryService {
         slug: resultSlug,
         publishedBy: "sovryn-discovery-autopublish",
         humanReviewRequired: false,
-        automatedPolicyVersion: "3.9.0-rc.1-discovery-policy",
+        automatedPolicyVersion: "4.0.0-rc.1-discovery-policy",
         targetRepo: "https://github.com/n57d30top/sovryn-open-inventions",
         targetPath: `results/${resultSlug}`,
         pushed: false,

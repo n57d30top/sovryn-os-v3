@@ -436,7 +436,7 @@ test("Knowledge trial runs, audits, and reports without forced publication", asy
   );
   assert.equal(trialResponse.ok, true, JSON.stringify(trialResponse.errors));
   const trial = (trialResponse.data as any).trial;
-  assert.equal(trial.targetVersion, "3.9.0-rc.1");
+  assert.equal(trial.targetVersion, "4.0.0-rc.1");
   assert.equal((trialResponse.data as any).score.topExperimentExecuted, true);
   assert.equal((trialResponse.data as any).score.scientificMemoryUpdated, true);
 

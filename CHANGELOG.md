@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.0.0-rc.1
+
+- Added Reality-Grade Scientific Autonomy command families:
+  `sovryn sources`, `benchmark suite/run/compare/report`,
+  `reproduce independent`, `falsify adversarial`, `reality trial`, and
+  `reality-grade trial`.
+- Added `.sovryn/sources/`, `.sovryn/benchmarks/`,
+  `.sovryn/reproduction/`, `.sovryn/falsification/`,
+  `.sovryn/reality-trials/`, and `.sovryn/reality-grade/` artifacts for
+  structured source cards, dataset cards, benchmark runs, independent
+  reproduction evidence, adversarial falsification evidence, and full
+  reality-grade autonomy trials.
+- Extended the Scientific Knowledge Engine to read reality-grade source,
+  benchmark, reproduction, falsification, and trial artifacts as
+  evidence-bound local sources.
+- Added curated public corpus publication for
+  `reality_grade_autonomous_science_trial` results when source, benchmark,
+  reproduction, falsification, knowledge-update, safety, and hygiene gates
+  pass.
+
 ## 3.9.0-rc.1
 
 - Added the Scientific Knowledge Engine command family:

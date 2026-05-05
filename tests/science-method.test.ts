@@ -693,7 +693,7 @@ function reproductionPath(root: string, slug: string, file: string): string {
 
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.9.0-rc.1");
+  assert.equal(pkg.version, "4.0.0-rc.1");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -7541,7 +7541,7 @@ test("science trial package version is rc.1 when rc gates pass", async () => {
   const { trial } = await trialFixture();
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
   assert.equal(trial.readinessLabel, "rc-ready");
-  assert.equal(pkg.version, "3.9.0-rc.1");
+  assert.equal(pkg.version, "4.0.0-rc.1");
 });
 
 for (const command of [

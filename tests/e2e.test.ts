@@ -44,7 +44,7 @@ test("E2E doctor checks dist CLI and command groups", async () => {
   const response = await executeCli(["e2e", "doctor", "--json"], repo.root);
   assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
   const doctor = (response.data as any).doctor;
-  assert.equal(doctor.targetVersion, "3.9.0-rc.1");
+  assert.equal(doctor.targetVersion, "4.0.0-rc.1");
   assert.equal(doctor.ready, true);
 });
 

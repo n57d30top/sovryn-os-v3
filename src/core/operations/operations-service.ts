@@ -1494,7 +1494,7 @@ export class LaunchService {
     const check = withHash({
       kind: "launch_check" as const,
       checkedAt: nowIso(),
-      targetVersion: "3.9.0-rc.1",
+      targetVersion: "4.0.0-rc.1",
       passed: blockingLimitations.length === 0,
       gates,
       blockingLimitations,

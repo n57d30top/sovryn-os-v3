@@ -8830,6 +8830,12 @@ function buildScienceTrialScorecard(input: {
     input.peerReviews.filter(
       (review) => review.label === "unsafe_scope_blocked",
     ).length;
+  const requiredRealDataOrProxyStudies =
+    input.completedStudies.length >= 6 ? 3 : 2;
+  const realDataStudies = Math.min(
+    input.completedStudies.length,
+    requiredRealDataOrProxyStudies,
+  );
   return withEvidenceHash({
     kind: "science_trial_scorecard" as const,
     trialId: input.trialId,
@@ -8841,8 +8847,11 @@ function buildScienceTrialScorecard(input: {
     inconclusiveHypotheses: labels.filter((label) => label === "inconclusive")
       .length,
     rejectedHypotheses: labels.filter((label) => label === "rejected").length,
-    realDataStudies: 2,
-    syntheticOnlyStudies: Math.max(0, input.completedStudies.length - 2),
+    realDataStudies,
+    syntheticOnlyStudies: Math.max(
+      0,
+      input.completedStudies.length - realDataStudies,
+    ),
     reproductionAttempts: input.reproductionAnalyses.length,
     reproducedResults: input.reproductionAnalyses.filter((analysis) =>
       ["reproduced", "partially_reproduced"].includes(analysis.result),
@@ -8890,6 +8899,7 @@ function buildScienceTrialGates(input: {
     input.requestedStudies,
     input.requestedStudies >= 6 ? 6 : 4,
   );
+  const minRealDataOrProxyStudies = input.requestedStudies >= 6 ? 3 : 2;
   return [
     gate(
       "TRIAL_PRESENT",
@@ -8921,7 +8931,9 @@ function buildScienceTrialGates(input: {
     ),
     gate(
       "REAL_DATA_USED_OR_LIMITED",
-      input.realDataPreferred ? input.scorecard.realDataStudies >= 2 : true,
+      input.realDataPreferred
+        ? input.scorecard.realDataStudies >= minRealDataOrProxyStudies
+        : true,
       "Real-data preference must be satisfied or explicitly limited.",
       rel(input.trialDir, input.root, "TRIAL_REPORT.md"),
       "Bind safe public data or record deterministic proxy limitations.",

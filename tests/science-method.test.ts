@@ -6829,6 +6829,11 @@ test("science trial records real data or proxy studies", async () => {
   assert.ok(trial.scorecard.realDataStudies >= 2);
 });
 
+test("seven-day science trial records three real-data or proxy studies", async () => {
+  const { trial } = await sevenDayTrialFixture();
+  assert.ok(trial.scorecard.realDataStudies >= 3);
+});
+
 test("science trial records synthetic control studies", async () => {
   const { trial } = await trialFixture();
   assert.ok(trial.scorecard.syntheticOnlyStudies >= 1);

@@ -85,6 +85,9 @@ let realDataFixturePromise:
 let reproductionFixturePromise:
   | Promise<Awaited<ReturnType<typeof createReproductionFixture>>>
   | undefined;
+let peerReviewFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createPeerReviewFixture>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -124,6 +127,11 @@ async function realDataFixture() {
 async function reproductionFixture() {
   reproductionFixturePromise ??= createReproductionFixture();
   return reproductionFixturePromise;
+}
+
+async function peerReviewFixture() {
+  peerReviewFixturePromise ??= createPeerReviewFixture();
+  return peerReviewFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -291,6 +299,31 @@ async function createReproductionFixture() {
     reproductionRun: (run.data as any).reproductionRun,
     reproductionAnalysis: (analyze.data as any).reproductionAnalysis,
     report: (report.data as any).report,
+  };
+}
+
+async function createPeerReviewFixture() {
+  const context = await memoryFixture();
+  const peer = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(peer.ok, true, JSON.stringify(peer.errors, null, 2));
+  const rebuttal = await executeCli(
+    ["science", "rebuttal", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(rebuttal.ok, true, JSON.stringify(rebuttal.errors, null, 2));
+  const revise = await executeCli(
+    ["science", "revise", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(revise.ok, true, JSON.stringify(revise.errors, null, 2));
+  return {
+    ...context,
+    peerReview: (peer.data as any).peerReview,
+    authorResponse: (rebuttal.data as any).authorResponse,
+    revisionPlan: (revise.data as any).revisionPlan,
   };
 }
 
@@ -504,7 +537,7 @@ function reproductionPath(root: string, slug: string, file: string): string {
 
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.2.0-alpha.2");
+  assert.equal(pkg.version, "3.2.0-alpha.3");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -2044,6 +2077,479 @@ test("science reproduce run artifact is hash-bound", async () => {
 test("science reproduce analysis artifact is hash-bound", async () => {
   const { reproductionAnalysis } = await reproductionFixture();
   assert.match(reproductionAnalysis.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("alpha.3 science peer review commands are listed in help", async () => {
+  const help = (await executeCli(["--help"], process.cwd())).data as any;
+  assert.match(help.help, /science peer-review <study-id>/);
+  assert.match(help.help, /science peer-review-corpus --target-repo/);
+  assert.match(help.help, /science rebuttal <study-id>/);
+  assert.match(help.help, /science revise <study-id>/);
+});
+
+test("science peer review returns accept or minor revision for complete study", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.ok(["accept", "minor_revision"].includes(peerReview.label));
+});
+
+test("science peer review includes all required dimensions", async () => {
+  const { peerReview } = await peerReviewFixture();
+  const dimensions = Object.keys(peerReview.dimensions).sort();
+  assert.deepEqual(dimensions, [
+    "ablation_completeness",
+    "baseline_appropriateness",
+    "data_quality",
+    "falsification_strength",
+    "hypothesis_testability",
+    "limitation_honesty",
+    "metric_appropriateness",
+    "null_hypothesis_quality",
+    "overclaim_risk",
+    "public_readability",
+    "question_clarity",
+    "replication_sufficiency",
+    "safety_scope",
+    "statistical_validity",
+  ]);
+});
+
+test("science peer review scores question clarity", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.question_clarity, "number");
+});
+
+test("science peer review scores hypothesis testability", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.hypothesis_testability, "number");
+});
+
+test("science peer review scores null hypothesis quality", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.null_hypothesis_quality, "number");
+});
+
+test("science peer review scores data quality", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.data_quality, "number");
+});
+
+test("science peer review scores baseline appropriateness", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.baseline_appropriateness, "number");
+});
+
+test("science peer review scores metric appropriateness", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.metric_appropriateness, "number");
+});
+
+test("science peer review scores statistical validity", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.statistical_validity, "number");
+});
+
+test("science peer review scores ablation completeness", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.ablation_completeness, "number");
+});
+
+test("science peer review scores replication sufficiency", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.replication_sufficiency, "number");
+});
+
+test("science peer review scores falsification strength", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.falsification_strength, "number");
+});
+
+test("science peer review scores limitation honesty", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.limitation_honesty, "number");
+});
+
+test("science peer review scores safety scope", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.safety_scope, "number");
+});
+
+test("science peer review scores public readability", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.public_readability, "number");
+});
+
+test("science peer review scores overclaim risk", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.equal(typeof peerReview.dimensions.overclaim_risk, "number");
+});
+
+test("science peer review records findings", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.ok(peerReview.findings.length >= 1);
+});
+
+test("science peer review findings include concrete fixes", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.ok(
+    peerReview.findings.every(
+      (finding: any) => finding.recommendedFix.length > 10,
+    ),
+  );
+});
+
+test("science peer review includes required gates", async () => {
+  const { peerReview } = await peerReviewFixture();
+  const codes = peerReview.gates.map((gate: any) => gate.code);
+  assert.ok(codes.includes("PEER_REVIEW_PRESENT"));
+  assert.ok(codes.includes("REVIEW_LABEL_PRESENT"));
+  assert.ok(codes.includes("UNSUPPORTED_CLAIMS_REVIEWED"));
+  assert.ok(codes.includes("METHOD_WEAKNESSES_RECORDED"));
+  assert.ok(
+    codes.includes("SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION"),
+  );
+});
+
+test("science peer review writes study markdown artifact", async () => {
+  const { repo, study } = await peerReviewFixture();
+  await access(studyPath(repo.root, study.slug, "PEER_REVIEW.md"));
+});
+
+test("science peer review writes study json artifact", async () => {
+  const { repo, study } = await peerReviewFixture();
+  await access(studyPath(repo.root, study.slug, "peer-review.json"));
+});
+
+test("science peer review writes root report json", async () => {
+  const { repo } = await peerReviewFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "reviews", "peer-review-report.json"),
+  );
+});
+
+test("science peer review writes root report markdown", async () => {
+  const { repo } = await peerReviewFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "reviews", "PEER_REVIEW_REPORT.md"),
+  );
+});
+
+test("science peer review writes review ledger", async () => {
+  const { repo } = await peerReviewFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "reviews", "review-ledger.json"),
+  );
+});
+
+test("science peer review artifact is hash-bound", async () => {
+  const { peerReview } = await peerReviewFixture();
+  assert.match(peerReview.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("science peer review missing baseline gets major revision", async () => {
+  const context = await createMemoryStudy();
+  const path = studyPath(
+    context.repo.root,
+    context.study.slug,
+    "experiment-design.json",
+  );
+  const design = await readJson<any>(path);
+  design.baseline = "";
+  await writeJson(path, design);
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "major_revision");
+  assert.ok(
+    (response.data as any).peerReview.findings.some(
+      (finding: any) => finding.dimension === "baseline_appropriateness",
+    ),
+  );
+});
+
+test("science peer review missing replication gets major revision", async () => {
+  const context = await createAnalyzedStudy();
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "major_revision");
+});
+
+test("science peer review unsafe scope is blocked", async () => {
+  const context = await createDesignedStudy();
+  const path = studyPath(
+    context.repo.root,
+    context.study.slug,
+    "question.json",
+  );
+  const question = await readJson<any>(path);
+  question.safetyScope.blocked = true;
+  question.safetyScope.riskLevel = "critical";
+  question.safetyScope.blockedReasons = ["unsafe wet-lab scope"];
+  await writeJson(path, question);
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "unsafe_scope_blocked");
+});
+
+test("science peer review unsupported claim rejects study", async () => {
+  const context = await createMemoryStudy();
+  await writeFile(
+    studyPath(context.repo.root, context.study.slug, "SCIENTIFIC_REPORT.md"),
+    "This study scientifically established and proves production behavior.",
+    "utf8",
+  );
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "reject");
+});
+
+test("science peer review missing statistics gets major revision", async () => {
+  const context = await createRuntimeStudy();
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "major_revision");
+});
+
+test("science peer review missing falsification gets major revision", async () => {
+  const context = await createAnalyzedStudy();
+  await rm(
+    studyPath(
+      context.repo.root,
+      context.study.slug,
+      "falsification-report.json",
+    ),
+    { force: true },
+  );
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).peerReview.label, "major_revision");
+});
+
+test("science rebuttal generates author response", async () => {
+  const { authorResponse } = await peerReviewFixture();
+  assert.equal(authorResponse.kind, "science_author_response");
+});
+
+test("science rebuttal writes author response markdown", async () => {
+  const { repo, study } = await peerReviewFixture();
+  await access(studyPath(repo.root, study.slug, "AUTHOR_RESPONSE.md"));
+});
+
+test("science rebuttal response is hash-bound", async () => {
+  const { authorResponse } = await peerReviewFixture();
+  assert.match(authorResponse.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("science rebuttal auto-builds missing peer review", async () => {
+  const context = await createMemoryStudy();
+  const response = await executeCli(
+    ["science", "rebuttal", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(
+    studyPath(context.repo.root, context.study.slug, "AUTHOR_RESPONSE.md"),
+  );
+});
+
+test("science revise generates revision plan", async () => {
+  const { revisionPlan } = await peerReviewFixture();
+  assert.equal(revisionPlan.kind, "science_revision_plan");
+});
+
+test("science revise writes revision markdown", async () => {
+  const { repo, study } = await peerReviewFixture();
+  await access(studyPath(repo.root, study.slug, "REVISION_PLAN.md"));
+});
+
+test("science revise writes revised study artifact", async () => {
+  const { repo, study } = await peerReviewFixture();
+  await access(studyPath(repo.root, study.slug, "revised-study.json"));
+});
+
+test("science revise response is hash-bound", async () => {
+  const { revisionPlan } = await peerReviewFixture();
+  assert.match(revisionPlan.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("science revise auto-builds missing peer review", async () => {
+  const context = await createMemoryStudy();
+  const response = await executeCli(
+    ["science", "revise", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(
+    studyPath(context.repo.root, context.study.slug, "REVISION_PLAN.md"),
+  );
+});
+
+test("science revise requires rerun for missing replication", async () => {
+  const context = await createAnalyzedStudy();
+  const peer = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(peer.ok, true, JSON.stringify(peer.errors, null, 2));
+  const revise = await executeCli(
+    ["science", "revise", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(revise.ok, true, JSON.stringify(revise.errors, null, 2));
+  assert.equal((revise.data as any).revisionPlan.rerunRequired, true);
+});
+
+test("science peer-review-corpus reviews public science studies", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  const response = await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.ok((response.data as any).reviewedCount >= 2);
+});
+
+test("science peer-review-corpus writes aggregate json", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  await access(
+    join(repo.root, ".sovryn", "science", "reviews", "peer-review-corpus.json"),
+  );
+});
+
+test("science peer-review-corpus writes aggregate markdown", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  await access(
+    join(repo.root, ".sovryn", "science", "reviews", "PEER_REVIEW_CORPUS.md"),
+  );
+});
+
+test("science peer-review-corpus appends ledger", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  const response = await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  const ledger = await readJson<any>(
+    join(repo.root, ".sovryn", "science", "reviews", "review-ledger.json"),
+  );
+  assert.ok(ledger.reviewCount >= 2);
+});
+
+test("science peer-review-corpus accepts complete public studies", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  const response = await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.ok(
+    (response.data as any).reviews.every((review: any) =>
+      ["accept", "minor_revision"].includes(review.label),
+    ),
+  );
+});
+
+test("science peer-review-corpus handles empty corpus", async () => {
+  const repo = await initRepo();
+  const target = await createScienceTargetRepo();
+  const response = await executeCli(
+    ["science", "peer-review-corpus", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).reviewedCount, 0);
+});
+
+test("science peer review unknown study returns stable error", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    ["science", "peer-review", "missing-study", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_STUDY_NOT_FOUND");
+});
+
+test("science peer review markdown excludes raw logs", async () => {
+  const { repo, study } = await peerReviewFixture();
+  const text = await readFile(
+    studyPath(repo.root, study.slug, "PEER_REVIEW.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /raw stdout|raw stderr|command journal/i);
+});
+
+test("science peer review markdown excludes local absolute paths", async () => {
+  const { repo, study } = await peerReviewFixture();
+  const text = await readFile(
+    studyPath(repo.root, study.slug, "PEER_REVIEW.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /\/Users\/|\/home\/|C:\\/i);
+});
+
+test("science peer review markdown excludes secrets", async () => {
+  const { repo, study } = await peerReviewFixture();
+  const text = await readFile(
+    studyPath(repo.root, study.slug, "PEER_REVIEW.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(text, /ghp_[A-Za-z0-9]+|PRIVATE KEY|OPENAI_API_KEY/i);
+});
+
+test("science peer review markdown avoids fake legal claims", async () => {
+  const { repo, study } = await peerReviewFixture();
+  const text = await readFile(
+    studyPath(repo.root, study.slug, "PEER_REVIEW.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    text,
+    /\bpatentable\b|\blegally novel\b|\bfreedom to operate\b/i,
+  );
+});
+
+test("science peer review unsupported claims gate fails on overclaim", async () => {
+  const context = await createMemoryStudy();
+  await writeFile(
+    studyPath(context.repo.root, context.study.slug, "PAPER.md"),
+    "This proves causal behavior and guarantees production readiness.",
+    "utf8",
+  );
+  const response = await executeCli(
+    ["science", "peer-review", context.study.studyId, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  const gate = (response.data as any).peerReview.gates.find(
+    (candidate: any) => candidate.code === "UNSUPPORTED_CLAIMS_REVIEWED",
+  );
+  assert.equal(gate.passed, false);
 });
 
 test("science instrument build requires generated data", async () => {

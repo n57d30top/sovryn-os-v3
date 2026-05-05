@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.2.0-alpha.2`
+Current version: `3.2.0-alpha.3`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -55,7 +55,9 @@ conservatively and does not make broad real-world performance claims.
 3.2 Alpha.2 adds bounded scientific reproduction: source-claim extraction,
 method/data/metric requirement extraction, reproduction planning, deterministic
 runs, reproduction analysis, and careful reproduced/partially-reproduced/
-inconclusive labels.
+inconclusive labels. 3.2 Alpha.3 adds autonomous scientific peer review:
+methodological critique, corpus review, author response, revision planning,
+unsupported-claim blocking, and showcase-science review gates.
 Scientific support remains bounded to the evidence actually produced.
 
 | Version         | Focus                            | Result                                                                                                                                                                       |
@@ -69,6 +71,7 @@ Scientific support remains bounded to the evidence actually produced.
 | `3.1.0-rc.2`    | Public Science Study Publication | Adds `sovryn science publish`, `publish-all`, and `publish-audit` for publishing completed computational-science studies into the public corpus with strict hygiene gates.   |
 | `3.2.0-alpha.1` | Real Data Ingestion              | Adds `sovryn science data search/ingest/validate/provenance/cache/replay` with safe public/proxy datasets, provenance, validation, replay cache, and study binding.          |
 | `3.2.0-alpha.2` | Scientific Reproduction          | Adds `sovryn science reproduce plan/run/analyze/report` for safe bounded reproduction of external or internal computational claims.                                          |
+| `3.2.0-alpha.3` | Scientific Peer Review           | Adds `sovryn science peer-review`, `peer-review-corpus`, `rebuttal`, and `revise` for automated critique, response, and revision planning before showcase promotion.         |
 
 New science commands:
 
@@ -107,6 +110,10 @@ sovryn science reproduce plan "safe public energy anomaly detection claim" --jso
 sovryn science reproduce run <reproduction-id> --json
 sovryn science reproduce analyze <reproduction-id> --json
 sovryn science reproduce report <reproduction-id> --json
+sovryn science peer-review <study-id> --json
+sovryn science peer-review-corpus --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science rebuttal <study-id> --json
+sovryn science revise <study-id> --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```

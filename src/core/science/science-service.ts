@@ -48,10 +48,15 @@ import type {
   ScienceDataRequirements,
   ScienceMethodExtraction,
   ScienceMetricRequirements,
+  ScienceAuthorResponse,
+  SciencePeerReview,
+  SciencePeerReviewFinding,
+  SciencePeerReviewLabel,
   ScienceReproductionAnalysis,
   ScienceReproductionPlan,
   ScienceReproductionResultLabel,
   ScienceReproductionRun,
+  ScienceRevisionPlan,
   ScienceSourceClaimExtraction,
   ScienceResultLabel,
   ScienceSensitivityAnalysis,
@@ -1057,6 +1062,180 @@ export class ScienceService {
         "REPRODUCTION_LIMITATIONS.md",
       ]),
     };
+  }
+
+  async peerReview(studyId: string): Promise<{
+    peerReview: SciencePeerReview;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const peerReview = await this.buildPeerReviewForStudy(study, dir);
+    await writeJson(join(dir, "peer-review.json"), peerReview);
+    await writeFile(
+      join(dir, "PEER_REVIEW.md"),
+      renderPeerReview(peerReview),
+      "utf8",
+    );
+    await this.writePeerReviewRollup(peerReview);
+    await this.appendPeerReviewLedger(peerReview);
+    const artifactRefs = uniqueRefs([
+      rel(dir, this.root, "peer-review.json"),
+      rel(dir, this.root, "PEER_REVIEW.md"),
+      ".sovryn/science/reviews/peer-review-report.json",
+      ".sovryn/science/reviews/PEER_REVIEW_REPORT.md",
+      ".sovryn/science/reviews/review-ledger.json",
+    ]);
+    await this.updateStudyArtifacts(study, dir, [
+      "peer-review.json",
+      "PEER_REVIEW.md",
+    ]);
+    return { peerReview, artifactRefs };
+  }
+
+  async peerReviewCorpus(targetRepo: string): Promise<Record<string, unknown>> {
+    const index = await readOptionalJson<{
+      results?: Array<Record<string, unknown>>;
+    }>(join(targetRepo, "INDEX.json"));
+    const results = (index?.results ?? []).filter(
+      (item) =>
+        item.resultKind === "computational_science_study" ||
+        String(item.resultKind ?? "").includes("science"),
+    );
+    const reviews = results.map((result) =>
+      buildCorpusPeerReview(result, targetRepo),
+    );
+    const report = withEvidenceHash({
+      kind: "science_peer_review_corpus" as const,
+      targetRepo,
+      reviewedAt: nowIso(),
+      reviewedCount: reviews.length,
+      reviews,
+      passed: reviews.every((review) =>
+        ["accept", "minor_revision"].includes(review.label),
+      ),
+    });
+    await mkdir(this.scienceReviewsRoot(), { recursive: true });
+    await writeJson(
+      join(this.scienceReviewsRoot(), "peer-review-corpus.json"),
+      report,
+    );
+    await writeFile(
+      join(this.scienceReviewsRoot(), "PEER_REVIEW_CORPUS.md"),
+      renderPeerReviewCorpus(report),
+      "utf8",
+    );
+    await this.appendPeerReviewLedger(...reviews);
+    return {
+      ...report,
+      artifactRefs: [
+        ".sovryn/science/reviews/peer-review-corpus.json",
+        ".sovryn/science/reviews/PEER_REVIEW_CORPUS.md",
+        ".sovryn/science/reviews/review-ledger.json",
+      ],
+    };
+  }
+
+  async rebuttal(studyId: string): Promise<{
+    authorResponse: ScienceAuthorResponse;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const review =
+      (await readOptionalJson<SciencePeerReview>(
+        join(dir, "peer-review.json"),
+      )) ?? (await this.buildPeerReviewForStudy(study, dir));
+    const authorResponse: ScienceAuthorResponse = withEvidenceHash({
+      kind: "science_author_response" as const,
+      responseId: stableId(
+        "sci-rebuttal",
+        `${study.studyId}:${review.reviewId}`,
+      ),
+      studyId: study.studyId,
+      reviewId: review.reviewId,
+      createdAt: nowIso(),
+      acceptsCritique: review.findings.some(
+        (finding) => finding.severity !== "info",
+      ),
+      responses: review.findings.map((finding) => ({
+        finding: finding.message,
+        response:
+          finding.severity === "info"
+            ? "Accepted as a useful note; no material revision is required."
+            : "Accepted. The study should address this critique or keep the result scoped lower.",
+        action: finding.recommendedFix,
+      })),
+    });
+    await writeJson(join(dir, "author-response.json"), authorResponse);
+    await writeFile(
+      join(dir, "AUTHOR_RESPONSE.md"),
+      renderAuthorResponse(authorResponse),
+      "utf8",
+    );
+    const artifactRefs = uniqueRefs([
+      rel(dir, this.root, "author-response.json"),
+      rel(dir, this.root, "AUTHOR_RESPONSE.md"),
+    ]);
+    await this.updateStudyArtifacts(study, dir, [
+      "author-response.json",
+      "AUTHOR_RESPONSE.md",
+    ]);
+    return { authorResponse, artifactRefs };
+  }
+
+  async revise(studyId: string): Promise<{
+    revisionPlan: ScienceRevisionPlan;
+    artifactRefs: string[];
+  }> {
+    const { study, dir } = await this.findStudy(studyId);
+    const review =
+      (await readOptionalJson<SciencePeerReview>(
+        join(dir, "peer-review.json"),
+      )) ?? (await this.buildPeerReviewForStudy(study, dir));
+    const actions = review.findings
+      .filter((finding) => finding.severity !== "info")
+      .map((finding) => finding.recommendedFix);
+    const revisionPlan: ScienceRevisionPlan = withEvidenceHash({
+      kind: "science_revision_plan" as const,
+      revisionPlanId: stableId(
+        "sci-revision",
+        `${study.studyId}:${review.reviewId}`,
+      ),
+      studyId: study.studyId,
+      reviewId: review.reviewId,
+      createdAt: nowIso(),
+      requiredActions: actions.length
+        ? actions
+        : ["No blocking revision is required; keep limitations visible."],
+      rerunRequired: actions.some((action) =>
+        /run|replication|baseline|statistic|falsification/i.test(action),
+      ),
+      revisedStatus: actions.length ? "revision_planned" : "unchanged",
+    });
+    await writeJson(join(dir, "revision-plan.json"), revisionPlan);
+    await writeJson(join(dir, "revised-study.json"), {
+      kind: "science_revised_study",
+      studyId: study.studyId,
+      reviewId: review.reviewId,
+      revisionPlanId: revisionPlan.revisionPlanId,
+      revisedStatus: revisionPlan.revisedStatus,
+      evidenceHash: hashEvidence(revisionPlan),
+    });
+    await writeFile(
+      join(dir, "REVISION_PLAN.md"),
+      renderRevisionPlan(revisionPlan),
+      "utf8",
+    );
+    const artifactRefs = uniqueRefs([
+      rel(dir, this.root, "revision-plan.json"),
+      rel(dir, this.root, "revised-study.json"),
+      rel(dir, this.root, "REVISION_PLAN.md"),
+    ]);
+    await this.updateStudyArtifacts(study, dir, [
+      "revision-plan.json",
+      "revised-study.json",
+      "REVISION_PLAN.md",
+    ]);
+    return { revisionPlan, artifactRefs };
   }
 
   async buildInstruments(studyId: string): Promise<InstrumentBuildResult> {
@@ -3652,6 +3831,207 @@ export class ScienceService {
     });
   }
 
+  private async buildPeerReviewForStudy(
+    study: ScientificStudy,
+    dir: string,
+  ): Promise<SciencePeerReview> {
+    const question = await readOptionalJson<ScientificQuestion>(
+      join(dir, "question.json"),
+    );
+    const hypotheses = await readOptionalJson<ScientificHypotheses>(
+      join(dir, "hypotheses.json"),
+    );
+    const experimentDesign = await readOptionalJson<ExperimentDesign>(
+      join(dir, "experiment-design.json"),
+    );
+    const dataPlan = await readOptionalJson<ScienceDataPlan>(
+      join(dir, "data-plan.json"),
+    );
+    const statisticalAnalysis =
+      await readOptionalJson<ScienceStatisticalAnalysis>(
+        join(dir, "statistical-analysis.json"),
+      );
+    const baselineComparison =
+      await readOptionalJson<ScienceBaselineComparison>(
+        join(dir, "baseline-comparison.json"),
+      );
+    const ablationAnalysis = await readOptionalJson<ScienceAblationAnalysis>(
+      join(dir, "ablation-analysis.json"),
+    );
+    const sensitivityAnalysis =
+      await readOptionalJson<ScienceSensitivityAnalysis>(
+        join(dir, "sensitivity-analysis.json"),
+      );
+    const replicationSummary =
+      await readOptionalJson<ScienceReplicationSummary>(
+        join(dir, "replication-summary.json"),
+      );
+    const falsificationReport =
+      await readOptionalJson<ScienceFalsificationReport>(
+        join(dir, "falsification-report.json"),
+      );
+    const limitations = await readOptionalText(join(dir, "LIMITATIONS.md"));
+    const publicText = [
+      await readOptionalText(join(dir, "SCIENTIFIC_REPORT.md")),
+      await readOptionalText(join(dir, "PAPER.md")),
+      limitations,
+      JSON.stringify({
+        problemStatement: question?.problemStatement,
+        whyItMatters: question?.whyItMatters,
+        measurableOutcome: question?.measurableOutcome,
+        openQuestions: question?.openQuestions,
+        safetyBlocked: question?.safetyScope.blocked,
+        blockedReasons: question?.safetyScope.blockedReasons,
+      }),
+      reviewableStudyText(
+        question,
+        hypotheses?.hypotheses ?? [],
+        experimentDesign,
+      ),
+    ].join("\n");
+    const findings = buildPeerReviewFindings({
+      question,
+      hypotheses,
+      experimentDesign,
+      dataPlan,
+      statisticalAnalysis,
+      baselineComparison,
+      ablationAnalysis,
+      sensitivityAnalysis,
+      replicationSummary,
+      falsificationReport,
+      limitations,
+      publicText,
+    });
+    const label = labelPeerReview(findings);
+    const dimensions = peerReviewDimensions(findings);
+    const unsupportedClaimsReviewed = !findings.some(
+      (finding) =>
+        finding.dimension === "overclaim_risk" &&
+        finding.severity === "blocking",
+    );
+    const gates = [
+      gate(
+        "PEER_REVIEW_PRESENT",
+        true,
+        "A peer review artifact must be present.",
+        rel(dir, this.root, "peer-review.json"),
+        "Run `sovryn science peer-review <study-id> --json`.",
+      ),
+      gate(
+        "REVIEW_LABEL_PRESENT",
+        label.length > 0,
+        "Peer review must produce an explicit review label.",
+        rel(dir, this.root, "peer-review.json"),
+        "Classify the study as accept, minor_revision, major_revision, reject, or unsafe_scope_blocked.",
+      ),
+      gate(
+        "UNSUPPORTED_CLAIMS_REVIEWED",
+        unsupportedClaimsReviewed,
+        "Unsupported scientific, causal, legal, or production claims must be reviewed and blocked.",
+        rel(dir, this.root, "PEER_REVIEW.md"),
+        "Remove overclaims or bind them to experiment, replication, and falsification evidence.",
+      ),
+      gate(
+        "METHOD_WEAKNESSES_RECORDED",
+        findings.length > 0,
+        "Peer review must record methodological findings, even for accepted studies.",
+        rel(dir, this.root, "PEER_REVIEW.md"),
+        "Record at least one review finding or limitation note.",
+      ),
+      gate(
+        "SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION",
+        ["accept", "minor_revision"].includes(label),
+        "Science showcase status requires accept or minor_revision peer review.",
+        rel(dir, this.root, "peer-review.json"),
+        "Resolve major, blocking, or unsafe peer-review findings before showcase promotion.",
+      ),
+    ];
+    const confidence = Math.max(
+      0,
+      Number(
+        (
+          1 -
+          findings.reduce((sum, finding) => {
+            if (finding.severity === "blocking") return sum + 0.35;
+            if (finding.severity === "major") return sum + 0.18;
+            if (finding.severity === "minor") return sum + 0.07;
+            return sum;
+          }, 0)
+        ).toFixed(2),
+      ),
+    );
+    return withEvidenceHash({
+      kind: "science_peer_review" as const,
+      reviewId: stableId("sci-peer-review", `${study.studyId}:${label}`),
+      studyId: study.studyId,
+      slug: study.slug,
+      reviewedAt: nowIso(),
+      label,
+      dimensions,
+      findings,
+      confidence,
+      gates,
+      recommendedDecision: peerReviewDecision(label),
+      limitations: [
+        "This is an automated methodological peer review over local study artifacts.",
+        "It checks evidence structure, unsupported claims, safety scope, statistics, replication, and falsification; it is not a human peer review.",
+        "No legal patentability, legal novelty, or freedom-to-operate conclusion is made.",
+      ],
+    });
+  }
+
+  private async writePeerReviewRollup(
+    peerReview: SciencePeerReview,
+  ): Promise<void> {
+    await mkdir(this.scienceReviewsRoot(), { recursive: true });
+    const report = withEvidenceHash({
+      kind: "science_peer_review_report" as const,
+      updatedAt: nowIso(),
+      latestReview: peerReview,
+      reviewedCount: 1,
+      labelDistribution: { [peerReview.label]: 1 },
+    });
+    await writeJson(
+      join(this.scienceReviewsRoot(), "peer-review-report.json"),
+      report,
+    );
+    await writeFile(
+      join(this.scienceReviewsRoot(), "PEER_REVIEW_REPORT.md"),
+      renderPeerReviewRollup([peerReview]),
+      "utf8",
+    );
+  }
+
+  private async appendPeerReviewLedger(
+    ...peerReviews: SciencePeerReview[]
+  ): Promise<void> {
+    await mkdir(this.scienceReviewsRoot(), { recursive: true });
+    const ledgerPath = join(this.scienceReviewsRoot(), "review-ledger.json");
+    const existing = await readOptionalJson<{
+      reviews: SciencePeerReview[];
+    }>(ledgerPath);
+    const byId = new Map<string, SciencePeerReview>();
+    for (const review of existing?.reviews ?? []) {
+      byId.set(review.reviewId, review);
+    }
+    for (const review of peerReviews) {
+      byId.set(review.reviewId, review);
+    }
+    const reviews = [...byId.values()].sort((left, right) =>
+      left.reviewId.localeCompare(right.reviewId),
+    );
+    await writeJson(
+      ledgerPath,
+      withEvidenceHash({
+        kind: "science_peer_review_ledger" as const,
+        updatedAt: nowIso(),
+        reviewCount: reviews.length,
+        reviews,
+      }),
+    );
+  }
+
   private async buildScienceStudyPublicationGates(input: {
     study: ScientificStudy;
     dir: string;
@@ -4012,6 +4392,10 @@ export class ScienceService {
 
   private reproductionRoot(): string {
     return join(this.scienceRoot(), "reproductions");
+  }
+
+  private scienceReviewsRoot(): string {
+    return join(this.scienceRoot(), "reviews");
   }
 
   private reproductionDir(slug: string): string {
@@ -5732,6 +6116,514 @@ function renderSciencePublishAudit(audit: Record<string, unknown>): string {
 ## Gates
 
 ${((audit.gates as ScienceGateResult[]) ?? []).map((gate) => `- ${gate.passed ? "PASS" : "FAIL"} ${gate.code}: ${gate.message}`).join("\n")}
+`;
+}
+
+type PeerReviewBuildInput = {
+  question: ScientificQuestion | null;
+  hypotheses: ScientificHypotheses | null;
+  experimentDesign: ExperimentDesign | null;
+  dataPlan: ScienceDataPlan | null;
+  statisticalAnalysis: ScienceStatisticalAnalysis | null;
+  baselineComparison: ScienceBaselineComparison | null;
+  ablationAnalysis: ScienceAblationAnalysis | null;
+  sensitivityAnalysis: ScienceSensitivityAnalysis | null;
+  replicationSummary: ScienceReplicationSummary | null;
+  falsificationReport: ScienceFalsificationReport | null;
+  limitations: string;
+  publicText: string;
+};
+
+const PEER_REVIEW_DIMENSIONS: SciencePeerReviewFinding["dimension"][] = [
+  "question_clarity",
+  "hypothesis_testability",
+  "null_hypothesis_quality",
+  "data_quality",
+  "baseline_appropriateness",
+  "metric_appropriateness",
+  "statistical_validity",
+  "ablation_completeness",
+  "replication_sufficiency",
+  "falsification_strength",
+  "limitation_honesty",
+  "safety_scope",
+  "public_readability",
+  "overclaim_risk",
+];
+
+function buildPeerReviewFindings(
+  input: PeerReviewBuildInput,
+): SciencePeerReviewFinding[] {
+  const findings: SciencePeerReviewFinding[] = [];
+  const hypotheses = input.hypotheses?.hypotheses ?? [];
+  if (!input.question || input.question.problemStatement.trim().length < 20) {
+    findings.push(
+      peerFinding(
+        "question_clarity",
+        "major",
+        "The study does not expose a clear scientific question.",
+        "Write a measurable question with field, outcome, data needs, and scope.",
+      ),
+    );
+  }
+  if (
+    input.question?.safetyScope.blocked ||
+    containsActionableUnsafeText(input.publicText)
+  ) {
+    findings.push(
+      peerFinding(
+        "safety_scope",
+        "blocking",
+        "The study enters an unsafe or blocked scope.",
+        "Block or rewrite the study to safe computational science only.",
+      ),
+    );
+  }
+  if (hypotheses.length === 0) {
+    findings.push(
+      peerFinding(
+        "hypothesis_testability",
+        "major",
+        "No testable hypothesis is recorded.",
+        "Create hypotheses with measurable predictions and falsification criteria.",
+      ),
+    );
+  }
+  if (
+    hypotheses.length === 0 ||
+    hypotheses.some(
+      (hypothesis) => hypothesis.nullHypothesis.trim().length === 0,
+    )
+  ) {
+    findings.push(
+      peerFinding(
+        "null_hypothesis_quality",
+        "major",
+        "One or more hypotheses are missing explicit null hypotheses.",
+        "Add a null hypothesis for every scientific hypothesis.",
+      ),
+    );
+  }
+  if (!input.experimentDesign) {
+    findings.push(
+      peerFinding(
+        "baseline_appropriateness",
+        "major",
+        "No experiment design is available for baseline review.",
+        "Design an experiment with controls, baseline, metrics, and failure criteria.",
+      ),
+    );
+  } else if (input.experimentDesign.baseline.trim().length === 0) {
+    findings.push(
+      peerFinding(
+        "baseline_appropriateness",
+        "major",
+        "The experiment design is missing a baseline method.",
+        "Add an explicit baseline and rerun baseline comparison.",
+      ),
+    );
+  }
+  if (input.experimentDesign && input.experimentDesign.metrics.length === 0) {
+    findings.push(
+      peerFinding(
+        "metric_appropriateness",
+        "major",
+        "The experiment design is missing measurable metrics.",
+        "Add precision, recall, false-positive rate, false-negative rate, and effect-size metrics where applicable.",
+      ),
+    );
+  }
+  if (!input.dataPlan) {
+    findings.push(
+      peerFinding(
+        "data_quality",
+        "major",
+        "No data plan or generated dataset evidence is available.",
+        "Generate or ingest public-safe data and record dataset validation evidence.",
+      ),
+    );
+  }
+  if (!input.statisticalAnalysis) {
+    findings.push(
+      peerFinding(
+        "statistical_validity",
+        "major",
+        "Statistical analysis is missing.",
+        "Run `sovryn science analyze <experiment-id> --json` and include error analysis.",
+      ),
+    );
+  }
+  if (!input.baselineComparison) {
+    findings.push(
+      peerFinding(
+        "baseline_appropriateness",
+        "major",
+        "Baseline comparison is missing.",
+        "Run `sovryn science compare-baseline <experiment-id> --json`.",
+      ),
+    );
+  }
+  if (!input.ablationAnalysis) {
+    findings.push(
+      peerFinding(
+        "ablation_completeness",
+        "major",
+        "Ablation analysis is missing.",
+        "Run ablations that remove provenance, weather normalization, and missing-interval features.",
+      ),
+    );
+  }
+  if (!input.sensitivityAnalysis) {
+    findings.push(
+      peerFinding(
+        "metric_appropriateness",
+        "minor",
+        "Sensitivity analysis is missing, so threshold robustness is unclear.",
+        "Run sensitivity sweeps for thresholds and feature weights.",
+      ),
+    );
+  }
+  if ((input.replicationSummary?.completedRuns ?? 0) < 3) {
+    findings.push(
+      peerFinding(
+        "replication_sufficiency",
+        "major",
+        "Replication evidence is missing or below the minimum of three runs.",
+        "Run `sovryn science replicate <experiment-id> --runs 3 --json` before publication or showcase.",
+      ),
+    );
+  }
+  if (!input.falsificationReport) {
+    findings.push(
+      peerFinding(
+        "falsification_strength",
+        "major",
+        "Falsification evidence is missing.",
+        "Run `sovryn science falsify <hypothesis-id> --json` and document failure cases.",
+      ),
+    );
+  }
+  if (input.limitations.trim().length < 80) {
+    findings.push(
+      peerFinding(
+        "limitation_honesty",
+        "minor",
+        "Limitations are missing or too thin for public interpretation.",
+        "Add concrete limitations about data scope, model scope, replication, and failure cases.",
+      ),
+    );
+  }
+  if (!/abstract|methods|limitations|results/i.test(input.publicText)) {
+    findings.push(
+      peerFinding(
+        "public_readability",
+        "minor",
+        "Public study text lacks expected scientific report sections.",
+        "Write a reader-facing report with abstract, methods, results, limitations, and reproduction instructions.",
+      ),
+    );
+  }
+  if (containsUnsupportedClaimLanguage(input.publicText)) {
+    findings.push(
+      peerFinding(
+        "overclaim_risk",
+        "blocking",
+        "The study contains unsupported scientific, causal, production, or legal claim language.",
+        "Replace overclaims with evidence-bound language and rerun peer review.",
+      ),
+    );
+  }
+  if (findings.length === 0) {
+    findings.push(
+      peerFinding(
+        "limitation_honesty",
+        "info",
+        "No blocking methodological weakness was detected in the required peer-review dimensions.",
+        "Keep limitations visible and require human interpretation before external use.",
+      ),
+    );
+  }
+  return findings;
+}
+
+function peerFinding(
+  dimension: SciencePeerReviewFinding["dimension"],
+  severity: SciencePeerReviewFinding["severity"],
+  message: string,
+  recommendedFix: string,
+): SciencePeerReviewFinding {
+  return { dimension, severity, message, recommendedFix };
+}
+
+function peerReviewDimensions(
+  findings: SciencePeerReviewFinding[],
+): Record<SciencePeerReviewFinding["dimension"], number> {
+  const scores = Object.fromEntries(
+    PEER_REVIEW_DIMENSIONS.map((dimension) => [dimension, 100]),
+  ) as Record<SciencePeerReviewFinding["dimension"], number>;
+  for (const finding of findings) {
+    const penalty =
+      finding.severity === "blocking"
+        ? 100
+        : finding.severity === "major"
+          ? 45
+          : finding.severity === "minor"
+            ? 20
+            : 0;
+    scores[finding.dimension] = Math.max(
+      0,
+      scores[finding.dimension] - penalty,
+    );
+  }
+  return scores;
+}
+
+function labelPeerReview(
+  findings: SciencePeerReviewFinding[],
+): SciencePeerReviewLabel {
+  if (
+    findings.some(
+      (finding) =>
+        finding.dimension === "safety_scope" && finding.severity === "blocking",
+    )
+  ) {
+    return "unsafe_scope_blocked";
+  }
+  if (findings.some((finding) => finding.severity === "blocking")) {
+    return "reject";
+  }
+  if (findings.some((finding) => finding.severity === "major")) {
+    return "major_revision";
+  }
+  if (findings.some((finding) => finding.severity === "minor")) {
+    return "minor_revision";
+  }
+  return "accept";
+}
+
+function peerReviewDecision(label: SciencePeerReviewLabel): string {
+  if (label === "accept") {
+    return "Accept for bounded public computational-science interpretation.";
+  }
+  if (label === "minor_revision") {
+    return "Minor revision before showcase science promotion.";
+  }
+  if (label === "major_revision") {
+    return "Major revision required before publication or showcase promotion.";
+  }
+  if (label === "unsafe_scope_blocked") {
+    return "Block until the study is rewritten into safe computational science scope.";
+  }
+  return "Reject until blocking overclaims or evidence gaps are resolved.";
+}
+
+function buildCorpusPeerReview(
+  result: Record<string, unknown>,
+  targetRepo: string,
+): SciencePeerReview {
+  const findings: SciencePeerReviewFinding[] = [];
+  if (result.publicHygienePassed !== true) {
+    findings.push(
+      peerFinding(
+        "safety_scope",
+        "blocking",
+        "Public hygiene did not pass for the corpus result.",
+        "Remove leaks or unsafe content from the public corpus result.",
+      ),
+    );
+  }
+  if (result.baselineComparisonPresent !== true) {
+    findings.push(
+      peerFinding(
+        "baseline_appropriateness",
+        "major",
+        "The corpus study is missing public baseline comparison evidence.",
+        "Publish baseline comparison evidence before showcase science status.",
+      ),
+    );
+  }
+  if (result.statisticalAnalysisPresent !== true) {
+    findings.push(
+      peerFinding(
+        "statistical_validity",
+        "major",
+        "The corpus study is missing public statistical analysis evidence.",
+        "Publish statistical analysis evidence before showcase science status.",
+      ),
+    );
+  }
+  if (result.ablationPresent !== true) {
+    findings.push(
+      peerFinding(
+        "ablation_completeness",
+        "major",
+        "The corpus study is missing ablation evidence.",
+        "Publish ablation evidence before showcase science status.",
+      ),
+    );
+  }
+  if ((Number(result.replicationRunCount) || 0) < 3) {
+    findings.push(
+      peerFinding(
+        "replication_sufficiency",
+        "major",
+        "The corpus study has fewer than three replication runs.",
+        "Publish at least three replication runs or mark the result as preliminary.",
+      ),
+    );
+  }
+  if (
+    !result.falsificationStatus ||
+    String(result.falsificationStatus) === "missing"
+  ) {
+    findings.push(
+      peerFinding(
+        "falsification_strength",
+        "major",
+        "The corpus study is missing falsification evidence.",
+        "Publish falsification evidence or keep the study out of showcase science.",
+      ),
+    );
+  }
+  if (containsUnsupportedClaimLanguage(JSON.stringify(result))) {
+    findings.push(
+      peerFinding(
+        "overclaim_risk",
+        "blocking",
+        "The public corpus result contains unsupported claim language.",
+        "Rewrite public claims with evidence-bound language.",
+      ),
+    );
+  }
+  if (findings.length === 0) {
+    findings.push(
+      peerFinding(
+        "limitation_honesty",
+        "info",
+        "Corpus study exposes the expected scientific evidence fields.",
+        "Keep public limitations and human interpretation requirements visible.",
+      ),
+    );
+  }
+  const label = labelPeerReview(findings);
+  const slug = String(result.slug ?? result.resultId ?? "corpus-science-study");
+  const studyId = String(result.studyId ?? slug);
+  const gates = [
+    gate(
+      "PEER_REVIEW_PRESENT",
+      true,
+      "Corpus peer review was generated.",
+      ".sovryn/science/reviews/peer-review-corpus.json",
+      "Run `sovryn science peer-review-corpus --target-repo <path> --json`.",
+    ),
+    gate(
+      "REVIEW_LABEL_PRESENT",
+      label.length > 0,
+      "Corpus peer review must include a label.",
+      ".sovryn/science/reviews/peer-review-corpus.json",
+      "Classify the corpus study.",
+    ),
+    gate(
+      "SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION",
+      ["accept", "minor_revision"].includes(label),
+      "Science showcase status requires accept or minor_revision peer review.",
+      ".sovryn/science/reviews/peer-review-corpus.json",
+      "Resolve public corpus review issues before showcase science promotion.",
+    ),
+  ];
+  return withEvidenceHash({
+    kind: "science_peer_review" as const,
+    reviewId: stableId("sci-peer-review", `${targetRepo}:${slug}:${label}`),
+    studyId,
+    slug,
+    reviewedAt: nowIso(),
+    label,
+    dimensions: peerReviewDimensions(findings),
+    findings,
+    confidence:
+      label === "accept" ? 1 : label === "minor_revision" ? 0.88 : 0.58,
+    gates,
+    recommendedDecision: peerReviewDecision(label),
+    limitations: [
+      "Corpus peer review is based on curated public index fields, not private internal state.",
+      "No legal patentability, legal novelty, or freedom-to-operate conclusion is made.",
+    ],
+  });
+}
+
+function renderPeerReview(review: SciencePeerReview): string {
+  return `# Scientific Peer Review
+
+- Study: ${review.slug}
+- Review ID: ${review.reviewId}
+- Label: ${review.label}
+- Confidence: ${review.confidence}
+- Recommended decision: ${review.recommendedDecision}
+
+## Dimension Scores
+
+${PEER_REVIEW_DIMENSIONS.map((dimension) => `- ${dimension}: ${review.dimensions[dimension]}`).join("\n")}
+
+## Findings
+
+${review.findings.map((finding) => `- ${finding.severity.toUpperCase()} ${finding.dimension}: ${finding.message}\n  - Fix: ${finding.recommendedFix}`).join("\n")}
+
+## Gates
+
+${review.gates.map((gate) => `- ${gate.passed ? "PASS" : "FAIL"} ${gate.code}: ${gate.message}`).join("\n")}
+
+## Limitations
+
+${review.limitations.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+function renderPeerReviewRollup(reviews: SciencePeerReview[]): string {
+  return `# Scientific Peer Review Report
+
+- Reviewed studies: ${reviews.length}
+
+${reviews.map((review) => `- ${review.slug}: ${review.label} (${review.recommendedDecision})`).join("\n")}
+
+This report is an automated methodological critique. It does not replace human peer review and does not provide legal patentability, legal novelty, or freedom-to-operate opinions.
+`;
+}
+
+function renderPeerReviewCorpus(report: Record<string, unknown>): string {
+  const reviews = (report.reviews as SciencePeerReview[]) ?? [];
+  return `# Corpus Scientific Peer Review
+
+- Reviewed public studies: ${String(report.reviewedCount)}
+- Passed for showcase-level labels: ${String(report.passed)}
+
+${reviews.map((review) => `- ${review.slug}: ${review.label} (${review.findings.length} findings)`).join("\n")}
+
+Corpus peer review uses curated public science-study metadata. It records method weaknesses, overclaim risk, missing baselines, missing replication, missing falsification, and public-hygiene issues without exposing private internal state.
+`;
+}
+
+function renderAuthorResponse(response: ScienceAuthorResponse): string {
+  return `# Author Response
+
+- Study: ${response.studyId}
+- Review: ${response.reviewId}
+- Critique accepted: ${String(response.acceptsCritique)}
+
+${response.responses.map((item) => `- Finding: ${item.finding}\n  - Response: ${item.response}\n  - Action: ${item.action}`).join("\n")}
+`;
+}
+
+function renderRevisionPlan(plan: ScienceRevisionPlan): string {
+  return `# Revision Plan
+
+- Study: ${plan.studyId}
+- Review: ${plan.reviewId}
+- Rerun required: ${String(plan.rerunRequired)}
+- Revised status: ${plan.revisedStatus}
+
+## Required Actions
+
+${plan.requiredActions.map((item) => `- ${item}`).join("\n")}
 `;
 }
 
@@ -8325,6 +9217,15 @@ async function readOptionalJson<T>(path: string): Promise<T | null> {
   }
 }
 
+async function readOptionalText(path: string): Promise<string> {
+  try {
+    await access(path);
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
 function rel(dir: string, root: string, file: string): string {
   const full = join(dir, file);
   return full.startsWith(`${root}/`) ? full.slice(root.length + 1) : full;
@@ -8342,6 +9243,19 @@ function containsUnsafeText(text: string): boolean {
   return /\b(wet[- ]?lab|synthesis route|hazardous substance|controlled substance|gain of function|exploit live systems|credential theft|medical treatment)\b/i.test(
     text,
   );
+}
+
+function containsActionableUnsafeText(text: string): boolean {
+  const actionable = text
+    .split(/\n|(?<=[.!?])\s+/)
+    .filter(
+      (line) =>
+        !/\b(no|not|without|excluded|excludes|blocked|forbidden|out of scope|safe computational|does not|must not)\b/i.test(
+          line,
+        ),
+    )
+    .join("\n");
+  return containsUnsafeText(actionable);
 }
 
 function containsPrivateDataRisk(text: string): boolean {

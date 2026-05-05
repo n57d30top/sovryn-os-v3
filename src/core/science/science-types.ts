@@ -98,7 +98,14 @@ export type ScienceGateCode =
   | "REPRODUCTION_ANALYSIS_PRESENT"
   | "LIMITATIONS_PRESENT"
   | "NO_UNSAFE_REPRODUCTION_SCOPE"
-  | "NO_OVERCLAIMED_REPRODUCTION";
+  | "NO_OVERCLAIMED_REPRODUCTION"
+  | "PEER_REVIEW_PRESENT"
+  | "REVIEW_LABEL_PRESENT"
+  | "UNSUPPORTED_CLAIMS_REVIEWED"
+  | "METHOD_WEAKNESSES_RECORDED"
+  | "AUTHOR_RESPONSE_PRESENT"
+  | "REVISION_PLAN_PRESENT_IF_NEEDED"
+  | "SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION";
 
 export type SafetyScope = {
   domain: string;
@@ -468,6 +475,77 @@ export type ScienceReproductionAnalysis = {
   overclaimRisk: "low" | "medium" | "high";
   gates: ScienceGateResult[];
   limitations: string[];
+  evidenceHash: string;
+};
+
+export type SciencePeerReviewLabel =
+  | "accept"
+  | "minor_revision"
+  | "major_revision"
+  | "reject"
+  | "unsafe_scope_blocked";
+
+export type SciencePeerReviewFinding = {
+  dimension:
+    | "question_clarity"
+    | "hypothesis_testability"
+    | "null_hypothesis_quality"
+    | "data_quality"
+    | "baseline_appropriateness"
+    | "metric_appropriateness"
+    | "statistical_validity"
+    | "ablation_completeness"
+    | "replication_sufficiency"
+    | "falsification_strength"
+    | "limitation_honesty"
+    | "safety_scope"
+    | "public_readability"
+    | "overclaim_risk";
+  severity: "info" | "minor" | "major" | "blocking";
+  message: string;
+  recommendedFix: string;
+};
+
+export type SciencePeerReview = {
+  kind: "science_peer_review";
+  reviewId: string;
+  studyId: string;
+  slug: string;
+  reviewedAt: string;
+  label: SciencePeerReviewLabel;
+  dimensions: Record<SciencePeerReviewFinding["dimension"], number>;
+  findings: SciencePeerReviewFinding[];
+  confidence: number;
+  gates: ScienceGateResult[];
+  recommendedDecision: string;
+  limitations: string[];
+  evidenceHash: string;
+};
+
+export type ScienceAuthorResponse = {
+  kind: "science_author_response";
+  responseId: string;
+  studyId: string;
+  reviewId: string;
+  createdAt: string;
+  acceptsCritique: boolean;
+  responses: Array<{
+    finding: string;
+    response: string;
+    action: string;
+  }>;
+  evidenceHash: string;
+};
+
+export type ScienceRevisionPlan = {
+  kind: "science_revision_plan";
+  revisionPlanId: string;
+  studyId: string;
+  reviewId: string;
+  createdAt: string;
+  requiredActions: string[];
+  rerunRequired: boolean;
+  revisedStatus: "unchanged" | "revision_planned";
   evidenceHash: string;
 };
 

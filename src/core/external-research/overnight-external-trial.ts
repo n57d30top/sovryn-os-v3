@@ -621,7 +621,7 @@ export class V1RcGateService {
     const scorecard = withHash({
       kind: "v1_rc_scorecard" as const,
       checkedAt: nowIso(),
-      targetVersion: "3.2.0-alpha.2",
+      targetVersion: "3.2.0-alpha.3",
       passed,
       readinessLabel: passed ? "v1_rc_ready" : "blocked",
       e2eReadinessLabel: text(e2e.readinessLabel, "not_recorded"),
@@ -660,7 +660,7 @@ export class V1RcGateService {
       kind: "v1_launch_decision" as const,
       decidedAt: nowIso(),
       decision: passed ? "promote_to_v1_rc" : "do_not_promote",
-      targetVersion: passed ? "3.2.0-alpha.2" : "3.0.0-beta.23",
+      targetVersion: passed ? "3.2.0-alpha.3" : "3.0.0-beta.23",
       reason: passed
         ? "All automated v1-RC gates passed."
         : "One or more automated v1-RC gates failed.",
@@ -672,7 +672,7 @@ export class V1RcGateService {
     const check = withHash({
       kind: "v1_rc_check" as const,
       checkedAt: nowIso(),
-      targetVersion: "3.2.0-alpha.2",
+      targetVersion: "3.2.0-alpha.3",
       passed,
       readinessLabel: passed ? "v1_rc_ready" : "blocked",
       gates,
@@ -949,7 +949,7 @@ function renderV1GateReport(report: Record<string, unknown>): string {
   return `# v1-RC Gate Report
 
 Passed: ${String(report.passed)}
-Target version: ${text(report.targetVersion, "3.2.0-alpha.2")}
+Target version: ${text(report.targetVersion, "3.2.0-alpha.3")}
 
 ${gates.map((item) => `- ${text(item.code, "gate")}: ${String(item.passed)}`).join("\n")}
 

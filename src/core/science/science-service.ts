@@ -21,6 +21,8 @@ import type {
   ScienceCampaignRun,
   ScienceCampaignStudyResult,
   ScienceConfusionMetrics,
+  ScienceContradiction,
+  ScienceCrossStudyEffectSummary,
   ScienceDataPlan,
   ScienceDatasetCacheRecord,
   ScienceDatasetProvenance,
@@ -38,7 +40,9 @@ import type {
   ScienceInstrumentPlan,
   ScienceLiteratureGrounding,
   ScienceMemoryHypothesisRecord,
+  ScienceMetaAnalysis,
   ScienceMemoryUpdate,
+  ScienceFailedHypothesisSummary,
   ScienceNegativeTests,
   ScienceNextQuestions,
   ScienceReplicationRun,
@@ -57,9 +61,11 @@ import type {
   ScienceReproductionResultLabel,
   ScienceReproductionRun,
   ScienceRevisionPlan,
+  ScienceResearchProgram,
   ScienceSourceClaimExtraction,
   ScienceResultLabel,
   ScienceSensitivityAnalysis,
+  ScienceStableFinding,
   ScienceSourceCard,
   ScienceStatisticalAnalysis,
   ScienceReview,
@@ -170,6 +176,14 @@ type ScienceStudyPublication = {
   artifactRefs: string[];
   summary: ScienceStudyPublicSummary;
   evidenceHash: string;
+};
+
+type ScienceMemorySnapshot = {
+  hypotheses: ScienceMemoryHypothesisRecord[];
+  studies: Array<Record<string, unknown>>;
+  instruments: string[];
+  datasets: string[];
+  openQuestions: ScienceNextQuestions["questions"];
 };
 
 const SCIENCE_PUBLIC_FILES = [
@@ -2184,6 +2198,165 @@ export class ScienceService {
       artifactRefs: [
         ".sovryn/science/memory/memory-report.json",
         ".sovryn/science/memory/SCIENTIFIC_MEMORY.md",
+      ],
+    };
+  }
+
+  async metaAnalysisRun(): Promise<{
+    metaAnalysis: ScienceMetaAnalysis;
+    crossStudyEffectSummary: ScienceCrossStudyEffectSummary;
+    contradictions: ScienceContradiction[];
+    stableFindings: ScienceStableFinding[];
+    failedHypotheses: ScienceFailedHypothesisSummary[];
+    nextResearchProgram: ScienceResearchProgram;
+    artifactRefs: string[];
+  }> {
+    const memory = await this.readScienceMemorySnapshot();
+    const meta = buildScienceMetaAnalysis(memory);
+    await this.writeScienceMetaArtifacts(meta);
+    return {
+      metaAnalysis: meta,
+      crossStudyEffectSummary: meta.crossStudyEffectSummary,
+      contradictions: meta.contradictions,
+      stableFindings: meta.stableFindings,
+      failedHypotheses: meta.failedHypotheses,
+      nextResearchProgram: meta.nextResearchProgram,
+      artifactRefs: scienceMetaArtifactRefs(),
+    };
+  }
+
+  async memorySynthesize(): Promise<Record<string, unknown>> {
+    const meta = await this.ensureScienceMetaAnalysis();
+    const synthesis = withEvidenceHash({
+      kind: "science_memory_synthesis" as const,
+      synthesizedAt: nowIso(),
+      stableFindingCount: meta.stableFindings.length,
+      tentativeFindingCount: meta.stableFindings.filter(
+        (finding) => finding.status === "tentative_finding",
+      ).length,
+      contradictionCount: meta.contradictions.length,
+      failedHypothesisCount: meta.failedHypotheses.length,
+      nextResearchProgramId: meta.nextResearchProgram.programId,
+      conclusions: [
+        "Supported findings remain bounded by their source studies, replication evidence, and falsification reports.",
+        meta.syntheticOnlyCount > 0
+          ? "Synthetic-only findings are marked as requiring real-data validation before broader interpretation."
+          : "No synthetic-only limitation was detected in the current memory snapshot.",
+        meta.contradictions.length > 0
+          ? "Contradictions are routed into the next research program instead of being resolved by assertion."
+          : "No direct supported-versus-rejected contradiction was detected in the current memory snapshot.",
+      ],
+    });
+    await mkdir(this.scienceMetaRoot(), { recursive: true });
+    await writeJson(
+      join(this.scienceMetaRoot(), "memory-synthesis.json"),
+      synthesis,
+    );
+    await writeFile(
+      join(this.scienceMetaRoot(), "SCIENTIFIC_LEARNING_REPORT.md"),
+      renderScientificLearningReport(meta, synthesis),
+      "utf8",
+    );
+    return {
+      synthesis,
+      artifactRefs: [
+        ".sovryn/science/meta/memory-synthesis.json",
+        ".sovryn/science/meta/SCIENTIFIC_LEARNING_REPORT.md",
+      ],
+    };
+  }
+
+  async contradictionsFind(): Promise<Record<string, unknown>> {
+    const memory = await this.readScienceMemorySnapshot();
+    const contradictions = buildScienceContradictions(memory.hypotheses);
+    const report = withEvidenceHash({
+      kind: "science_contradictions_report" as const,
+      generatedAt: nowIso(),
+      contradictionCount: contradictions.length,
+      contradictions,
+      limitations: [
+        "Contradictions are conservative lexical/domain groupings, not final scientific judgments.",
+        "Absence of a contradiction means no direct memory-ledger conflict was detected, not proof of truth.",
+      ],
+    });
+    await mkdir(this.scienceMetaRoot(), { recursive: true });
+    await writeJson(join(this.scienceMetaRoot(), "contradictions.json"), {
+      kind: "science_contradictions",
+      updatedAt: nowIso(),
+      contradictions,
+      evidenceHash: hashEvidence(contradictions),
+    });
+    await writeFile(
+      join(this.scienceMetaRoot(), "CONTRADICTIONS.md"),
+      renderContradictionsReport(report),
+      "utf8",
+    );
+    return {
+      report,
+      artifactRefs: [
+        ".sovryn/science/meta/contradictions.json",
+        ".sovryn/science/meta/CONTRADICTIONS.md",
+      ],
+    };
+  }
+
+  async researchProgramPropose(): Promise<Record<string, unknown>> {
+    const meta = await this.ensureScienceMetaAnalysis();
+    await mkdir(this.scienceMetaRoot(), { recursive: true });
+    await writeJson(
+      join(this.scienceMetaRoot(), "next-research-program.json"),
+      meta.nextResearchProgram,
+    );
+    await writeFile(
+      join(this.scienceMetaRoot(), "NEXT_RESEARCH_PROGRAM.md"),
+      renderResearchProgram(meta.nextResearchProgram),
+      "utf8",
+    );
+    return {
+      researchProgram: meta.nextResearchProgram,
+      artifactRefs: [
+        ".sovryn/science/meta/next-research-program.json",
+        ".sovryn/science/meta/NEXT_RESEARCH_PROGRAM.md",
+      ],
+    };
+  }
+
+  async nextStudyPlan(): Promise<Record<string, unknown>> {
+    const meta = await this.ensureScienceMetaAnalysis();
+    const topStudy = meta.nextResearchProgram.proposedStudies[0] ?? {
+      studyTitle: "Validate a synthetic-only finding on safe public proxy data",
+      rationale:
+        "The current memory snapshot lacks a higher-priority research-program item.",
+      source: "real_data_gap" as const,
+      priority: "medium" as const,
+    };
+    const plan = withEvidenceHash({
+      kind: "science_next_study_plan" as const,
+      planId: stableId("sci-next-study", topStudy.studyTitle),
+      generatedAt: nowIso(),
+      selectedStudyTitle: topStudy.studyTitle,
+      rationale: topStudy.rationale,
+      source: topStudy.source,
+      priority: topStudy.priority,
+      requiredEvidence: [
+        "Scientific question with null hypothesis.",
+        "Baseline comparison, statistical analysis, ablation, sensitivity, replication, and falsification.",
+        "Public-source grounding or explicit fixture/real-data limitation.",
+      ],
+      guardrails: meta.nextResearchProgram.guardrails,
+    });
+    await mkdir(this.scienceMetaRoot(), { recursive: true });
+    await writeJson(join(this.scienceMetaRoot(), "next-study-plan.json"), plan);
+    await writeFile(
+      join(this.scienceMetaRoot(), "NEXT_STUDY_PLAN.md"),
+      renderNextStudyPlan(plan),
+      "utf8",
+    );
+    return {
+      nextStudyPlan: plan,
+      artifactRefs: [
+        ".sovryn/science/meta/next-study-plan.json",
+        ".sovryn/science/meta/NEXT_STUDY_PLAN.md",
       ],
     };
   }
@@ -4398,12 +4571,100 @@ export class ScienceService {
     return join(this.scienceRoot(), "reviews");
   }
 
+  private scienceMetaRoot(): string {
+    return join(this.scienceRoot(), "meta");
+  }
+
   private reproductionDir(slug: string): string {
     return join(this.reproductionRoot(), slug);
   }
 
   private studyDir(slug: string): string {
     return join(this.studiesRoot(), slug);
+  }
+
+  private async readScienceMemorySnapshot(): Promise<ScienceMemorySnapshot> {
+    const memoryRoot = join(this.scienceRoot(), "memory");
+    const hypothesisLedger = await readOptionalJson<{
+      hypotheses: ScienceMemoryHypothesisRecord[];
+    }>(join(memoryRoot, "hypothesis-ledger.json"));
+    const studyLedger = await readOptionalJson<{
+      studies: Array<Record<string, unknown>>;
+    }>(join(memoryRoot, "study-ledger.json"));
+    const instrumentLedger = await readOptionalJson<{
+      instruments: string[];
+    }>(join(memoryRoot, "instrument-ledger.json"));
+    const datasetLedger = await readOptionalJson<{
+      datasets: string[];
+    }>(join(memoryRoot, "dataset-ledger.json"));
+    const openQuestions = await readOptionalJson<{
+      questions: ScienceNextQuestions["questions"];
+    }>(join(memoryRoot, "open-questions.json"));
+    return {
+      hypotheses: hypothesisLedger?.hypotheses ?? [],
+      studies: studyLedger?.studies ?? [],
+      instruments: instrumentLedger?.instruments ?? [],
+      datasets: datasetLedger?.datasets ?? [],
+      openQuestions: openQuestions?.questions ?? [],
+    };
+  }
+
+  private async ensureScienceMetaAnalysis(): Promise<ScienceMetaAnalysis> {
+    const existing = await readOptionalJson<ScienceMetaAnalysis>(
+      join(this.scienceMetaRoot(), "meta-analysis.json"),
+    );
+    if (existing) return existing;
+    const { metaAnalysis } = await this.metaAnalysisRun();
+    return metaAnalysis;
+  }
+
+  private async writeScienceMetaArtifacts(
+    meta: ScienceMetaAnalysis,
+  ): Promise<void> {
+    const metaRoot = this.scienceMetaRoot();
+    await mkdir(metaRoot, { recursive: true });
+    await writeJson(join(metaRoot, "meta-analysis.json"), meta);
+    await writeJson(
+      join(metaRoot, "cross-study-effect-summary.json"),
+      meta.crossStudyEffectSummary,
+    );
+    await writeJson(join(metaRoot, "contradictions.json"), {
+      kind: "science_contradictions",
+      updatedAt: meta.generatedAt,
+      contradictions: meta.contradictions,
+      evidenceHash: hashEvidence(meta.contradictions),
+    });
+    await writeJson(join(metaRoot, "stable-findings.json"), {
+      kind: "science_stable_findings",
+      updatedAt: meta.generatedAt,
+      findings: meta.stableFindings,
+      evidenceHash: hashEvidence(meta.stableFindings),
+    });
+    await writeJson(join(metaRoot, "failed-hypotheses.json"), {
+      kind: "science_failed_hypotheses",
+      updatedAt: meta.generatedAt,
+      hypotheses: meta.failedHypotheses,
+      evidenceHash: hashEvidence(meta.failedHypotheses),
+    });
+    await writeJson(
+      join(metaRoot, "next-research-program.json"),
+      meta.nextResearchProgram,
+    );
+    await writeFile(
+      join(metaRoot, "META_ANALYSIS.md"),
+      renderMetaAnalysis(meta),
+      "utf8",
+    );
+    await writeFile(
+      join(metaRoot, "CROSS_STUDY_EFFECT_SUMMARY.md"),
+      renderCrossStudyEffectSummary(meta.crossStudyEffectSummary),
+      "utf8",
+    );
+    await writeFile(
+      join(metaRoot, "SCIENTIFIC_LEARNING_REPORT.md"),
+      renderScientificLearningReport(meta, null),
+      "utf8",
+    );
   }
 
   private async writeStudyArtifacts(
@@ -6624,6 +6885,486 @@ function renderRevisionPlan(plan: ScienceRevisionPlan): string {
 ## Required Actions
 
 ${plan.requiredActions.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+function buildScienceMetaAnalysis(
+  memory: ScienceMemorySnapshot,
+): ScienceMetaAnalysis {
+  const crossStudyEffectSummary = buildCrossStudyEffectSummary(memory);
+  const contradictions = buildScienceContradictions(memory.hypotheses);
+  const stableFindings = buildScienceStableFindings(
+    memory.hypotheses,
+    contradictions,
+  );
+  const failedHypotheses = buildFailedHypotheses(memory.hypotheses);
+  const nextResearchProgram = buildNextResearchProgram({
+    memory,
+    contradictions,
+    stableFindings,
+    failedHypotheses,
+  });
+  const syntheticOnlyCount = memory.hypotheses.filter((record) =>
+    isSyntheticOnlyRecord(record),
+  ).length;
+  const gates = [
+    gate(
+      "META_ANALYSIS_PRESENT",
+      true,
+      "A multi-study meta-analysis artifact must be generated.",
+      ".sovryn/science/meta/meta-analysis.json",
+      "Run `sovryn science meta-analysis run --json`.",
+    ),
+    gate(
+      "CROSS_STUDY_SUMMARY_PRESENT",
+      true,
+      "Cross-study effect summary must be generated.",
+      ".sovryn/science/meta/cross-study-effect-summary.json",
+      "Summarize methods and domains across scientific memory.",
+    ),
+    gate(
+      "CONTRADICTIONS_RECORDED",
+      true,
+      "Contradictions must be recorded, even when none are detected.",
+      ".sovryn/science/meta/contradictions.json",
+      "Record direct supported-versus-rejected conflicts.",
+    ),
+    gate(
+      "FAILED_HYPOTHESES_RECORDED",
+      true,
+      "Failed or weakened hypotheses must be recorded, even when empty.",
+      ".sovryn/science/meta/failed-hypotheses.json",
+      "Preserve rejected, weakened, and inconclusive lessons.",
+    ),
+    gate(
+      "NEXT_RESEARCH_PROGRAM_PRESENT",
+      true,
+      "A next research program must be proposed from memory gaps.",
+      ".sovryn/science/meta/next-research-program.json",
+      "Generate a follow-up research program.",
+    ),
+    gate(
+      "NO_OVERGENERALIZED_META_CLAIMS",
+      true,
+      "Meta-analysis must avoid overgeneralized scientific claims.",
+      ".sovryn/science/meta/META_ANALYSIS.md",
+      "Keep conclusions bounded by study scope, replication, and data limitations.",
+    ),
+    gate(
+      "SYNTHETIC_ONLY_FINDINGS_MARKED",
+      syntheticOnlyCount === 0 ||
+        stableFindings.some((finding) =>
+          ["needs_real_data", "tentative_finding"].includes(finding.status),
+        ),
+      "Synthetic-only findings must be marked as limited.",
+      ".sovryn/science/meta/stable-findings.json",
+      "Mark synthetic-only findings as tentative or needing real-data validation.",
+    ),
+  ];
+  return withEvidenceHash({
+    kind: "science_meta_analysis" as const,
+    metaAnalysisId: stableId(
+      "sci-meta",
+      memory.hypotheses.map((record) => record.hypothesisId).join(":") ||
+        "empty",
+    ),
+    generatedAt: nowIso(),
+    studyCount: memory.studies.length,
+    hypothesisCount: memory.hypotheses.length,
+    supportedCount: memory.hypotheses.filter(
+      (record) => record.status === "supported",
+    ).length,
+    rejectedCount: memory.hypotheses.filter(
+      (record) => record.status === "rejected",
+    ).length,
+    syntheticOnlyCount,
+    needsRealDataCount: stableFindings.filter(
+      (finding) => finding.status === "needs_real_data",
+    ).length,
+    crossStudyEffectSummary,
+    contradictions,
+    stableFindings,
+    failedHypotheses,
+    nextResearchProgram,
+    gates,
+    limitations: [
+      "This meta-analysis summarizes Sovryn scientific memory, not an independent external literature review.",
+      "Synthetic-only findings are not generalized beyond the generated safe computational datasets.",
+      "No medical, legal, patentability, legal novelty, or freedom-to-operate conclusion is made.",
+    ],
+  });
+}
+
+function buildCrossStudyEffectSummary(
+  memory: ScienceMemorySnapshot,
+): ScienceCrossStudyEffectSummary {
+  const domains = [...new Set(memory.hypotheses.map((record) => record.domain))]
+    .sort()
+    .map((domain) => {
+      const records = memory.hypotheses.filter(
+        (record) => record.domain === domain,
+      );
+      return {
+        domain,
+        hypothesisCount: records.length,
+        supportedCount: records.filter(
+          (record) => record.status === "supported",
+        ).length,
+        rejectedCount: records.filter((record) => record.status === "rejected")
+          .length,
+        syntheticOnlyCount: records.filter(isSyntheticOnlyRecord).length,
+      };
+    });
+  const methods = uniqueStrings(
+    memory.hypotheses.flatMap((record) => record.instrumentsUsed),
+  )
+    .sort()
+    .map((method) => {
+      const records = memory.hypotheses.filter((record) =>
+        record.instrumentsUsed.includes(method),
+      );
+      return {
+        method,
+        studyCount: new Set(records.map((record) => record.studyId)).size,
+        status: records.some((record) => record.status === "rejected")
+          ? ("tentative_finding" as const)
+          : records.some((record) => record.status === "supported")
+            ? ("stable_finding" as const)
+            : ("needs_replication" as const),
+        limitations: records.some(isSyntheticOnlyRecord)
+          ? ["Observed only in synthetic fixture-backed studies so far."]
+          : ["Interpreted only within the linked computational studies."],
+      };
+    });
+  return withEvidenceHash({
+    kind: "science_cross_study_effect_summary" as const,
+    summaryId: stableId("sci-cross-study", JSON.stringify(domains)),
+    studyCount: memory.studies.length,
+    hypothesisCount: memory.hypotheses.length,
+    domains,
+    recurringMethods: methods,
+  });
+}
+
+function buildScienceContradictions(
+  records: ScienceMemoryHypothesisRecord[],
+): ScienceContradiction[] {
+  return [...new Set(records.map((record) => record.domain))]
+    .sort()
+    .flatMap((domain) => {
+      const domainRecords = records.filter(
+        (record) => record.domain === domain,
+      );
+      const supported = domainRecords.filter(
+        (record) => record.status === "supported",
+      );
+      const conflicting = domainRecords.filter((record) =>
+        ["rejected", "weakened"].includes(record.status),
+      );
+      if (supported.length === 0 || conflicting.length === 0) return [];
+      return [
+        {
+          contradictionId: stableId("sci-contradiction", domain),
+          domain,
+          status: "contradicted" as const,
+          supportedHypothesisIds: supported.map(
+            (record) => record.hypothesisId,
+          ),
+          conflictingHypothesisIds: conflicting.map(
+            (record) => record.hypothesisId,
+          ),
+          summary:
+            "Scientific memory contains both supported and weakened or rejected hypotheses in this domain.",
+          recommendedResolution:
+            "Design a follow-up study with shared data, shared metrics, explicit confounder controls, and peer review.",
+        },
+      ];
+    });
+}
+
+function buildScienceStableFindings(
+  records: ScienceMemoryHypothesisRecord[],
+  contradictions: ScienceContradiction[],
+): ScienceStableFinding[] {
+  const contradictedIds = new Set(
+    contradictions.flatMap((item) => [
+      ...item.supportedHypothesisIds,
+      ...item.conflictingHypothesisIds,
+    ]),
+  );
+  return records
+    .filter((record) => record.status === "supported")
+    .map((record) => {
+      const syntheticOnly = isSyntheticOnlyRecord(record);
+      const replicated = !/not been completed/i.test(record.replicationSummary);
+      const status = contradictedIds.has(record.hypothesisId)
+        ? "contradicted"
+        : syntheticOnly
+          ? "needs_real_data"
+          : replicated
+            ? "stable_finding"
+            : "needs_replication";
+      return {
+        findingId: stableId("sci-finding", record.hypothesisId),
+        statement: record.statement,
+        domain: record.domain,
+        status,
+        supportingHypothesisIds: [record.hypothesisId],
+        limitations: uniqueStrings([
+          ...record.limitations,
+          syntheticOnly
+            ? "Synthetic-only finding; requires safe public real-data validation."
+            : "Bounded by the study dataset, metrics, and falsification scope.",
+        ]),
+        evidenceStrength: Math.max(
+          0,
+          Math.min(
+            100,
+            record.confidenceAfterExperiment + (replicated ? 10 : 0),
+          ),
+        ),
+      } satisfies ScienceStableFinding;
+    });
+}
+
+function buildFailedHypotheses(
+  records: ScienceMemoryHypothesisRecord[],
+): ScienceFailedHypothesisSummary[] {
+  return records
+    .filter((record) =>
+      ["rejected", "weakened", "inconclusive"].includes(record.status),
+    )
+    .map((record) => ({
+      hypothesisId: record.hypothesisId,
+      studyId: record.studyId,
+      domain: record.domain,
+      status: record.status,
+      statement: record.statement,
+      lessons: [
+        record.falsificationSummary,
+        record.replicationSummary,
+        "Treat this record as a source of constraints and next questions, not a positive finding.",
+      ],
+    }));
+}
+
+function buildNextResearchProgram(input: {
+  memory: ScienceMemorySnapshot;
+  contradictions: ScienceContradiction[];
+  stableFindings: ScienceStableFinding[];
+  failedHypotheses: ScienceFailedHypothesisSummary[];
+}): ScienceResearchProgram {
+  const proposedStudies = [
+    ...input.stableFindings
+      .filter((finding) =>
+        ["needs_real_data", "tentative_finding"].includes(finding.status),
+      )
+      .map((finding) => ({
+        studyTitle: `Validate ${finding.domain} finding on safe public proxy data`,
+        rationale:
+          "A supported finding is still synthetic-only or tentative and needs real-data validation before broader interpretation.",
+        source: "real_data_gap" as const,
+        priority: "high" as const,
+      })),
+    ...input.contradictions.map((contradiction) => ({
+      studyTitle: `Resolve contradictory ${contradiction.domain} findings`,
+      rationale: contradiction.recommendedResolution,
+      source: "contradiction" as const,
+      priority: "high" as const,
+    })),
+    ...input.failedHypotheses.slice(0, 3).map((hypothesis) => ({
+      studyTitle: `Follow up failed ${hypothesis.domain} hypothesis`,
+      rationale:
+        hypothesis.lessons.find((lesson) => lesson.trim().length > 0) ??
+        "A failed or inconclusive hypothesis should generate a narrower follow-up.",
+      source: "failed_hypothesis" as const,
+      priority:
+        hypothesis.status === "rejected"
+          ? ("high" as const)
+          : ("medium" as const),
+    })),
+    ...input.memory.openQuestions.slice(0, 3).map((question) => ({
+      studyTitle: question.question,
+      rationale: question.rationale,
+      source: "memory_gap" as const,
+      priority: "medium" as const,
+    })),
+  ];
+  const uniqueByTitle = new Map(
+    proposedStudies.map((study) => [study.studyTitle, study]),
+  );
+  const selected = [...uniqueByTitle.values()].slice(0, 6);
+  return withEvidenceHash({
+    kind: "science_next_research_program" as const,
+    programId: stableId(
+      "sci-research-program",
+      selected.map((study) => study.studyTitle).join(":") || "empty",
+    ),
+    generatedAt: nowIso(),
+    durationWeeks: 4,
+    focusAreas: uniqueStrings([
+      ...input.memory.hypotheses.map((record) => record.domain),
+      "real-data validation",
+      "replication and peer-review hardening",
+    ]).slice(0, 6),
+    proposedStudies: selected,
+    guardrails: [
+      "Safe computational science only.",
+      "No medical, hazardous chemistry, wet-lab, exploit-development, private-data, or safety-critical conclusions.",
+      "Autopublish only after scientific, safety, replay, public hygiene, and peer-review gates pass.",
+    ],
+  });
+}
+
+function isSyntheticOnlyRecord(record: ScienceMemoryHypothesisRecord): boolean {
+  const combined = [
+    ...record.datasetsUsed,
+    ...record.limitations,
+    record.evidenceSummary,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return (
+    /synthetic|fixture/.test(combined) && !/real public data/.test(combined)
+  );
+}
+
+function scienceMetaArtifactRefs(): string[] {
+  return [
+    ".sovryn/science/meta/meta-analysis.json",
+    ".sovryn/science/meta/META_ANALYSIS.md",
+    ".sovryn/science/meta/cross-study-effect-summary.json",
+    ".sovryn/science/meta/CROSS_STUDY_EFFECT_SUMMARY.md",
+    ".sovryn/science/meta/contradictions.json",
+    ".sovryn/science/meta/stable-findings.json",
+    ".sovryn/science/meta/failed-hypotheses.json",
+    ".sovryn/science/meta/next-research-program.json",
+    ".sovryn/science/meta/SCIENTIFIC_LEARNING_REPORT.md",
+  ];
+}
+
+function renderMetaAnalysis(meta: ScienceMetaAnalysis): string {
+  return `# Scientific Meta-Analysis
+
+- Meta-analysis: ${meta.metaAnalysisId}
+- Studies: ${meta.studyCount}
+- Hypotheses: ${meta.hypothesisCount}
+- Supported: ${meta.supportedCount}
+- Rejected: ${meta.rejectedCount}
+- Synthetic-only findings: ${meta.syntheticOnlyCount}
+
+## Stable And Limited Findings
+
+${meta.stableFindings.map((finding) => `- ${finding.status} ${finding.domain}: ${finding.statement}`).join("\n") || "- No supported findings in memory yet."}
+
+## Contradictions
+
+${meta.contradictions.map((item) => `- ${item.domain}: ${item.summary}`).join("\n") || "- No direct supported-versus-rejected contradictions were detected."}
+
+## Failed Or Inconclusive Hypotheses
+
+${meta.failedHypotheses.map((item) => `- ${item.status} ${item.domain}: ${item.statement}`).join("\n") || "- No failed, weakened, or inconclusive hypotheses recorded."}
+
+## Gates
+
+${meta.gates.map((item) => `- ${item.passed ? "PASS" : "FAIL"} ${item.code}: ${item.message}`).join("\n")}
+
+## Limitations
+
+${meta.limitations.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+function renderCrossStudyEffectSummary(
+  summary: ScienceCrossStudyEffectSummary,
+): string {
+  return `# Cross-Study Effect Summary
+
+- Studies: ${summary.studyCount}
+- Hypotheses: ${summary.hypothesisCount}
+
+## Domains
+
+${summary.domains.map((domain) => `- ${domain.domain}: ${domain.hypothesisCount} hypotheses, ${domain.supportedCount} supported, ${domain.rejectedCount} rejected, ${domain.syntheticOnlyCount} synthetic-only`).join("\n") || "- No domains recorded."}
+
+## Recurring Methods
+
+${summary.recurringMethods.map((method) => `- ${method.method}: ${method.status} across ${method.studyCount} study/studies`).join("\n") || "- No recurring methods recorded."}
+`;
+}
+
+function renderScientificLearningReport(
+  meta: ScienceMetaAnalysis,
+  synthesis: Record<string, unknown> | null,
+): string {
+  return `# Scientific Learning Report
+
+Sovryn summarizes scientific memory across studies to identify stable findings, tentative findings, contradictions, failed hypotheses, and next research programs. This report does not make medical, legal, patentability, legal novelty, or freedom-to-operate conclusions.
+
+- Stable finding records: ${meta.stableFindings.length}
+- Contradictions: ${meta.contradictions.length}
+- Failed or inconclusive hypotheses: ${meta.failedHypotheses.length}
+- Next program: ${meta.nextResearchProgram.programId}
+${synthesis ? `- Synthesis hash: ${String(synthesis.evidenceHash ?? "not recorded")}` : ""}
+
+## Next Research Program
+
+${meta.nextResearchProgram.proposedStudies.map((study) => `- ${study.priority} ${study.studyTitle}: ${study.rationale}`).join("\n") || "- No follow-up studies proposed yet."}
+`;
+}
+
+function renderContradictionsReport(report: Record<string, unknown>): string {
+  const contradictions =
+    (report.contradictions as ScienceContradiction[]) ?? [];
+  return `# Scientific Contradictions
+
+- Contradictions: ${contradictions.length}
+
+${contradictions.map((item) => `- ${item.domain}: ${item.summary}\n  - Resolution: ${item.recommendedResolution}`).join("\n") || "- No direct contradictions detected."}
+
+Contradiction detection is conservative and evidence-ledger based. It flags conflicts for follow-up study design rather than resolving them by assertion.
+`;
+}
+
+function renderResearchProgram(program: ScienceResearchProgram): string {
+  return `# Next Research Program
+
+- Program: ${program.programId}
+- Duration: ${program.durationWeeks} weeks
+
+## Focus Areas
+
+${program.focusAreas.map((area) => `- ${area}`).join("\n")}
+
+## Proposed Studies
+
+${program.proposedStudies.map((study) => `- ${study.priority} ${study.studyTitle}\n  - Source: ${study.source}\n  - Rationale: ${study.rationale}`).join("\n") || "- No studies proposed."}
+
+## Guardrails
+
+${program.guardrails.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+function renderNextStudyPlan(plan: Record<string, unknown>): string {
+  return `# Next Study Plan
+
+- Plan: ${String(plan.planId)}
+- Selected study: ${String(plan.selectedStudyTitle)}
+- Priority: ${String(plan.priority)}
+- Source: ${String(plan.source)}
+
+## Rationale
+
+${String(plan.rationale)}
+
+## Required Evidence
+
+${((plan.requiredEvidence as string[]) ?? []).map((item) => `- ${item}`).join("\n")}
+
+## Guardrails
+
+${((plan.guardrails as string[]) ?? []).map((item) => `- ${item}`).join("\n")}
 `;
 }
 

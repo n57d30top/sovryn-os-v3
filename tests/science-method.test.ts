@@ -88,6 +88,9 @@ let reproductionFixturePromise:
 let peerReviewFixturePromise:
   | Promise<Awaited<ReturnType<typeof createPeerReviewFixture>>>
   | undefined;
+let metaFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createMetaAnalysisFixture>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -132,6 +135,11 @@ async function reproductionFixture() {
 async function peerReviewFixture() {
   peerReviewFixturePromise ??= createPeerReviewFixture();
   return peerReviewFixturePromise;
+}
+
+async function metaFixture() {
+  metaFixturePromise ??= createMetaAnalysisFixture();
+  return metaFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -324,6 +332,52 @@ async function createPeerReviewFixture() {
     peerReview: (peer.data as any).peerReview,
     authorResponse: (rebuttal.data as any).authorResponse,
     revisionPlan: (revise.data as any).revisionPlan,
+  };
+}
+
+async function createMetaAnalysisFixture() {
+  const context = await campaignFixture();
+  const meta = await executeCli(
+    ["science", "meta-analysis", "run", "--json"],
+    context.repo.root,
+  );
+  assert.equal(meta.ok, true, JSON.stringify(meta.errors, null, 2));
+  const synthesis = await executeCli(
+    ["science", "memory", "synthesize", "--json"],
+    context.repo.root,
+  );
+  assert.equal(synthesis.ok, true, JSON.stringify(synthesis.errors, null, 2));
+  const contradictions = await executeCli(
+    ["science", "contradictions", "find", "--json"],
+    context.repo.root,
+  );
+  assert.equal(
+    contradictions.ok,
+    true,
+    JSON.stringify(contradictions.errors, null, 2),
+  );
+  const program = await executeCli(
+    ["science", "research-program", "propose", "--json"],
+    context.repo.root,
+  );
+  assert.equal(program.ok, true, JSON.stringify(program.errors, null, 2));
+  const nextStudy = await executeCli(
+    ["science", "next-study", "plan", "--json"],
+    context.repo.root,
+  );
+  assert.equal(nextStudy.ok, true, JSON.stringify(nextStudy.errors, null, 2));
+  return {
+    ...context,
+    metaAnalysis: (meta.data as any).metaAnalysis,
+    crossStudyEffectSummary: (meta.data as any).crossStudyEffectSummary,
+    contradictions: (meta.data as any).contradictions,
+    stableFindings: (meta.data as any).stableFindings,
+    failedHypotheses: (meta.data as any).failedHypotheses,
+    nextResearchProgram: (meta.data as any).nextResearchProgram,
+    synthesis: (synthesis.data as any).synthesis,
+    contradictionsReport: (contradictions.data as any).report,
+    proposedProgram: (program.data as any).researchProgram,
+    nextStudyPlan: (nextStudy.data as any).nextStudyPlan,
   };
 }
 
@@ -537,7 +591,7 @@ function reproductionPath(root: string, slug: string, file: string): string {
 
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.2.0-alpha.3");
+  assert.equal(pkg.version, "3.2.0-alpha.4");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -5987,4 +6041,539 @@ test("science publish-all is idempotent for INDEX result count", async () => {
   assert.equal(second.ok, true, JSON.stringify(second.errors, null, 2));
   const secondIndex = await readJson<any>(join(target.root, "INDEX.json"));
   assert.equal(secondIndex.resultCount, firstIndex.resultCount);
+});
+
+test("alpha.4 science help lists meta-analysis run", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science meta-analysis run/);
+});
+
+test("alpha.4 science help lists memory synthesize", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science memory synthesize/);
+});
+
+test("alpha.4 science help lists research-program propose", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science research-program propose/);
+});
+
+test("alpha.4 science help lists contradictions find", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science contradictions find/);
+});
+
+test("alpha.4 science help lists next-study plan", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match((response.data as any).help, /science next-study plan/);
+});
+
+test("science meta-analysis run writes meta-analysis artifact", async () => {
+  const { repo, metaAnalysis } = await metaFixture();
+  assert.equal(metaAnalysis.kind, "science_meta_analysis");
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "meta-analysis.json"),
+  );
+});
+
+test("science meta-analysis writes markdown report", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "meta", "META_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Scientific Meta-Analysis/);
+});
+
+test("science meta-analysis writes cross-study summary artifact", async () => {
+  const { repo, crossStudyEffectSummary } = await metaFixture();
+  assert.equal(
+    crossStudyEffectSummary.kind,
+    "science_cross_study_effect_summary",
+  );
+  await access(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "meta",
+      "cross-study-effect-summary.json",
+    ),
+  );
+});
+
+test("science meta-analysis writes cross-study markdown", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "meta",
+      "CROSS_STUDY_EFFECT_SUMMARY.md",
+    ),
+    "utf8",
+  );
+  assert.match(markdown, /Cross-Study Effect Summary/);
+});
+
+test("science meta-analysis writes contradictions artifact", async () => {
+  const { repo } = await metaFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "contradictions.json"),
+  );
+});
+
+test("science meta-analysis writes stable findings artifact", async () => {
+  const { repo } = await metaFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "stable-findings.json"),
+  );
+});
+
+test("science meta-analysis writes failed hypotheses artifact", async () => {
+  const { repo } = await metaFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "failed-hypotheses.json"),
+  );
+});
+
+test("science meta-analysis writes next research program artifact", async () => {
+  const { repo } = await metaFixture();
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "next-research-program.json"),
+  );
+});
+
+test("science meta-analysis writes scientific learning report", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "meta",
+      "SCIENTIFIC_LEARNING_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.match(markdown, /Scientific Learning Report/);
+});
+
+test("science meta-analysis counts campaign studies", async () => {
+  const { metaAnalysis } = await metaFixture();
+  assert.equal(metaAnalysis.studyCount, 2);
+});
+
+test("science meta-analysis counts hypotheses", async () => {
+  const { metaAnalysis } = await metaFixture();
+  assert.ok(metaAnalysis.hypothesisCount >= 4);
+});
+
+test("cross-study summary includes energy domain", async () => {
+  const { crossStudyEffectSummary } = await metaFixture();
+  assert.ok(
+    crossStudyEffectSummary.domains.some((domain: any) =>
+      /energy/i.test(domain.domain),
+    ),
+  );
+});
+
+test("cross-study summary includes chemistry domain", async () => {
+  const { crossStudyEffectSummary } = await metaFixture();
+  assert.ok(
+    crossStudyEffectSummary.domains.some((domain: any) =>
+      /chemistry/i.test(domain.domain),
+    ),
+  );
+});
+
+test("cross-study summary includes recurring experiment runner method", async () => {
+  const { crossStudyEffectSummary } = await metaFixture();
+  assert.ok(
+    crossStudyEffectSummary.recurringMethods.some(
+      (method: any) => method.method === "experiment-runner",
+    ),
+  );
+});
+
+test("meta-analysis produces stable finding records", async () => {
+  const { stableFindings } = await metaFixture();
+  assert.ok(stableFindings.length >= 1);
+});
+
+test("synthetic-only findings are marked limited", async () => {
+  const { stableFindings } = await metaFixture();
+  assert.ok(
+    stableFindings.some((finding: any) =>
+      ["needs_real_data", "tentative_finding"].includes(finding.status),
+    ),
+  );
+});
+
+test("meta-analysis gates include all alpha.4 gates", async () => {
+  const { metaAnalysis } = await metaFixture();
+  const codes = metaAnalysis.gates.map((gate: any) => gate.code);
+  assert.ok(codes.includes("META_ANALYSIS_PRESENT"));
+  assert.ok(codes.includes("CROSS_STUDY_SUMMARY_PRESENT"));
+  assert.ok(codes.includes("CONTRADICTIONS_RECORDED"));
+  assert.ok(codes.includes("FAILED_HYPOTHESES_RECORDED"));
+  assert.ok(codes.includes("NEXT_RESEARCH_PROGRAM_PRESENT"));
+  assert.ok(codes.includes("NO_OVERGENERALIZED_META_CLAIMS"));
+  assert.ok(codes.includes("SYNTHETIC_ONLY_FINDINGS_MARKED"));
+});
+
+test("meta-analysis gates pass for fixture campaign", async () => {
+  const { metaAnalysis } = await metaFixture();
+  assert.ok(metaAnalysis.gates.every((gate: any) => gate.passed));
+});
+
+test("meta-analysis records failed or inconclusive hypotheses", async () => {
+  const { failedHypotheses } = await metaFixture();
+  assert.ok(
+    failedHypotheses.some((item: any) => item.status === "inconclusive"),
+  );
+});
+
+test("meta-analysis records contradictions as an array", async () => {
+  const { contradictions } = await metaFixture();
+  assert.ok(Array.isArray(contradictions));
+});
+
+test("contradictions find writes report artifact", async () => {
+  const { repo, contradictionsReport } = await metaFixture();
+  assert.equal(contradictionsReport.kind, "science_contradictions_report");
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "CONTRADICTIONS.md"),
+  );
+});
+
+test("memory synthesize writes synthesis artifact", async () => {
+  const { repo, synthesis } = await metaFixture();
+  assert.equal(synthesis.kind, "science_memory_synthesis");
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "memory-synthesis.json"),
+  );
+});
+
+test("memory synthesis links the next research program", async () => {
+  const { synthesis, nextResearchProgram } = await metaFixture();
+  assert.equal(synthesis.nextResearchProgramId, nextResearchProgram.programId);
+});
+
+test("research program proposes a four-week program", async () => {
+  const { proposedProgram } = await metaFixture();
+  assert.equal(proposedProgram.durationWeeks, 4);
+});
+
+test("research program includes real-data validation gaps", async () => {
+  const { proposedProgram } = await metaFixture();
+  assert.ok(
+    proposedProgram.proposedStudies.some(
+      (study: any) => study.source === "real_data_gap",
+    ),
+  );
+});
+
+test("research program includes guardrails", async () => {
+  const { proposedProgram } = await metaFixture();
+  assert.ok(
+    proposedProgram.guardrails.some((guardrail: string) =>
+      /safe computational science/i.test(guardrail),
+    ),
+  );
+});
+
+test("next study plan writes JSON artifact", async () => {
+  const { repo, nextStudyPlan } = await metaFixture();
+  assert.equal(nextStudyPlan.kind, "science_next_study_plan");
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "next-study-plan.json"),
+  );
+});
+
+test("next study plan writes markdown artifact", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "meta", "NEXT_STUDY_PLAN.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Next Study Plan/);
+});
+
+test("next study plan requires null hypothesis evidence", async () => {
+  const { nextStudyPlan } = await metaFixture();
+  assert.ok(
+    nextStudyPlan.requiredEvidence.some((item: string) =>
+      /null hypothesis/i.test(item),
+    ),
+  );
+});
+
+test("meta-analysis avoids overgeneralized guarantee language", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "meta", "META_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.doesNotMatch(markdown, /\bproves\b|\bguarantees\b|\buniversal\b/i);
+});
+
+test("meta-analysis limitations are explicit", async () => {
+  const { metaAnalysis } = await metaFixture();
+  assert.ok(metaAnalysis.limitations.length >= 2);
+});
+
+test("meta-analysis artifact is hash-bound", async () => {
+  const { metaAnalysis } = await metaFixture();
+  assert.match(metaAnalysis.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("cross-study summary is hash-bound", async () => {
+  const { crossStudyEffectSummary } = await metaFixture();
+  assert.match(crossStudyEffectSummary.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("research program is hash-bound", async () => {
+  const { nextResearchProgram } = await metaFixture();
+  assert.match(nextResearchProgram.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("empty memory meta-analysis exits cleanly", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    ["science", "meta-analysis", "run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).metaAnalysis.hypothesisCount, 0);
+});
+
+test("empty memory research program still has guardrails", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    ["science", "research-program", "propose", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.ok((response.data as any).researchProgram.guardrails.length >= 2);
+});
+
+test("contradictions find detects injected supported rejected conflict", async () => {
+  const repo = await initRepo();
+  await mkdir(join(repo.root, ".sovryn", "science", "memory"), {
+    recursive: true,
+  });
+  await writeJson(
+    join(repo.root, ".sovryn", "science", "memory", "hypothesis-ledger.json"),
+    {
+      hypotheses: [
+        {
+          hypothesisId: "h-supported",
+          statement: "Method improves false positives.",
+          nullHypothesis: "No improvement.",
+          studyId: "s1",
+          domain: "energy anomaly detection",
+          status: "supported",
+          evidenceSummary: "Supported in a replicated study.",
+          replicationSummary: "Replication stable.",
+          falsificationSummary: "No material failures.",
+          datasetsUsed: ["real-public-proxy"],
+          instrumentsUsed: ["experiment-runner"],
+          limitations: [],
+          nextQuestions: [],
+          publishedResultPath: null,
+          confidenceAfterExperiment: 82,
+        },
+        {
+          hypothesisId: "h-rejected",
+          statement: "Method fails on confounders.",
+          nullHypothesis: "No failure.",
+          studyId: "s2",
+          domain: "energy anomaly detection",
+          status: "rejected",
+          evidenceSummary: "Rejected in a negative study.",
+          replicationSummary: "Replication stable.",
+          falsificationSummary: "Material failures found.",
+          datasetsUsed: ["real-public-proxy"],
+          instrumentsUsed: ["experiment-runner"],
+          limitations: [],
+          nextQuestions: [],
+          publishedResultPath: null,
+          confidenceAfterExperiment: 20,
+        },
+      ],
+    },
+  );
+  const response = await executeCli(
+    ["science", "contradictions", "find", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).report.contradictionCount, 1);
+});
+
+test("meta-analysis marks injected unreplicated support as needs replication", async () => {
+  const repo = await initRepo();
+  await mkdir(join(repo.root, ".sovryn", "science", "memory"), {
+    recursive: true,
+  });
+  await writeJson(
+    join(repo.root, ".sovryn", "science", "memory", "hypothesis-ledger.json"),
+    {
+      hypotheses: [
+        {
+          hypothesisId: "h-needs-replication",
+          statement: "A real-data method improves quality.",
+          nullHypothesis: "No improvement.",
+          studyId: "s1",
+          domain: "dataset reliability",
+          status: "supported",
+          evidenceSummary: "Supported in one run.",
+          replicationSummary: "Replication has not been completed.",
+          falsificationSummary: "No material failures.",
+          datasetsUsed: ["real-public-proxy"],
+          instrumentsUsed: ["experiment-runner"],
+          limitations: [],
+          nextQuestions: [],
+          publishedResultPath: null,
+          confidenceAfterExperiment: 75,
+        },
+      ],
+    },
+  );
+  const response = await executeCli(
+    ["science", "meta-analysis", "run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal(
+    (response.data as any).stableFindings[0].status,
+    "needs_replication",
+  );
+});
+
+test("meta-analysis keeps real-data replicated support stable", async () => {
+  const repo = await initRepo();
+  await mkdir(join(repo.root, ".sovryn", "science", "memory"), {
+    recursive: true,
+  });
+  await writeJson(
+    join(repo.root, ".sovryn", "science", "memory", "hypothesis-ledger.json"),
+    {
+      hypotheses: [
+        {
+          hypothesisId: "h-stable",
+          statement: "A real-data method improves quality.",
+          nullHypothesis: "No improvement.",
+          studyId: "s1",
+          domain: "dataset reliability",
+          status: "supported",
+          evidenceSummary: "Supported in replicated runs.",
+          replicationSummary: "Replication stable.",
+          falsificationSummary: "No material failures.",
+          datasetsUsed: ["real public data"],
+          instrumentsUsed: ["experiment-runner"],
+          limitations: [],
+          nextQuestions: [],
+          publishedResultPath: null,
+          confidenceAfterExperiment: 80,
+        },
+      ],
+    },
+  );
+  const response = await executeCli(
+    ["science", "meta-analysis", "run", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal(
+    (response.data as any).stableFindings[0].status,
+    "stable_finding",
+  );
+});
+
+test("meta-analysis turns rejected hypotheses into lessons", async () => {
+  const { failedHypotheses } = await metaFixture();
+  assert.ok(failedHypotheses.every((item: any) => Array.isArray(item.lessons)));
+});
+
+test("meta-analysis does not treat inconclusive hypotheses as strong evidence", async () => {
+  const { stableFindings, failedHypotheses } = await metaFixture();
+  const stableIds = new Set(
+    stableFindings.flatMap((finding: any) => finding.supportingHypothesisIds),
+  );
+  assert.ok(
+    failedHypotheses
+      .filter((item: any) => item.status === "inconclusive")
+      .every((item: any) => !stableIds.has(item.hypothesisId)),
+  );
+});
+
+test("meta-analysis report mentions synthetic-only limitation", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(repo.root, ".sovryn", "science", "meta", "META_ANALYSIS.md"),
+    "utf8",
+  );
+  assert.match(markdown, /Synthetic-only findings/);
+});
+
+test("scientific learning report avoids legal claims", async () => {
+  const { repo } = await metaFixture();
+  const markdown = await readFile(
+    join(
+      repo.root,
+      ".sovryn",
+      "science",
+      "meta",
+      "SCIENTIFIC_LEARNING_REPORT.md",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(markdown, /\bpatentable\b|\bfreedom to operate\b/i);
+});
+
+test("next research program proposes follow-up studies from memory", async () => {
+  const { nextResearchProgram } = await metaFixture();
+  assert.ok(nextResearchProgram.proposedStudies.length >= 1);
+});
+
+test("next research program prioritizes high-value gaps", async () => {
+  const { nextResearchProgram } = await metaFixture();
+  assert.ok(
+    nextResearchProgram.proposedStudies.some(
+      (study: any) => study.priority === "high",
+    ),
+  );
+});
+
+test("memory synthesize is stable JSON shape", async () => {
+  const { synthesis } = await metaFixture();
+  assert.equal(typeof synthesis.stableFindingCount, "number");
+  assert.equal(typeof synthesis.contradictionCount, "number");
+  assert.equal(typeof synthesis.failedHypothesisCount, "number");
+});
+
+test("contradictions report is stable JSON shape", async () => {
+  const { contradictionsReport } = await metaFixture();
+  assert.equal(typeof contradictionsReport.contradictionCount, "number");
+  assert.ok(Array.isArray(contradictionsReport.contradictions));
+});
+
+test("research program output is stable JSON shape", async () => {
+  const { proposedProgram } = await metaFixture();
+  assert.equal(proposedProgram.kind, "science_next_research_program");
+  assert.ok(Array.isArray(proposedProgram.proposedStudies));
+});
+
+test("next study plan output is stable JSON shape", async () => {
+  const { nextStudyPlan } = await metaFixture();
+  assert.equal(nextStudyPlan.kind, "science_next_study_plan");
+  assert.ok(Array.isArray(nextStudyPlan.guardrails));
 });

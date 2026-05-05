@@ -105,7 +105,14 @@ export type ScienceGateCode =
   | "METHOD_WEAKNESSES_RECORDED"
   | "AUTHOR_RESPONSE_PRESENT"
   | "REVISION_PLAN_PRESENT_IF_NEEDED"
-  | "SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION";
+  | "SHOWCASE_SCIENCE_REQUIRES_ACCEPT_OR_MINOR_REVISION"
+  | "META_ANALYSIS_PRESENT"
+  | "CROSS_STUDY_SUMMARY_PRESENT"
+  | "CONTRADICTIONS_RECORDED"
+  | "FAILED_HYPOTHESES_RECORDED"
+  | "NEXT_RESEARCH_PROGRAM_PRESENT"
+  | "NO_OVERGENERALIZED_META_CLAIMS"
+  | "SYNTHETIC_ONLY_FINDINGS_MARKED";
 
 export type SafetyScope = {
   domain: string;
@@ -546,6 +553,105 @@ export type ScienceRevisionPlan = {
   requiredActions: string[];
   rerunRequired: boolean;
   revisedStatus: "unchanged" | "revision_planned";
+  evidenceHash: string;
+};
+
+export type ScienceMemoryFindingStatus =
+  | "stable_finding"
+  | "tentative_finding"
+  | "contradicted"
+  | "needs_real_data"
+  | "needs_replication"
+  | "needs_peer_review"
+  | "obsolete";
+
+export type ScienceCrossStudyEffectSummary = {
+  kind: "science_cross_study_effect_summary";
+  summaryId: string;
+  studyCount: number;
+  hypothesisCount: number;
+  domains: Array<{
+    domain: string;
+    hypothesisCount: number;
+    supportedCount: number;
+    rejectedCount: number;
+    syntheticOnlyCount: number;
+  }>;
+  recurringMethods: Array<{
+    method: string;
+    studyCount: number;
+    status: ScienceMemoryFindingStatus;
+    limitations: string[];
+  }>;
+  evidenceHash: string;
+};
+
+export type ScienceContradiction = {
+  contradictionId: string;
+  domain: string;
+  status: ScienceMemoryFindingStatus;
+  supportedHypothesisIds: string[];
+  conflictingHypothesisIds: string[];
+  summary: string;
+  recommendedResolution: string;
+};
+
+export type ScienceStableFinding = {
+  findingId: string;
+  statement: string;
+  domain: string;
+  status: ScienceMemoryFindingStatus;
+  supportingHypothesisIds: string[];
+  limitations: string[];
+  evidenceStrength: number;
+};
+
+export type ScienceFailedHypothesisSummary = {
+  hypothesisId: string;
+  studyId: string;
+  domain: string;
+  status: ScienceResultLabel;
+  statement: string;
+  lessons: string[];
+};
+
+export type ScienceResearchProgram = {
+  kind: "science_next_research_program";
+  programId: string;
+  generatedAt: string;
+  durationWeeks: number;
+  focusAreas: string[];
+  proposedStudies: Array<{
+    studyTitle: string;
+    rationale: string;
+    source:
+      | "memory_gap"
+      | "contradiction"
+      | "failed_hypothesis"
+      | "real_data_gap";
+    priority: "high" | "medium" | "low";
+  }>;
+  guardrails: string[];
+  evidenceHash: string;
+};
+
+export type ScienceMetaAnalysis = {
+  kind: "science_meta_analysis";
+  metaAnalysisId: string;
+  generatedAt: string;
+  studyCount: number;
+  hypothesisCount: number;
+  supportedCount: number;
+  rejectedCount: number;
+  syntheticOnlyCount: number;
+  needsRealDataCount: number;
+  crossStudyEffectSummary: ScienceCrossStudyEffectSummary;
+  contradictions: ScienceContradiction[];
+  stableFindings: ScienceStableFinding[];
+  failedHypotheses: ScienceFailedHypothesisSummary[];
+  nextResearchProgram: ScienceResearchProgram;
+  gates: ScienceGateResult[];
+  limitations: string[];
   evidenceHash: string;
 };
 

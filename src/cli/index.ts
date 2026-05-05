@@ -228,6 +228,11 @@ Commands:
   sovryn science peer-review-corpus --target-repo <path> [--json]
   sovryn science rebuttal <study-id> [--json]
   sovryn science revise <study-id> [--json]
+  sovryn science meta-analysis run [--json]
+  sovryn science memory synthesize [--json]
+  sovryn science research-program propose [--json]
+  sovryn science contradictions find [--json]
+  sovryn science next-study plan [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1542,10 +1547,53 @@ async function scienceCommand(
       if (action === "report") {
         return service.memoryReport();
       }
+      if (action === "synthesize") {
+        return service.memorySynthesize();
+      }
       throw new AppError(
         "SCIENCE_MEMORY_USAGE",
-        "Use: sovryn science memory <update|search|report>.",
+        "Use: sovryn science memory <update|search|report|synthesize>.",
       );
+    }
+    case "meta-analysis": {
+      const action = parsed.positionals[1];
+      if (action !== "run") {
+        throw new AppError(
+          "SCIENCE_META_ANALYSIS_USAGE",
+          "Use: sovryn science meta-analysis run.",
+        );
+      }
+      return service.metaAnalysisRun();
+    }
+    case "research-program": {
+      const action = parsed.positionals[1];
+      if (action !== "propose") {
+        throw new AppError(
+          "SCIENCE_RESEARCH_PROGRAM_USAGE",
+          "Use: sovryn science research-program propose.",
+        );
+      }
+      return service.researchProgramPropose();
+    }
+    case "contradictions": {
+      const action = parsed.positionals[1];
+      if (action !== "find") {
+        throw new AppError(
+          "SCIENCE_CONTRADICTIONS_USAGE",
+          "Use: sovryn science contradictions find.",
+        );
+      }
+      return service.contradictionsFind();
+    }
+    case "next-study": {
+      const action = parsed.positionals[1];
+      if (action !== "plan") {
+        throw new AppError(
+          "SCIENCE_NEXT_STUDY_USAGE",
+          "Use: sovryn science next-study plan.",
+        );
+      }
+      return service.nextStudyPlan();
     }
     case "campaign": {
       const action = parsed.positionals[1];
@@ -1702,7 +1750,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|publish|publish-all|publish-audit|reproduce plan|reproduce run|reproduce analyze|reproduce report|peer-review|peer-review-corpus|rebuttal|revise|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|memory synthesize|meta-analysis run|research-program propose|contradictions find|next-study plan|campaign run|publish|publish-all|publish-audit|reproduce plan|reproduce run|reproduce analyze|reproduce report|peer-review|peer-review-corpus|rebuttal|revise|study status|review>.",
       );
   }
 }

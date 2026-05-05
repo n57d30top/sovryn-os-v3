@@ -1,6 +1,6 @@
 # Scientific Method Core
 
-Sovryn OS `3.2.0-alpha.3` includes the first autonomous
+Sovryn OS `3.2.0-alpha.4` includes the first autonomous
 computational-science layer, a deterministic experiment/data/instrument
 runtime, bounded statistical analysis, replication, and falsification for safe
 synthetic energy-data studies. Alpha.5 adds scientific memory, fixture-backed
@@ -22,6 +22,10 @@ corpus-level review, author response, and revision planning so studies can be
 critiqued for missing baselines, weak statistics, insufficient replication,
 insufficient falsification, unsafe scope, overclaims, and public readability
 before showcase-science promotion.
+3.2 Alpha.4 adds scientific meta-analysis and learning across study memory:
+cross-study effect summaries, contradiction detection, failed-hypothesis
+lessons, synthetic-only limitation marking, memory synthesis, next-study plans,
+and four-week research-program proposals.
 
 The core flow is:
 
@@ -52,6 +56,8 @@ The core flow is:
     inconclusive.
 21. Run automated scientific peer review, corpus peer review, author response,
     and revision planning before showcase-science use.
+22. Run meta-analysis across scientific memory to identify stable findings,
+    contradictions, failed hypotheses, and the next research program.
 
 ```bash
 sovryn science question "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?" --json
@@ -92,6 +98,11 @@ sovryn science peer-review <study-id> --json
 sovryn science peer-review-corpus --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science rebuttal <study-id> --json
 sovryn science revise <study-id> --json
+sovryn science meta-analysis run --json
+sovryn science memory synthesize --json
+sovryn science contradictions find --json
+sovryn science research-program propose --json
+sovryn science next-study plan --json
 sovryn science review <study-id> --json
 ```
 
@@ -168,6 +179,26 @@ Peer-review aggregate artifacts are written under:
   peer-review-corpus.json
   PEER_REVIEW_CORPUS.md
   review-ledger.json
+```
+
+Meta-analysis and scientific-learning artifacts are written under:
+
+```text
+.sovryn/science/meta/
+  meta-analysis.json
+  META_ANALYSIS.md
+  cross-study-effect-summary.json
+  CROSS_STUDY_EFFECT_SUMMARY.md
+  contradictions.json
+  CONTRADICTIONS.md
+  stable-findings.json
+  failed-hypotheses.json
+  next-research-program.json
+  NEXT_RESEARCH_PROGRAM.md
+  memory-synthesis.json
+  SCIENTIFIC_LEARNING_REPORT.md
+  next-study-plan.json
+  NEXT_STUDY_PLAN.md
 ```
 
 Reproduction artifacts are written under:
@@ -283,6 +314,14 @@ claims.
 requirements, metric requirements, reproduction plan, run, analysis,
 limitations, no unsafe reproduction scope, and no overclaimed reproduction
 label.
+3.2 Alpha.3 peer-review gates require automated methodological review, a review
+label, unsupported-claim review, method-weakness recording, author response,
+revision planning when needed, and accept/minor-revision before
+showcase-science promotion.
+3.2 Alpha.4 meta-analysis gates require a meta-analysis artifact, cross-study
+effect summary, contradiction recording, failed-hypothesis recording, next
+research program, no overgeneralized meta-claims, and explicit marking of
+synthetic-only findings as tentative or requiring real-data validation.
 
 Alpha.5 can mark a hypothesis `supported` only within the bounded synthetic
 study when replication is stable and falsification has no material failures.

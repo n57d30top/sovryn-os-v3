@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.2.0-alpha.3`
+Current version: `3.2.0-alpha.4`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -58,6 +58,9 @@ runs, reproduction analysis, and careful reproduced/partially-reproduced/
 inconclusive labels. 3.2 Alpha.3 adds autonomous scientific peer review:
 methodological critique, corpus review, author response, revision planning,
 unsupported-claim blocking, and showcase-science review gates.
+3.2 Alpha.4 adds scientific meta-analysis and learning: cross-study summaries,
+contradiction detection, failed-hypothesis lessons, memory synthesis, next-study
+planning, and four-week follow-up research-program proposals.
 Scientific support remains bounded to the evidence actually produced.
 
 | Version         | Focus                            | Result                                                                                                                                                                       |
@@ -72,6 +75,7 @@ Scientific support remains bounded to the evidence actually produced.
 | `3.2.0-alpha.1` | Real Data Ingestion              | Adds `sovryn science data search/ingest/validate/provenance/cache/replay` with safe public/proxy datasets, provenance, validation, replay cache, and study binding.          |
 | `3.2.0-alpha.2` | Scientific Reproduction          | Adds `sovryn science reproduce plan/run/analyze/report` for safe bounded reproduction of external or internal computational claims.                                          |
 | `3.2.0-alpha.3` | Scientific Peer Review           | Adds `sovryn science peer-review`, `peer-review-corpus`, `rebuttal`, and `revise` for automated critique, response, and revision planning before showcase promotion.         |
+| `3.2.0-alpha.4` | Meta-Analysis and Learning       | Adds `sovryn science meta-analysis`, `memory synthesize`, `contradictions find`, `research-program propose`, and `next-study plan` for learning across studies.              |
 
 New science commands:
 
@@ -114,6 +118,11 @@ sovryn science peer-review <study-id> --json
 sovryn science peer-review-corpus --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science rebuttal <study-id> --json
 sovryn science revise <study-id> --json
+sovryn science meta-analysis run --json
+sovryn science memory synthesize --json
+sovryn science contradictions find --json
+sovryn science research-program propose --json
+sovryn science next-study plan --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```
@@ -141,6 +150,15 @@ real-vs-synthetic comparison, and explicit rejection of private or unsafe data.
 data requirements, metric requirements, a reproduction plan, a reproduction run,
 analysis, limitations, safe computational scope, and no overclaimed
 reproduction result.
+3.2 Alpha.3 peer-review gates require an automated review, review label,
+unsupported-claim review, method-weakness recording, author response, revision
+plan where needed, and accept/minor-revision status before showcase-science
+promotion.
+3.2 Alpha.4 meta-analysis gates require meta-analysis artifacts, cross-study
+effect summaries, contradiction recording, failed-hypothesis recording, next
+research-program proposals, no overgeneralized meta-claims, and explicit
+marking of synthetic-only findings as tentative or needing real-data
+validation.
 The layer is limited to safe computational science over synthetic data, public
 non-sensitive data, simulations, statistics, benchmarks, and software
 instruments.

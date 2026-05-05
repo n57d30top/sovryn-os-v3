@@ -59,7 +59,7 @@ type RankedOpportunity = StrategyOpportunity & {
   rankingExplanation: string[];
 };
 
-const STRATEGY_VERSION = "4.1.0-rc.1";
+const STRATEGY_VERSION = "4.2.0-rc.1";
 const TARGET_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 const TARGET_CORPUS_URL = "https://github.com/n57d30top/sovryn-open-inventions";
 const SAFE_SCOPE =
@@ -1278,7 +1278,7 @@ export class StrategyService {
         slug: resultSlug,
         publishedBy: "sovryn-strategy-autopublish",
         humanReviewRequired: false,
-        automatedPolicyVersion: "4.1.0-rc.1-strategy-policy",
+        automatedPolicyVersion: "4.2.0-rc.1-strategy-policy",
         targetRepo: TARGET_CORPUS_URL,
         targetPath: `results/${resultSlug}`,
         pushed: true,

@@ -9170,7 +9170,7 @@ function renderScienceTrialLaunchDecision(trial: ScienceTrialRun): string {
 - Decision: ${trial.launchDecision}
 - Readiness: ${trial.readinessLabel}
 
-${trial.launchDecision === "rc_ready" ? "Sovryn can be treated as 4.1.0-rc.1 ready for the bounded autonomous computational-science scope represented by this deterministic trial." : "Sovryn should remain blocked from RC promotion until the listed blockers are resolved."}
+${trial.launchDecision === "rc_ready" ? "Sovryn can be treated as 4.2.0-rc.1 ready for the bounded autonomous computational-science scope represented by this deterministic trial." : "Sovryn should remain blocked from RC promotion until the listed blockers are resolved."}
 
 This decision is limited to safe computational science. It is not a medical, legal, patentability, legal novelty, or freedom-to-operate conclusion.
 `;

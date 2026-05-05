@@ -49,6 +49,7 @@ import { QualityEvaluator } from "../core/quality/quality-service.js";
 import { ReleaseCandidateService } from "../core/release/release-candidate-service.js";
 import { RealityGradeService } from "../core/reality/reality-grade-service.js";
 import { FieldGradeService } from "../core/field/field-grade-service.js";
+import { FrontierService } from "../core/frontier/frontier-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
 import { StrategyService } from "../core/strategy/strategy-service.js";
@@ -217,6 +218,14 @@ Commands:
   sovryn field-grade trial run [--autopublish-corpus] [--json]
   sovryn field-grade trial audit [--json]
   sovryn field-grade trial report [--json]
+  sovryn frontier benchmark expand [--json]
+  sovryn frontier candidates generate [--json]
+  sovryn frontier baseline-dominance run [--json]
+  sovryn frontier replication run [--json]
+  sovryn frontier package build [--json]
+  sovryn frontier trial run [--autopublish-corpus] [--json]
+  sovryn frontier trial audit [--json]
+  sovryn frontier trial report [--json]
   sovryn security audit [--json]
   sovryn security audit-public-release <path> [--json]
   sovryn security audit-worker --profile container-netoff [--json]
@@ -898,6 +907,16 @@ export async function executeCli(
       case "field-grade": {
         const result = await fieldGradeCommand(parsed, root);
         return okEnvelope("field-grade", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "frontier": {
+        const result = await frontierCommand(parsed, root);
+        return okEnvelope("frontier", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -3114,6 +3133,43 @@ async function fieldGradeCommand(
   throw new AppError(
     "FIELD_GRADE_COMMAND_REQUIRED",
     "Use: sovryn field-grade trial <run|audit|report>.",
+  );
+}
+
+async function frontierCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const action = parsed.positionals[1];
+  const service = new FrontierService(root);
+  if (subcommand === "benchmark" && action === "expand") {
+    return service.expandBenchmarks();
+  }
+  if (subcommand === "candidates" && action === "generate") {
+    return service.candidateFactoryRun();
+  }
+  if (subcommand === "baseline-dominance" && action === "run") {
+    return service.runBaselineDominance();
+  }
+  if (subcommand === "replication" && action === "run") {
+    return service.runIndependentReplication();
+  }
+  if (subcommand === "package" && action === "build") {
+    return service.buildPaperPackage();
+  }
+  if (subcommand === "trial") {
+    if (action === "run") {
+      return service.frontierTrialRun({
+        autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
+      });
+    }
+    if (action === "audit") return service.frontierTrialAudit();
+    if (action === "report") return service.frontierTrialReport();
+  }
+  throw new AppError(
+    "FRONTIER_COMMAND_REQUIRED",
+    "Use: sovryn frontier <benchmark expand|candidates generate|baseline-dominance run|replication run|package build|trial run|trial audit|trial report>.",
   );
 }
 

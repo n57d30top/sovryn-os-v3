@@ -210,7 +210,7 @@ test("field-grade trial meets source dataset toolchain benchmark challenge repro
   assert.equal(response.ok, true, JSON.stringify(response.errors));
   const trial = (response.data as any).trial;
   assert.equal(trial.kind, "field_grade_autonomous_science_trial");
-  assert.equal(trial.targetVersion, "4.1.0-rc.1");
+  assert.equal(trial.targetVersion, "4.2.0-rc.1");
   assert.ok(trial.score.verifiedSources >= 50);
   assert.ok(trial.score.verifiedDatasets >= 15);
   assert.equal(trial.score.toolsProvisioned, 3);

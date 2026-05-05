@@ -48,6 +48,7 @@ graphify-out/graph.json
 .sovryn/toolchains/
 .sovryn/challenges/
 .sovryn/field-grade/
+.sovryn/frontier/
 .sovryn/external-research/
 .sovryn/multi-domain-campaign/
 public-corpus/

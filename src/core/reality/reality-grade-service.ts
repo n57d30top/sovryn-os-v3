@@ -7,7 +7,7 @@ import { CorpusProductService } from "../corpus/corpus-product-service.js";
 import { scanCorpusPublicHygiene } from "../corpus/corpus-autopublisher.js";
 import { hashEvidence } from "../invention/pipeline.js";
 
-const REALITY_VERSION = "4.1.0-rc.1";
+const REALITY_VERSION = "4.2.0-rc.1";
 const TARGET_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 const TARGET_CORPUS_URL = "https://github.com/n57d30top/sovryn-open-inventions";
 const REALITY_DISCLAIMER =
@@ -1398,7 +1398,7 @@ export class RealityGradeService {
         slug: resultSlug,
         publishedBy: "sovryn-reality-grade-autopublish",
         humanReviewRequired: false,
-        automatedPolicyVersion: "4.1.0-rc.1-reality-grade-policy",
+        automatedPolicyVersion: "4.2.0-rc.1-reality-grade-policy",
         targetRepo: TARGET_CORPUS_URL,
         targetPath: `results/${resultSlug}`,
         pushed: true,

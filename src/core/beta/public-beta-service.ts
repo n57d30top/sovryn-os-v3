@@ -11,7 +11,7 @@ import { EnergyRecordAuditorResearchService } from "../external-research/energy-
 import { hashEvidence } from "../invention/pipeline.js";
 import { workerDoctor } from "../worker/worker-doctor.js";
 
-const TARGET_VERSION = "4.1.0-rc.1";
+const TARGET_VERSION = "4.2.0-rc.1";
 const DEFAULT_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 
 const PUBLIC_BETA_DOCS = [

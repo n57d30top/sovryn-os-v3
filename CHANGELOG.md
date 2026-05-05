@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.2.0-rc.1
+
+- Added Frontier Scientific Production command families:
+  `sovryn frontier benchmark expand`, `candidates generate`,
+  `baseline-dominance run`, `replication run`, `package build`, and
+  `frontier trial`.
+- Added `.sovryn/frontier/` artifacts for verified benchmark expansion,
+  1000-candidate method factory runs, top-20 method cards, baseline-dominance
+  falsification, independent replication variants, paper-grade result packages,
+  and full frontier scientific production trials.
+- Extended the Scientific Knowledge Engine to read frontier production
+  artifacts as evidence-bound local sources.
+- Added curated public corpus publication for
+  `frontier_scientific_production_trial` results when candidate generation,
+  benchmark coverage, baseline-dominance, replication, paper-package, safety,
+  and public hygiene gates pass.
+
 ## 4.1.0-rc.1
 
 - Added Field-Grade Autonomous Science command families:

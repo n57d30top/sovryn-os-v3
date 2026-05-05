@@ -9,7 +9,7 @@ import { hashEvidence } from "../invention/pipeline.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
 import { RealityGradeService } from "../reality/reality-grade-service.js";
 
-const FIELD_VERSION = "4.1.0-rc.1";
+const FIELD_VERSION = "4.2.0-rc.1";
 const TARGET_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 const TARGET_CORPUS_URL = "https://github.com/n57d30top/sovryn-open-inventions";
 const FIELD_DISCLAIMER =
@@ -1607,7 +1607,7 @@ export class FieldGradeService {
         resultId: slug,
         slug,
         publishedBy: "sovryn-field-grade-autopublish",
-        automatedPolicyVersion: "4.1.0-rc.1-field-grade-policy",
+        automatedPolicyVersion: "4.2.0-rc.1-field-grade-policy",
         targetRepo: TARGET_CORPUS_URL,
         targetPath: `results/${slug}`,
         pushed: true,

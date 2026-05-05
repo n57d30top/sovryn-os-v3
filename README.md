@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `4.1.0-rc.1`
+Current version: `4.2.0-rc.1`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -109,6 +109,14 @@ challenges, records failures and losses, and publishes a curated
 `field_grade_autonomous_science_trial` result only after safety, hygiene, and
 evidence gates pass.
 
+The 4.2 RC line adds Frontier Scientific Production. Sovryn expands verified
+benchmark coverage for provenance-aware data-quality methods, generates and
+filters 1000 candidate method variants, implements the top 20, runs
+baseline-dominance falsification against strong baselines, independently
+replicates surviving candidates, builds a paper-grade result package, and
+publishes either a replication-supported method candidate or a high-quality
+negative result without fake benchmark or breakthrough claims.
+
 | Version         | Focus                            | Result                                                                                                                                                                                     |
 | --------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `3.1.0-alpha.1` | Scientific Method Core           | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.                                      |
@@ -145,6 +153,7 @@ evidence gates pass.
 | `3.9.0-rc.1`    | Scientific Knowledge Engine      | Adds claim graph extraction, confidence scoring, contradiction detection, method atlas, next-best-experiment ranking/execution, and knowledge-trial publication.                           |
 | `4.0.0-rc.1`    | Reality-Grade Autonomy           | Adds real-source ingestion, benchmark harnesses, independent reproduction, adversarial falsification, multi-domain reality trials, and reality-grade trial publication.                    |
 | `4.1.0-rc.1`    | Field-Grade Autonomy             | Adds verified source/dataset registries, real-data benchmarks, long-horizon campaign scheduling, toolchain v2 validation, external challenge mode, and field-grade trial publication.      |
+| `4.2.0-rc.1`    | Frontier Production              | Adds benchmark expansion, candidate method factory v2, baseline-dominance falsification, independent replication variants, paper-grade packaging, and frontier trial publication.          |
 
 New science commands:
 

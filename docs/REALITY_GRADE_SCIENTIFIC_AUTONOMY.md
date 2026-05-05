@@ -1,6 +1,6 @@
 # Reality-Grade Scientific Autonomy
 
-Sovryn OS `4.1.0-rc.1` hardens the Scientific Knowledge Engine against
+Sovryn OS `4.0.0-rc.1` hardens the Scientific Knowledge Engine against
 fixture-only behavior. The goal is not to claim scientific truth. The goal is
 to bind more work to external sources, benchmark tasks, independent
 reproduction, adversarial falsification, and curated public limitations.

@@ -52,6 +52,18 @@ type PublicResultCard = {
   customTool: string | null;
   workerAssurance: string;
   falsificationStatus: string;
+  scientificQuestion: string | null;
+  hypothesisCount: number;
+  nullHypothesisPresent: boolean;
+  experimentCount: number;
+  replicationRunCount: number;
+  statisticalAnalysisPresent: boolean;
+  baselineComparisonPresent: boolean;
+  ablationPresent: boolean;
+  sensitivityPresent: boolean;
+  studyResultLabel: string | null;
+  scientificMemoryUpdated: boolean;
+  safetyScope: string | null;
   summary: string;
   limitations: string[];
   badges: Record<string, string>;
@@ -232,6 +244,14 @@ export class CorpusProductService {
         model.showcaseResults.map((item) => item.slug),
       ),
     });
+    const scienceStudies = publicScienceStudies(model);
+    await writeJson(join(siteRoot, "api", "science-studies.json"), {
+      kind: "public_corpus_science_studies_api",
+      generatedAt: model.generatedAt,
+      studyCount: scienceStudies.length,
+      studies: scienceStudies,
+      evidenceHash: hashEvidence(scienceStudies),
+    });
     await writeFile(
       join(siteRoot, "index.html"),
       renderIndexHtml(model),
@@ -240,6 +260,11 @@ export class CorpusProductService {
     await writeFile(
       join(siteRoot, "showcase.html"),
       renderShowcaseHtml(model),
+      "utf8",
+    );
+    await writeFile(
+      join(siteRoot, "science.html"),
+      renderScienceHtml(model),
       "utf8",
     );
     for (const result of model.results) {
@@ -408,6 +433,20 @@ export class CorpusProductService {
           (await pathExists(join(siteRoot, "api", "showcase.json"))),
         "Public corpus site must include showcase page and API export.",
         {},
+      ),
+      gate(
+        "SCIENCE_STUDY_API_UPDATED",
+        scienceStudyItems(corpus).length === 0 ||
+          (await pathExists(join(siteRoot, "api", "science-studies.json"))),
+        "Public corpus site must include science study API export when computational science studies are indexed.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
+      ),
+      gate(
+        "SCIENCE_STUDY_PAGE_PRESENT",
+        scienceStudyItems(corpus).length === 0 ||
+          (await pathExists(join(siteRoot, "science.html"))),
+        "Public corpus site must include science study page when computational science studies are indexed.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
       ),
       gate(
         "SHOWCASE_README_HUMAN_READABLE",
@@ -590,6 +629,18 @@ export class CorpusProductService {
         model.showcaseResults.map((item) => item.slug),
       ),
     });
+    const scienceStudies = publicScienceStudies(model);
+    await writeJson(join(targetRepo, "aggregate", "science-studies.json"), {
+      kind: "public_corpus_science_studies",
+      updatedAt: model.generatedAt,
+      studyCount: scienceStudies.length,
+      studies: scienceStudies,
+      evidenceHash: hashEvidence(scienceStudies),
+    });
+    await writeJson(
+      join(targetRepo, "aggregate", "scientific-memory-summary.json"),
+      buildScientificMemorySummary(model),
+    );
     await writeJson(join(targetRepo, "aggregate", "revision-queue.json"), {
       kind: "public_corpus_revision_queue",
       updatedAt: model.generatedAt,
@@ -747,13 +798,27 @@ async function readResultCard(
   );
   const publicText = await readDirectoryText(root);
   const title = text(summary.title, text(record.title, titleFromSlug(slug)));
+  const resultKind = text(
+    summary.resultKind,
+    text(record.resultKind, inferResultKind(slug, `${title} ${readme}`)),
+  );
   const qualityLabel = text(
     record.qualityLabel,
-    text(summary.qualityLabel, "unknown"),
+    text(
+      summary.qualityLabel,
+      resultKind === "computational_science_study"
+        ? "science_study"
+        : "unknown",
+    ),
   );
   const candidateStatus = text(
     record.candidateStatus,
-    text(summary.candidateStatus, "unknown"),
+    text(
+      summary.candidateStatus,
+      resultKind === "computational_science_study"
+        ? "autopublished"
+        : "unknown",
+    ),
   );
   const replayCriticalPassRate = number(
     record.replayCriticalPassRate,
@@ -774,7 +839,7 @@ async function readResultCard(
   const packages = extractExternalPackages(publicText);
   const workerAssurance = inferWorkerAssurance(publicText);
   const customTool = inferCustomTool(slug, publicText);
-  const domain = inferDomain(slug, `${title} ${readme}`);
+  const domain = text(summary.domain, inferDomain(slug, `${title} ${readme}`));
   const summaryText = summarizeText(readme, title);
   const falsificationStatus = await readFalsificationStatus(root);
   const rawSpecificityScore = number(
@@ -807,7 +872,7 @@ async function readResultCard(
     slug,
     title,
     domain,
-    resultKind: inferResultKind(slug, `${title} ${readme}`),
+    resultKind,
     path: join("results", slug),
     qualityLabel,
     publicationStatus: normalizeStatus(candidateStatus),
@@ -846,6 +911,18 @@ async function readResultCard(
     customTool,
     workerAssurance,
     falsificationStatus,
+    scientificQuestion: scienceText(summary.scientificQuestion),
+    hypothesisCount: number(summary.hypothesisCount, 0),
+    nullHypothesisPresent: summary.nullHypothesisPresent === true,
+    experimentCount: number(summary.experimentCount, 0),
+    replicationRunCount: number(summary.replicationRunCount, 0),
+    statisticalAnalysisPresent: summary.statisticalAnalysisPresent === true,
+    baselineComparisonPresent: summary.baselineComparisonPresent === true,
+    ablationPresent: summary.ablationPresent === true,
+    sensitivityPresent: summary.sensitivityPresent === true,
+    studyResultLabel: scienceText(summary.studyResultLabel),
+    scientificMemoryUpdated: summary.scientificMemoryUpdated === true,
+    safetyScope: scienceText(summary.safetyScope),
     summary: summaryText,
     limitations: extractLimitations(publicText),
     badges: {
@@ -1183,6 +1260,53 @@ function buildResultGraph(model: PublicCorpusModel): Record<string, unknown> {
   });
 }
 
+function publicScienceStudies(
+  model: PublicCorpusModel,
+): Array<Record<string, unknown>> {
+  return model.results
+    .filter((result) => result.resultKind === "computational_science_study")
+    .map(publicLifecycleResult);
+}
+
+function buildScientificMemorySummary(
+  model: PublicCorpusModel,
+): Record<string, unknown> {
+  const studies = model.results.filter(
+    (result) => result.resultKind === "computational_science_study",
+  );
+  const resultLabels = countBy(
+    studies,
+    (study) => study.studyResultLabel ?? "unknown",
+  );
+  return {
+    kind: "public_corpus_scientific_memory_summary",
+    updatedAt: model.generatedAt,
+    studyCount: studies.length,
+    resultLabels,
+    memoryUpdatedCount: studies.filter((study) => study.scientificMemoryUpdated)
+      .length,
+    domains: countBy(studies, (study) => study.domain),
+    studies: studies.map((study) => ({
+      slug: study.slug,
+      title: study.title,
+      domain: study.domain,
+      scientificQuestion: study.scientificQuestion,
+      studyResultLabel: study.studyResultLabel,
+      replicationRunCount: study.replicationRunCount,
+      falsificationStatus: study.falsificationStatus,
+      scientificMemoryUpdated: study.scientificMemoryUpdated,
+    })),
+    disclaimer: CORPUS_DISCLAIMER,
+    evidenceHash: hashEvidence(
+      studies.map((study) => ({
+        slug: study.slug,
+        studyResultLabel: study.studyResultLabel,
+        scientificMemoryUpdated: study.scientificMemoryUpdated,
+      })),
+    ),
+  };
+}
+
 function publicLifecycleResult(
   result: PublicResultCard,
 ): Record<string, unknown> {
@@ -1216,7 +1340,30 @@ function publicLifecycleResult(
     customTool: result.customTool,
     workerAssurance: result.workerAssurance,
     falsificationStatus: result.falsificationStatus,
+    ...(result.resultKind === "computational_science_study"
+      ? scienceLifecycleFields(result)
+      : {}),
     disclaimer: CORPUS_DISCLAIMER,
+  };
+}
+
+function scienceLifecycleFields(
+  result: PublicResultCard,
+): Record<string, unknown> {
+  return {
+    scientificQuestion: result.scientificQuestion,
+    hypothesisCount: result.hypothesisCount,
+    nullHypothesisPresent: result.nullHypothesisPresent,
+    experimentCount: result.experimentCount,
+    replicationRunCount: result.replicationRunCount,
+    falsificationStatus: result.falsificationStatus,
+    statisticalAnalysisPresent: result.statisticalAnalysisPresent,
+    baselineComparisonPresent: result.baselineComparisonPresent,
+    ablationPresent: result.ablationPresent,
+    sensitivityPresent: result.sensitivityPresent,
+    studyResultLabel: result.studyResultLabel,
+    scientificMemoryUpdated: result.scientificMemoryUpdated,
+    safetyScope: result.safetyScope,
   };
 }
 
@@ -1244,7 +1391,7 @@ function renderIndexHtml(model: PublicCorpusModel): string {
   <header>
     <h1>Sovryn Open Inventions Corpus</h1>
     <p class="notice">${escapeHtml(CORPUS_DISCLAIMER)}</p>
-    <p class="meta">Results: ${model.resultCount}. Showcase: <a href="showcase.html">showcase.html</a>. Public API: <a href="corpus.json">corpus.json</a>, <a href="search-index.json">search-index.json</a>.</p>
+    <p class="meta">Results: ${model.resultCount}. Showcase: <a href="showcase.html">showcase.html</a>. Science studies: <a href="science.html">science.html</a>. Public API: <a href="corpus.json">corpus.json</a>, <a href="search-index.json">search-index.json</a>.</p>
     <p class="meta">Public beta readers should start with showcase results, verification notes, limitations, and reproducibility artifacts before interpreting any result.</p>
   </header>
   <main>
@@ -1374,6 +1521,45 @@ function renderShowcaseHtml(model: PublicCorpusModel): string {
 `;
 }
 
+function renderScienceHtml(model: PublicCorpusModel): string {
+  const studies = model.results.filter(
+    (result) => result.resultKind === "computational_science_study",
+  );
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sovryn Computational Science Studies</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #20242a; background: #ffffff; }
+    main { max-width: 960px; margin: 0 auto; padding: 28px; }
+    article { border-bottom: 1px solid #d8dde5; padding: 18px 0; }
+    .meta { color: #56616f; }
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="index.html">Back to corpus</a></p>
+    <h1>Computational Science Studies</h1>
+    <p>${escapeHtml(CORPUS_DISCLAIMER)}</p>
+    <p>These entries are first-class computational science study results. They publish questions, hypotheses, null hypotheses, experiment designs, statistics, baselines, ablations, replication, falsification, scientific-memory updates, limitations, and curated public evidence.</p>
+    ${studies
+      .map(
+        (study) => `<article>
+          <h2><a href="results/${escapeHtml(study.slug)}.html">${escapeHtml(study.title)}</a></h2>
+          <p class="meta">${escapeHtml(study.domain)} · ${escapeHtml(study.studyResultLabel ?? "unlabeled")} · replication runs: ${study.replicationRunCount} · falsification: ${escapeHtml(study.falsificationStatus)}</p>
+          <p><strong>Question:</strong> ${escapeHtml(study.scientificQuestion ?? study.title)}</p>
+          <p><a href="../results/${escapeHtml(study.slug)}/SCIENTIFIC_REPORT.md">SCIENTIFIC_REPORT.md</a> · <a href="../results/${escapeHtml(study.slug)}/PAPER.md">PAPER.md</a> · <a href="../results/${escapeHtml(study.slug)}/REPLICATION.md">Replication</a> · <a href="../results/${escapeHtml(study.slug)}/FALSIFICATION.md">Falsification</a></p>
+        </article>`,
+      )
+      .join("\n")}
+  </main>
+</body>
+</html>
+`;
+}
+
 function renderProductReadme(model: PublicCorpusModel): string {
   return `# Sovryn Open Inventions
 
@@ -1388,6 +1574,8 @@ ${CORPUS_DISCLAIMER}
 - Search index: [public-corpus/search-index.json](public-corpus/search-index.json)
 - Results API: [public-corpus/api/results.json](public-corpus/api/results.json)
 - Showcase page: [public-corpus/showcase.html](public-corpus/showcase.html)
+- Computational science studies: [public-corpus/science.html](public-corpus/science.html)
+- Science studies API: [public-corpus/api/science-studies.json](public-corpus/api/science-studies.json)
 
 ## Public Beta Reading Path
 
@@ -2360,6 +2548,17 @@ function showcaseItems(
   return results.filter((item) => number(item.showcaseRank, 0) > 0);
 }
 
+function scienceStudyItems(
+  corpus: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const results = Array.isArray(corpus.results)
+    ? corpus.results.filter(isRecord)
+    : [];
+  return results.filter(
+    (item) => text(item.resultKind, "") === "computational_science_study",
+  );
+}
+
 function indexLifecycleFieldsPresent(index: Record<string, unknown>): boolean {
   const results = Array.isArray(index.results)
     ? index.results.filter(isRecord)
@@ -2393,6 +2592,10 @@ function text(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim().length > 0
     ? value
     : fallback;
+}
+
+function scienceText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function number(value: unknown, fallback: number): number {

@@ -33,6 +33,7 @@ graphify-out/graph.json
 .sovryn/benchmarks/
 .sovryn/launch/
 .sovryn/e2e/
+.sovryn/science/
 .sovryn/external-research/
 .sovryn/multi-domain-campaign/
 public-corpus/

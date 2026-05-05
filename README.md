@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.1.0-rc.1`
+Current version: `3.1.0-rc.2`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -13,7 +13,7 @@ overnight operator cycles, export a curated public corpus, audit
 security/reliability evidence, run autonomy campaigns, govern publication
 queues, execute persistent worker jobs, benchmark research quality, package
 launch/pilot evidence, and now create hypothesis-driven computational-science
-study plans.
+studies that can be published into the curated public corpus.
 
 Sovryn OS is not a blind agent framework. It does not judge truth with an LLM,
 does not require paid APIs, does not mutate the main tree by default, does not
@@ -38,20 +38,25 @@ computational experiments. Alpha.3 added bounded statistical analysis, baseline
 comparison, ablations, sensitivity sweeps, and error analysis. Alpha.4 adds
 replication, negative tests, falsification reports, and hypothesis status
 updates. Alpha.5 adds scientific memory ledgers, study-bound source cards,
-literature grounding, and next-question generation. v1.1 RC.1 adds a
+literature grounding, and next-question generation. v1.1 RC.1 added a
 deterministic autonomous computational-science campaign that selects safe
 questions, completes two hypothesis-driven studies, writes paper-style reports,
-updates scientific memory, and prepares curated local corpus packages.
+updates scientific memory, and prepares curated local corpus packages. v1.1
+RC.2 publishes completed science campaign studies into the public corpus as
+first-class `computational_science_study` results with public hypotheses,
+statistics, replication, falsification, memory updates, API output, and
+publish-audit gates.
 Scientific support remains bounded to the evidence actually produced.
 
-| Version         | Focus                           | Result                                                                                                                                                                        |
-| --------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `3.1.0-alpha.1` | Scientific Method Core          | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.                         |
-| `3.1.0-alpha.2` | Data and Instrument Runtime     | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates.                    |
-| `3.1.0-alpha.3` | Statistics and Ablations        | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.                           |
-| `3.1.0-alpha.4` | Replication and Falsification   | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                                               |
-| `3.1.0-alpha.5` | Memory and Literature Grounding | Adds scientific memory ledgers, fixture-backed source cards, literature-grounding reports, and follow-up question generation.                                                 |
-| `3.1.0-rc.1`    | Science Campaign                | Adds `sovryn science campaign run` for two-study autonomous computational-science campaigns with statistics, replication, falsification, memory, and curated public packages. |
+| Version         | Focus                            | Result                                                                                                                                                                       |
+| --------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `3.1.0-alpha.1` | Scientific Method Core           | Adds `sovryn science` commands for safe computational questions, hypotheses with null hypotheses, experiment designs, study status, and gate reviews.                        |
+| `3.1.0-alpha.2` | Data and Instrument Runtime      | Adds synthetic dataset generation, generated baseline/candidate/runner instruments, Node Alpha execution evidence, and deterministic experiment run gates.                   |
+| `3.1.0-alpha.3` | Statistics and Ablations         | Adds evidence-bound confusion metrics, baseline comparison, ablation reports, sensitivity sweeps, and false-positive/false-negative error analysis.                          |
+| `3.1.0-alpha.4` | Replication and Falsification    | Adds deterministic replication summaries, negative tests, falsification reports, and hypothesis status updates.                                                              |
+| `3.1.0-alpha.5` | Memory and Literature Grounding  | Adds scientific memory ledgers, fixture-backed source cards, literature-grounding reports, and follow-up question generation.                                                |
+| `3.1.0-rc.1`    | Science Campaign                 | Adds `sovryn science campaign run` for two-study autonomous computational-science campaigns with statistics, replication, falsification, memory, and curated local packages. |
+| `3.1.0-rc.2`    | Public Science Study Publication | Adds `sovryn science publish`, `publish-all`, and `publish-audit` for publishing completed computational-science studies into the public corpus with strict hygiene gates.   |
 
 New science commands:
 
@@ -77,6 +82,9 @@ sovryn science memory update <study-id> --json
 sovryn science memory search "energy anomaly provenance" --json
 sovryn science memory report --json
 sovryn science campaign run --goal "Run safe computational science studies" --studies 2 --autopublish-corpus --json
+sovryn science publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science publish-all --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```
@@ -93,6 +101,10 @@ scientific memory, missing study-bound source cards, missing next questions, and
 unsupported literature claims. RC.1 campaign gates additionally require selected
 safe questions, completed studies, datasets, instruments, Node Alpha execution,
 statistics, baselines, ablations, replication, falsification, paper reports,
+public hygiene, safety scope, and curated local package preparation. RC.2
+publication gates require public hypotheses, null hypotheses, statistics,
+replication, falsification, scientific-memory updates, corpus INDEX/API updates,
+and public hygiene before a science study can be written into the corpus.
 scientific memory updates, public hygiene, and curated corpus package evidence.
 The layer is limited to safe computational science over synthetic data, public
 non-sensitive data, simulations, statistics, benchmarks, and software

@@ -15,6 +15,7 @@ type ProductFixture = {
 
 let fixturePromise: Promise<ProductFixture> | null = null;
 let lifecycleFixturePromise: Promise<ProductFixture> | null = null;
+let scienceFixturePromise: Promise<ProductFixture> | null = null;
 
 test("Beta.17 CLI help lists target repo corpus site build", async () => {
   const help = await executeCli(["--help", "--json"]);
@@ -80,6 +81,49 @@ test("corpus site build creates releases api", async () => {
 test("corpus site build creates graph api", async () => {
   const { targetRepo } = await productFixture();
   await access(join(targetRepo, "public-corpus", "api", "graph.json"));
+});
+
+test("corpus site build creates science studies api", async () => {
+  const { targetRepo } = await scienceFixture();
+  const api: any = await readJson(
+    join(targetRepo, "public-corpus", "api", "science-studies.json"),
+  );
+  assert.equal(api.studyCount, 1);
+  assert.equal(api.studies[0].resultKind, "computational_science_study");
+});
+
+test("corpus site build creates science studies page", async () => {
+  const { targetRepo } = await scienceFixture();
+  const html = await readFile(
+    join(targetRepo, "public-corpus", "science.html"),
+    "utf8",
+  );
+  assert.match(html, /Computational Science Studies/);
+  assert.match(html, /null hypotheses/i);
+});
+
+test("corpus site build preserves science fields in INDEX", async () => {
+  const { targetRepo } = await scienceFixture();
+  const index: any = await readJson(join(targetRepo, "INDEX.json"));
+  const study = index.results.find(
+    (item: any) => item.resultKind === "computational_science_study",
+  );
+  assert.equal(study.hypothesisCount, 2);
+  assert.equal(study.nullHypothesisPresent, true);
+  assert.equal(study.replicationRunCount, 3);
+  assert.equal(study.studyResultLabel, "partially_supported");
+});
+
+test("corpus site build writes science aggregate summaries", async () => {
+  const { targetRepo } = await scienceFixture();
+  const studies: any = await readJson(
+    join(targetRepo, "aggregate", "science-studies.json"),
+  );
+  const memory: any = await readJson(
+    join(targetRepo, "aggregate", "scientific-memory-summary.json"),
+  );
+  assert.equal(studies.studyCount, 1);
+  assert.equal(memory.memoryUpdatedCount, 1);
 });
 
 test("corpus site build creates result pages", async () => {
@@ -414,7 +458,7 @@ test("corpus site build rejects disallowed remote", async () => {
 
 test("package version is rc.1", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-rc.1");
+  assert.equal(pkg.version, "3.1.0-rc.2");
 });
 
 test("Beta.18 version groups are created", async () => {
@@ -680,7 +724,7 @@ test("Beta.18 duplicate slugs are versioned without deletion", async () => {
 
 test("Beta.20 package version is rc.1", async () => {
   const pkg: any = await readJson(join(process.cwd(), "package.json"));
-  assert.equal(pkg.version, "3.1.0-rc.1");
+  assert.equal(pkg.version, "3.1.0-rc.2");
 });
 
 test("Beta.20 showcase writes SHOWCASE.md", async () => {
@@ -1149,8 +1193,32 @@ async function lifecycleFixture(): Promise<ProductFixture> {
   return lifecycleFixturePromise;
 }
 
+async function scienceFixture(): Promise<ProductFixture> {
+  scienceFixturePromise ??= createScienceProductFixture();
+  return scienceFixturePromise;
+}
+
 async function createProductFixture(): Promise<ProductFixture> {
   const fixture = await makeInitializedTargetFixture();
+  await executeCli(
+    ["corpus", "site", "build", "--target-repo", fixture.targetRepo, "--json"],
+    fixture.root,
+  );
+  return fixture;
+}
+
+async function createScienceProductFixture(): Promise<ProductFixture> {
+  const fixture = await makeInitializedTargetFixture();
+  await writeScienceResult(fixture.targetRepo, {
+    slug: "energy-data-quality-do-provenance-aware-anomaly-scoring-methods-reduce-false-positives-in-synthe",
+    title:
+      "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?",
+    domain: "energy-data-quality",
+  });
+  await runCommand(
+    "git add -A && git commit -m science-study-result",
+    fixture.targetRepo,
+  );
   await executeCli(
     ["corpus", "site", "build", "--target-repo", fixture.targetRepo, "--json"],
     fixture.root,
@@ -1283,6 +1351,90 @@ async function makeTargetRepo(): Promise<string> {
   await writeJson(join(root, "INDEX.json"), { kind: "index", results: [] });
   await runCommand("git add -A && git commit -m initial", root);
   return root;
+}
+
+async function writeScienceResult(
+  targetRepo: string,
+  input: {
+    slug: string;
+    title: string;
+    domain: string;
+  },
+): Promise<void> {
+  const root = join(targetRepo, "results", input.slug);
+  await mkdir(join(root, "evidence", "public"), { recursive: true });
+  await writeJson(join(root, "SUMMARY.json"), {
+    kind: "computational_science_study_summary",
+    studyId: "sci-fixture",
+    slug: input.slug,
+    title: input.title,
+    resultKind: "computational_science_study",
+    scientificQuestion: input.title,
+    domain: input.domain,
+    hypothesisCount: 2,
+    nullHypothesisPresent: true,
+    experimentCount: 1,
+    replicationRunCount: 3,
+    falsificationStatus: "passed",
+    statisticalAnalysisPresent: true,
+    baselineComparisonPresent: true,
+    ablationPresent: true,
+    sensitivityPresent: true,
+    studyResultLabel: "partially_supported",
+    scientificMemoryUpdated: true,
+    safetyScope: "safe computational science over synthetic data",
+    publicHygienePassed: true,
+    replayCriticalPassRate: 100,
+  });
+  await writeJson(join(root, "AUTOPUBLISH_RECORD.json"), {
+    kind: "science_study_autopublish_record",
+    resultId: "sci-fixture",
+    slug: input.slug,
+    title: input.title,
+    resultKind: "computational_science_study",
+    studyResultLabel: "partially_supported",
+    replayCriticalPassRate: 100,
+    publicHygienePassed: true,
+    noPublicLeaks: true,
+    pushed: true,
+  });
+  for (const file of [
+    "SCIENTIFIC_REPORT.md",
+    "PAPER.md",
+    "HYPOTHESES.md",
+    "EXPERIMENT_DESIGN.md",
+    "DATASET.md",
+    "INSTRUMENTS.md",
+    "STATISTICAL_ANALYSIS.md",
+    "BASELINE_COMPARISON.md",
+    "ABLATION_REPORT.md",
+    "SENSITIVITY_ANALYSIS.md",
+    "REPLICATION.md",
+    "FALSIFICATION.md",
+    "SCIENTIFIC_MEMORY_UPDATE.md",
+    "LIMITATIONS.md",
+  ]) {
+    await writeFile(
+      join(root, file),
+      `# ${file.replace(/\.md$/, "").replace(/_/g, " ")}
+
+This public fixture records computational science evidence with null hypotheses,
+baseline comparison, replication, falsification, limitations, and safe scope.
+`,
+      "utf8",
+    );
+  }
+  await writeFile(
+    join(root, "README.md"),
+    `# ${input.title}
+
+This is an autonomous computational-science artifact. It is not a patent filing,
+patentability opinion, legal novelty opinion, or freedom-to-operate opinion.
+It publishes hypotheses, null hypotheses, experiments, statistics, replication,
+falsification, scientific-memory updates, and limitations for public review.
+`,
+    "utf8",
+  );
 }
 
 async function writeResult(

@@ -37,7 +37,7 @@ test("Beta.22 CLI help lists public-beta demo", async () => {
 
 test("package version is rc.1", async () => {
   const pkg: any = await readJson(join(process.cwd(), "package.json"));
-  assert.equal(pkg.version, "3.1.0-rc.1");
+  assert.equal(pkg.version, "3.1.0-rc.2");
 });
 
 test("package exposes demo:public-beta script", async () => {
@@ -60,7 +60,7 @@ test("public beta check works before init", async () => {
     repo.root,
   );
   assert.equal(response.ok, true);
-  assert.equal((response.data as any).check.targetVersion, "3.1.0-rc.1");
+  assert.equal((response.data as any).check.targetVersion, "3.1.0-rc.2");
 });
 
 test("public beta check before demo records missing demo gate", async () => {

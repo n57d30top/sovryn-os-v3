@@ -211,6 +211,9 @@ Commands:
   sovryn science memory search "<query>" [--json]
   sovryn science memory report [--json]
   sovryn science campaign run --goal "<goal>" [--studies 2] [--autopublish-corpus] [--json]
+  sovryn science publish <study-id> --target-repo <path> [--json]
+  sovryn science publish-all --target-repo <path> [--json]
+  sovryn science publish-audit --target-repo <path> [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1482,6 +1485,37 @@ async function scienceCommand(
         autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
       });
     }
+    case "publish": {
+      const studyId = parsed.positionals[1];
+      const targetRepo = flagString(parsed.flags, "--target-repo");
+      if (!studyId || !targetRepo) {
+        throw new AppError(
+          "SCIENCE_PUBLISH_USAGE",
+          "Use: sovryn science publish <study-id> --target-repo <path>.",
+        );
+      }
+      return service.publishStudy(studyId, targetRepo);
+    }
+    case "publish-all": {
+      const targetRepo = flagString(parsed.flags, "--target-repo");
+      if (!targetRepo) {
+        throw new AppError(
+          "SCIENCE_PUBLISH_ALL_USAGE",
+          "Use: sovryn science publish-all --target-repo <path>.",
+        );
+      }
+      return service.publishAll(targetRepo);
+    }
+    case "publish-audit": {
+      const targetRepo = flagString(parsed.flags, "--target-repo");
+      if (!targetRepo) {
+        throw new AppError(
+          "SCIENCE_PUBLISH_AUDIT_USAGE",
+          "Use: sovryn science publish-audit --target-repo <path>.",
+        );
+      }
+      return service.publishAudit(targetRepo);
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
@@ -1506,7 +1540,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|campaign run|publish|publish-all|publish-audit|study status|review>.",
       );
   }
 }

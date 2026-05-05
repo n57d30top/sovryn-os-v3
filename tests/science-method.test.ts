@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
-import { readJson } from "../src/shared/fs.js";
+import { readJson, writeJson } from "../src/shared/fs.js";
 import { makeTempRepo } from "../src/testkit/temp-repo.js";
 
 const ENERGY_QUESTION =
@@ -76,6 +76,9 @@ let memoryFixturePromise:
 let campaignFixturePromise:
   | Promise<Awaited<ReturnType<typeof createScienceCampaign>>>
   | undefined;
+let sciencePublishFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createSciencePublishFixture>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -100,6 +103,11 @@ async function memoryFixture() {
 async function campaignFixture() {
   campaignFixturePromise ??= createScienceCampaign();
   return campaignFixturePromise;
+}
+
+async function sciencePublishFixture() {
+  sciencePublishFixturePromise ??= createSciencePublishFixture();
+  return sciencePublishFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -309,13 +317,46 @@ async function createScienceCampaign() {
   };
 }
 
+async function createScienceTargetRepo() {
+  const repo = await makeTempRepo();
+  await writeFile(
+    join(repo.root, "README.md"),
+    "# Sovryn Open Inventions\n\n",
+    "utf8",
+  );
+  await writeJson(join(repo.root, "INDEX.json"), {
+    kind: "sovryn_open_inventions_index",
+    updatedAt: "fixture",
+    resultCount: 0,
+    results: [],
+  });
+  await mkdir(join(repo.root, "aggregate"), { recursive: true });
+  await mkdir(join(repo.root, "public-corpus", "api"), { recursive: true });
+  return repo;
+}
+
+async function createSciencePublishFixture() {
+  const context = await campaignFixture();
+  const target = await createScienceTargetRepo();
+  const response = await executeCli(
+    ["science", "publish-all", "--target-repo", target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  return {
+    ...context,
+    target,
+    publish: response.data as any,
+  };
+}
+
 function studyPath(root: string, slug: string, file: string): string {
   return join(root, ".sovryn", "science", "studies", slug, file);
 }
 
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.1.0-rc.1");
+  assert.equal(pkg.version, "3.1.0-rc.2");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -3718,4 +3759,555 @@ test("CLI help lists science campaign command", async () => {
   const response = await executeCli(["--help"], process.cwd());
   assert.equal(response.ok, true);
   assert.match(JSON.stringify(response.data), /science campaign run/);
+});
+
+test("CLI help lists science publish commands", async () => {
+  const response = await executeCli(["--help"], process.cwd());
+  assert.equal(response.ok, true);
+  assert.match(JSON.stringify(response.data), /science publish-all/);
+  assert.match(JSON.stringify(response.data), /science publish-audit/);
+});
+
+test("science publish-all writes multiple public studies", async () => {
+  const { publish } = await sciencePublishFixture();
+  assert.equal(publish.publishedCount >= 2, true);
+  assert.equal(publish.rejectedCount, 0);
+});
+
+test("science publish writes a single study folder", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const study = context.campaign.completedStudies[0];
+  const response = await executeCli(
+    [
+      "science",
+      "publish",
+      study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(join(target.root, "results", study.slug, "README.md"));
+});
+
+test("science public study includes README", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "README.md",
+    ),
+  );
+});
+
+test("science public study includes scientific report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_REPORT.md",
+    ),
+  );
+});
+
+test("science public study includes paper report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(target.root, "results", campaign.completedStudies[0].slug, "PAPER.md"),
+  );
+});
+
+test("science public study includes hypotheses", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "HYPOTHESES.md",
+    ),
+  );
+});
+
+test("science public study includes experiment design", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "EXPERIMENT_DESIGN.md",
+    ),
+  );
+});
+
+test("science public study includes dataset report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "DATASET.md",
+    ),
+  );
+});
+
+test("science public study includes instruments report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "INSTRUMENTS.md",
+    ),
+  );
+});
+
+test("science public study includes statistical analysis", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "STATISTICAL_ANALYSIS.md",
+    ),
+  );
+});
+
+test("science public study includes baseline comparison", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "BASELINE_COMPARISON.md",
+    ),
+  );
+});
+
+test("science public study includes ablation report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "ABLATION_REPORT.md",
+    ),
+  );
+});
+
+test("science public study includes sensitivity analysis", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SENSITIVITY_ANALYSIS.md",
+    ),
+  );
+});
+
+test("science public study includes replication report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "REPLICATION.md",
+    ),
+  );
+});
+
+test("science public study includes falsification report", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "FALSIFICATION.md",
+    ),
+  );
+});
+
+test("science public study includes scientific memory update", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SCIENTIFIC_MEMORY_UPDATE.md",
+    ),
+  );
+});
+
+test("science public study includes limitations", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  await access(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "LIMITATIONS.md",
+    ),
+  );
+});
+
+test("science public study includes summary and autopublish record", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const resultDir = join(
+    target.root,
+    "results",
+    campaign.completedStudies[0].slug,
+  );
+  await access(join(resultDir, "SUMMARY.json"));
+  await access(join(resultDir, "AUTOPUBLISH_RECORD.json"));
+});
+
+test("science public study includes public evidence manifest", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const manifest = await readJson<any>(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "evidence",
+      "public",
+      "manifest.json",
+    ),
+  );
+  assert.equal(manifest.rawLogsIncluded, false);
+  assert.equal(manifest.secretsIncluded, false);
+  assert.equal(manifest.localPathsIncluded, false);
+});
+
+test("science public summary contains computational study fields", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const summary = await readJson<any>(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SUMMARY.json",
+    ),
+  );
+  assert.equal(summary.resultKind, "computational_science_study");
+  assert.match(summary.scientificQuestion, /provenance|unit-normalization/i);
+  assert.equal(summary.nullHypothesisPresent, true);
+});
+
+test("science public summary records replication and analysis flags", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const summary = await readJson<any>(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SUMMARY.json",
+    ),
+  );
+  assert.equal(summary.replicationRunCount, 3);
+  assert.equal(summary.statisticalAnalysisPresent, true);
+  assert.equal(summary.baselineComparisonPresent, true);
+  assert.equal(summary.ablationPresent, true);
+  assert.equal(summary.sensitivityPresent, true);
+});
+
+test("science public summary records falsification and memory", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const summary = await readJson<any>(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SUMMARY.json",
+    ),
+  );
+  assert.equal(summary.falsificationStatus, "passed");
+  assert.equal(summary.scientificMemoryUpdated, true);
+});
+
+test("science public summary records replay critical pass rate", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const summary = await readJson<any>(
+    join(
+      target.root,
+      "results",
+      campaign.completedStudies[0].slug,
+      "SUMMARY.json",
+    ),
+  );
+  assert.equal(summary.replayCriticalPassRate, 100);
+});
+
+test("science INDEX includes computational science study fields", async () => {
+  const { target } = await sciencePublishFixture();
+  const index = await readJson<any>(join(target.root, "INDEX.json"));
+  const science = index.results.find(
+    (item: any) => item.resultKind === "computational_science_study",
+  );
+  assert.ok(science);
+  assert.equal(science.nullHypothesisPresent, true);
+  assert.equal(science.replicationRunCount, 3);
+  assert.equal(science.publicHygienePassed, true);
+});
+
+test("science INDEX includes required result labels", async () => {
+  const { target } = await sciencePublishFixture();
+  const index = await readJson<any>(join(target.root, "INDEX.json"));
+  const labels = index.results
+    .filter((item: any) => item.resultKind === "computational_science_study")
+    .map((item: any) => item.studyResultLabel);
+  assert.equal(
+    labels.every((label: string) =>
+      [
+        "supported",
+        "partially_supported",
+        "inconclusive",
+        "weakened",
+        "rejected",
+      ].includes(label),
+    ),
+    true,
+  );
+});
+
+test("science public API includes studies", async () => {
+  const { target } = await sciencePublishFixture();
+  const api = await readJson<any>(
+    join(target.root, "public-corpus", "api", "science-studies.json"),
+  );
+  assert.equal(api.studies.length >= 2, true);
+});
+
+test("science aggregate study index exists", async () => {
+  const { target } = await sciencePublishFixture();
+  const aggregate = await readJson<any>(
+    join(target.root, "aggregate", "science-studies.json"),
+  );
+  assert.equal(aggregate.studyCount >= 2, true);
+});
+
+test("science aggregate memory summary exists", async () => {
+  const { target } = await sciencePublishFixture();
+  const memory = await readJson<any>(
+    join(target.root, "aggregate", "scientific-memory-summary.json"),
+  );
+  assert.equal(memory.publicScienceStudyCount >= 2, true);
+});
+
+test("science public corpus has science landing page", async () => {
+  const { target } = await sciencePublishFixture();
+  const html = await readFile(
+    join(target.root, "public-corpus", "science.html"),
+    "utf8",
+  );
+  assert.match(html, /Computational Science Studies/);
+});
+
+test("science target README links published studies", async () => {
+  const { target } = await sciencePublishFixture();
+  const readme = await readFile(join(target.root, "README.md"), "utf8");
+  assert.match(readme, /Computational Science Studies/);
+  assert.match(readme, /results\//);
+});
+
+test("science publish-audit passes clean target", async () => {
+  const { repo, target } = await sciencePublishFixture();
+  const response = await executeCli(
+    ["science", "publish-audit", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.equal((response.data as any).passed, true);
+});
+
+test("science publish-audit detects public leak", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const publish = await executeCli(
+    ["science", "publish-all", "--target-repo", target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(publish.ok, true, JSON.stringify(publish.errors, null, 2));
+  const slug = context.campaign.completedStudies[0].slug;
+  await writeFile(
+    join(target.root, "results", slug, "LEAK.md"),
+    "bad local path /Users/sovryn/secret",
+    "utf8",
+  );
+  const response = await executeCli(
+    ["science", "publish-audit", "--target-repo", target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true);
+  assert.equal((response.data as any).passed, false);
+  assert.equal((response.data as any).findingCount > 0, true);
+});
+
+test("science publish blocks missing falsification", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const study = context.campaign.completedStudies[0];
+  await rm(
+    studyPath(context.repo.root, study.slug, "falsification-report.json"),
+  );
+  const response = await executeCli(
+    [
+      "science",
+      "publish",
+      study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_STUDY_PUBLISH_BLOCKED");
+});
+
+test("science publish blocks missing replication", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const study = context.campaign.completedStudies[0];
+  await rm(
+    studyPath(context.repo.root, study.slug, "replication-summary.json"),
+  );
+  const response = await executeCli(
+    [
+      "science",
+      "publish",
+      study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_STUDY_PUBLISH_BLOCKED");
+});
+
+test("science publish blocks unsupported scientific claims", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const study = context.campaign.completedStudies[0];
+  const dataPlanPath = studyPath(
+    context.repo.root,
+    study.slug,
+    "data-plan.json",
+  );
+  const dataPlan = await readJson<any>(dataPlanPath);
+  dataPlan.limitations.push("This proves the method works on every dataset.");
+  await writeJson(dataPlanPath, dataPlan);
+  const response = await executeCli(
+    [
+      "science",
+      "publish",
+      study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.errors[0].code, "SCIENCE_STUDY_PUBLISH_BLOCKED");
+});
+
+test("science public package excludes raw output fields", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const resultDir = join(
+    target.root,
+    "results",
+    campaign.completedStudies[0].slug,
+  );
+  const readme = await readFile(join(resultDir, "README.md"), "utf8");
+  const summary = await readFile(join(resultDir, "SUMMARY.json"), "utf8");
+  assert.doesNotMatch(
+    `${readme}\n${summary}`,
+    /"stdout"|"stderr"|stdout:|stderr:/i,
+  );
+});
+
+test("science public package excludes local absolute paths", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const resultDir = join(
+    target.root,
+    "results",
+    campaign.completedStudies[0].slug,
+  );
+  const readme = await readFile(join(resultDir, "README.md"), "utf8");
+  const summary = await readFile(join(resultDir, "SUMMARY.json"), "utf8");
+  assert.doesNotMatch(`${readme}\n${summary}`, /\/Users\/|\/home\/|C:\\/i);
+});
+
+test("science public package excludes secrets", async () => {
+  const { target, campaign } = await sciencePublishFixture();
+  const resultDir = join(
+    target.root,
+    "results",
+    campaign.completedStudies[0].slug,
+  );
+  const combined = `${await readFile(join(resultDir, "README.md"), "utf8")}\n${await readFile(join(resultDir, "SUMMARY.json"), "utf8")}`;
+  assert.doesNotMatch(combined, /ghp_[A-Za-z0-9]+|PRIVATE KEY|OPENAI_API_KEY/i);
+});
+
+test("science publish result includes required gates", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const study = context.campaign.completedStudies[0];
+  const response = await executeCli(
+    [
+      "science",
+      "publish",
+      study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  const codes = (response.data as any).publication.gates.map(
+    (gate: any) => gate.code,
+  );
+  assert.ok(codes.includes("STUDY_PUBLIC_PACKAGE_PRESENT"));
+  assert.ok(codes.includes("NULL_HYPOTHESES_PUBLIC"));
+  assert.ok(codes.includes("FALSIFICATION_PUBLIC"));
+  assert.ok(codes.includes("MEMORY_UPDATE_PUBLIC"));
+});
+
+test("science publish-all is idempotent for INDEX result count", async () => {
+  const context = await createScienceCampaign();
+  const target = await createScienceTargetRepo();
+  const first = await executeCli(
+    ["science", "publish-all", "--target-repo", target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(first.ok, true, JSON.stringify(first.errors, null, 2));
+  const firstIndex = await readJson<any>(join(target.root, "INDEX.json"));
+  const second = await executeCli(
+    ["science", "publish-all", "--target-repo", target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(second.ok, true, JSON.stringify(second.errors, null, 2));
+  const secondIndex = await readJson<any>(join(target.root, "INDEX.json"));
+  assert.equal(secondIndex.resultCount, firstIndex.resultCount);
 });

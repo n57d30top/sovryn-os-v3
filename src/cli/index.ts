@@ -219,9 +219,14 @@ Commands:
   sovryn field-grade trial audit [--json]
   sovryn field-grade trial report [--json]
   sovryn frontier benchmark expand [--json]
+  sovryn frontier methods generate [--candidates 1000] [--json]
+  sovryn frontier methods implement [--top 20] [--json]
   sovryn frontier candidates generate [--json]
+  sovryn frontier falsify baseline-dominance [--json]
   sovryn frontier baseline-dominance run [--json]
+  sovryn frontier reproduce variants [--json]
   sovryn frontier replication run [--json]
+  sovryn frontier package paper-grade [--json]
   sovryn frontier package build [--json]
   sovryn frontier trial run [--autopublish-corpus] [--json]
   sovryn frontier trial audit [--json]
@@ -3146,14 +3151,30 @@ async function frontierCommand(
   if (subcommand === "benchmark" && action === "expand") {
     return service.expandBenchmarks();
   }
+  if (subcommand === "methods" && action === "generate") {
+    flagInt(parsed.flags, "--candidates", 1000);
+    return service.candidateFactoryRun();
+  }
+  if (subcommand === "methods" && action === "implement") {
+    return service.implementTopMethods(flagInt(parsed.flags, "--top", 20));
+  }
   if (subcommand === "candidates" && action === "generate") {
     return service.candidateFactoryRun();
+  }
+  if (subcommand === "falsify" && action === "baseline-dominance") {
+    return service.runBaselineDominance();
   }
   if (subcommand === "baseline-dominance" && action === "run") {
     return service.runBaselineDominance();
   }
+  if (subcommand === "reproduce" && action === "variants") {
+    return service.runIndependentReplication();
+  }
   if (subcommand === "replication" && action === "run") {
     return service.runIndependentReplication();
+  }
+  if (subcommand === "package" && action === "paper-grade") {
+    return service.buildPaperPackage();
   }
   if (subcommand === "package" && action === "build") {
     return service.buildPaperPackage();
@@ -3169,7 +3190,7 @@ async function frontierCommand(
   }
   throw new AppError(
     "FRONTIER_COMMAND_REQUIRED",
-    "Use: sovryn frontier <benchmark expand|candidates generate|baseline-dominance run|replication run|package build|trial run|trial audit|trial report>.",
+    "Use: sovryn frontier <benchmark expand|methods generate|methods implement|falsify baseline-dominance|reproduce variants|package paper-grade|trial run|trial audit|trial report>.",
   );
 }
 

@@ -17,9 +17,14 @@ test("help lists frontier scientific production commands", async () => {
   assert.equal(response.ok, true);
   const help = String((response.data as any).help);
   assert.match(help, /sovryn frontier benchmark expand/);
+  assert.match(help, /sovryn frontier methods generate/);
+  assert.match(help, /sovryn frontier methods implement/);
   assert.match(help, /sovryn frontier candidates generate/);
+  assert.match(help, /sovryn frontier falsify baseline-dominance/);
   assert.match(help, /sovryn frontier baseline-dominance run/);
+  assert.match(help, /sovryn frontier reproduce variants/);
   assert.match(help, /sovryn frontier replication run/);
+  assert.match(help, /sovryn frontier package paper-grade/);
   assert.match(help, /sovryn frontier package build/);
   assert.match(help, /sovryn frontier trial run/);
 });
@@ -42,6 +47,22 @@ test("benchmark expansion creates verified source registry and eight tasks", asy
     ).passed,
     true,
   );
+  assert.equal(
+    program.gates.find((gate: any) => gate.code === "LICENSE_OR_ACCESS_NOTED")
+      .passed,
+    true,
+  );
+  const registry = await readJson<Record<string, any>>(
+    join(
+      repo.root,
+      ".sovryn",
+      "frontier",
+      "benchmark-expansion",
+      "verified-benchmark-registry.json",
+    ),
+  );
+  assert.equal(registry.kind, "verified_benchmark_registry");
+  assert.equal(registry.sourceCount, 30);
   await access(
     join(
       repo.root,
@@ -56,7 +77,7 @@ test("benchmark expansion creates verified source registry and eight tasks", asy
 test("candidate method factory generates 1000 variants and implements top 20", async () => {
   const repo = await initFrontierFixture();
   const response = await executeCli(
-    ["frontier", "candidates", "generate", "--json"],
+    ["frontier", "methods", "generate", "--candidates", "1000", "--json"],
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors));
@@ -66,6 +87,23 @@ test("candidate method factory generates 1000 variants and implements top 20", a
   assert.ok(run.rejectedCandidateCount > 900);
   assert.equal(
     run.gates.find((gate: any) => gate.code === "METHOD_CARDS_PRESENT").passed,
+    true,
+  );
+  assert.equal(
+    run.gates.find((gate: any) => gate.code === "TOP_CANDIDATES_RUNNABLE")
+      .passed,
+    true,
+  );
+  const implemented = await executeCli(
+    ["frontier", "methods", "implement", "--top", "20", "--json"],
+    repo.root,
+  );
+  assert.equal(implemented.ok, true, JSON.stringify(implemented.errors));
+  assert.equal((implemented.data as any).implementedCount, 20);
+  assert.equal(
+    (implemented.data as any).topCandidates.every(
+      (candidate: any) => candidate.measurable && candidate.complexity <= 14,
+    ),
     true,
   );
   const cards = await readFile(
@@ -79,12 +117,25 @@ test("candidate method factory generates 1000 variants and implements top 20", a
     "utf8",
   );
   assert.match(cards, /frontier-candidate-/);
+  const card = await readJson<Record<string, any>>(
+    join(
+      repo.root,
+      ".sovryn",
+      "frontier",
+      "method-factory",
+      "method-cards",
+      "frontier-candidate-0001.json",
+    ),
+  );
+  assert.equal(card.implementation.runnablePrototype, true);
+  assert.match(card.implementation.expectedFailureMode, /baseline-dominated/);
+  assert.match(card.implementation.benchmarkCompatibilityNote, /Runnable/);
 });
 
 test("baseline-dominance falsification rejects dominated candidates and records losses", async () => {
   const repo = await initFrontierFixture();
   const response = await executeCli(
-    ["frontier", "baseline-dominance", "run", "--json"],
+    ["frontier", "falsify", "baseline-dominance", "--json"],
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors));
@@ -95,6 +146,7 @@ test("baseline-dominance falsification rejects dominated candidates and records 
   assert.ok(run.rejectedByBaseline.length > 0);
   assert.ok(run.survivingCandidates.length > 0);
   assert.ok(run.lossesRecorded > 0);
+  assert.ok(run.adversarialCases.includes("baseline dominance challenge"));
   assert.equal(
     run.gates.find((gate: any) => gate.code === "NO_FAKE_BENCHMARK_WIN").passed,
     true,
@@ -104,7 +156,7 @@ test("baseline-dominance falsification rejects dominated candidates and records 
 test("independent replication variants support one candidate and downgrade unstable candidates", async () => {
   const repo = await initFrontierFixture();
   const response = await executeCli(
-    ["frontier", "replication", "run", "--json"],
+    ["frontier", "reproduce", "variants", "--json"],
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors));
@@ -123,7 +175,7 @@ test("independent replication variants support one candidate and downgrade unsta
 test("paper-grade package includes required scientific result files and claim bindings", async () => {
   const repo = await initFrontierFixture();
   const response = await executeCli(
-    ["frontier", "package", "build", "--json"],
+    ["frontier", "package", "paper-grade", "--json"],
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors));

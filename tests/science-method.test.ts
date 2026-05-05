@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { runCommand } from "../src/adapters/shell/command.js";
 import { executeCli } from "../src/cli/index.js";
 import { readJson, writeJson } from "../src/shared/fs.js";
 import { makeTempRepo } from "../src/testkit/temp-repo.js";
@@ -94,6 +95,12 @@ let metaFixturePromise:
 let trialFixturePromise:
   | Promise<Awaited<ReturnType<typeof createScienceTrialFixture>>>
   | undefined;
+let sevenDayTrialFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createSevenDayTrialFixture>>>
+  | undefined;
+let scienceShowcaseFixturePromise:
+  | Promise<Awaited<ReturnType<typeof createScienceShowcaseFixture>>>
+  | undefined;
 
 async function runtimeFixture() {
   runtimeFixturePromise ??= createRuntimeStudy();
@@ -148,6 +155,16 @@ async function metaFixture() {
 async function trialFixture() {
   trialFixturePromise ??= createScienceTrialFixture();
   return trialFixturePromise;
+}
+
+async function sevenDayTrialFixture() {
+  sevenDayTrialFixturePromise ??= createSevenDayTrialFixture();
+  return sevenDayTrialFixturePromise;
+}
+
+async function scienceShowcaseFixture() {
+  scienceShowcaseFixturePromise ??= createScienceShowcaseFixture();
+  return scienceShowcaseFixturePromise;
 }
 
 async function createRuntimeStudy() {
@@ -416,6 +433,52 @@ async function createScienceTrialFixture() {
   };
 }
 
+async function createSevenDayTrialFixture() {
+  const repo = await initRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "trial",
+      "run",
+      "--goal",
+      "Perform safe autonomous computational science",
+      "--days",
+      "7",
+      "--studies",
+      "6",
+      "--real-data-preferred",
+      "--autopublish-corpus",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  return {
+    repo,
+    response,
+    trial: (response.data as any).trial,
+  };
+}
+
+async function createScienceShowcaseFixture() {
+  const context = await sciencePublishFixture();
+  const build = await executeCli(
+    ["corpus", "site", "build", "--target-repo", context.target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(build.ok, true, JSON.stringify(build.errors, null, 2));
+  const audit = await executeCli(
+    ["corpus", "site", "audit", "--target-repo", context.target.root, "--json"],
+    context.repo.root,
+  );
+  assert.equal(audit.ok, true, JSON.stringify(audit.errors, null, 2));
+  return {
+    ...context,
+    siteBuild: build.data as any,
+    siteAudit: audit.data as any,
+  };
+}
+
 async function createAnalyzedStudy() {
   const context = await createRuntimeStudy();
   const analyze = await executeCli(
@@ -585,6 +648,10 @@ async function createScienceCampaign() {
 
 async function createScienceTargetRepo() {
   const repo = await makeTempRepo();
+  await runCommand(
+    "git remote add origin https://github.com/n57d30top/sovryn-open-inventions.git",
+    repo.root,
+  );
   await writeFile(
     join(repo.root, "README.md"),
     "# Sovryn Open Inventions\n\n",
@@ -626,7 +693,7 @@ function reproductionPath(root: string, slug: string, file: string): string {
 
 test("v1.1 rc package version is set", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
-  assert.equal(pkg.version, "3.2.0-rc.1");
+  assert.equal(pkg.version, "3.3.0-rc.1");
 });
 
 test("init ignores science runtime artifacts", async () => {
@@ -5804,7 +5871,7 @@ test("science public summary records falsification and memory", async () => {
       "SUMMARY.json",
     ),
   );
-  assert.equal(summary.falsificationStatus, "passed");
+  assert.equal(summary.falsificationStatus, "passes_falsification");
   assert.equal(summary.scientificMemoryUpdated, true);
 });
 
@@ -6860,7 +6927,7 @@ test("science trial stores trial report", async () => {
     ),
     "utf8",
   );
-  assert.match(report, /72h Autonomous Computational Scientist Trial/);
+  assert.match(report, /Autonomous Computational Scientist Trial/);
 });
 
 test("science trial stores launch decision", async () => {
@@ -7218,7 +7285,7 @@ test("science trial clamps hours safely", async () => {
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
-  assert.equal((response.data as any).trial.requestedHours, 72);
+  assert.equal((response.data as any).trial.requestedHours, 168);
 });
 
 test("science trial clamps studies safely", async () => {
@@ -7237,7 +7304,7 @@ test("science trial clamps studies safely", async () => {
     repo.root,
   );
   assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
-  assert.equal((response.data as any).trial.requestedStudies, 4);
+  assert.equal((response.data as any).trial.requestedStudies, 6);
 });
 
 test("science trial requires a goal", async () => {
@@ -7469,5 +7536,384 @@ test("science trial package version is rc.1 when rc gates pass", async () => {
   const { trial } = await trialFixture();
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
   assert.equal(trial.readinessLabel, "rc-ready");
-  assert.equal(pkg.version, "3.2.0-rc.1");
+  assert.equal(pkg.version, "3.3.0-rc.1");
+});
+
+for (const command of [
+  "science study run-real-data",
+  "science reproduce search",
+  "science reproduce publish",
+  "science revision publish",
+  "science stable-findings report",
+  "--days 7",
+  "--studies 6",
+  "science publish-audit",
+  "science peer-review-corpus",
+  "science trial run",
+]) {
+  test(`3.3 rc help lists ${command}`, async () => {
+    const response = await executeCli(["--help"], process.cwd());
+    assert.equal(response.ok, true);
+    assert.match(
+      JSON.stringify(response.data),
+      new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+  });
+}
+
+for (const file of [
+  "SHOWCASE.md",
+  "METHOD.md",
+  "REPRODUCE.md",
+  "EXAMPLES.md",
+  "FALSIFICATION.md",
+  "PEER_REVIEW.md",
+  "STATISTICAL_INTERPRETATION.md",
+  "SCIENTIFIC_REPORT.md",
+  "PAPER.md",
+  "HYPOTHESES.md",
+  "EXPERIMENT_DESIGN.md",
+  "DATASET.md",
+  "INSTRUMENTS.md",
+  "BASELINE_COMPARISON.md",
+  "ABLATION_REPORT.md",
+  "SENSITIVITY_ANALYSIS.md",
+  "REPLICATION.md",
+  "SCIENTIFIC_MEMORY_UPDATE.md",
+  "LIMITATIONS.md",
+  "SUMMARY.json",
+]) {
+  test(`science public showcase package includes ${file}`, async () => {
+    const { target, campaign } = await sciencePublishFixture();
+    await access(
+      join(target.root, "results", campaign.completedStudies[0].slug, file),
+    );
+  });
+}
+
+for (const field of [
+  "releaseReadinessScore",
+  "evidenceStrengthScore",
+  "reproducibilityScore",
+  "publicationSafetyScore",
+  "falsificationStatus",
+  "peerReviewPresent",
+  "showcaseEligible",
+  "showcaseDocumentation",
+  "scientificQuestion",
+  "hypothesisCount",
+  "nullHypothesisPresent",
+  "experimentCount",
+  "replicationRunCount",
+  "statisticalAnalysisPresent",
+  "baselineComparisonPresent",
+  "ablationPresent",
+  "sensitivityPresent",
+  "scientificMemoryUpdated",
+  "publicHygienePassed",
+  "replayCriticalPassRate",
+]) {
+  test(`science public INDEX includes ${field}`, async () => {
+    const { target } = await sciencePublishFixture();
+    const index = await readJson<any>(join(target.root, "INDEX.json"));
+    const study = index.results.find(
+      (item: any) => item.resultKind === "computational_science_study",
+    );
+    assert.ok(field in study, field);
+  });
+}
+
+for (const field of [
+  "releaseReadinessScore",
+  "evidenceStrengthScore",
+  "reproducibilityScore",
+  "publicationSafetyScore",
+  "replayCriticalPassRate",
+]) {
+  test(`science public scores are non-zero for ${field}`, async () => {
+    const { target } = await sciencePublishFixture();
+    const index = await readJson<any>(join(target.root, "INDEX.json"));
+    const studies = index.results.filter(
+      (item: any) => item.resultKind === "computational_science_study",
+    );
+    assert.ok(studies.every((study: any) => study[field] > 0));
+  });
+}
+
+for (const gate of [
+  "SCIENCE_STUDY_SCORES_PRESENT",
+  "FALSIFICATION_EVALUATED",
+  "PEER_REVIEW_PRESENT",
+  "SHOWCASE_DOCS_PRESENT",
+  "HYPOTHESES_PUBLIC",
+  "NULL_HYPOTHESES_PUBLIC",
+  "STATISTICS_PUBLIC",
+  "REPLICATION_PUBLIC",
+  "FALSIFICATION_PUBLIC",
+  "MEMORY_UPDATE_PUBLIC",
+  "NO_UNSUPPORTED_SCIENTIFIC_CLAIMS",
+  "PUBLIC_HYGIENE_PASSED",
+]) {
+  test(`science publish gates include passing ${gate}`, async () => {
+    const { publish } = await sciencePublishFixture();
+    const publication = publish.publications[0];
+    const found = publication.gates.find((item: any) => item.code === gate);
+    assert.equal(found?.passed, true, gate);
+  });
+}
+
+for (const gate of [
+  "SEVEN_DAY_TRIAL_PRESENT",
+  "SIX_STUDIES_ATTEMPTED",
+  "CONTAINER_NETOFF_EXECUTIONS_PRESENT",
+  "REVISIONS_PRESENT",
+  "REPRODUCTION_ATTEMPTS_PRESENT",
+  "TRIAL_PRESENT",
+  "FOUR_STUDIES_ATTEMPTED",
+  "REAL_DATA_USED_OR_LIMITED",
+  "HYPOTHESES_WITH_NULLS",
+  "EXPERIMENTS_DESIGNED",
+  "DATASETS_PRESENT",
+  "INSTRUMENTS_BUILT_OR_REUSED",
+  "NODE_ALPHA_EXECUTIONS_PRESENT",
+  "STATISTICS_PRESENT",
+  "BASELINES_PRESENT",
+  "ABLATIONS_PRESENT",
+  "REPLICATIONS_PRESENT",
+  "FALSIFICATIONS_PRESENT",
+  "PEER_REVIEWS_PRESENT",
+  "META_ANALYSIS_PRESENT",
+]) {
+  test(`seven-day trial gate passes ${gate}`, async () => {
+    const { trial } = await sevenDayTrialFixture();
+    const found = trial.gates.find((item: any) => item.code === gate);
+    assert.equal(found?.passed, true, gate);
+  });
+}
+
+for (const field of [
+  "completedStudies",
+  "realDataStudies",
+  "syntheticOnlyStudies",
+  "reproductionAttempts",
+  "reproducedResults",
+  "peerReviewAccepts",
+  "peerReviewRevisions",
+  "revisionLoops",
+  "nodeAlphaExecutions",
+  "containerNetoffExecutions",
+  "publicCorpusPublications",
+  "blockedUnsafeQuestions",
+  "publicLeakCount",
+  "criticalFailureCount",
+]) {
+  test(`seven-day trial scorecard includes numeric ${field}`, async () => {
+    const { trial } = await sevenDayTrialFixture();
+    assert.equal(typeof trial.scorecard[field], "number", field);
+  });
+}
+
+for (const expected of [
+  ["requestedDays", 7],
+  ["requestedHours", 168],
+  ["requestedStudies", 6],
+  ["readinessLabel", "rc-ready"],
+  ["launchDecision", "rc_ready"],
+]) {
+  test(`seven-day trial records ${expected[0]}`, async () => {
+    const { trial } = await sevenDayTrialFixture();
+    assert.equal(trial[expected[0] as string], expected[1]);
+  });
+}
+
+for (const file of [
+  "study-results.json",
+  "reproduction-results.json",
+  "peer-review-summary.json",
+  "revision-summary.json",
+  "meta-analysis-summary.json",
+  "trial-scorecard.json",
+  "TRIAL_REPORT.md",
+  "LAUNCH_DECISION.md",
+]) {
+  test(`seven-day trial writes ${file}`, async () => {
+    const { repo, trial } = await sevenDayTrialFixture();
+    await access(
+      join(repo.root, ".sovryn", "science", "trials", trial.slug, file),
+    );
+  });
+}
+
+for (const file of [
+  "dataset-registry.json",
+  "dataset-provenance.json",
+  "dataset-validation.json",
+  "cache-report.json",
+  "real-vs-synthetic-comparison.json",
+  "REAL_DATA_REPORT.md",
+]) {
+  test(`run-real-data writes ${file}`, async () => {
+    const repo = await initRepo();
+    const response = await executeCli(
+      ["science", "study", "run-real-data", "energy-anomaly", "--json"],
+      repo.root,
+    );
+    assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+    await access(join(repo.root, ".sovryn", "science", "real-data", file));
+  });
+}
+
+for (const gate of [
+  "REAL_DATA_PUBLIC_AND_SAFE",
+  "DATASET_PROVENANCE_PRESENT",
+  "DATASET_VALIDATION_PRESENT",
+  "CACHE_OR_REPLAY_PRESENT",
+  "REAL_VS_SYNTHETIC_COMPARISON_PRESENT",
+  "DATA_LIMITATIONS_PUBLIC",
+]) {
+  test(`run-real-data returns passing ${gate}`, async () => {
+    const repo = await initRepo();
+    const response = await executeCli(
+      ["science", "study", "run-real-data", "energy-anomaly", "--json"],
+      repo.root,
+    );
+    assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+    const found = (response.data as any).gates.find(
+      (item: any) => item.code === gate,
+    );
+    assert.equal(found?.passed, true, gate);
+  });
+}
+
+test("science reproduce search returns three candidate claims", async () => {
+  const repo = await initRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "search",
+      "data quality anomaly detection reproducibility",
+      "--json",
+    ],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  assert.equal((response.data as any).index.claimCount, 3);
+});
+
+test("science reproduce publish writes public reproduction result", async () => {
+  const context = await reproductionFixture();
+  const target = await createScienceTargetRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "reproduce",
+      "publish",
+      context.reproductionPlan.reproductionId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(
+    join(
+      target.root,
+      "results",
+      (response.data as any).publication.slug,
+      "REPRODUCTION_REPORT.md",
+    ),
+  );
+});
+
+test("science revision publish writes author response and revised report", async () => {
+  const context = await peerReviewFixture();
+  const target = await createScienceTargetRepo();
+  const response = await executeCli(
+    [
+      "science",
+      "revision",
+      "publish",
+      context.study.studyId,
+      "--target-repo",
+      target.root,
+      "--json",
+    ],
+    context.repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(
+    join(target.root, "results", context.study.slug, "REVISED_REPORT.md"),
+  );
+});
+
+test("science stable-findings report writes markdown", async () => {
+  const { repo } = await metaFixture();
+  const response = await executeCli(
+    ["science", "stable-findings", "report", "--json"],
+    repo.root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  await access(
+    join(repo.root, ".sovryn", "science", "meta", "STABLE_FINDINGS.md"),
+  );
+});
+
+test("science showcase site build records science showcase aggregate", async () => {
+  const { target } = await scienceShowcaseFixture();
+  const aggregate = await readJson<any>(
+    join(target.root, "aggregate", "science-showcase.json"),
+  );
+  assert.equal(aggregate.kind, "public_corpus_science_showcase_results");
+});
+
+test("science showcase API includes scienceResults", async () => {
+  const { target } = await scienceShowcaseFixture();
+  const api = await readJson<any>(
+    join(target.root, "public-corpus", "api", "showcase.json"),
+  );
+  assert.ok(Array.isArray(api.scienceResults));
+});
+
+test("science study with not_evaluated falsification is not showcase_science", async () => {
+  const { target } = await sciencePublishFixture();
+  const indexPath = join(target.root, "INDEX.json");
+  const index = await readJson<any>(indexPath);
+  index.results[0].falsificationStatus = "not_evaluated";
+  await writeJson(indexPath, index);
+  const repo = await initRepo();
+  const build = await executeCli(
+    ["corpus", "site", "build", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(build.ok, true, JSON.stringify(build.errors, null, 2));
+  const corpus = await readJson<any>(
+    join(target.root, "public-corpus", "corpus.json"),
+  );
+  const study = corpus.results.find(
+    (item: any) => item.slug === index.results[0].slug,
+  );
+  assert.notEqual(study.lifecycleStatus, "showcase_science");
+});
+
+test("science study with zero scores is not showcase_science", async () => {
+  const { target } = await sciencePublishFixture();
+  const indexPath = join(target.root, "INDEX.json");
+  const index = await readJson<any>(indexPath);
+  index.results[0].releaseReadinessScore = 0;
+  await writeJson(indexPath, index);
+  const repo = await initRepo();
+  const build = await executeCli(
+    ["corpus", "site", "build", "--target-repo", target.root, "--json"],
+    repo.root,
+  );
+  assert.equal(build.ok, true, JSON.stringify(build.errors, null, 2));
+  const corpus = await readJson<any>(
+    join(target.root, "public-corpus", "corpus.json"),
+  );
+  const study = corpus.results.find(
+    (item: any) => item.slug === index.results[0].slug,
+  );
+  assert.notEqual(study.lifecycleStatus, "showcase_science");
 });

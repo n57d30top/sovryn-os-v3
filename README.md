@@ -1,6 +1,6 @@
 # Sovryn OS v3
 
-Current version: `3.2.0-rc.1`
+Current version: `3.3.0-rc.1`
 
 Sovryn OS is a local-first evidence kernel for AI-assisted coding and research.
 It runs agents in isolated Git worktrees, verifies their work through exit codes,
@@ -28,7 +28,7 @@ Sovryn produces Open Inventions, Defensive Publications, and Open Source
 Research Artifacts. It does not file legal patents and does not provide legal
 novelty, patentability, or freedom-to-operate opinions.
 
-## Current 3.2 Line
+## Current 3.3 RC Line
 
 Sovryn OS v1.1 started the transition from autonomous open-invention researcher
 to autonomous computational scientist. Alpha.1 added the formal study
@@ -60,8 +60,12 @@ methodological critique, corpus review, author response, revision planning,
 unsupported-claim blocking, and showcase-science review gates.
 3.2 Alpha.4 adds scientific meta-analysis and learning: cross-study summaries,
 contradiction detection, failed-hypothesis lessons, memory synthesis, next-study
-planning, and four-week follow-up research-program proposals.
-Scientific support remains bounded to the evidence actually produced.
+planning, and four-week follow-up research-program proposals. The 3.3 RC line
+hardens public science studies into reviewable showcase-science entries, adds
+real-data study templates, external reproduction search/publication, revision
+publication, stable-findings reports, and a bounded seven-day autonomous
+computational scientist trial. Scientific support remains bounded to the
+evidence actually produced.
 
 | Version         | Focus                            | Result                                                                                                                                                                       |
 | --------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -75,7 +79,13 @@ Scientific support remains bounded to the evidence actually produced.
 | `3.2.0-alpha.1` | Real Data Ingestion              | Adds `sovryn science data search/ingest/validate/provenance/cache/replay` with safe public/proxy datasets, provenance, validation, replay cache, and study binding.          |
 | `3.2.0-alpha.2` | Scientific Reproduction          | Adds `sovryn science reproduce plan/run/analyze/report` for safe bounded reproduction of external or internal computational claims.                                          |
 | `3.2.0-alpha.3` | Scientific Peer Review           | Adds `sovryn science peer-review`, `peer-review-corpus`, `rebuttal`, and `revise` for automated critique, response, and revision planning before showcase promotion.         |
-| `3.2.0-rc.1`    | Meta-Analysis and Learning       | Adds `sovryn science meta-analysis`, `memory synthesize`, `contradictions find`, `research-program propose`, and `next-study plan` for learning across studies.              |
+| `3.2.0-alpha.4` | Meta-Analysis and Learning       | Adds `sovryn science meta-analysis`, `memory synthesize`, `contradictions find`, `research-program propose`, and `next-study plan` for learning across studies.              |
+| `3.2.1`         | Science Showcase Hardening       | Adds public science-study score hardening, peer-review/falsification showcase gates, showcase-science docs, and science showcase index/API output.                           |
+| `3.2.2`         | Real-Data Science Studies        | Adds `sovryn science study run-real-data` templates with provenance, validation, cache/replay, and real-vs-synthetic comparison artifacts.                                   |
+| `3.2.3`         | External Reproduction Challenge  | Adds `sovryn science reproduce search` and `reproduce publish` for safe bounded reproduction challenges and public reproduction reports.                                     |
+| `3.2.4`         | Review/Rebuttal/Revision         | Adds `sovryn science revision publish` for public author-response, revision-plan, and revised-report artifacts.                                                              |
+| `3.2.5`         | Stable Scientific Learning       | Adds `sovryn science stable-findings report` and stricter scientific-memory learning reports.                                                                                |
+| `3.3.0-rc.1`    | Seven-Day Science Trial          | Adds `sovryn science trial run --days 7 --studies 6` with six-study selection, reproduction attempts, revision loops, meta-analysis, and RC gate evidence.                   |
 
 New science commands:
 
@@ -110,19 +120,25 @@ sovryn science campaign run --goal "Run safe computational science studies" --st
 sovryn science publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-all --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science study run-real-data energy-anomaly --json
+sovryn science reproduce search "data quality anomaly detection reproducibility" --json
 sovryn science reproduce plan "safe public energy anomaly detection claim" --json
 sovryn science reproduce run <reproduction-id> --json
 sovryn science reproduce analyze <reproduction-id> --json
 sovryn science reproduce report <reproduction-id> --json
+sovryn science reproduce publish <reproduction-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science peer-review <study-id> --json
 sovryn science peer-review-corpus --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science rebuttal <study-id> --json
 sovryn science revise <study-id> --json
+sovryn science revision publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science meta-analysis run --json
 sovryn science memory synthesize --json
 sovryn science contradictions find --json
+sovryn science stable-findings report --json
 sovryn science research-program propose --json
 sovryn science next-study plan --json
+sovryn science trial run --goal "Perform safe autonomous computational science" --days 7 --studies 6 --real-data-preferred --autopublish-corpus --json
 sovryn science study status <study-id> --json
 sovryn science review <study-id> --json
 ```

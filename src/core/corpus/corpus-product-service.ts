@@ -57,6 +57,7 @@ type PublicResultCard = {
   nullHypothesisPresent: boolean;
   experimentCount: number;
   replicationRunCount: number;
+  peerReviewPresent: boolean;
   statisticalAnalysisPresent: boolean;
   baselineComparisonPresent: boolean;
   ablationPresent: boolean;
@@ -91,6 +92,7 @@ type PublicCorpusModel = {
   versionGroups: VersionGroup[];
   supersededMap: SupersededMapEntry[];
   showcaseResults: PublicResultCard[];
+  scienceShowcaseResults: PublicResultCard[];
   revisionQueue: RevisionQueueEntry[];
   disclaimer: string;
   evidenceHash: string;
@@ -240,8 +242,13 @@ export class CorpusProductService {
       results: model.showcaseResults.map((result) =>
         publicLifecycleResult(result),
       ),
+      scienceResults: model.scienceShowcaseResults.map((result) =>
+        publicLifecycleResult(result),
+      ),
       evidenceHash: hashEvidence(
-        model.showcaseResults.map((item) => item.slug),
+        [...model.showcaseResults, ...model.scienceShowcaseResults].map(
+          (item) => item.slug,
+        ),
       ),
     });
     const scienceStudies = publicScienceStudies(model);
@@ -442,6 +449,56 @@ export class CorpusProductService {
         { scienceStudyCount: scienceStudyItems(corpus).length },
       ),
       gate(
+        "SCIENCE_STUDY_SCORES_PRESENT",
+        scienceStudyItems(corpus).every(scienceIndexScoresPresent),
+        "Computational science studies must expose non-zero readiness, evidence, reproducibility, and safety scores.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
+      ),
+      gate(
+        "FALSIFICATION_EVALUATED",
+        scienceStudyItems(corpus).every((item) => {
+          const status = text(item.falsificationStatus, "not_evaluated");
+          return status !== "not_evaluated" && status !== "missing";
+        }),
+        "Computational science studies must not remain at falsificationStatus not_evaluated before showcase science promotion.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
+      ),
+      gate(
+        "PEER_REVIEW_PRESENT",
+        scienceStudyItems(corpus).every(
+          (item) => item.peerReviewPresent === true,
+        ),
+        "Computational science studies must include peer review metadata.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
+      ),
+      gate(
+        "SHOWCASE_DOCS_PRESENT",
+        scienceStudyItems(corpus)
+          .filter((item) => item.lifecycleStatus === "showcase_science")
+          .every((item) => {
+            const docs = isRecord(item.showcaseDocumentation)
+              ? item.showcaseDocumentation
+              : {};
+            return (
+              docs.showcase === true &&
+              docs.method === true &&
+              docs.reproduce === true &&
+              docs.examples === true
+            );
+          }),
+        "Science showcase studies must include showcase, method, reproduction, and examples docs.",
+        { scienceShowcaseCount: scienceShowcaseItems(corpus).length },
+      ),
+      gate(
+        "SCIENCE_SHOWCASE_INDEX_UPDATED",
+        scienceStudyItems(corpus).length === 0 ||
+          (await pathExists(
+            join(target, "aggregate", "science-showcase.json"),
+          )),
+        "Science showcase aggregate must be generated.",
+        { scienceStudyCount: scienceStudyItems(corpus).length },
+      ),
+      gate(
         "SCIENCE_STUDY_PAGE_PRESENT",
         scienceStudyItems(corpus).length === 0 ||
           (await pathExists(join(siteRoot, "science.html"))),
@@ -629,6 +686,15 @@ export class CorpusProductService {
         model.showcaseResults.map((item) => item.slug),
       ),
     });
+    await writeJson(join(targetRepo, "aggregate", "science-showcase.json"), {
+      kind: "public_corpus_science_showcase_results",
+      updatedAt: model.generatedAt,
+      resultCount: model.scienceShowcaseResults.length,
+      results: model.scienceShowcaseResults.map(publicLifecycleResult),
+      evidenceHash: hashEvidence(
+        model.scienceShowcaseResults.map((item) => item.slug),
+      ),
+    });
     const scienceStudies = publicScienceStudies(model);
     await writeJson(join(targetRepo, "aggregate", "science-studies.json"), {
       kind: "public_corpus_science_studies",
@@ -765,6 +831,9 @@ async function buildPublicCorpusModel(
         (left, right) =>
           (left.showcaseRank ?? 999) - (right.showcaseRank ?? 999),
       ),
+    scienceShowcaseResults: sorted
+      .filter((item) => item.lifecycleStatus === "showcase_science")
+      .sort(compareShowcaseCandidates),
     revisionQueue: sorted
       .filter((item) =>
         ["needs_revision", "blocked"].includes(item.lifecycleStatus),
@@ -916,6 +985,7 @@ async function readResultCard(
     nullHypothesisPresent: summary.nullHypothesisPresent === true,
     experimentCount: number(summary.experimentCount, 0),
     replicationRunCount: number(summary.replicationRunCount, 0),
+    peerReviewPresent: summary.peerReviewPresent === true,
     statisticalAnalysisPresent: summary.statisticalAnalysisPresent === true,
     baselineComparisonPresent: summary.baselineComparisonPresent === true,
     ablationPresent: summary.ablationPresent === true,
@@ -978,13 +1048,24 @@ function curateResultCards(cards: PublicResultCard[]): PublicResultCard[] {
     };
   });
   const showcase = prelim
-    .filter((item) => item.showcaseEligible)
+    .filter(
+      (item) =>
+        item.showcaseEligible &&
+        item.resultKind !== "computational_science_study",
+    )
     .sort(compareShowcaseCandidates)
     .slice(0, 3);
   const ranks = new Map(showcase.map((item, index) => [item.slug, index + 1]));
   return prelim.map((item) => {
     const rank = ranks.get(item.slug) ?? null;
-    const lifecycleStatus = rank ? "showcase" : item.lifecycleStatus;
+    const scienceShowcase =
+      item.resultKind === "computational_science_study" &&
+      item.showcaseEligible;
+    const lifecycleStatus = scienceShowcase
+      ? "showcase_science"
+      : rank
+        ? "showcase"
+        : item.lifecycleStatus;
     return {
       ...item,
       lifecycleStatus,
@@ -995,7 +1076,11 @@ function curateResultCards(cards: PublicResultCard[]): PublicResultCard[] {
       badges: {
         ...item.badges,
         lifecycle: lifecycleStatus,
-        showcase: rank ? `showcase-${rank}` : "not-showcase",
+        showcase: scienceShowcase
+          ? "showcase-science"
+          : rank
+            ? `showcase-${rank}`
+            : "not-showcase",
       },
     };
   });
@@ -1034,6 +1119,11 @@ function lifecycleStatusFor(
   if (
     card.publicationStatus === "needs_revision" ||
     card.qualityLabel === "weak" ||
+    (card.resultKind === "computational_science_study" &&
+      (!scienceStudyScoresPresent(card) ||
+        !card.peerReviewPresent ||
+        card.falsificationStatus === "not_evaluated" ||
+        card.falsificationStatus === "missing")) ||
     ["needs_revision", "overclaims", "insufficient_tests"].includes(
       card.falsificationStatus,
     ) ||
@@ -1094,10 +1184,30 @@ function isShowcaseEligible(
   if (!["good", "excellent"].includes(card.qualityLabel)) return false;
   if (!isAntiTemplateShowcaseReady(card.antiTemplateStatus)) return false;
   if (
+    card.resultKind === "computational_science_study" &&
+    card.falsificationStatus !== "passes_falsification"
+  ) {
+    return false;
+  }
+  if (
+    card.resultKind !== "computational_science_study" &&
     card.falsificationStatus !== "not_evaluated" &&
     card.falsificationStatus !== "passes_falsification"
   ) {
     return false;
+  }
+  if (card.resultKind === "computational_science_study") {
+    if (!scienceStudyScoresPresent(card)) return false;
+    if (!card.peerReviewPresent) return false;
+    if (!card.statisticalAnalysisPresent || !card.baselineComparisonPresent) {
+      return false;
+    }
+    if (!card.ablationPresent || !card.sensitivityPresent) return false;
+    if (card.replicationRunCount < 3) return false;
+    if (!card.showcaseDocumentation.showcase) return false;
+    if (!card.showcaseDocumentation.method) return false;
+    if (!card.showcaseDocumentation.reproduce) return false;
+    if (!card.showcaseDocumentation.examples) return false;
   }
   if (card.releaseReadinessScore < 88) return false;
   if (card.evidenceStrengthScore < 80) return false;
@@ -1107,6 +1217,15 @@ function isShowcaseEligible(
   if (card.specificityScore < 75) return false;
   if (card.humanReadableSummary.length < 80) return false;
   return true;
+}
+
+function scienceStudyScoresPresent(card: PublicResultCard): boolean {
+  return (
+    card.releaseReadinessScore > 0 &&
+    card.evidenceStrengthScore > 0 &&
+    card.reproducibilityScore > 0 &&
+    card.publicationSafetyScore > 0
+  );
 }
 
 function compareShowcaseCandidates(
@@ -1356,6 +1475,7 @@ function scienceLifecycleFields(
     nullHypothesisPresent: result.nullHypothesisPresent,
     experimentCount: result.experimentCount,
     replicationRunCount: result.replicationRunCount,
+    peerReviewPresent: result.peerReviewPresent,
     falsificationStatus: result.falsificationStatus,
     statisticalAnalysisPresent: result.statisticalAnalysisPresent,
     baselineComparisonPresent: result.baselineComparisonPresent,
@@ -2157,7 +2277,16 @@ async function readFalsificationStatus(root: string): Promise<string> {
     () => "",
   );
   const match = report.match(/Evaluation label:\s*([a-z_]+)/i);
-  return match?.[1] ?? "not_evaluated";
+  if (match?.[1]) return match[1];
+  const summary = await readJson<Record<string, unknown>>(
+    join(root, "SUMMARY.json"),
+  ).catch(() => ({}));
+  const summaryStatus = isRecord(summary)
+    ? text(summary.falsificationStatus, "")
+    : "";
+  if (summaryStatus === "passes_falsification") return summaryStatus;
+  if (/Material failures:\s*0/i.test(report)) return "passes_falsification";
+  return "not_evaluated";
 }
 
 function completeShowcaseDocumentation(): ShowcaseDocumentation {
@@ -2556,6 +2685,23 @@ function scienceStudyItems(
     : [];
   return results.filter(
     (item) => text(item.resultKind, "") === "computational_science_study",
+  );
+}
+
+function scienceShowcaseItems(
+  corpus: Record<string, unknown>,
+): Record<string, unknown>[] {
+  return scienceStudyItems(corpus).filter(
+    (item) => text(item.lifecycleStatus, "") === "showcase_science",
+  );
+}
+
+function scienceIndexScoresPresent(item: Record<string, unknown>): boolean {
+  return (
+    number(item.releaseReadinessScore, 0) > 0 &&
+    number(item.evidenceStrengthScore, 0) > 0 &&
+    number(item.reproducibilityScore, 0) > 0 &&
+    number(item.publicationSafetyScore, 0) > 0
   );
 }
 

@@ -1,6 +1,6 @@
 # Scientific Method Core
 
-Sovryn OS `3.2.0-rc.1` includes the first autonomous
+Sovryn OS `3.3.0-rc.1` includes the first autonomous
 computational-science layer, a deterministic experiment/data/instrument
 runtime, bounded statistical analysis, replication, and falsification for safe
 synthetic energy-data studies. Alpha.5 adds scientific memory, fixture-backed
@@ -26,6 +26,14 @@ before showcase-science promotion.
 cross-study effect summaries, contradiction detection, failed-hypothesis
 lessons, synthetic-only limitation marking, memory synthesis, next-study plans,
 and four-week research-program proposals.
+3.3 RC.1 hardens this into a longer autonomous computational-science operating
+mode: public studies can be promoted to showcase-science only after non-zero
+scores, evaluated falsification, peer review, statistical interpretation, and
+showcase documentation; real-data study templates bind safe public/proxy data;
+external reproduction challenges can be searched and published; revision reports
+can be published; stable findings can be reported; and the seven-day trial
+records six studies, reproduction attempts, revision loops, Node Alpha evidence,
+container-netoff evidence, meta-analysis, and corpus-publication gates.
 
 The core flow is:
 
@@ -58,6 +66,11 @@ The core flow is:
     and revision planning before showcase-science use.
 22. Run meta-analysis across scientific memory to identify stable findings,
     contradictions, failed hypotheses, and the next research program.
+23. Harden public studies into showcase-science only after peer review,
+    evaluated falsification, non-zero scores, and public documentation.
+24. Search and publish bounded external reproduction reports.
+25. Publish revision evidence and stable-finding reports.
+26. Run a bounded seven-day autonomous computational scientist trial.
 
 ```bash
 sovryn science question "Do provenance-aware anomaly scoring methods reduce false positives in synthetic energy-usage datasets compared with simple threshold baselines?" --json
@@ -90,19 +103,25 @@ sovryn science campaign run --goal "Run safe computational science studies" --st
 sovryn science publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-all --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science publish-audit --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
+sovryn science study run-real-data energy-anomaly --json
+sovryn science reproduce search "data quality anomaly detection reproducibility" --json
 sovryn science reproduce plan "safe public energy anomaly detection claim" --json
 sovryn science reproduce run <reproduction-id> --json
 sovryn science reproduce analyze <reproduction-id> --json
 sovryn science reproduce report <reproduction-id> --json
+sovryn science reproduce publish <reproduction-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science peer-review <study-id> --json
 sovryn science peer-review-corpus --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science rebuttal <study-id> --json
 sovryn science revise <study-id> --json
+sovryn science revision publish <study-id> --target-repo /Users/sovryn/Desktop/sovryn-open-inventions --json
 sovryn science meta-analysis run --json
 sovryn science memory synthesize --json
 sovryn science contradictions find --json
+sovryn science stable-findings report --json
 sovryn science research-program propose --json
 sovryn science next-study plan --json
+sovryn science trial run --goal "Perform safe autonomous computational science" --days 7 --studies 6 --real-data-preferred --autopublish-corpus --json
 sovryn science review <study-id> --json
 ```
 
@@ -148,6 +167,13 @@ Study artifacts are written under:
   author-response.json
   revision-plan.json
   revised-study.json
+  REVISED_REPORT.md
+  SHOWCASE.md
+  METHOD.md
+  REPRODUCE.md
+  EXAMPLES.md
+  PEER_REVIEW.md
+  STATISTICAL_INTERPRETATION.md
   safety-scope.json
   SCIENCE_PLAN.md
   STUDY_STATUS.md

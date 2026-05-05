@@ -124,7 +124,18 @@ export type ScienceGateCode =
   | "META_ANALYSIS_PRESENT"
   | "PUBLIC_CORPUS_UPDATED"
   | "NO_RAW_LOGS_OR_SECRETS"
-  | "NO_STANDALONE_REPO_CREATION";
+  | "NO_STANDALONE_REPO_CREATION"
+  | "SCIENCE_STUDY_SCORES_PRESENT"
+  | "FALSIFICATION_EVALUATED"
+  | "SHOWCASE_DOCS_PRESENT"
+  | "SCIENCE_SHOWCASE_INDEX_UPDATED"
+  | "REAL_DATA_PUBLIC_AND_SAFE"
+  | "DATA_LIMITATIONS_PUBLIC"
+  | "REVISIONS_PRESENT"
+  | "REPRODUCTION_ATTEMPTS_PRESENT"
+  | "SEVEN_DAY_TRIAL_PRESENT"
+  | "SIX_STUDIES_ATTEMPTED"
+  | "CONTAINER_NETOFF_EXECUTIONS_PRESENT";
 
 export type SafetyScope = {
   domain: string;
@@ -575,6 +586,7 @@ export type ScienceMemoryFindingStatus =
   | "needs_real_data"
   | "needs_replication"
   | "needs_peer_review"
+  | "rejected"
   | "obsolete";
 
 export type ScienceCrossStudyEffectSummary = {
@@ -677,9 +689,13 @@ export type ScienceTrialScorecard = {
   rejectedHypotheses: number;
   realDataStudies: number;
   syntheticOnlyStudies: number;
+  reproductionAttempts: number;
   reproducedResults: number;
   peerReviewAccepts: number;
   peerReviewRevisions: number;
+  revisionLoops: number;
+  nodeAlphaExecutions: number;
+  containerNetoffExecutions: number;
   publicCorpusPublications: number;
   blockedUnsafeQuestions: number;
   publicLeakCount: number;
@@ -693,6 +709,7 @@ export type ScienceTrialRun = {
   slug: string;
   goal: string;
   requestedHours: number;
+  requestedDays: number | null;
   requestedStudies: number;
   realDataPreferred: boolean;
   autopublishCorpus: boolean;
@@ -707,6 +724,11 @@ export type ScienceTrialRun = {
   peerReviews: Array<{
     studyId: string;
     label: SciencePeerReviewLabel;
+  }>;
+  revisionLoops: Array<{
+    studyId: string;
+    revisionPlanId: string;
+    status: "revision_planned" | "unchanged";
   }>;
   metaAnalysisId: string | null;
   scorecard: ScienceTrialScorecard;

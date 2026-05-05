@@ -200,6 +200,7 @@ Commands:
   sovryn science data provenance <dataset-id> [--json]
   sovryn science data cache status [--json]
   sovryn science data replay <dataset-id> [--json]
+  sovryn science study run-real-data <study-template> [--json]
   sovryn science instrument build <study-id> [--json]
   sovryn science experiment run <experiment-id> [--json]
   sovryn science experiment status <experiment-id> [--json]
@@ -220,20 +221,24 @@ Commands:
   sovryn science publish <study-id> --target-repo <path> [--json]
   sovryn science publish-all --target-repo <path> [--json]
   sovryn science publish-audit --target-repo <path> [--json]
+  sovryn science reproduce search "<topic>" [--json]
   sovryn science reproduce plan <source-id-or-url> [--json]
   sovryn science reproduce run <reproduction-id> [--json]
   sovryn science reproduce analyze <reproduction-id> [--json]
   sovryn science reproduce report <reproduction-id> [--json]
+  sovryn science reproduce publish <reproduction-id> --target-repo <path> [--json]
   sovryn science peer-review <study-id> [--json]
   sovryn science peer-review-corpus --target-repo <path> [--json]
   sovryn science rebuttal <study-id> [--json]
   sovryn science revise <study-id> [--json]
+  sovryn science revision publish <study-id> --target-repo <path> [--json]
   sovryn science meta-analysis run [--json]
   sovryn science memory synthesize [--json]
   sovryn science research-program propose [--json]
   sovryn science contradictions find [--json]
+  sovryn science stable-findings report [--json]
   sovryn science next-study plan [--json]
-  sovryn science trial run --goal "<goal>" [--hours 72] [--studies 4] [--real-data-preferred] [--autopublish-corpus] [--json]
+  sovryn science trial run --goal "<goal>" [--hours 72|--days 7] [--studies 6] [--real-data-preferred] [--autopublish-corpus] [--json]
   sovryn science study status <study-id> [--json]
   sovryn science review <study-id> [--json]
   sovryn invention status <mission-id> [--json]
@@ -1586,6 +1591,16 @@ async function scienceCommand(
       }
       return service.contradictionsFind();
     }
+    case "stable-findings": {
+      const action = parsed.positionals[1];
+      if (action !== "report") {
+        throw new AppError(
+          "SCIENCE_STABLE_FINDINGS_USAGE",
+          "Use: sovryn science stable-findings report.",
+        );
+      }
+      return service.stableFindingsReport();
+    }
     case "next-study": {
       const action = parsed.positionals[1];
       if (action !== "plan") {
@@ -1604,11 +1619,12 @@ async function scienceCommand(
       if (action !== "run" || !goal) {
         throw new AppError(
           "SCIENCE_TRIAL_USAGE",
-          'Use: sovryn science trial run --goal "<goal>" [--hours 72] [--studies 4] [--real-data-preferred] [--autopublish-corpus].',
+          'Use: sovryn science trial run --goal "<goal>" [--hours 72|--days 7] [--studies 6] [--real-data-preferred] [--autopublish-corpus].',
         );
       }
       return service.trialRun(goal, {
         hours: flagInt(parsed.flags, "--hours", 72),
+        days: flagInt(parsed.flags, "--days", 0) || undefined,
         studies: flagInt(parsed.flags, "--studies", 4),
         realDataPreferred: flagBool(parsed.flags, "--real-data-preferred"),
         autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
@@ -1664,6 +1680,15 @@ async function scienceCommand(
     case "reproduce": {
       const action = parsed.positionals[1];
       const value = parsed.positionals.slice(2).join(" ").trim();
+      if (action === "search") {
+        if (!value) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            'Use: sovryn science reproduce search "<topic>".',
+          );
+        }
+        return service.searchReproductions(value);
+      }
       if (action === "plan") {
         if (!value) {
           throw new AppError(
@@ -1700,9 +1725,20 @@ async function scienceCommand(
         }
         return service.reportReproduction(value);
       }
+      if (action === "publish") {
+        const reproductionId = parsed.positionals[2];
+        const targetRepo = flagString(parsed.flags, "--target-repo");
+        if (!reproductionId || !targetRepo) {
+          throw new AppError(
+            "SCIENCE_REPRODUCE_USAGE",
+            "Use: sovryn science reproduce publish <reproduction-id> --target-repo <path>.",
+          );
+        }
+        return service.publishReproduction(reproductionId, targetRepo);
+      }
       throw new AppError(
         "SCIENCE_REPRODUCE_USAGE",
-        "Use: sovryn science reproduce <plan|run|analyze|report>.",
+        "Use: sovryn science reproduce <search|plan|run|analyze|report|publish>.",
       );
     }
     case "peer-review": {
@@ -1745,13 +1781,34 @@ async function scienceCommand(
       }
       return service.revise(studyId);
     }
+    case "revision": {
+      const action = parsed.positionals[1];
+      const studyId = parsed.positionals[2];
+      const targetRepo = flagString(parsed.flags, "--target-repo");
+      if (action !== "publish" || !studyId || !targetRepo) {
+        throw new AppError(
+          "SCIENCE_REVISION_USAGE",
+          "Use: sovryn science revision publish <study-id> --target-repo <path>.",
+        );
+      }
+      return service.publishRevision(studyId, targetRepo);
+    }
     case "study": {
       const action = parsed.positionals[1];
       const studyId = parsed.positionals[2];
+      if (action === "run-real-data") {
+        if (!studyId) {
+          throw new AppError(
+            "SCIENCE_STUDY_USAGE",
+            "Use: sovryn science study run-real-data <study-template>.",
+          );
+        }
+        return service.runRealDataStudy(studyId);
+      }
       if (action !== "status" || !studyId) {
         throw new AppError(
           "SCIENCE_STUDY_USAGE",
-          "Use: sovryn science study status <study-id>.",
+          "Use: sovryn science study <status|run-real-data> <id-or-template>.",
         );
       }
       return service.status(studyId);
@@ -1769,7 +1826,7 @@ async function scienceCommand(
     default:
       throw new AppError(
         "SCIENCE_COMMAND_REQUIRED",
-        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|memory synthesize|meta-analysis run|research-program propose|contradictions find|next-study plan|trial run|campaign run|publish|publish-all|publish-audit|reproduce plan|reproduce run|reproduce analyze|reproduce report|peer-review|peer-review-corpus|rebuttal|revise|study status|review>.",
+        "Use: sovryn science <question|hypothesize|data generate|data search|data ingest|data validate|data provenance|data cache status|data replay|instrument build|experiment design|experiment run|experiment status|analyze|ablate|sensitivity|compare-baseline|replicate|falsify|negative-tests|hypothesis status|literature ground|next-questions|memory update|memory search|memory report|memory synthesize|meta-analysis run|research-program propose|contradictions find|stable-findings report|next-study plan|trial run|campaign run|publish|publish-all|publish-audit|reproduce search|reproduce plan|reproduce run|reproduce analyze|reproduce report|reproduce publish|peer-review|peer-review-corpus|rebuttal|revise|revision publish|study status|study run-real-data|review>.",
       );
   }
 }

@@ -54,6 +54,7 @@ import { ExternalProductionService } from "../core/external-production/external-
 import { ExternalReproductionService } from "../core/external-reproduction/external-reproduction-service.js";
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
+import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
@@ -132,6 +133,20 @@ Commands:
   sovryn review kill-week [--json]
   sovryn review final-report [--json]
   sovryn review audit [--json]
+  sovryn nobel status [--json]
+  sovryn nobel domain-scan [--json]
+  sovryn nobel data-plan [--json]
+  sovryn nobel anomaly-mine [--json]
+  sovryn nobel hypotheses [--json]
+  sovryn nobel freeze-predictions [--json]
+  sovryn nobel execute [--json]
+  sovryn nobel holdout [--json]
+  sovryn nobel replay [--json]
+  sovryn nobel rival-theories [--json]
+  sovryn nobel discovery-candidates [--json]
+  sovryn nobel package [--json]
+  sovryn nobel verify --fresh-workspace [--json]
+  sovryn nobel final-audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -570,6 +585,16 @@ export async function executeCli(
         const result = await service.review(id);
         return okEnvelope("mission.review", result, {
           artifactRefs: result.artifactRefs,
+        });
+      }
+      case "nobel": {
+        const result = await nobelCommand(parsed, root);
+        return okEnvelope("nobel", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
         });
       }
       case "approve": {
@@ -1262,6 +1287,57 @@ async function reviewScientistCommand(
       throw new AppError(
         "UNKNOWN_REVIEW_COMMAND",
         `Unknown review command: ${subcommand}`,
+      );
+  }
+}
+
+async function nobelCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "NOBEL_COMMAND_REQUIRED",
+      "Use: sovryn nobel <status|domain-scan|data-plan|anomaly-mine|hypotheses|freeze-predictions|execute|holdout|replay|rival-theories|discovery-candidates|package|verify|final-audit>.",
+    );
+  }
+  const service = new NobelDiscoveryPortfolioService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "domain-scan":
+      return service.domainScan();
+    case "data-plan":
+      return service.dataPlan();
+    case "anomaly-mine":
+      return service.anomalyMine();
+    case "hypotheses":
+      return service.hypotheses();
+    case "freeze-predictions":
+      return service.freezePredictions();
+    case "execute":
+      return service.execute();
+    case "holdout":
+      return service.holdout();
+    case "replay":
+      return service.replay();
+    case "rival-theories":
+      return service.rivalTheories();
+    case "discovery-candidates":
+      return service.discoveryCandidates();
+    case "package":
+      return service.package();
+    case "verify":
+      return service.verify({
+        freshWorkspace: flagBool(parsed.flags, "--fresh-workspace"),
+      });
+    case "final-audit":
+      return service.finalAudit();
+    default:
+      throw new AppError(
+        "UNKNOWN_NOBEL_COMMAND",
+        `Unknown nobel command: ${subcommand}`,
       );
   }
 }

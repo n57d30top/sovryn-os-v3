@@ -1,0 +1,64 @@
+{
+  "kind": "general_ai_scientist_audit",
+  "auditedAt": "2026-05-06T15:25:11.225Z",
+  "passed": true,
+  "gates": [
+    {
+      "code": "SCIENTIST_ARTIFACTS_PRESENT",
+      "passed": true,
+      "message": "Required .sovryn/scientist artifacts exist.",
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "code": "TWO_PROGRAMS_SELECTED",
+      "passed": true,
+      "message": "Scientist trial selected exactly two programs.",
+      "details": {
+        "selectedCount": 2
+      }
+    },
+    {
+      "code": "LEAKAGE_PROGRAM_INCLUDED",
+      "passed": true,
+      "message": "Program 1 or 2 continues Batch 25 leakage-risk hypotheses.",
+      "details": {}
+    },
+    {
+      "code": "SECOND_ROUTE_INCLUDED",
+      "passed": true,
+      "message": "Second program uses a different research route.",
+      "details": {}
+    },
+    {
+      "code": "FALSIFICATION_COMPLETED",
+      "passed": true,
+      "message": "Every selected program has a falsification review.",
+      "details": {}
+    },
+    {
+      "code": "PUBLIC_RESULT_KIND",
+      "passed": true,
+      "message": "Public corpus result has the required resultKind.",
+      "details": {
+        "resultKind": "general_ai_scientist_v0_trial"
+      }
+    },
+    {
+      "code": "PUBLIC_HYGIENE",
+      "passed": true,
+      "message": "Public result has no raw logs, local absolute paths, secrets, or unsafe claims.",
+      "details": {
+        "findingCount": 0
+      }
+    },
+    {
+      "code": "NO_FAKE_AGI_CLAIM",
+      "passed": true,
+      "message": "Scientist report does not claim AGI, human-level science, guaranteed discovery, or breakthrough.",
+      "details": {}
+    }
+  ],
+  "evidenceHash": "ccd153fd14427c1b918c4e3e310eeca8625f006bc63ae8dde863fa9e3ae5d01f"
+}

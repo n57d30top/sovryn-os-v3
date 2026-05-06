@@ -1,0 +1,26 @@
+{
+  "kind": "general_ai_scientist_status",
+  "generatedAt": "2026-05-06T15:25:11.034Z",
+  "scientistVersion": "general-ai-scientist-v0",
+  "rootInitialized": true,
+  "targetCorpusAvailable": true,
+  "lastRunId": "scientist-run-a1665f8223c0",
+  "readinessLabel": "general_scientist_v0_ready",
+  "requiredCommands": [
+    "status",
+    "opportunities",
+    "plan",
+    "run",
+    "review",
+    "memory",
+    "audit"
+  ],
+  "limitations": [
+    "General AI Scientist v0 is a bounded computational controller, not an AGI or human-level scientist.",
+    "The trial selects and executes safe computational programs only.",
+    "Leakage-risk deltas are not treated as confirmed leakage without direct mechanism evidence.",
+    "Repo/test runtime evidence is a bounded smoke route until used on third-party public repositories.",
+    "Public artifacts contain summaries only and do not publish raw logs."
+  ],
+  "evidenceHash": "a175a903ce2ef47606cba98e4d2b6a47d0d7844afc3f0bcf229935f97639cc2a"
+}

@@ -52,6 +52,7 @@ import { FieldGradeService } from "../core/field/field-grade-service.js";
 import { FrontierService } from "../core/frontier/frontier-service.js";
 import { ExternalProductionService } from "../core/external-production/external-production-service.js";
 import { ExternalReproductionService } from "../core/external-reproduction/external-reproduction-service.js";
+import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
 import { StrategyService } from "../core/strategy/strategy-service.js";
@@ -109,6 +110,13 @@ Commands:
   sovryn research adapters doctor [--json]
   sovryn research cache status [--json]
   sovryn research cache prune [--json]
+  sovryn scientist status [--json]
+  sovryn scientist opportunities [--target-repo <path>] [--json]
+  sovryn scientist plan --goal "<goal>" [--json]
+  sovryn scientist run --goal "<goal>" [--max-programs 2] [--autopublish-corpus] [--target-repo <path>] [--json]
+  sovryn scientist review [--json]
+  sovryn scientist memory [--json]
+  sovryn scientist audit [--target-repo <path>] [--json]
   sovryn autonomy campaign plan --goal "<broad-goal>" --runs 10 [--json]
   sovryn autonomy campaign run [--json]
   sovryn autonomy campaign status [--json]
@@ -607,6 +615,16 @@ export async function executeCli(
             : [],
         });
       }
+      case "scientist": {
+        const result = await scientistCommand(parsed, root);
+        return okEnvelope("scientist", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "factory": {
         const result = await factoryCommand(parsed, root);
         return okEnvelope("factory", result, {
@@ -1064,6 +1082,70 @@ async function researchCommand(
       throw new AppError(
         "UNKNOWN_RESEARCH_COMMAND",
         `Unknown research command: ${subcommand}`,
+      );
+  }
+}
+
+async function scientistCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "SCIENTIST_COMMAND_REQUIRED",
+      "Use: sovryn scientist <status|opportunities|plan|run|review|memory|audit>.",
+    );
+  }
+  const service = new GeneralScientistService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "opportunities":
+      return service.opportunities({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    case "plan": {
+      const goal = flagString(parsed.flags, "--goal");
+      if (!goal) {
+        throw new AppError(
+          "SCIENTIST_GOAL_REQUIRED",
+          "scientist plan requires --goal.",
+        );
+      }
+      return service.plan({
+        goal,
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+        maxPrograms: flagInt(parsed.flags, "--max-programs", 2),
+      });
+    }
+    case "run": {
+      const goal = flagString(parsed.flags, "--goal");
+      if (!goal) {
+        throw new AppError(
+          "SCIENTIST_GOAL_REQUIRED",
+          "scientist run requires --goal.",
+        );
+      }
+      return service.run({
+        goal,
+        maxPrograms: flagInt(parsed.flags, "--max-programs", 2),
+        autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    }
+    case "review":
+      return service.review();
+    case "memory":
+      return service.memory();
+    case "audit":
+      return service.audit({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    default:
+      throw new AppError(
+        "UNKNOWN_SCIENTIST_COMMAND",
+        `Unknown scientist command: ${subcommand}`,
       );
   }
 }

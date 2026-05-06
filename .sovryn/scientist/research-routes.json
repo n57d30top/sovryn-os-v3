@@ -1,0 +1,16 @@
+{
+  "kind": "scientist_research_routes",
+  "routes": [
+    {
+      "problemId": "prob-batch25-leakage-continuation",
+      "route": "leakage_risk_detection",
+      "routeRationale": "Selected leakage_risk_detection because Batch 25 left group/file overlap, class-imbalance-mimics-leakage, and protocol ambiguity as unresolved hypotheses."
+    },
+    {
+      "problemId": "prob-repo-test-runtime-evidence",
+      "route": "repo_test_reproduction",
+      "routeRationale": "Selected repo_test_reproduction because Prior tool decisions kept pytest_repro_summary support-only; runtime evidence is the next constraint."
+    }
+  ],
+  "evidenceHash": "1d7e863bdfbfc4468c9b41c61eca02d9a536586ab9261629debf148128f3514a"
+}

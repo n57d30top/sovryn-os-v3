@@ -1,0 +1,108 @@
+{
+  "kind": "scientist_memory_update",
+  "updatedAt": "2026-05-06T15:25:10.310Z",
+  "supportedClaims": [
+    "General Scientist v0 can run a bounded two-program computational trial through existing Sovryn evidence gates.",
+    "Leakage-risk hypotheses from Batch 25 remain testable but require direct overlap or feature/target evidence."
+  ],
+  "weakenedClaims": [
+    "Split-risk deltas should not be treated as leakage evidence by themselves.",
+    "Repo/test reproduction readiness is support evidence until applied to third-party public repositories."
+  ],
+  "rejectedClaims": [
+    "No fake AGI, human-level scientist, guaranteed discovery, benchmark-win, legal, medical, or unsafe-domain claim is accepted."
+  ],
+  "negativeResults": [
+    "No direct duplicate/group/file/feature leakage mechanism was confirmed in the bounded continuation.",
+    "The repo/test route remains partial until it is applied to a third-party public repository with full test collection."
+  ],
+  "toolDecisions": [
+    {
+      "toolName": "protocol cards",
+      "decision": "use_existing_tool",
+      "evidence": "Prior Protocol Card work provides source/protocol split bindings.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "leakage-risk cards",
+      "decision": "use_existing_tool",
+      "evidence": "Batch 25 created the current leakage-risk card format.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "metric_stress_validator",
+      "decision": "preserve_with_constraints",
+      "evidence": "Useful as anti-hype support, not as leakage proof.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "new product leakage detector",
+      "decision": "reject_tool_need",
+      "evidence": "Current trial can run with existing public cards and bounded local checks.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "leakage-risk mechanism inference",
+      "decision": "narrow",
+      "evidence": "The trial did not confirm leakage as the cause of split deltas.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "Node/npm runtime",
+      "decision": "use_existing_tool",
+      "evidence": "Repo/test reproduction can execute bounded runtime probes with the current product toolchain.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "pytest_repro_summary",
+      "decision": "narrow",
+      "evidence": "Prior evidence keeps it support-only unless runtime collection is available.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "new generic agent swarm",
+      "decision": "reject_tool_need",
+      "evidence": "A concrete bounded service is sufficient; no broad framework is promoted.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    },
+    {
+      "toolName": "repo/test reproduction route",
+      "decision": "preserve_with_constraints",
+      "evidence": "Runtime probes passed, but third-party repository execution remains future work.",
+      "nextUseCondition": "Use only when a concrete research program needs this evidence and limitations are public.",
+      "mustNotUseCondition": "Do not use to claim discovery, official benchmark reproduction, or tool usefulness without direct evidence."
+    }
+  ],
+  "domainDecisions": [
+    {
+      "domain": "benchmark leakage-risk detection",
+      "decision": "continue_with_constraints",
+      "evidence": "Batch 25 hypotheses remain unresolved and need direct mechanism tests."
+    },
+    {
+      "domain": "repo/test reproduction",
+      "decision": "continue_with_constraints",
+      "evidence": "Runtime evidence is feasible but needs external repository application."
+    }
+  ],
+  "nextHypotheses": [
+    "Group/file overlap causes random-split inflation.",
+    "Class imbalance plus metric choice mimics leakage.",
+    "Protocol ambiguity blocks leakage conclusion."
+  ],
+  "nextTargets": [
+    "UCI HAR Smartphones group/file checks",
+    "UCI Shuttle class-imbalance stress",
+    "Vehicle or Landsat ambiguity follow-up",
+    "Third-party public repo/test reproduction target"
+  ],
+  "evidenceHash": "71f5cfe0b83e0b7f4e13495b530f2d9dd20497fe0f14a2e801e4c91db3bd2e96"
+}

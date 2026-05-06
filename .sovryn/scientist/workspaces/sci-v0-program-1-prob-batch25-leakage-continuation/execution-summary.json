@@ -1,0 +1,14 @@
+{
+  "commandExitCode": 0,
+  "replayExitCode": 0,
+  "batch25EvidenceAvailable": true,
+  "findings": [
+    "HAR subject/file overlap remains not found in the source train/test evidence reviewed by Batch 25.",
+    "Shuttle high split-risk is preserved as a class-imbalance/protocol-difficulty hypothesis, not upgraded to confirmed leakage.",
+    "Vehicle-like ambiguity remains a blocker for strong leakage conclusions until protocol interpretation is narrowed."
+  ],
+  "negative": [
+    "No direct duplicate/group/file/feature leakage mechanism was confirmed in the bounded continuation."
+  ],
+  "evidenceHash": "c20104775e5cd18ac8ce063bfaf600b51eca5333b7ad4ae83f8e76fd990bef6b"
+}

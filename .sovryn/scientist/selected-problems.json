@@ -1,0 +1,135 @@
+{
+  "kind": "scientist_selected_problems",
+  "selected": [
+    {
+      "problemId": "prob-batch25-leakage-continuation",
+      "title": "Resolve Batch 25 leakage-risk hypotheses under Protocol Cards",
+      "domain": "benchmark leakage-risk detection",
+      "routeHint": "leakage_risk_detection",
+      "sourceEvidence": [
+        {
+          "slug": "batch21-protocol-card-replay-week1",
+          "title": "Batch 21 Protocol-Card Replay Week 1",
+          "resultKind": "protocol_card_replay_week1",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch22-protocol-card-replay-model-family-stress",
+          "title": "Batch 22 Protocol-Card Replay Model-Family Stress",
+          "resultKind": "protocol_card_replay_model_family_stress",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch24-protocol-card-kill-week-next-frontier",
+          "title": "Batch 24 Protocol-Card Kill Week and Next Frontier",
+          "resultKind": "protocol_card_kill_week_next_frontier",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch25-leakage-risk-cards-week1",
+          "title": "Batch 25 Leakage-Risk Cards Week 1",
+          "resultKind": "leakage_risk_cards_week1",
+          "evidenceRole": "unresolved leakage hypothesis"
+        }
+      ],
+      "whyNow": "Batch 25 left group/file overlap, class-imbalance-mimics-leakage, and protocol ambiguity as unresolved hypotheses.",
+      "expectedScientificValue": "Narrows whether split deltas are leakage-like mechanisms or ordinary protocol difficulty.",
+      "falsifiability": "Leakage claims are rejected unless duplicate/group/file/feature overlap evidence survives controls.",
+      "executionFeasibility": "Uses existing Protocol Cards, Leakage-Risk Cards, and public corpus evidence.",
+      "toolReadiness": [
+        "metric_stress_validator",
+        "protocol cards",
+        "leakage-risk cards"
+      ],
+      "expectedBaselines": [
+        "no-leakage-unless-direct-overlap baseline",
+        "low-risk Letter control"
+      ],
+      "expectedNegativeControls": [
+        "shuffled-label or random-label control where applicable",
+        "low-risk control target"
+      ],
+      "expectedReplayPlan": [
+        "network-denied replay",
+        "fresh-seed or fresh-split replay"
+      ],
+      "expectedPublicationType": "general_ai_scientist_v0_trial",
+      "scores": {
+        "evidenceValue": 94,
+        "feasibility": 88,
+        "safety": 98,
+        "novelty": 78,
+        "falsifiability": 92,
+        "toolReadiness": 84,
+        "opportunityQualityScore": 90
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-repo-test-runtime-evidence",
+      "title": "Repo/test reproduction with runtime evidence for scientist CLI",
+      "domain": "repo/test reproduction",
+      "routeHint": "repo_test_reproduction",
+      "sourceEvidence": [
+        {
+          "slug": "batch3-rapidfuzz-repo-install-example-reproduction",
+          "title": "RapidFuzz Repository Install and Example Reproduction Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch4-markupsafe-repo-install-test-reproduction",
+          "title": "MarkupSafe Repository Install and Test Reproduction",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch5-itsdangerous-repo-install-test-reproduction",
+          "title": "itsdangerous Repository Install and Test Reproduction",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch6-scikit-learn-iris-reproduction-ladder",
+          "title": "scikit-learn Iris Example Reproduction Ladder",
+          "resultKind": "external_reproduction_ladder_result",
+          "evidenceRole": "repo/test evidence"
+        }
+      ],
+      "whyNow": "Prior tool decisions kept pytest_repro_summary support-only; runtime evidence is the next constraint.",
+      "expectedScientificValue": "Tests whether the scientist layer can use a different route than leakage-risk detection.",
+      "falsifiability": "The route is partial if it cannot execute repository code or produce replay evidence.",
+      "executionFeasibility": "Runs local public repo code and CLI probes without private data or network.",
+      "toolReadiness": [
+        "pytest_repro_summary support-only",
+        "Node/npm runtime"
+      ],
+      "expectedBaselines": [
+        "package metadata smoke baseline",
+        "CLI registration smoke baseline"
+      ],
+      "expectedNegativeControls": [
+        "unsafe goal blocked",
+        "unsupported AGI/human-level claim blocked"
+      ],
+      "expectedReplayPlan": [
+        "fresh source probe replay",
+        "network-denied command replay"
+      ],
+      "expectedPublicationType": "general_ai_scientist_v0_trial",
+      "scores": {
+        "evidenceValue": 82,
+        "feasibility": 91,
+        "safety": 96,
+        "novelty": 70,
+        "falsifiability": 86,
+        "toolReadiness": 78,
+        "opportunityQualityScore": 85
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    }
+  ],
+  "evidenceHash": "723a624ec2537a805be132085827c10089eee1256b6838bc5a9a6100580b1ef0"
+}

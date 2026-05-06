@@ -1,0 +1,41 @@
+{
+  "kind": "general_ai_scientist_review",
+  "reviewedAt": "2026-05-06T15:25:11.131Z",
+  "runId": "scientist-run-a1665f8223c0",
+  "programReviews": [
+    {
+      "programId": "sci-v0-program-1-prob-batch25-leakage-continuation",
+      "route": "leakage_risk_detection",
+      "falsificationStatus": "partial",
+      "downgradedClaims": [
+        "Leakage-risk deltas remain unresolved hypotheses, not confirmed leakage mechanisms.",
+        "No direct duplicate/group/file/feature leakage mechanism was confirmed in the bounded continuation."
+      ],
+      "preservedClaims": [
+        "The bounded trial can select, execute, falsify, package, and update memory for two safe computational programs."
+      ],
+      "replayStatus": "passed"
+    },
+    {
+      "programId": "sci-v0-program-2-prob-repo-test-runtime-evidence",
+      "route": "repo_test_reproduction",
+      "falsificationStatus": "partial",
+      "downgradedClaims": [
+        "The repo/test route remains partial until it is applied to a third-party public repository with full test collection."
+      ],
+      "preservedClaims": [
+        "The bounded trial can select, execute, falsify, package, and update memory for two safe computational programs."
+      ],
+      "replayStatus": "passed"
+    }
+  ],
+  "overallDecision": "bounded_trial_reviewed",
+  "limitations": [
+    "General AI Scientist v0 is a bounded computational controller, not an AGI or human-level scientist.",
+    "The trial selects and executes safe computational programs only.",
+    "Leakage-risk deltas are not treated as confirmed leakage without direct mechanism evidence.",
+    "Repo/test runtime evidence is a bounded smoke route until used on third-party public repositories.",
+    "Public artifacts contain summaries only and do not publish raw logs."
+  ],
+  "evidenceHash": "25d634d5646cae305f46d0988a071170c7f85271c07697c45b86a66e3943fa96"
+}

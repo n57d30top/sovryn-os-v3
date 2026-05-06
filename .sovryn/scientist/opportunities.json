@@ -1,0 +1,483 @@
+{
+  "kind": "scientist_opportunities",
+  "generatedAt": "2026-05-06T15:25:09.874Z",
+  "corpusResultCount": 88,
+  "candidates": [
+    {
+      "problemId": "prob-batch25-leakage-continuation",
+      "title": "Resolve Batch 25 leakage-risk hypotheses under Protocol Cards",
+      "domain": "benchmark leakage-risk detection",
+      "routeHint": "leakage_risk_detection",
+      "sourceEvidence": [
+        {
+          "slug": "batch21-protocol-card-replay-week1",
+          "title": "Batch 21 Protocol-Card Replay Week 1",
+          "resultKind": "protocol_card_replay_week1",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch22-protocol-card-replay-model-family-stress",
+          "title": "Batch 22 Protocol-Card Replay Model-Family Stress",
+          "resultKind": "protocol_card_replay_model_family_stress",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch24-protocol-card-kill-week-next-frontier",
+          "title": "Batch 24 Protocol-Card Kill Week and Next Frontier",
+          "resultKind": "protocol_card_kill_week_next_frontier",
+          "evidenceRole": "unresolved leakage hypothesis"
+        },
+        {
+          "slug": "batch25-leakage-risk-cards-week1",
+          "title": "Batch 25 Leakage-Risk Cards Week 1",
+          "resultKind": "leakage_risk_cards_week1",
+          "evidenceRole": "unresolved leakage hypothesis"
+        }
+      ],
+      "whyNow": "Batch 25 left group/file overlap, class-imbalance-mimics-leakage, and protocol ambiguity as unresolved hypotheses.",
+      "expectedScientificValue": "Narrows whether split deltas are leakage-like mechanisms or ordinary protocol difficulty.",
+      "falsifiability": "Leakage claims are rejected unless duplicate/group/file/feature overlap evidence survives controls.",
+      "executionFeasibility": "Uses existing Protocol Cards, Leakage-Risk Cards, and public corpus evidence.",
+      "toolReadiness": [
+        "metric_stress_validator",
+        "protocol cards",
+        "leakage-risk cards"
+      ],
+      "expectedBaselines": [
+        "no-leakage-unless-direct-overlap baseline",
+        "low-risk Letter control"
+      ],
+      "expectedNegativeControls": [
+        "shuffled-label or random-label control where applicable",
+        "low-risk control target"
+      ],
+      "expectedReplayPlan": [
+        "network-denied replay",
+        "fresh-seed or fresh-split replay"
+      ],
+      "expectedPublicationType": "general_ai_scientist_v0_trial",
+      "scores": {
+        "evidenceValue": 94,
+        "feasibility": 88,
+        "safety": 98,
+        "novelty": 78,
+        "falsifiability": 92,
+        "toolReadiness": 84,
+        "opportunityQualityScore": 90
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-repo-test-runtime-evidence",
+      "title": "Repo/test reproduction with runtime evidence for scientist CLI",
+      "domain": "repo/test reproduction",
+      "routeHint": "repo_test_reproduction",
+      "sourceEvidence": [
+        {
+          "slug": "batch3-rapidfuzz-repo-install-example-reproduction",
+          "title": "RapidFuzz Repository Install and Example Reproduction Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch4-markupsafe-repo-install-test-reproduction",
+          "title": "MarkupSafe Repository Install and Test Reproduction",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch5-itsdangerous-repo-install-test-reproduction",
+          "title": "itsdangerous Repository Install and Test Reproduction",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "repo/test evidence"
+        },
+        {
+          "slug": "batch6-scikit-learn-iris-reproduction-ladder",
+          "title": "scikit-learn Iris Example Reproduction Ladder",
+          "resultKind": "external_reproduction_ladder_result",
+          "evidenceRole": "repo/test evidence"
+        }
+      ],
+      "whyNow": "Prior tool decisions kept pytest_repro_summary support-only; runtime evidence is the next constraint.",
+      "expectedScientificValue": "Tests whether the scientist layer can use a different route than leakage-risk detection.",
+      "falsifiability": "The route is partial if it cannot execute repository code or produce replay evidence.",
+      "executionFeasibility": "Runs local public repo code and CLI probes without private data or network.",
+      "toolReadiness": [
+        "pytest_repro_summary support-only",
+        "Node/npm runtime"
+      ],
+      "expectedBaselines": [
+        "package metadata smoke baseline",
+        "CLI registration smoke baseline"
+      ],
+      "expectedNegativeControls": [
+        "unsafe goal blocked",
+        "unsupported AGI/human-level claim blocked"
+      ],
+      "expectedReplayPlan": [
+        "fresh source probe replay",
+        "network-denied command replay"
+      ],
+      "expectedPublicationType": "general_ai_scientist_v0_trial",
+      "scores": {
+        "evidenceValue": 82,
+        "feasibility": 91,
+        "safety": 96,
+        "novelty": 70,
+        "falsifiability": 86,
+        "toolReadiness": 78,
+        "opportunityQualityScore": 85
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-tool-useful-beyond-baseline",
+      "title": "Recheck tool usefulness beyond simple baselines",
+      "domain": "tool decision review",
+      "routeHint": "kill_week",
+      "sourceEvidence": [
+        {
+          "slug": "batch10-toolchain-kill-week",
+          "title": "Batch 10 Toolchain Kill Week and Anti-Hype Review",
+          "resultKind": "toolchain_kill_week_review",
+          "evidenceRole": "tool decision evidence"
+        },
+        {
+          "slug": "batch11-multi-target-dataset-metric-validation-program",
+          "title": "Batch 11 Multi-Target Dataset and Metric Validation Program",
+          "resultKind": "multi_target_dataset_metric_validation_program",
+          "evidenceRole": "tool decision evidence"
+        },
+        {
+          "slug": "batch4-uci-glass-csvkit-tool-dataset-audit",
+          "title": "UCI Glass Dataset Audit with csvkit Tool Execution",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "tool decision evidence"
+        },
+        {
+          "slug": "batch7-banknote-metric-stress-validator",
+          "title": "Batch 7 Banknote Metric Stress Validator",
+          "resultKind": "external_tool_building_under_pressure_result",
+          "evidenceRole": "tool decision evidence"
+        }
+      ],
+      "whyNow": "Batch 10 and Batch 11 narrowed most custom tools to support or packaging roles.",
+      "expectedScientificValue": "Prevents broad product promotion without reuse/failure evidence.",
+      "falsifiability": "A tool is downgraded if simple baselines produce the same finding.",
+      "executionFeasibility": "Uses existing public tool-decision corpus artifacts.",
+      "toolReadiness": [
+        "metric_stress_validator",
+        "schema_provenance_auditor"
+      ],
+      "expectedBaselines": [
+        "pandas/sklearn baseline"
+      ],
+      "expectedNegativeControls": [
+        "manual checklist baseline"
+      ],
+      "expectedReplayPlan": [
+        "artifact replay"
+      ],
+      "expectedPublicationType": "kill_week",
+      "scores": {
+        "evidenceValue": 77,
+        "feasibility": 88,
+        "safety": 98,
+        "novelty": 62,
+        "falsifiability": 86,
+        "toolReadiness": 82,
+        "opportunityQualityScore": 83
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-protocol-first-low-risk-controls",
+      "title": "Validate low-risk controls for protocol-first benchmark claims",
+      "domain": "protocol-first benchmark validation",
+      "routeHint": "protocol_first_benchmark_validation",
+      "sourceEvidence": [
+        {
+          "slug": "batch1-uci-wine-quality-dataset-audit",
+          "title": "UCI Wine Quality Public Dataset-Quality Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "low-risk control evidence"
+        },
+        {
+          "slug": "batch5-uci-letter-recognition-baseline-challenge",
+          "title": "UCI Letter Recognition Vowel Benchmark Negative Challenge",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "low-risk control evidence"
+        },
+        {
+          "slug": "batch7-wine-quality-schema-provenance-tool",
+          "title": "Batch 7 Wine Quality Schema Provenance Tool",
+          "resultKind": "external_tool_building_under_pressure_result",
+          "evidenceRole": "low-risk control evidence"
+        }
+      ],
+      "whyNow": "Protocol-risk science needs controls to avoid cherry-picking high-risk targets.",
+      "expectedScientificValue": "Tests whether protocol-first claims are scoped rather than overgeneralized.",
+      "falsifiability": "If low-risk controls show large unexplained deltas, current scope claims must be revised.",
+      "executionFeasibility": "Uses current benchmark execution harness and public datasets.",
+      "toolReadiness": [
+        "metric_stress_validator",
+        "protocol-card replay"
+      ],
+      "expectedBaselines": [
+        "random/stratified split challenger",
+        "DummyClassifier"
+      ],
+      "expectedNegativeControls": [
+        "low-risk no-protocol target"
+      ],
+      "expectedReplayPlan": [
+        "fresh-seed replay"
+      ],
+      "expectedPublicationType": "protocol_first_benchmark_validation",
+      "scores": {
+        "evidenceValue": 76,
+        "feasibility": 86,
+        "safety": 98,
+        "novelty": 68,
+        "falsifiability": 82,
+        "toolReadiness": 82,
+        "opportunityQualityScore": 82
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-scientific-dataset-reliability",
+      "title": "Scientific dataset reliability audit with protocol extraction",
+      "domain": "scientific dataset reliability",
+      "routeHint": "dataset_quality_audit",
+      "sourceEvidence": [
+        {
+          "slug": "batch1-uci-wine-quality-dataset-audit",
+          "title": "UCI Wine Quality Public Dataset-Quality Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "dataset reliability evidence"
+        },
+        {
+          "slug": "batch11-multi-target-dataset-metric-validation-program",
+          "title": "Batch 11 Multi-Target Dataset and Metric Validation Program",
+          "resultKind": "multi_target_dataset_metric_validation_program",
+          "evidenceRole": "dataset reliability evidence"
+        },
+        {
+          "slug": "batch2-uci-auto-mpg-dataset-quality-audit",
+          "title": "UCI Auto MPG Public Dataset Quality Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "dataset reliability evidence"
+        },
+        {
+          "slug": "batch3-palmer-penguins-dataset-quality-execution",
+          "title": "Palmer Penguins Dataset Quality Execution Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "dataset reliability evidence"
+        }
+      ],
+      "whyNow": "Batch 12 promoted scientific dataset reliability but narrowed schema discovery to packaging-only.",
+      "expectedScientificValue": "Separates evidence packaging from true reliability findings.",
+      "falsifiability": "Claims fail if ordinary pandas/sklearn checks explain all findings.",
+      "executionFeasibility": "Uses public tabular data and existing schema packaging.",
+      "toolReadiness": [
+        "schema_provenance_auditor packaging-only"
+      ],
+      "expectedBaselines": [
+        "pandas isna/duplicated/value_counts baseline"
+      ],
+      "expectedNegativeControls": [
+        "known-clean low-risk dataset"
+      ],
+      "expectedReplayPlan": [
+        "container-netoff or network-denied replay"
+      ],
+      "expectedPublicationType": "scientific_dataset_reliability_audit",
+      "scores": {
+        "evidenceValue": 80,
+        "feasibility": 84,
+        "safety": 98,
+        "novelty": 66,
+        "falsifiability": 80,
+        "toolReadiness": 76,
+        "opportunityQualityScore": 82
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-scientific-memory-synthesis",
+      "title": "Synthesize supported, weakened, and rejected claims across recent programs",
+      "domain": "scientific memory",
+      "routeHint": "scientific_memory_synthesis",
+      "sourceEvidence": [
+        {
+          "slug": "batch12-research-production-review-next-frontier-program",
+          "title": "Batch 12 Research Production Review and Next Frontier Program Selection",
+          "resultKind": "research_production_review_next_frontier_program",
+          "evidenceRole": "memory decision evidence"
+        },
+        {
+          "slug": "batch20-protocol-risk-paper-grade-frontier-result",
+          "title": "Batch 20 Protocol-Risk Paper-Grade Frontier Result",
+          "resultKind": "protocol_risk_paper_grade_frontier_result",
+          "evidenceRole": "memory decision evidence"
+        },
+        {
+          "slug": "batch24-protocol-card-kill-week-next-frontier",
+          "title": "Batch 24 Protocol-Card Kill Week and Next Frontier",
+          "resultKind": "protocol_card_kill_week_next_frontier",
+          "evidenceRole": "memory decision evidence"
+        },
+        {
+          "slug": "frontier-scientific-production-trial",
+          "title": "Frontier Scientific Production Trial",
+          "resultKind": "frontier_scientific_production_trial",
+          "evidenceRole": "memory decision evidence"
+        }
+      ],
+      "whyNow": "The corpus has multiple completed research-program selection and kill-week artifacts.",
+      "expectedScientificValue": "Improves next-problem selection without inventing a new experiment.",
+      "falsifiability": "Synthesis is weak if it cannot bind claims to public evidence and limitations.",
+      "executionFeasibility": "High; reads public corpus artifacts.",
+      "toolReadiness": [
+        "knowledge graph",
+        "scientific memory summaries"
+      ],
+      "expectedBaselines": [
+        "manual claim/evidence checklist"
+      ],
+      "expectedNegativeControls": [
+        "include downgraded claims"
+      ],
+      "expectedReplayPlan": [
+        "fresh corpus read replay"
+      ],
+      "expectedPublicationType": "scientific_memory_synthesis",
+      "scores": {
+        "evidenceValue": 74,
+        "feasibility": 92,
+        "safety": 98,
+        "novelty": 60,
+        "falsifiability": 76,
+        "toolReadiness": 84,
+        "opportunityQualityScore": 81
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-vehicle-protocol-ambiguity",
+      "title": "Vehicle Silhouettes ambiguity blocks leakage conclusions",
+      "domain": "protocol ambiguity",
+      "routeHint": "negative_result_validation",
+      "sourceEvidence": [
+        {
+          "slug": "batch23-ambiguous-protocol-deep-replay-study",
+          "title": "Batch 23 Ambiguous Protocol Deep Replay Study",
+          "resultKind": "ambiguous_protocol_deep_replay_study",
+          "evidenceRole": "ambiguous protocol evidence"
+        },
+        {
+          "slug": "batch24-protocol-card-kill-week-next-frontier",
+          "title": "Batch 24 Protocol-Card Kill Week and Next Frontier",
+          "resultKind": "protocol_card_kill_week_next_frontier",
+          "evidenceRole": "ambiguous protocol evidence"
+        }
+      ],
+      "whyNow": "Batch 25 preserved Vehicle as protocol-weak and not upgraded to leakage evidence.",
+      "expectedScientificValue": "Prevents false leakage claims on ambiguous benchmarks.",
+      "falsifiability": "If a defensible split interpretation is reconstructed, the ambiguity downgrade can be revised.",
+      "executionFeasibility": "Uses existing public protocol cards and source cards.",
+      "toolReadiness": [
+        "protocol-card replay format"
+      ],
+      "expectedBaselines": [
+        "ambiguous-target defer baseline"
+      ],
+      "expectedNegativeControls": [
+        "clear-protocol target comparison"
+      ],
+      "expectedReplayPlan": [
+        "Protocol Card replay attempt or documented failure"
+      ],
+      "expectedPublicationType": "negative_result_validation",
+      "scores": {
+        "evidenceValue": 78,
+        "feasibility": 74,
+        "safety": 98,
+        "novelty": 72,
+        "falsifiability": 88,
+        "toolReadiness": 70,
+        "opportunityQualityScore": 81
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    },
+    {
+      "problemId": "prob-time-series-negative-control",
+      "title": "Time-series anomaly negative-control benchmark",
+      "domain": "time-series anomaly benchmarks",
+      "routeHint": "multi_target_program",
+      "sourceEvidence": [
+        {
+          "slug": "batch1-nab-time-series-anomaly-challenge",
+          "title": "NAB Time-Series Anomaly Benchmark Challenge",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "time-series evidence"
+        },
+        {
+          "slug": "batch4-uci-bike-sharing-time-series-benchmark",
+          "title": "UCI Bike Sharing Time-Series Holdout Benchmark",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "time-series evidence"
+        },
+        {
+          "slug": "batch5-uci-air-quality-time-series-dataset-audit",
+          "title": "UCI Air Quality Time-Series Dataset Audit",
+          "resultKind": "external_research_production_result",
+          "evidenceRole": "time-series evidence"
+        },
+        {
+          "slug": "energy-data-quality-do-provenance-aware-anomaly-scoring-methods-reduce-false-positives-in-public",
+          "title": "Do provenance-aware anomaly scoring methods reduce false positives in public-weather-proxy energy datasets compared with simple threshold baselines?",
+          "resultKind": "computational_science_study",
+          "evidenceRole": "time-series evidence"
+        }
+      ],
+      "whyNow": "Earlier dataset audits produced useful negatives but this domain has less program continuity.",
+      "expectedScientificValue": "Tests whether anomaly claims survive simple negative controls.",
+      "falsifiability": "Method claims fail if shuffled or naive seasonal baselines dominate.",
+      "executionFeasibility": "Feasible but target selection needs more public protocol evidence.",
+      "toolReadiness": [
+        "negative-control generator candidate"
+      ],
+      "expectedBaselines": [
+        "naive persistence baseline"
+      ],
+      "expectedNegativeControls": [
+        "shuffled time order control"
+      ],
+      "expectedReplayPlan": [
+        "fresh split replay"
+      ],
+      "expectedPublicationType": "time_series_negative_control_benchmark",
+      "scores": {
+        "evidenceValue": 68,
+        "feasibility": 66,
+        "safety": 96,
+        "novelty": 74,
+        "falsifiability": 82,
+        "toolReadiness": 58,
+        "opportunityQualityScore": 74
+      },
+      "safetyScope": "safe computational research only; no medical advice, wet-lab protocol, exploit, malware, private data, or legal patentability claim",
+      "blockedReasons": []
+    }
+  ],
+  "evidenceHash": "93238f88d01a9dbe67fb93ad0d4bbe91c570af2eef7a6862b0d3916dd3740790"
+}

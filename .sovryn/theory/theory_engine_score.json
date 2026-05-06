@@ -1,0 +1,15 @@
+{
+  "kind": "theory_engine_score",
+  "scoredAt": "2026-05-06T15:57:30.272Z",
+  "theoryGenerationScore": 92,
+  "predictionQualityScore": 86,
+  "preregistrationIntegrityScore": 96,
+  "falsificationStrengthScore": 90,
+  "conceptQualityScore": 82,
+  "transferStrengthScore": 76,
+  "publicEvidenceScore": 92,
+  "reproducibilityScore": 88,
+  "safetyScore": 100,
+  "theoryEngineReadinessLabel": "theory_engine_v0_ready",
+  "evidenceHash": "27a717cd8df5bf2a9696135cfc7221d8560d0e69793b8960fa64380aba4d3c9d"
+}

@@ -53,6 +53,7 @@ import { FrontierService } from "../core/frontier/frontier-service.js";
 import { ExternalProductionService } from "../core/external-production/external-production-service.js";
 import { ExternalReproductionService } from "../core/external-reproduction/external-reproduction-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
+import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
 import { StrategyService } from "../core/strategy/strategy-service.js";
@@ -117,6 +118,17 @@ Commands:
   sovryn scientist review [--json]
   sovryn scientist memory [--json]
   sovryn scientist audit [--target-repo <path>] [--json]
+  sovryn theory status [--json]
+  sovryn theory corpus-scan [--target-repo <path>] [--json]
+  sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
+  sovryn theory theories [--json]
+  sovryn theory predict --theory <theory-id> --targets 6 --freeze [--json]
+  sovryn theory tournament [--json]
+  sovryn theory falsify [--json]
+  sovryn theory concepts [--json]
+  sovryn theory transfer [--json]
+  sovryn theory publish --autopublish-corpus [--target-repo <path>] [--json]
+  sovryn theory audit [--target-repo <path>] [--json]
   sovryn autonomy campaign plan --goal "<broad-goal>" --runs 10 [--json]
   sovryn autonomy campaign run [--json]
   sovryn autonomy campaign status [--json]
@@ -618,6 +630,16 @@ export async function executeCli(
       case "scientist": {
         const result = await scientistCommand(parsed, root);
         return okEnvelope("scientist", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "theory": {
+        const result = await theoryCommand(parsed, root);
+        return okEnvelope("theory", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1146,6 +1168,79 @@ async function scientistCommand(
       throw new AppError(
         "UNKNOWN_SCIENTIST_COMMAND",
         `Unknown scientist command: ${subcommand}`,
+      );
+  }
+}
+
+async function theoryCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "THEORY_COMMAND_REQUIRED",
+      "Use: sovryn theory <status|corpus-scan|generate|theories|predict|tournament|falsify|concepts|transfer|publish|audit>.",
+    );
+  }
+  const service = new TheoryEngineService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "corpus-scan":
+      return service.corpusScan({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    case "generate": {
+      const domain = flagString(parsed.flags, "--domain");
+      if (!domain) {
+        throw new AppError(
+          "THEORY_DOMAIN_REQUIRED",
+          "theory generate requires --domain protocol-risk.",
+        );
+      }
+      return service.generate({
+        domain,
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    }
+    case "theories":
+      return service.theories();
+    case "predict": {
+      const theoryId = flagString(parsed.flags, "--theory");
+      if (!theoryId) {
+        throw new AppError(
+          "THEORY_ID_REQUIRED",
+          "theory predict requires --theory <theory-id>.",
+        );
+      }
+      return service.predict({
+        theoryId,
+        targets: flagInt(parsed.flags, "--targets", 6),
+        freeze: flagBool(parsed.flags, "--freeze"),
+      });
+    }
+    case "tournament":
+      return service.tournament();
+    case "falsify":
+      return service.falsify();
+    case "concepts":
+      return service.concepts();
+    case "transfer":
+      return service.transfer();
+    case "publish":
+      return service.publish({
+        autopublishCorpus: flagBool(parsed.flags, "--autopublish-corpus"),
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    case "audit":
+      return service.audit({
+        targetRepo: flagString(parsed.flags, "--target-repo"),
+      });
+    default:
+      throw new AppError(
+        "UNKNOWN_THEORY_COMMAND",
+        `Unknown theory command: ${subcommand}`,
       );
   }
 }

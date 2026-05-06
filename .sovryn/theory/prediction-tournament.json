@@ -1,0 +1,119 @@
+{
+  "kind": "frozen_prediction_tournament",
+  "executedAt": "2026-05-06T15:57:23.497Z",
+  "frozenPredictionCount": 8,
+  "executedPredictionCount": 8,
+  "commandSummary": "Frozen prediction scoring. Exit code 0; duration 52 ms; command streams are omitted from public release.",
+  "observations": [
+    {
+      "predictionId": "pred-uci-shuttle",
+      "target": "UCI Statlog Shuttle",
+      "executed": true,
+      "observedRiskLabel": "high",
+      "observedMacroF1Delta": 0.0656,
+      "mechanismFinding": "High delta preserved; evidence favors rare-class/protocol difficulty over confirmed leakage.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch15 and batch20 Shuttle evidence"
+    },
+    {
+      "predictionId": "pred-uci-har",
+      "target": "UCI HAR Smartphones",
+      "executed": true,
+      "observedRiskLabel": "moderate",
+      "observedMacroF1Delta": 0.0294,
+      "mechanismFinding": "Subject/protocol source split remains materially below random challenger.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch13 and batch20 HAR evidence"
+    },
+    {
+      "predictionId": "pred-uci-landsat",
+      "target": "UCI Statlog Landsat Satellite",
+      "executed": true,
+      "observedRiskLabel": "moderate",
+      "observedMacroF1Delta": 0.0222,
+      "mechanismFinding": "Spatial/file protocol-risk remains moderate.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch16 and batch20 Landsat evidence"
+    },
+    {
+      "predictionId": "pred-uci-letter",
+      "target": "UCI Letter Recognition",
+      "executed": true,
+      "observedRiskLabel": "low",
+      "observedMacroF1Delta": 0.0028,
+      "mechanismFinding": "Low-risk control remained low.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch14 Letter evidence"
+    },
+    {
+      "predictionId": "pred-uci-wine",
+      "target": "UCI Wine Recognition",
+      "executed": true,
+      "observedRiskLabel": "none",
+      "observedMacroF1Delta": 0,
+      "mechanismFinding": "Protocol-absent control did not support broad risk claim.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch20 Wine control evidence"
+    },
+    {
+      "predictionId": "pred-uci-vehicle",
+      "target": "UCI Vehicle Silhouettes",
+      "executed": true,
+      "observedRiskLabel": "inconclusive",
+      "observedMacroF1Delta": null,
+      "mechanismFinding": "Protocol ambiguity blocks a strong conclusion.",
+      "replayStatus": "partial",
+      "result": "partial",
+      "publicEvidence": "batch23 and batch25 Vehicle ambiguity evidence"
+    },
+    {
+      "predictionId": "pred-uci-optical-digits",
+      "target": "UCI Optical Digits",
+      "executed": true,
+      "observedRiskLabel": "moderate",
+      "observedMacroF1Delta": 0.0222,
+      "mechanismFinding": "Prediction matched Batch 13 digit protocol delta.",
+      "replayStatus": "passed",
+      "result": "passed",
+      "publicEvidence": "batch13 Optical Digits evidence"
+    },
+    {
+      "predictionId": "pred-uci-image-segmentation",
+      "target": "UCI Image Segmentation",
+      "executed": true,
+      "observedRiskLabel": "low",
+      "observedMacroF1Delta": 0.006,
+      "mechanismFinding": "Prediction overestimated risk on a not-deeply-studied target; confidence is downgraded.",
+      "replayStatus": "partial",
+      "result": "failed",
+      "publicEvidence": "batch17/batch18 Image Segmentation evidence check"
+    }
+  ],
+  "calibration": {
+    "predictionCount": 8,
+    "executedCount": 8,
+    "passed": 6,
+    "weakOrFailed": 2,
+    "calibrationLabel": "predictive_supported_with_scope_limits",
+    "confidenceDeltas": {
+      "theory-evaluation-fragility": -3,
+      "theory-protocol-sensitivity": -2,
+      "theory-random-split-inflation": -8
+    }
+  },
+  "weakOrFailedPredictionIds": [
+    "pred-uci-vehicle",
+    "pred-uci-image-segmentation"
+  ],
+  "confidenceUpdate": {
+    "theory-evaluation-fragility": "preserved_with_scope_limits",
+    "theory-random-split-inflation": "downgraded_on_low-risk-controls"
+  },
+  "noPostHocEdits": "Tournament read frozen prediction cards and did not rewrite preregistration hashes.",
+  "evidenceHash": "2407d2132175a90433d23cd3d3ca5b90adca851615b0a2fb84cc0b2bd1409533"
+}

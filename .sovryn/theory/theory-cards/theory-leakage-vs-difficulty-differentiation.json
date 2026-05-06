@@ -1,0 +1,67 @@
+{
+  "theoryId": "theory-leakage-vs-difficulty-differentiation",
+  "name": "Leakage-vs-Difficulty Differentiation Theory",
+  "shortDefinition": "Split deltas must be separated into leakage mechanisms, ordinary protocol difficulty, metric artifacts, or ambiguity.",
+  "mechanism": "Direct overlap and feature/target checks are required before leakage is accepted.",
+  "assumptions": [
+    "Leakage-risk cards or equivalent checks exist"
+  ],
+  "scope": [
+    "Leakage-risk benchmarks with protocol cards"
+  ],
+  "nonExamples": [
+    "Targets with no testable overlap fields"
+  ],
+  "variables": [
+    "duplicate overlap",
+    "group overlap",
+    "feature leakage"
+  ],
+  "measurableIndicators": [
+    "leakage_not_found",
+    "leakage_not_testable",
+    "class-risk"
+  ],
+  "expectedEvidence": [
+    "source-vs-random split comparison",
+    "metric stress or per-class check",
+    "replay or replay-failure evidence",
+    "negative or low-risk controls"
+  ],
+  "predictions": [
+    "Many split deltas will not be upgraded to confirmed leakage."
+  ],
+  "falsificationTests": [
+    "low-risk control shows no effect",
+    "predicted high-risk target is low-risk",
+    "metric change destroys the theory's claimed mechanism",
+    "protocol ambiguity blocks the conclusion"
+  ],
+  "competingTheories": [
+    "Random-Split Inflation Theory"
+  ],
+  "limitations": [
+    "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+    "No theory is called true; theories are confidence-scored and falsifiable.",
+    "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+    "Cross-domain transfer is scoped and can fail or remain partial.",
+    "Public artifacts contain curated summaries and no private data."
+  ],
+  "confidenceScore": 76,
+  "simplicityScore": 78,
+  "explanatoryPowerScore": 82,
+  "falsifiabilityScore": 86,
+  "predictionReadinessScore": 74,
+  "selectedForTournament": false,
+  "evidenceRefs": [
+    "batch13-protocol-first-benchmark-validation-week1",
+    "batch14-protocol-risk-expansion-week2",
+    "batch15-shuttle-deep-protocol-risk-study",
+    "batch16-landsat-deep-protocol-risk-study",
+    "batch21-protocol-card-replay-week1",
+    "batch22-protocol-card-replay-model-family-stress",
+    "batch23-ambiguous-protocol-deep-replay-study",
+    "batch25-leakage-risk-cards-week1",
+    "general-ai-scientist-v0-trial"
+  ]
+}

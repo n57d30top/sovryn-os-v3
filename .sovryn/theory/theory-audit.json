@@ -1,0 +1,87 @@
+{
+  "kind": "theory_engine_audit",
+  "auditedAt": "2026-05-06T15:57:34.705Z",
+  "passed": true,
+  "gates": [
+    {
+      "code": "THEORY_INTERNAL_ARTIFACTS_PRESENT",
+      "passed": true,
+      "message": "Required .sovryn/theory artifacts exist.",
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "code": "THEORIES_GENERATED",
+      "passed": true,
+      "message": "At least eight candidate theories were generated.",
+      "details": {
+        "theoryCount": 8
+      }
+    },
+    {
+      "code": "PREDICTIONS_FROZEN",
+      "passed": true,
+      "message": "At least eight frozen predictions exist.",
+      "details": {
+        "predictionCount": 8
+      }
+    },
+    {
+      "code": "PREDICTIONS_EXECUTED",
+      "passed": true,
+      "message": "At least six predictions were executed.",
+      "details": {
+        "executedPredictionCount": 8
+      }
+    },
+    {
+      "code": "FALSIFICATION_EXECUTED",
+      "passed": true,
+      "message": "At least four falsification tests were executed.",
+      "details": {
+        "executedTests": 5
+      }
+    },
+    {
+      "code": "CONCEPTS_TESTED_AND_REJECTED",
+      "passed": true,
+      "message": "Concept cards exist and at least three concepts were rejected or downgraded.",
+      "details": {
+        "conceptCards": 5,
+        "rejectedOrDowngraded": 6
+      }
+    },
+    {
+      "code": "TRANSFER_TESTED",
+      "passed": true,
+      "message": "At least three transfer domains were tested or explicitly evaluated.",
+      "details": {
+        "transferDomains": 3
+      }
+    },
+    {
+      "code": "PUBLIC_STAGE_RESULTS_PRESENT",
+      "passed": true,
+      "message": "Batch 26 through Batch 31 public result summaries exist with required resultKinds.",
+      "details": {
+        "present": 6
+      }
+    },
+    {
+      "code": "PUBLIC_HYGIENE",
+      "passed": true,
+      "message": "Public Theory Engine results pass public hygiene.",
+      "details": {
+        "findings": 0
+      }
+    },
+    {
+      "code": "NO_FAKE_THEORY_CLAIMS",
+      "passed": true,
+      "message": "No fake Einstein, human-level, guaranteed-discovery, or universal-truth claim is present.",
+      "details": {}
+    }
+  ],
+  "evidenceHash": "e3ad7b66416edef3a245bdb5cb6af0d0e71239bdce25e0bb874b0d3020459a31"
+}

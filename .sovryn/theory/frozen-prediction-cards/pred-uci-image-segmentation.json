@@ -1,0 +1,19 @@
+{
+  "predictionId": "pred-uci-image-segmentation",
+  "theoryId": "theory-evaluation-fragility",
+  "target": "UCI Image Segmentation",
+  "sourceUrl": "https://archive.ics.uci.edu/dataset/uci-image-segmentation",
+  "predictedRiskLabel": "moderate",
+  "predictedMacroF1DeltaRange": [
+    0.02,
+    0.04
+  ],
+  "predictedMechanism": "not previously deeply studied; predicted moderate file/protocol risk",
+  "predictedMetricRiskBehavior": "macro-F1 and per-class summaries are expected to reveal more risk than accuracy alone.",
+  "predictedReplayBehavior": "network-denied or fresh-seed replay should preserve the qualitative risk label unless protocol ambiguity dominates.",
+  "predictedAmbiguityBehavior": "ambiguity should be lower than protocol-weak targets",
+  "expectedFalsifier": "Observed delta outside predicted range, low-risk control showing high risk, or ambiguity making the prediction untestable.",
+  "frozenTimestamp": "2026-05-06T15:57:23.345Z",
+  "noEditRule": "This card is frozen before tournament execution; observed results must be recorded separately.",
+  "preregistrationHash": "fc6014f6f8ca0a8329d8c9aa3752f6bc276b77c5cb009bae002e025c34aaedde"
+}

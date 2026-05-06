@@ -1,0 +1,556 @@
+{
+  "kind": "theory_engine_candidate_theories",
+  "generatedAt": "2026-05-06T15:57:17.046Z",
+  "domain": "protocol-risk",
+  "candidateCount": 8,
+  "selectedTheoryIds": [
+    "theory-evaluation-fragility",
+    "theory-protocol-sensitivity",
+    "theory-rare-class-metric-illusion",
+    "theory-leakage-vs-difficulty-differentiation",
+    "theory-protocol-ambiguity-barrier"
+  ],
+  "tournamentTheoryIds": [
+    "theory-evaluation-fragility",
+    "theory-protocol-sensitivity"
+  ],
+  "candidates": [
+    {
+      "theoryId": "theory-evaluation-fragility",
+      "name": "Evaluation Fragility Theory",
+      "shortDefinition": "Benchmark conclusions are fragile when evaluation protocols, splits, metrics, or replay conditions change.",
+      "mechanism": "Protocol variables alter class exposure, group overlap, difficulty, and metric summaries before model quality is interpreted.",
+      "assumptions": [
+        "Public benchmark metadata contains enough protocol signal to compare evaluation paths.",
+        "Baseline and random/stratified challengers are run before broad claims."
+      ],
+      "scope": [
+        "Protocol-bearing public computational benchmarks",
+        "Dataset/repo evidence where evaluation protocol affects a claim"
+      ],
+      "nonExamples": [
+        "Protocol-absent single-table targets with stable low deltas",
+        "Claims not tied to execution or metrics"
+      ],
+      "variables": [
+        "source-vs-random macro-F1 delta",
+        "protocol clarity",
+        "metric sensitivity",
+        "replay stability"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta above 0.02",
+        "protocol ambiguity",
+        "seed/split sensitivity",
+        "low-risk control contrast"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "High protocol-risk targets will show larger source-vs-random deltas than low-risk controls.",
+        "Ambiguous targets will reduce confidence even if simple execution succeeds."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Rare-Class Metric Illusion Theory",
+        "Protocol Ambiguity Barrier Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 84,
+      "simplicityScore": 76,
+      "explanatoryPowerScore": 90,
+      "falsifiabilityScore": 88,
+      "predictionReadinessScore": 92,
+      "selectedForTournament": true,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-protocol-sensitivity",
+      "name": "Protocol Sensitivity Theory",
+      "shortDefinition": "Benchmark metrics move when source-described split structure is preserved instead of replaced by convenient random splits.",
+      "mechanism": "Source splits encode subject, file, spatial, class, temporal, or contributor structure that random splits can smooth away.",
+      "assumptions": [
+        "Source split files or defensible approximations exist.",
+        "Comparable model families are used across split variants."
+      ],
+      "scope": [
+        "Benchmarks with clear or approximated source splits"
+      ],
+      "nonExamples": [
+        "Targets whose source protocol is absent or not testable"
+      ],
+      "variables": [
+        "source split status",
+        "random challenger split",
+        "model-family consistency"
+      ],
+      "measurableIndicators": [
+        "consistent delta across LogisticRegression and tree baselines",
+        "protocol_reproduced or protocol_approximated status"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Source splits remain materially different from random challengers on protocol-bearing targets."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Random-Split Inflation Theory",
+        "Replay Robustness Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 80,
+      "simplicityScore": 82,
+      "explanatoryPowerScore": 84,
+      "falsifiabilityScore": 86,
+      "predictionReadinessScore": 86,
+      "selectedForTournament": true,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-random-split-inflation",
+      "name": "Random-Split Inflation Theory",
+      "shortDefinition": "Convenient random or stratified splits often overstate performance relative to source-described protocols.",
+      "mechanism": "Randomization can mix easier examples, reduce rare-class stress, or erase source-encoded difficulty.",
+      "assumptions": [
+        "Random challenger uses comparable model family and metrics"
+      ],
+      "scope": [
+        "Targets with measured positive source-vs-random delta"
+      ],
+      "nonExamples": [
+        "Letter/Wine-like low-risk controls"
+      ],
+      "variables": [
+        "delta macro-F1",
+        "class distribution shift"
+      ],
+      "measurableIndicators": [
+        "positive random-minus-source delta"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Random splits will exceed source splits on high-risk targets."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Evaluation Fragility Theory",
+        "Rare-Class Metric Illusion Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 70,
+      "simplicityScore": 88,
+      "explanatoryPowerScore": 76,
+      "falsifiabilityScore": 82,
+      "predictionReadinessScore": 80,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-rare-class-metric-illusion",
+      "name": "Rare-Class Metric Illusion Theory",
+      "shortDefinition": "Class imbalance and metric choice can mimic protocol or leakage risk.",
+      "mechanism": "Accuracy and weighted metrics can hide rare-class failure while macro-F1 exposes it.",
+      "assumptions": [
+        "Per-class metrics are available"
+      ],
+      "scope": [
+        "Imbalanced classification benchmarks such as Shuttle-like targets"
+      ],
+      "nonExamples": [
+        "Balanced low-risk controls"
+      ],
+      "variables": [
+        "class counts",
+        "accuracy macro-F1 gap",
+        "per-class F1"
+      ],
+      "measurableIndicators": [
+        "large class imbalance",
+        "rare-class F1 drop"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Metric-risk checks will narrow leakage-like interpretations."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Random-Split Inflation Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 74,
+      "simplicityScore": 84,
+      "explanatoryPowerScore": 80,
+      "falsifiabilityScore": 84,
+      "predictionReadinessScore": 78,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-protocol-ambiguity-barrier",
+      "name": "Protocol Ambiguity Barrier Theory",
+      "shortDefinition": "Ambiguous protocol descriptions cap the strength of benchmark claims even when data loading and modeling succeed.",
+      "mechanism": "Multiple plausible split interpretations produce materially different evidence boundaries.",
+      "assumptions": [
+        "Source descriptions can be compared against execution variants"
+      ],
+      "scope": [
+        "Protocol-weak or file-layout-ambiguous targets"
+      ],
+      "nonExamples": [
+        "Clear train/test-file benchmarks"
+      ],
+      "variables": [
+        "ambiguity class",
+        "variant metric spread",
+        "replay decision"
+      ],
+      "measurableIndicators": [
+        "protocol_ambiguous status",
+        "competing interpretations"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Ambiguous targets should be downgraded or deferred unless clarified."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Protocol Sensitivity Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 78,
+      "simplicityScore": 80,
+      "explanatoryPowerScore": 82,
+      "falsifiabilityScore": 80,
+      "predictionReadinessScore": 76,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-replay-robustness",
+      "name": "Replay Robustness Theory",
+      "shortDefinition": "Claims deserve higher confidence when replay, fresh seeds, or network-denied execution preserves the conclusion.",
+      "mechanism": "Replay separates stable evidence from one-off execution artifacts.",
+      "assumptions": [
+        "Replay summaries are public-safe and hash-bound"
+      ],
+      "scope": [
+        "Corpus results with replay evidence"
+      ],
+      "nonExamples": [
+        "Review-only results without execution"
+      ],
+      "variables": [
+        "replay status",
+        "fresh seed divergence"
+      ],
+      "measurableIndicators": [
+        "container-netoff or network-denied replay"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Replay failures will force confidence downgrade."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Tool Value Compression Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 72,
+      "simplicityScore": 86,
+      "explanatoryPowerScore": 74,
+      "falsifiabilityScore": 78,
+      "predictionReadinessScore": 72,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-leakage-vs-difficulty-differentiation",
+      "name": "Leakage-vs-Difficulty Differentiation Theory",
+      "shortDefinition": "Split deltas must be separated into leakage mechanisms, ordinary protocol difficulty, metric artifacts, or ambiguity.",
+      "mechanism": "Direct overlap and feature/target checks are required before leakage is accepted.",
+      "assumptions": [
+        "Leakage-risk cards or equivalent checks exist"
+      ],
+      "scope": [
+        "Leakage-risk benchmarks with protocol cards"
+      ],
+      "nonExamples": [
+        "Targets with no testable overlap fields"
+      ],
+      "variables": [
+        "duplicate overlap",
+        "group overlap",
+        "feature leakage"
+      ],
+      "measurableIndicators": [
+        "leakage_not_found",
+        "leakage_not_testable",
+        "class-risk"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Many split deltas will not be upgraded to confirmed leakage."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Random-Split Inflation Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 76,
+      "simplicityScore": 78,
+      "explanatoryPowerScore": 82,
+      "falsifiabilityScore": 86,
+      "predictionReadinessScore": 74,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    },
+    {
+      "theoryId": "theory-tool-value-compression",
+      "name": "Tool Value Compression Theory",
+      "shortDefinition": "Custom research tools compress toward packaging, anti-hype, and replay discipline unless they beat simple baselines.",
+      "mechanism": "Pandas/sklearn/manual baselines explain many raw findings, leaving custom tools valuable mainly for curation and gates.",
+      "assumptions": [
+        "Tool results are compared against simple baselines"
+      ],
+      "scope": [
+        "Sovryn custom tools across Batch 7-25"
+      ],
+      "nonExamples": [
+        "Tools that repeatedly discover evidence beyond baselines"
+      ],
+      "variables": [
+        "tool usefulness label",
+        "baseline dominance"
+      ],
+      "measurableIndicators": [
+        "packaging_only",
+        "support_tool",
+        "dominated_by_simple_baseline"
+      ],
+      "expectedEvidence": [
+        "source-vs-random split comparison",
+        "metric stress or per-class check",
+        "replay or replay-failure evidence",
+        "negative or low-risk controls"
+      ],
+      "predictions": [
+        "Broad product tool promotion will be rejected without reuse evidence."
+      ],
+      "falsificationTests": [
+        "low-risk control shows no effect",
+        "predicted high-risk target is low-risk",
+        "metric change destroys the theory's claimed mechanism",
+        "protocol ambiguity blocks the conclusion"
+      ],
+      "competingTheories": [
+        "Replay Robustness Theory"
+      ],
+      "limitations": [
+        "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+        "No theory is called true; theories are confidence-scored and falsifiable.",
+        "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+        "Cross-domain transfer is scoped and can fail or remain partial.",
+        "Public artifacts contain curated summaries and no private data."
+      ],
+      "confidenceScore": 76,
+      "simplicityScore": 82,
+      "explanatoryPowerScore": 78,
+      "falsifiabilityScore": 80,
+      "predictionReadinessScore": 70,
+      "selectedForTournament": false,
+      "evidenceRefs": [
+        "batch13-protocol-first-benchmark-validation-week1",
+        "batch14-protocol-risk-expansion-week2",
+        "batch15-shuttle-deep-protocol-risk-study",
+        "batch16-landsat-deep-protocol-risk-study",
+        "batch21-protocol-card-replay-week1",
+        "batch22-protocol-card-replay-model-family-stress",
+        "batch23-ambiguous-protocol-deep-replay-study",
+        "batch25-leakage-risk-cards-week1",
+        "general-ai-scientist-v0-trial"
+      ]
+    }
+  ],
+  "evidenceHash": "d99850e474a002e0cf6a16e94d8fbefb990afcf6adccb0bfed984cefde5b884c"
+}

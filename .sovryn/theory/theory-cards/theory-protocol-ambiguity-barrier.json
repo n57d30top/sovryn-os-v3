@@ -1,0 +1,66 @@
+{
+  "theoryId": "theory-protocol-ambiguity-barrier",
+  "name": "Protocol Ambiguity Barrier Theory",
+  "shortDefinition": "Ambiguous protocol descriptions cap the strength of benchmark claims even when data loading and modeling succeed.",
+  "mechanism": "Multiple plausible split interpretations produce materially different evidence boundaries.",
+  "assumptions": [
+    "Source descriptions can be compared against execution variants"
+  ],
+  "scope": [
+    "Protocol-weak or file-layout-ambiguous targets"
+  ],
+  "nonExamples": [
+    "Clear train/test-file benchmarks"
+  ],
+  "variables": [
+    "ambiguity class",
+    "variant metric spread",
+    "replay decision"
+  ],
+  "measurableIndicators": [
+    "protocol_ambiguous status",
+    "competing interpretations"
+  ],
+  "expectedEvidence": [
+    "source-vs-random split comparison",
+    "metric stress or per-class check",
+    "replay or replay-failure evidence",
+    "negative or low-risk controls"
+  ],
+  "predictions": [
+    "Ambiguous targets should be downgraded or deferred unless clarified."
+  ],
+  "falsificationTests": [
+    "low-risk control shows no effect",
+    "predicted high-risk target is low-risk",
+    "metric change destroys the theory's claimed mechanism",
+    "protocol ambiguity blocks the conclusion"
+  ],
+  "competingTheories": [
+    "Protocol Sensitivity Theory"
+  ],
+  "limitations": [
+    "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+    "No theory is called true; theories are confidence-scored and falsifiable.",
+    "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+    "Cross-domain transfer is scoped and can fail or remain partial.",
+    "Public artifacts contain curated summaries and no private data."
+  ],
+  "confidenceScore": 78,
+  "simplicityScore": 80,
+  "explanatoryPowerScore": 82,
+  "falsifiabilityScore": 80,
+  "predictionReadinessScore": 76,
+  "selectedForTournament": false,
+  "evidenceRefs": [
+    "batch13-protocol-first-benchmark-validation-week1",
+    "batch14-protocol-risk-expansion-week2",
+    "batch15-shuttle-deep-protocol-risk-study",
+    "batch16-landsat-deep-protocol-risk-study",
+    "batch21-protocol-card-replay-week1",
+    "batch22-protocol-card-replay-model-family-stress",
+    "batch23-ambiguous-protocol-deep-replay-study",
+    "batch25-leakage-risk-cards-week1",
+    "general-ai-scientist-v0-trial"
+  ]
+}

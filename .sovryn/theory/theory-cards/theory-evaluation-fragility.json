@@ -1,0 +1,74 @@
+{
+  "theoryId": "theory-evaluation-fragility",
+  "name": "Evaluation Fragility Theory",
+  "shortDefinition": "Benchmark conclusions are fragile when evaluation protocols, splits, metrics, or replay conditions change.",
+  "mechanism": "Protocol variables alter class exposure, group overlap, difficulty, and metric summaries before model quality is interpreted.",
+  "assumptions": [
+    "Public benchmark metadata contains enough protocol signal to compare evaluation paths.",
+    "Baseline and random/stratified challengers are run before broad claims."
+  ],
+  "scope": [
+    "Protocol-bearing public computational benchmarks",
+    "Dataset/repo evidence where evaluation protocol affects a claim"
+  ],
+  "nonExamples": [
+    "Protocol-absent single-table targets with stable low deltas",
+    "Claims not tied to execution or metrics"
+  ],
+  "variables": [
+    "source-vs-random macro-F1 delta",
+    "protocol clarity",
+    "metric sensitivity",
+    "replay stability"
+  ],
+  "measurableIndicators": [
+    "macro-F1 delta above 0.02",
+    "protocol ambiguity",
+    "seed/split sensitivity",
+    "low-risk control contrast"
+  ],
+  "expectedEvidence": [
+    "source-vs-random split comparison",
+    "metric stress or per-class check",
+    "replay or replay-failure evidence",
+    "negative or low-risk controls"
+  ],
+  "predictions": [
+    "High protocol-risk targets will show larger source-vs-random deltas than low-risk controls.",
+    "Ambiguous targets will reduce confidence even if simple execution succeeds."
+  ],
+  "falsificationTests": [
+    "low-risk control shows no effect",
+    "predicted high-risk target is low-risk",
+    "metric change destroys the theory's claimed mechanism",
+    "protocol ambiguity blocks the conclusion"
+  ],
+  "competingTheories": [
+    "Rare-Class Metric Illusion Theory",
+    "Protocol Ambiguity Barrier Theory"
+  ],
+  "limitations": [
+    "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+    "No theory is called true; theories are confidence-scored and falsifiable.",
+    "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+    "Cross-domain transfer is scoped and can fail or remain partial.",
+    "Public artifacts contain curated summaries and no private data."
+  ],
+  "confidenceScore": 84,
+  "simplicityScore": 76,
+  "explanatoryPowerScore": 90,
+  "falsifiabilityScore": 88,
+  "predictionReadinessScore": 92,
+  "selectedForTournament": true,
+  "evidenceRefs": [
+    "batch13-protocol-first-benchmark-validation-week1",
+    "batch14-protocol-risk-expansion-week2",
+    "batch15-shuttle-deep-protocol-risk-study",
+    "batch16-landsat-deep-protocol-risk-study",
+    "batch21-protocol-card-replay-week1",
+    "batch22-protocol-card-replay-model-family-stress",
+    "batch23-ambiguous-protocol-deep-replay-study",
+    "batch25-leakage-risk-cards-week1",
+    "general-ai-scientist-v0-trial"
+  ]
+}

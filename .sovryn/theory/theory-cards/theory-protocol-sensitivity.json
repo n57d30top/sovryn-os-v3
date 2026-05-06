@@ -1,0 +1,68 @@
+{
+  "theoryId": "theory-protocol-sensitivity",
+  "name": "Protocol Sensitivity Theory",
+  "shortDefinition": "Benchmark metrics move when source-described split structure is preserved instead of replaced by convenient random splits.",
+  "mechanism": "Source splits encode subject, file, spatial, class, temporal, or contributor structure that random splits can smooth away.",
+  "assumptions": [
+    "Source split files or defensible approximations exist.",
+    "Comparable model families are used across split variants."
+  ],
+  "scope": [
+    "Benchmarks with clear or approximated source splits"
+  ],
+  "nonExamples": [
+    "Targets whose source protocol is absent or not testable"
+  ],
+  "variables": [
+    "source split status",
+    "random challenger split",
+    "model-family consistency"
+  ],
+  "measurableIndicators": [
+    "consistent delta across LogisticRegression and tree baselines",
+    "protocol_reproduced or protocol_approximated status"
+  ],
+  "expectedEvidence": [
+    "source-vs-random split comparison",
+    "metric stress or per-class check",
+    "replay or replay-failure evidence",
+    "negative or low-risk controls"
+  ],
+  "predictions": [
+    "Source splits remain materially different from random challengers on protocol-bearing targets."
+  ],
+  "falsificationTests": [
+    "low-risk control shows no effect",
+    "predicted high-risk target is low-risk",
+    "metric change destroys the theory's claimed mechanism",
+    "protocol ambiguity blocks the conclusion"
+  ],
+  "competingTheories": [
+    "Random-Split Inflation Theory",
+    "Replay Robustness Theory"
+  ],
+  "limitations": [
+    "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+    "No theory is called true; theories are confidence-scored and falsifiable.",
+    "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+    "Cross-domain transfer is scoped and can fail or remain partial.",
+    "Public artifacts contain curated summaries and no private data."
+  ],
+  "confidenceScore": 80,
+  "simplicityScore": 82,
+  "explanatoryPowerScore": 84,
+  "falsifiabilityScore": 86,
+  "predictionReadinessScore": 86,
+  "selectedForTournament": true,
+  "evidenceRefs": [
+    "batch13-protocol-first-benchmark-validation-week1",
+    "batch14-protocol-risk-expansion-week2",
+    "batch15-shuttle-deep-protocol-risk-study",
+    "batch16-landsat-deep-protocol-risk-study",
+    "batch21-protocol-card-replay-week1",
+    "batch22-protocol-card-replay-model-family-stress",
+    "batch23-ambiguous-protocol-deep-replay-study",
+    "batch25-leakage-risk-cards-week1",
+    "general-ai-scientist-v0-trial"
+  ]
+}

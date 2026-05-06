@@ -1,0 +1,62 @@
+{
+  "kind": "theory_falsification_week",
+  "generatedAt": "2026-05-06T15:57:23.585Z",
+  "theoryUnderAttack": "theory-evaluation-fragility",
+  "designedTests": [
+    "high-risk target observed low-risk",
+    "low-risk target observed high-risk",
+    "model-family change destroys the effect",
+    "metric choice explains the effect",
+    "target-selection/cherry-pick explains confidence",
+    "replay instability explains effect",
+    "ambiguity blocks conclusion",
+    "low-risk control weakens broad claim"
+  ],
+  "executedTests": [
+    {
+      "test": "low-risk target observed high-risk",
+      "result": "not_found",
+      "action": "preserve_low-risk_boundary"
+    },
+    {
+      "test": "metric choice explains the effect",
+      "result": "partial",
+      "action": "narrow_metric-risk_claim"
+    },
+    {
+      "test": "ambiguity blocks conclusion",
+      "result": "found_on_vehicle",
+      "action": "downgrade_ambiguous_protocol_claim"
+    },
+    {
+      "test": "target-selection/cherry-pick explains confidence",
+      "result": "partial",
+      "action": "require_low-risk_controls"
+    },
+    {
+      "test": "replay instability explains effect",
+      "result": "not_primary",
+      "action": "preserve_replay_scope_with_caveats"
+    }
+  ],
+  "alternativeTheories": [
+    "Rare-Class Metric Illusion Theory",
+    "Protocol Ambiguity Barrier Theory"
+  ],
+  "claimDowngrades": [
+    "Evaluation Fragility should not be stated as universal across all benchmarks.",
+    "Random-split inflation should not be attributed to leakage without direct mechanism evidence."
+  ],
+  "preservedClaims": [
+    "Protocol-first evaluation changes conclusions on several protocol-bearing benchmark targets.",
+    "Low-risk controls are necessary to avoid cherry-picking split-risk claims."
+  ],
+  "confidenceUpdate": {
+    "theory-evaluation-fragility": 82,
+    "theory-protocol-sensitivity": 78,
+    "theory-random-split-inflation": 66,
+    "theory-protocol-ambiguity-barrier": 74
+  },
+  "tournamentEvidenceHash": "2407d2132175a90433d23cd3d3ca5b90adca851615b0a2fb84cc0b2bd1409533",
+  "evidenceHash": "f91970a4cae7553a9b0101faa390de3f602edfbbd4ae2d3e3ed1c10148fc1ef8"
+}

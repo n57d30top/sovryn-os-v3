@@ -1,0 +1,19 @@
+{
+  "predictionId": "pred-uci-landsat",
+  "theoryId": "theory-evaluation-fragility",
+  "target": "UCI Statlog Landsat Satellite",
+  "sourceUrl": "https://archive.ics.uci.edu/dataset/uci-landsat",
+  "predictedRiskLabel": "moderate",
+  "predictedMacroF1DeltaRange": [
+    0.015,
+    0.035
+  ],
+  "predictedMechanism": "spatial/file protocol structure causes moderate split-risk",
+  "predictedMetricRiskBehavior": "macro-F1 and per-class summaries are expected to reveal more risk than accuracy alone.",
+  "predictedReplayBehavior": "network-denied or fresh-seed replay should preserve the qualitative risk label unless protocol ambiguity dominates.",
+  "predictedAmbiguityBehavior": "ambiguity should be lower than protocol-weak targets",
+  "expectedFalsifier": "Observed delta outside predicted range, low-risk control showing high risk, or ambiguity making the prediction untestable.",
+  "frozenTimestamp": "2026-05-06T15:57:23.345Z",
+  "noEditRule": "This card is frozen before tournament execution; observed results must be recorded separately.",
+  "preregistrationHash": "720c28882d10137919f53071c071c58fee32715d3ffdc37565d440335d26ef16"
+}

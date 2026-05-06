@@ -1,0 +1,27 @@
+{
+  "kind": "theory_ranking",
+  "rankedAt": "2026-05-06T15:57:17.048Z",
+  "rankedTheoryIds": [
+    "theory-evaluation-fragility",
+    "theory-protocol-sensitivity",
+    "theory-rare-class-metric-illusion",
+    "theory-leakage-vs-difficulty-differentiation",
+    "theory-protocol-ambiguity-barrier",
+    "theory-random-split-inflation",
+    "theory-tool-value-compression",
+    "theory-replay-robustness"
+  ],
+  "selectedForCards": [
+    "theory-evaluation-fragility",
+    "theory-protocol-sensitivity",
+    "theory-rare-class-metric-illusion",
+    "theory-leakage-vs-difficulty-differentiation",
+    "theory-protocol-ambiguity-barrier"
+  ],
+  "selectedForTournament": [
+    "theory-evaluation-fragility",
+    "theory-protocol-sensitivity"
+  ],
+  "scoring": "Ranking combines confidence, simplicity, explanatory power, falsifiability, and prediction readiness.",
+  "evidenceHash": "a52dd1ef25b25d7e027785724ad51e23dc389b34a0697d44dcccdd3c2d0e70a4"
+}

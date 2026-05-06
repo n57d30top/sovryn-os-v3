@@ -1,0 +1,37 @@
+{
+  "kind": "cross_domain_theory_transfer",
+  "generatedAt": "2026-05-06T15:57:23.871Z",
+  "selectedTheoryOrConcept": "Evaluation Fragility",
+  "domains": [
+    {
+      "domain": "repo/test reproduction with runtime evidence",
+      "mapping": "Changing test collection/runtime protocol can change reproduction claims.",
+      "prediction": "Runtime protocol evidence should weaken static-only repo/test claims.",
+      "executed": true,
+      "result": "partial_success",
+      "summary": "Repo/test transfer check. Exit code 0; duration 57 ms; command streams are omitted from public release."
+    },
+    {
+      "domain": "scientific dataset reliability",
+      "mapping": "Changing cleaning/split protocol can change reliability conclusions.",
+      "prediction": "Protocol-aware reliability evidence should narrow simple schema claims.",
+      "executed": true,
+      "result": "partial_success",
+      "summary": "Dataset reliability transfer check. Exit code 0; duration 50 ms; command streams are omitted from public release."
+    },
+    {
+      "domain": "time-series anomaly benchmark",
+      "mapping": "Temporal split protocol may change anomaly score conclusions.",
+      "prediction": "Evaluation Fragility may transfer, but only after temporal controls exist.",
+      "executed": false,
+      "result": "not_testable_in_this_trial",
+      "summary": "Transfer remains partial because no new public time-series protocol execution was run."
+    }
+  ],
+  "failedOrPartialTransfers": [
+    "Time-series anomaly transfer was not testable in this bounded stage.",
+    "Repo/test transfer is partial until third-party public repository runtime evidence is executed."
+  ],
+  "scopeUpdate": "Evaluation Fragility transfers as a warning pattern, not as a universal theory; it requires domain-specific protocol variables.",
+  "evidenceHash": "51a342d2c21572e8e610a5c2bcbcca7833b2a2801833c28efc38b7dc71498eb2"
+}

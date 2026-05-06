@@ -1,0 +1,446 @@
+{
+  "kind": "concept_invention_abstraction_search",
+  "generatedAt": "2026-05-06T15:57:23.677Z",
+  "candidateCount": 12,
+  "conceptCardCount": 5,
+  "testedConceptIds": [
+    "concept-evaluation-fragility",
+    "concept-protocol-sensitivity",
+    "concept-split-induced-optimism"
+  ],
+  "rejectedOrDowngradedConceptIds": [
+    "concept-split-induced-optimism",
+    "concept-replay-robustness",
+    "concept-ambiguity-barrier",
+    "concept-metric-illusion-zone",
+    "concept-protocol-leakage-shadow",
+    "concept-tool-value-compression"
+  ],
+  "survivingConceptIds": [
+    "concept-evaluation-fragility",
+    "concept-protocol-sensitivity"
+  ],
+  "concepts": [
+    {
+      "conceptId": "concept-evaluation-fragility",
+      "name": "Evaluation Fragility",
+      "definition": "A claim is fragile when evaluation protocol changes alter the conclusion.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Improves prediction and claim scoping beyond ordinary descriptive labels.",
+      "confidence": 84,
+      "decision": "survive"
+    },
+    {
+      "conceptId": "concept-protocol-sensitivity",
+      "name": "Protocol Sensitivity",
+      "definition": "A target's metrics materially depend on source-described split protocol.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Improves prediction and claim scoping beyond ordinary descriptive labels.",
+      "confidence": 80,
+      "decision": "survive"
+    },
+    {
+      "conceptId": "concept-split-induced-optimism",
+      "name": "Split-Induced Optimism",
+      "definition": "Random splits make a result look better than source protocols.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 66,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-replay-robustness",
+      "name": "Replay Robustness",
+      "definition": "A claim remains stable under replay or fresh execution.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 68,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-ambiguity-barrier",
+      "name": "Ambiguity Barrier",
+      "definition": "Protocol ambiguity blocks strong evaluation claims.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 70,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-metric-illusion-zone",
+      "name": "Metric Illusion Zone",
+      "definition": "Metric choice hides class-specific weakness.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 54,
+      "decision": "reject"
+    },
+    {
+      "conceptId": "concept-protocol-leakage-shadow",
+      "name": "Protocol Leakage Shadow",
+      "definition": "A split delta resembles leakage but lacks mechanism evidence.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 50,
+      "decision": "reject"
+    },
+    {
+      "conceptId": "concept-tool-value-compression",
+      "name": "Tool Value Compression",
+      "definition": "Custom tool value narrows to packaging when simple baselines dominate.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 64,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-evidence-packaging-dominance",
+      "name": "Evidence Packaging Dominance",
+      "definition": "Evidence curation adds value while raw discovery value is low.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 52,
+      "decision": "reject"
+    },
+    {
+      "conceptId": "concept-benchmark-claim-fragility",
+      "name": "Benchmark Claim Fragility",
+      "definition": "Benchmark claims weaken when protocol and controls are added.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 62,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-control-anchored-theory",
+      "name": "Control-Anchored Theory",
+      "definition": "A theory requires low-risk controls to avoid cherry-picking.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 60,
+      "decision": "downgrade"
+    },
+    {
+      "conceptId": "concept-ambiguity-weighted-confidence",
+      "name": "Ambiguity-Weighted Confidence",
+      "definition": "Confidence is reduced in proportion to unresolved protocol ambiguity.",
+      "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+      "examples": [
+        "HAR protocol split",
+        "Shuttle rare-class metric risk"
+      ],
+      "nonExamples": [
+        "Protocol-absent low-risk Wine control",
+        "Review-only claim without execution"
+      ],
+      "measurableIndicators": [
+        "macro-F1 delta",
+        "protocol status",
+        "replay status",
+        "control target behavior"
+      ],
+      "expectedFailureCases": [
+        "low-risk target shows no effect",
+        "ambiguity blocks measurement",
+        "simple baseline explains all findings"
+      ],
+      "predictions": [
+        "The concept should improve pre-execution prediction or force a confidence downgrade."
+      ],
+      "falsificationTests": [
+        "Apply concept to low-risk controls and ambiguous targets."
+      ],
+      "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+      "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+      "confidence": 48,
+      "decision": "reject"
+    }
+  ],
+  "evidenceHash": "c7b1ed6cd0f6bd76ce7d1558f6bacb9f4d2bb24d8aa5ede75ba029348c0952f1"
+}

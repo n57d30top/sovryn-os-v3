@@ -1,0 +1,19 @@
+{
+  "predictionId": "pred-uci-har",
+  "theoryId": "theory-evaluation-fragility",
+  "target": "UCI HAR Smartphones",
+  "sourceUrl": "https://archive.ics.uci.edu/dataset/uci-har",
+  "predictedRiskLabel": "moderate",
+  "predictedMacroF1DeltaRange": [
+    0.02,
+    0.04
+  ],
+  "predictedMechanism": "subject/protocol structure causes moderate random-split optimism",
+  "predictedMetricRiskBehavior": "macro-F1 and per-class summaries are expected to reveal more risk than accuracy alone.",
+  "predictedReplayBehavior": "network-denied or fresh-seed replay should preserve the qualitative risk label unless protocol ambiguity dominates.",
+  "predictedAmbiguityBehavior": "ambiguity should be lower than protocol-weak targets",
+  "expectedFalsifier": "Observed delta outside predicted range, low-risk control showing high risk, or ambiguity making the prediction untestable.",
+  "frozenTimestamp": "2026-05-06T15:57:23.345Z",
+  "noEditRule": "This card is frozen before tournament execution; observed results must be recorded separately.",
+  "preregistrationHash": "6c05709c281867f75bb9d7af565186e63a84b35af6d031a01d4e835740bb92da"
+}

@@ -1,0 +1,35 @@
+{
+  "conceptId": "concept-ambiguity-barrier",
+  "name": "Ambiguity Barrier",
+  "definition": "Protocol ambiguity blocks strong evaluation claims.",
+  "whyExistingTermsInsufficient": "Existing terms are useful only if they provide measurable indicators and prediction/falsification value.",
+  "examples": [
+    "HAR protocol split",
+    "Shuttle rare-class metric risk"
+  ],
+  "nonExamples": [
+    "Protocol-absent low-risk Wine control",
+    "Review-only claim without execution"
+  ],
+  "measurableIndicators": [
+    "macro-F1 delta",
+    "protocol status",
+    "replay status",
+    "control target behavior"
+  ],
+  "expectedFailureCases": [
+    "low-risk target shows no effect",
+    "ambiguity blocks measurement",
+    "simple baseline explains all findings"
+  ],
+  "predictions": [
+    "The concept should improve pre-execution prediction or force a confidence downgrade."
+  ],
+  "falsificationTests": [
+    "Apply concept to low-risk controls and ambiguous targets."
+  ],
+  "relationToPriorTheories": "Derived from Theory Engine v0 candidate theories and Batch 13-25 evidence.",
+  "valueBeyondTerminology": "Does not yet improve prediction enough beyond existing terms.",
+  "confidence": 70,
+  "decision": "downgrade"
+}

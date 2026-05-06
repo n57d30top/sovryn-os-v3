@@ -1,0 +1,36 @@
+{
+  "kind": "theory_engine_status",
+  "generatedAt": "2026-05-06T15:57:31.025Z",
+  "theoryEngineVersion": "theory-engine-v0",
+  "theoryRootPresent": true,
+  "publicStageSlugs": [
+    "batch26-theory-engine-v0-candidate-theories",
+    "batch27-frozen-prediction-tournament",
+    "batch28-theory-falsification-week",
+    "batch29-concept-invention-abstraction-search",
+    "batch30-cross-domain-theory-transfer",
+    "batch31-theory-engine-paper-grade-result"
+  ],
+  "readinessLabel": "theory_engine_v0_ready",
+  "requiredCommands": [
+    "status",
+    "corpus-scan",
+    "generate",
+    "theories",
+    "predict",
+    "tournament",
+    "falsify",
+    "concepts",
+    "transfer",
+    "publish",
+    "audit"
+  ],
+  "limitations": [
+    "Theory Engine v0 is bounded computational theory-building, not AGI or human-level science.",
+    "No theory is called true; theories are confidence-scored and falsifiable.",
+    "Prediction tournaments use public corpus evidence and bounded execution summaries.",
+    "Cross-domain transfer is scoped and can fail or remain partial.",
+    "Public artifacts contain curated summaries and no private data."
+  ],
+  "evidenceHash": "418032a9d894eabd85066a5b565431bc5e4108fe050e6d3e69cb82f2ad35f73b"
+}

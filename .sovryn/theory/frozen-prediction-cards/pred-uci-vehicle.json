@@ -1,0 +1,19 @@
+{
+  "predictionId": "pred-uci-vehicle",
+  "theoryId": "theory-evaluation-fragility",
+  "target": "UCI Vehicle Silhouettes",
+  "sourceUrl": "https://archive.ics.uci.edu/dataset/uci-vehicle",
+  "predictedRiskLabel": "moderate",
+  "predictedMacroF1DeltaRange": [
+    0.02,
+    0.05
+  ],
+  "predictedMechanism": "protocol ambiguity should block strong conclusion",
+  "predictedMetricRiskBehavior": "macro-F1 and per-class summaries are expected to reveal more risk than accuracy alone.",
+  "predictedReplayBehavior": "network-denied or fresh-seed replay should preserve the qualitative risk label unless protocol ambiguity dominates.",
+  "predictedAmbiguityBehavior": "ambiguity is expected to block strong conclusions",
+  "expectedFalsifier": "Observed delta outside predicted range, low-risk control showing high risk, or ambiguity making the prediction untestable.",
+  "frozenTimestamp": "2026-05-06T15:57:23.345Z",
+  "noEditRule": "This card is frozen before tournament execution; observed results must be recorded separately.",
+  "preregistrationHash": "1d56ae4cc40791b2e735df99a2514a3fc228289ca007c2b16dc9554438917afb"
+}

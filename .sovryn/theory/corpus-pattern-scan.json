@@ -1,0 +1,104 @@
+{
+  "kind": "theory_corpus_pattern_scan",
+  "scannedAt": "2026-05-06T15:57:16.955Z",
+  "corpusResultCount": 88,
+  "primaryDomain": "protocol-risk",
+  "evidenceFamilies": {
+    "protocolRisk": [
+      "batch13-protocol-first-benchmark-validation-week1",
+      "batch14-protocol-risk-expansion-week2",
+      "batch15-shuttle-deep-protocol-risk-study",
+      "batch16-landsat-deep-protocol-risk-study",
+      "batch17-protocol-extraction-ambiguity-tournament",
+      "batch18-cross-target-split-risk-atlas",
+      "batch19-protocol-risk-kill-week",
+      "batch20-protocol-risk-paper-grade-frontier-result"
+    ],
+    "protocolCards": [
+      "batch21-protocol-card-replay-week1",
+      "batch22-protocol-card-replay-model-family-stress",
+      "batch23-ambiguous-protocol-deep-replay-study",
+      "batch24-protocol-card-kill-week-next-frontier"
+    ],
+    "leakageRisk": [
+      "batch25-leakage-risk-cards-week1"
+    ],
+    "scientist": [
+      "general-ai-scientist-v0-trial"
+    ],
+    "negativeResults": [
+      "batch10-toolchain-kill-week",
+      "batch19-protocol-risk-kill-week",
+      "batch24-protocol-card-kill-week-next-frontier",
+      "batch3-uci-banknote-benchmark-negative-challenge",
+      "batch4-uci-abalone-baseline-dominance-negative"
+    ]
+  },
+  "stablePatterns": [
+    "Source-described or protocol-first splits often produce lower macro-F1 than random or stratified challengers.",
+    "Large split deltas are not sufficient evidence of leakage without duplicate, group, subject, file, feature, or target mechanisms.",
+    "Ambiguous protocols block strong benchmark conclusions even when execution succeeds.",
+    "Metric stress tools are useful anti-hype support but not standalone discovery instruments.",
+    "Low-risk controls are necessary to prevent cherry-picked split-risk narratives."
+  ],
+  "contradictions": [
+    "Random-split inflation appears on several targets, but low-risk controls show it is not universal.",
+    "Leakage-risk cards looked for mechanisms but did not confirm direct leakage on executed Batch 25 targets.",
+    "Protocol Cards improve replay discipline but do not automatically resolve ambiguous source protocols."
+  ],
+  "repeatedFailures": [
+    "Protocol ambiguity blocks claims.",
+    "Class imbalance and metric choice can mimic stronger mechanisms.",
+    "Tool usefulness compresses toward evidence packaging when simple pandas/sklearn baselines dominate."
+  ],
+  "downgradedClaims": [
+    "Split-risk is not equivalent to confirmed leakage.",
+    "Protocol Card replay is useful with caveats, not a guarantee of official benchmark reproduction.",
+    "Single-table schema discovery is often dominated by simple pandas checks."
+  ],
+  "targetEvidenceTable": [
+    {
+      "target": "UCI HAR",
+      "sourceMacroF1": 0.9537,
+      "randomMacroF1": 0.9832,
+      "delta": 0.0294,
+      "risk": "moderate"
+    },
+    {
+      "target": "UCI Shuttle",
+      "sourceMacroF1": 0.3862,
+      "randomMacroF1": 0.4518,
+      "delta": 0.0656,
+      "risk": "high"
+    },
+    {
+      "target": "UCI Landsat",
+      "sourceMacroF1": 0.7971,
+      "randomMacroF1": 0.8192,
+      "delta": 0.0222,
+      "risk": "moderate"
+    },
+    {
+      "target": "UCI Letter",
+      "sourceMacroF1": 0.9701,
+      "randomMacroF1": 0.9729,
+      "delta": 0.0028,
+      "risk": "low"
+    },
+    {
+      "target": "UCI Wine",
+      "sourceMacroF1": 0.98,
+      "randomMacroF1": 0.98,
+      "delta": 0,
+      "risk": "none"
+    },
+    {
+      "target": "UCI Vehicle",
+      "sourceMacroF1": null,
+      "randomMacroF1": null,
+      "delta": null,
+      "risk": "ambiguous"
+    }
+  ],
+  "evidenceHash": "09ddc5b41b91e35006984d46349b5aa8d8124fb8d8071469b4c1e25e1976e272"
+}

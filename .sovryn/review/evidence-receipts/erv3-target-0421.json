@@ -1,0 +1,59 @@
+{
+  "receiptId": "receipt-erv3-target-0421",
+  "targetId": "erv3-target-0421",
+  "claimId": "ERV3-C0421",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.410936Z",
+  "artifactHash": "23d98cd7a8fa3265ef82b7d9f63ac2afb65753dfc189c16026e9698e4cc2804b",
+  "downloadedBytes": 135535,
+  "fileSize": 135535,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for benchmark_protocol",
+    "run bounded evidence-field check for ERV3-C0421",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 135535,
+      "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+      "method": "https public source retrieval"
+    },
+    "family": "benchmark_protocol",
+    "sourceName": "scikit-learn iris",
+    "benchmark": {
+      "rows": 150,
+      "features": 4,
+      "task": "classification",
+      "accuracy": 0.9333,
+      "macro_f1": 0.9333,
+      "dummy_accuracy": 0.3333,
+      "dummy_macro_f1": 0.1667,
+      "shuffled_label_macro_f1": 0.2222
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

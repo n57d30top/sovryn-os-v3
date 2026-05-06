@@ -1,0 +1,56 @@
+{
+  "receiptId": "receipt-erv3-target-0285",
+  "targetId": "erv3-target-0285",
+  "claimId": "ERV3-C0285",
+  "sourceUrl": "https://github.com/pypa/sampleproject",
+  "retrievalMethod": "public time-series load with temporal and shuffled-time checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.567771Z",
+  "artifactHash": "aec2310cf5bd19d96460900e8a02f2af49f94045f3e238e4c6e4a3def2ead42e",
+  "downloadedBytes": 260662,
+  "fileSize": 260662,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for timeseries_temporal",
+    "run bounded evidence-field check for ERV3-C0285",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 260662,
+      "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+      "method": "https public source retrieval"
+    },
+    "family": "timeseries_temporal",
+    "sourceName": "pypa sampleproject",
+    "temporal": {
+      "series": "statsmodels sunspots",
+      "observations": 309,
+      "temporal_mae": 41.299,
+      "random_split_mae": 32.3083,
+      "shuffled_time_mae": 41.1295
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

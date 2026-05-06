@@ -1,0 +1,14 @@
+{
+  "kind": "overblocking_underblocking_calibration",
+  "createdAt": "2026-05-06T19:10:52.655Z",
+  "decisionCount": 100,
+  "blockedDowngradedNotTestableCount": 20,
+  "allowedCaveatedPreservedCount": 80,
+  "wrongPartialInconclusiveCount": 74,
+  "overblockingRisk": "low",
+  "underblockingRisk": "low",
+  "revisedRuleCount": 8,
+  "artifactRefs": [
+    ".sovryn/review/calibration-report.json"
+  ]
+}

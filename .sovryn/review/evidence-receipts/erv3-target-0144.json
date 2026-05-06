@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0144",
+  "targetId": "erv3-target-0144",
+  "claimId": "ERV3-C0144",
+  "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+  "retrievalMethod": "public dataset load with schema and duplicate checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.551334Z",
+  "artifactHash": "2c35dc070203cb134e7d629870560afbafc19f13b7c46064b0b35e4cd624a397",
+  "downloadedBytes": 85053,
+  "fileSize": 85053,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for dataset_quality",
+    "run bounded evidence-field check for ERV3-C0144",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 85053,
+      "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+      "method": "https public source retrieval"
+    },
+    "family": "dataset_quality",
+    "sourceName": "packaging version docs",
+    "dataset_quality": {
+      "rows": 150,
+      "columns": 4,
+      "missing_values": 0,
+      "duplicate_feature_rows": 1,
+      "classes_or_targets": 3
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control"
+  ]
+}

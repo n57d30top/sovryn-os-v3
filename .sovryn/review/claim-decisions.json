@@ -1,0 +1,4102 @@
+[
+  {
+    "claimId": "ERV3-C0001",
+    "targetId": "erv3-target-0001",
+    "predictionId": "ERV3-P0001",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0001",
+    "briefPath": "reviewer-briefs/ERV3-C0001.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn iris",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.3111
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0176",
+    "targetId": "erv3-target-0176",
+    "predictionId": "ERV3-P0002",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0176",
+    "briefPath": "reviewer-briefs/ERV3-C0176.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "requests package",
+      "package": {
+        "module": "requests",
+        "import_ok": true,
+        "version": "2.33.1"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0351",
+    "targetId": "erv3-target-0351",
+    "predictionId": "ERV3-P0003",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0351",
+    "briefPath": "reviewer-briefs/ERV3-C0351.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn digits",
+      "benchmark": {
+        "rows": 1797,
+        "features": 64,
+        "task": "classification",
+        "accuracy": 0.9593,
+        "macro_f1": 0.9594,
+        "dummy_accuracy": 0.1019,
+        "dummy_macro_f1": 0.0185,
+        "shuffled_label_macro_f1": 0.0903
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0106",
+    "targetId": "erv3-target-0106",
+    "predictionId": "ERV3-P0004",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0106",
+    "briefPath": "reviewer-briefs/ERV3-C0106.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "pytest documentation",
+      "package": {
+        "module": "pytest",
+        "import_ok": false,
+        "error": "ModuleNotFoundError"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0281",
+    "targetId": "erv3-target-0281",
+    "predictionId": "ERV3-P0005",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0281",
+    "briefPath": "reviewer-briefs/ERV3-C0281.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "statsmodels co2",
+      "benchmark": {
+        "rows": 2225,
+        "features": 1,
+        "task": "regression",
+        "temporal_r2": 0.3735,
+        "dummy_r2": -24.6181,
+        "temporal_mae": 4.1926,
+        "dummy_mae": 30.4327
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0456",
+    "targetId": "erv3-target-0456",
+    "predictionId": "ERV3-P0006",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0456",
+    "briefPath": "reviewer-briefs/ERV3-C0456.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "packaging version docs",
+      "package": {
+        "module": "packaging",
+        "import_ok": true,
+        "version": "26.2"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0036",
+    "targetId": "erv3-target-0036",
+    "predictionId": "ERV3-P0007",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0036",
+    "briefPath": "reviewer-briefs/ERV3-C0036.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "packaging version docs",
+      "package": {
+        "module": "packaging",
+        "import_ok": true,
+        "version": "26.2"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0211",
+    "targetId": "erv3-target-0211",
+    "predictionId": "ERV3-P0008",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0211",
+    "briefPath": "reviewer-briefs/ERV3-C0211.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "pandas package",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9333,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.4164
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0386",
+    "targetId": "erv3-target-0386",
+    "predictionId": "ERV3-P0009",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0386",
+    "briefPath": "reviewer-briefs/ERV3-C0386.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "scikit-learn wine",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0141",
+    "targetId": "erv3-target-0141",
+    "predictionId": "ERV3-P0010",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "blocked",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0141",
+    "briefPath": "reviewer-briefs/ERV3-C0141.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "pypa sampleproject",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.4578
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0316",
+    "targetId": "erv3-target-0316",
+    "predictionId": "ERV3-P0011",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0316",
+    "briefPath": "reviewer-briefs/ERV3-C0316.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "statsmodels sunspots",
+      "package": {
+        "module": "statsmodels",
+        "import_ok": true,
+        "version": "0.14.6"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0491",
+    "targetId": "erv3-target-0491",
+    "predictionId": "ERV3-P0012",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0491",
+    "briefPath": "reviewer-briefs/ERV3-C0491.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn model evaluation",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.3648
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0071",
+    "targetId": "erv3-target-0071",
+    "predictionId": "ERV3-P0013",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0071",
+    "briefPath": "reviewer-briefs/ERV3-C0071.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn model evaluation",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.4083
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0246",
+    "targetId": "erv3-target-0246",
+    "predictionId": "ERV3-P0014",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0246",
+    "briefPath": "reviewer-briefs/ERV3-C0246.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "numpy package",
+      "package": {
+        "module": "numpy",
+        "import_ok": true,
+        "version": "2.4.4"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0421",
+    "targetId": "erv3-target-0421",
+    "predictionId": "ERV3-P0015",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0421",
+    "briefPath": "reviewer-briefs/ERV3-C0421.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn iris",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9333,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.2222
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0002",
+    "targetId": "erv3-target-0002",
+    "predictionId": "ERV3-P0016",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0002",
+    "briefPath": "reviewer-briefs/ERV3-C0002.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "scikit-learn wine",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0177",
+    "targetId": "erv3-target-0177",
+    "predictionId": "ERV3-P0017",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0177",
+    "briefPath": "reviewer-briefs/ERV3-C0177.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "pypa sampleproject",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0352",
+    "targetId": "erv3-target-0352",
+    "predictionId": "ERV3-P0018",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0352",
+    "briefPath": "reviewer-briefs/ERV3-C0352.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "statsmodels sunspots",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0107",
+    "targetId": "erv3-target-0107",
+    "predictionId": "ERV3-P0019",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0107",
+    "briefPath": "reviewer-briefs/ERV3-C0107.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "scikit-learn model evaluation",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0282",
+    "targetId": "erv3-target-0282",
+    "predictionId": "ERV3-P0020",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0282",
+    "briefPath": "reviewer-briefs/ERV3-C0282.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "numpy package",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0457",
+    "targetId": "erv3-target-0457",
+    "predictionId": "ERV3-P0021",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0457",
+    "briefPath": "reviewer-briefs/ERV3-C0457.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "scikit-learn iris",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0037",
+    "targetId": "erv3-target-0037",
+    "predictionId": "ERV3-P0022",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0037",
+    "briefPath": "reviewer-briefs/ERV3-C0037.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "scikit-learn iris",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0212",
+    "targetId": "erv3-target-0212",
+    "predictionId": "ERV3-P0023",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0212",
+    "briefPath": "reviewer-briefs/ERV3-C0212.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "requests package",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0387",
+    "targetId": "erv3-target-0387",
+    "predictionId": "ERV3-P0024",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0387",
+    "briefPath": "reviewer-briefs/ERV3-C0387.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "scikit-learn digits",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0142",
+    "targetId": "erv3-target-0142",
+    "predictionId": "ERV3-P0025",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0142",
+    "briefPath": "reviewer-briefs/ERV3-C0142.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "pytest documentation",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0317",
+    "targetId": "erv3-target-0317",
+    "predictionId": "ERV3-P0026",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0317",
+    "briefPath": "reviewer-briefs/ERV3-C0317.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "statsmodels co2",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0492",
+    "targetId": "erv3-target-0492",
+    "predictionId": "ERV3-P0027",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "not_testable",
+    "correct": true,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control",
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0492",
+    "briefPath": "reviewer-briefs/ERV3-C0492.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "packaging version docs",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0072",
+    "targetId": "erv3-target-0072",
+    "predictionId": "ERV3-P0028",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "not_testable",
+    "correct": true,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0072",
+    "briefPath": "reviewer-briefs/ERV3-C0072.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "packaging version docs",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0247",
+    "targetId": "erv3-target-0247",
+    "predictionId": "ERV3-P0029",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0247",
+    "briefPath": "reviewer-briefs/ERV3-C0247.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "pandas package",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0422",
+    "targetId": "erv3-target-0422",
+    "predictionId": "ERV3-P0030",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "not_testable",
+    "correct": true,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0422",
+    "briefPath": "reviewer-briefs/ERV3-C0422.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "scikit-learn wine",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0003",
+    "targetId": "erv3-target-0003",
+    "predictionId": "ERV3-P0031",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0003",
+    "briefPath": "reviewer-briefs/ERV3-C0003.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "scikit-learn digits",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0178",
+    "targetId": "erv3-target-0178",
+    "predictionId": "ERV3-P0032",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0178",
+    "briefPath": "reviewer-briefs/ERV3-C0178.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "pytest documentation",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.4474
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0353",
+    "targetId": "erv3-target-0353",
+    "predictionId": "ERV3-P0033",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0353",
+    "briefPath": "reviewer-briefs/ERV3-C0353.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "statsmodels co2",
+      "package": {
+        "module": "statsmodels",
+        "import_ok": true,
+        "version": "0.14.6"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0108",
+    "targetId": "erv3-target-0108",
+    "predictionId": "ERV3-P0034",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "not_testable",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0108",
+    "briefPath": "reviewer-briefs/ERV3-C0108.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "packaging version docs",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9333,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.2971
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0283",
+    "targetId": "erv3-target-0283",
+    "predictionId": "ERV3-P0035",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "not_testable",
+    "observedDecision": "not_testable",
+    "correct": true,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0283",
+    "briefPath": "reviewer-briefs/ERV3-C0283.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "pandas package",
+      "package": {
+        "module": "pandas",
+        "import_ok": true,
+        "version": "3.0.2"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0458",
+    "targetId": "erv3-target-0458",
+    "predictionId": "ERV3-P0036",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0458",
+    "briefPath": "reviewer-briefs/ERV3-C0458.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "scikit-learn wine",
+      "benchmark": {
+        "rows": 178,
+        "features": 13,
+        "task": "classification",
+        "accuracy": 0.9444,
+        "macro_f1": 0.9444,
+        "dummy_accuracy": 0.3889,
+        "dummy_macro_f1": 0.1867,
+        "shuffled_label_macro_f1": 0.5507
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0038",
+    "targetId": "erv3-target-0038",
+    "predictionId": "ERV3-P0037",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0038",
+    "briefPath": "reviewer-briefs/ERV3-C0038.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "scikit-learn wine",
+      "benchmark": {
+        "rows": 178,
+        "features": 13,
+        "task": "classification",
+        "accuracy": 0.963,
+        "macro_f1": 0.9636,
+        "dummy_accuracy": 0.3889,
+        "dummy_macro_f1": 0.1867,
+        "shuffled_label_macro_f1": 0.4653
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0213",
+    "targetId": "erv3-target-0213",
+    "predictionId": "ERV3-P0038",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0213",
+    "briefPath": "reviewer-briefs/ERV3-C0213.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "pypa sampleproject",
+      "package": {
+        "module": "numpy",
+        "import_ok": true,
+        "version": "2.4.4"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0388",
+    "targetId": "erv3-target-0388",
+    "predictionId": "ERV3-P0039",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0388",
+    "briefPath": "reviewer-briefs/ERV3-C0388.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "statsmodels sunspots",
+      "benchmark": {
+        "rows": 309,
+        "features": 1,
+        "task": "regression",
+        "temporal_r2": -0.2062,
+        "dummy_r2": -0.2214,
+        "temporal_mae": 41.299,
+        "dummy_mae": 41.4054
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0143",
+    "targetId": "erv3-target-0143",
+    "predictionId": "ERV3-P0040",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0143",
+    "briefPath": "reviewer-briefs/ERV3-C0143.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "scikit-learn model evaluation",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0318",
+    "targetId": "erv3-target-0318",
+    "predictionId": "ERV3-P0041",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0318",
+    "briefPath": "reviewer-briefs/ERV3-C0318.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "numpy package",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9333,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.3871
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0493",
+    "targetId": "erv3-target-0493",
+    "predictionId": "ERV3-P0042",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0493",
+    "briefPath": "reviewer-briefs/ERV3-C0493.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "scikit-learn iris",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0073",
+    "targetId": "erv3-target-0073",
+    "predictionId": "ERV3-P0043",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0073",
+    "briefPath": "reviewer-briefs/ERV3-C0073.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "scikit-learn iris",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0248",
+    "targetId": "erv3-target-0248",
+    "predictionId": "ERV3-P0044",
+    "claimFamily": "model_comparison",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0248",
+    "briefPath": "reviewer-briefs/ERV3-C0248.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "model_comparison",
+      "sourceName": "requests package",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9327,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.2433
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0423",
+    "targetId": "erv3-target-0423",
+    "predictionId": "ERV3-P0045",
+    "claimFamily": "package_install_test",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0423",
+    "briefPath": "reviewer-briefs/ERV3-C0423.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "package_install_test",
+      "sourceName": "scikit-learn digits",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0004",
+    "targetId": "erv3-target-0004",
+    "predictionId": "ERV3-P0046",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0004",
+    "briefPath": "reviewer-briefs/ERV3-C0004.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "statsmodels sunspots",
+      "dataset_quality": {
+        "rows": 309,
+        "columns": 1,
+        "missing_values": 0,
+        "duplicate_feature_rows": 0,
+        "classes_or_targets": 256
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0179",
+    "targetId": "erv3-target-0179",
+    "predictionId": "ERV3-P0047",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control",
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0179",
+    "briefPath": "reviewer-briefs/ERV3-C0179.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "scikit-learn model evaluation",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 435098,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0354",
+    "targetId": "erv3-target-0354",
+    "predictionId": "ERV3-P0048",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0354",
+    "briefPath": "reviewer-briefs/ERV3-C0354.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "numpy package",
+      "dataset_quality": {
+        "rows": 150,
+        "columns": 4,
+        "missing_values": 0,
+        "duplicate_feature_rows": 1,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0109",
+    "targetId": "erv3-target-0109",
+    "predictionId": "ERV3-P0049",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control",
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0109",
+    "briefPath": "reviewer-briefs/ERV3-C0109.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "scikit-learn iris",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 135535,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0284",
+    "targetId": "erv3-target-0284",
+    "predictionId": "ERV3-P0050",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0284",
+    "briefPath": "reviewer-briefs/ERV3-C0284.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "requests package",
+      "dataset_quality": {
+        "rows": 150,
+        "columns": 4,
+        "missing_values": 0,
+        "duplicate_feature_rows": 1,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0459",
+    "targetId": "erv3-target-0459",
+    "predictionId": "ERV3-P0051",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0459",
+    "briefPath": "reviewer-briefs/ERV3-C0459.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "scikit-learn digits",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 130173,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0039",
+    "targetId": "erv3-target-0039",
+    "predictionId": "ERV3-P0052",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0039",
+    "briefPath": "reviewer-briefs/ERV3-C0039.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "scikit-learn digits",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 130173,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0214",
+    "targetId": "erv3-target-0214",
+    "predictionId": "ERV3-P0053",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0214",
+    "briefPath": "reviewer-briefs/ERV3-C0214.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "pytest documentation",
+      "dataset_quality": {
+        "rows": 150,
+        "columns": 4,
+        "missing_values": 0,
+        "duplicate_feature_rows": 1,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0389",
+    "targetId": "erv3-target-0389",
+    "predictionId": "ERV3-P0054",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0389",
+    "briefPath": "reviewer-briefs/ERV3-C0389.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "statsmodels co2",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 44796,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0144",
+    "targetId": "erv3-target-0144",
+    "predictionId": "ERV3-P0055",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0144",
+    "briefPath": "reviewer-briefs/ERV3-C0144.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "packaging version docs",
+      "dataset_quality": {
+        "rows": 150,
+        "columns": 4,
+        "missing_values": 0,
+        "duplicate_feature_rows": 1,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0319",
+    "targetId": "erv3-target-0319",
+    "predictionId": "ERV3-P0056",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0319",
+    "briefPath": "reviewer-briefs/ERV3-C0319.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "pandas package",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 545691,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0494",
+    "targetId": "erv3-target-0494",
+    "predictionId": "ERV3-P0057",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0494",
+    "briefPath": "reviewer-briefs/ERV3-C0494.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "scikit-learn wine",
+      "dataset_quality": {
+        "rows": 178,
+        "columns": 13,
+        "missing_values": 0,
+        "duplicate_feature_rows": 0,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0074",
+    "targetId": "erv3-target-0074",
+    "predictionId": "ERV3-P0058",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0074",
+    "briefPath": "reviewer-briefs/ERV3-C0074.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "scikit-learn wine",
+      "dataset_quality": {
+        "rows": 178,
+        "columns": 13,
+        "missing_values": 0,
+        "duplicate_feature_rows": 0,
+        "classes_or_targets": 3
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0249",
+    "targetId": "erv3-target-0249",
+    "predictionId": "ERV3-P0059",
+    "claimFamily": "documentation_protocol",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "negative_control",
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0249",
+    "briefPath": "reviewer-briefs/ERV3-C0249.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "documentation_protocol",
+      "sourceName": "pypa sampleproject",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 260662,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0424",
+    "targetId": "erv3-target-0424",
+    "predictionId": "ERV3-P0060",
+    "claimFamily": "dataset_quality",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0424",
+    "briefPath": "reviewer-briefs/ERV3-C0424.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "dataset_quality",
+      "sourceName": "statsmodels sunspots",
+      "dataset_quality": {
+        "rows": 309,
+        "columns": 1,
+        "missing_values": 0,
+        "duplicate_feature_rows": 0,
+        "classes_or_targets": 256
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0005",
+    "targetId": "erv3-target-0005",
+    "predictionId": "ERV3-P0061",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0005",
+    "briefPath": "reviewer-briefs/ERV3-C0005.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "statsmodels co2",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 31.3037,
+        "shuffled_time_mae": 40.6644
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0180",
+    "targetId": "erv3-target-0180",
+    "predictionId": "ERV3-P0062",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0180",
+    "briefPath": "reviewer-briefs/ERV3-C0180.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "packaging version docs",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 85053,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0355",
+    "targetId": "erv3-target-0355",
+    "predictionId": "ERV3-P0063",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "allowed",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0355",
+    "briefPath": "reviewer-briefs/ERV3-C0355.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "pandas package",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 32.6482,
+        "shuffled_time_mae": 40.6052
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0110",
+    "targetId": "erv3-target-0110",
+    "predictionId": "ERV3-P0064",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0110",
+    "briefPath": "reviewer-briefs/ERV3-C0110.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "scikit-learn wine",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 115535,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0285",
+    "targetId": "erv3-target-0285",
+    "predictionId": "ERV3-P0065",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0285",
+    "briefPath": "reviewer-briefs/ERV3-C0285.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "pypa sampleproject",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 32.3083,
+        "shuffled_time_mae": 41.1295
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0460",
+    "targetId": "erv3-target-0460",
+    "predictionId": "ERV3-P0066",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0460",
+    "briefPath": "reviewer-briefs/ERV3-C0460.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "statsmodels sunspots",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 43971,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0040",
+    "targetId": "erv3-target-0040",
+    "predictionId": "ERV3-P0067",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control",
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0040",
+    "briefPath": "reviewer-briefs/ERV3-C0040.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "statsmodels sunspots",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 43971,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0215",
+    "targetId": "erv3-target-0215",
+    "predictionId": "ERV3-P0068",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0215",
+    "briefPath": "reviewer-briefs/ERV3-C0215.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "scikit-learn model evaluation",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 31.672,
+        "shuffled_time_mae": 40.7028
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0390",
+    "targetId": "erv3-target-0390",
+    "predictionId": "ERV3-P0069",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0390",
+    "briefPath": "reviewer-briefs/ERV3-C0390.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "numpy package",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 749334,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0145",
+    "targetId": "erv3-target-0145",
+    "predictionId": "ERV3-P0070",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0145",
+    "briefPath": "reviewer-briefs/ERV3-C0145.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "scikit-learn iris",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 30.7422,
+        "shuffled_time_mae": 40.4693
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0320",
+    "targetId": "erv3-target-0320",
+    "predictionId": "ERV3-P0071",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control",
+      "baseline"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0320",
+    "briefPath": "reviewer-briefs/ERV3-C0320.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "requests package",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 195360,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0495",
+    "targetId": "erv3-target-0495",
+    "predictionId": "ERV3-P0072",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0495",
+    "briefPath": "reviewer-briefs/ERV3-C0495.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "scikit-learn digits",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 34.247,
+        "shuffled_time_mae": 40.4986
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0075",
+    "targetId": "erv3-target-0075",
+    "predictionId": "ERV3-P0073",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0075",
+    "briefPath": "reviewer-briefs/ERV3-C0075.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "scikit-learn digits",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 29.1146,
+        "shuffled_time_mae": 40.4871
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0250",
+    "targetId": "erv3-target-0250",
+    "predictionId": "ERV3-P0074",
+    "claimFamily": "review_standard",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0250",
+    "briefPath": "reviewer-briefs/ERV3-C0250.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "review_standard",
+      "sourceName": "pytest documentation",
+      "document": {
+        "source_status": 200,
+        "bytes_seen": 54920,
+        "review_fields_checked": 4
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0425",
+    "targetId": "erv3-target-0425",
+    "predictionId": "ERV3-P0075",
+    "claimFamily": "timeseries_temporal",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "allowed",
+    "observedDecision": "allowed",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0425",
+    "briefPath": "reviewer-briefs/ERV3-C0425.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "timeseries_temporal",
+      "sourceName": "statsmodels co2",
+      "temporal": {
+        "series": "statsmodels sunspots",
+        "observations": 309,
+        "temporal_mae": 41.299,
+        "random_split_mae": 35.9787,
+        "shuffled_time_mae": 41.522
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0076",
+    "targetId": "erv3-target-0076",
+    "predictionId": "ERV3-P0076",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0076",
+    "briefPath": "reviewer-briefs/ERV3-C0076.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "statsmodels sunspots",
+      "package": {
+        "module": "statsmodels",
+        "import_ok": true,
+        "version": "0.14.6"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0251",
+    "targetId": "erv3-target-0251",
+    "predictionId": "ERV3-P0077",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0251",
+    "briefPath": "reviewer-briefs/ERV3-C0251.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn model evaluation",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.4681
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0426",
+    "targetId": "erv3-target-0426",
+    "predictionId": "ERV3-P0078",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0426",
+    "briefPath": "reviewer-briefs/ERV3-C0426.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "numpy package",
+      "package": {
+        "module": "numpy",
+        "import_ok": true,
+        "version": "2.4.4"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0006",
+    "targetId": "erv3-target-0006",
+    "predictionId": "ERV3-P0079",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0006",
+    "briefPath": "reviewer-briefs/ERV3-C0006.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "numpy package",
+      "package": {
+        "module": "numpy",
+        "import_ok": true,
+        "version": "2.4.4"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0181",
+    "targetId": "erv3-target-0181",
+    "predictionId": "ERV3-P0080",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0181",
+    "briefPath": "reviewer-briefs/ERV3-C0181.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 135535,
+        "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn iris",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.5132
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0356",
+    "targetId": "erv3-target-0356",
+    "predictionId": "ERV3-P0081",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0356",
+    "briefPath": "reviewer-briefs/ERV3-C0356.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 195360,
+        "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "requests package",
+      "package": {
+        "module": "requests",
+        "import_ok": true,
+        "version": "2.33.1"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0111",
+    "targetId": "erv3-target-0111",
+    "predictionId": "ERV3-P0082",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0111",
+    "briefPath": "reviewer-briefs/ERV3-C0111.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 130173,
+        "hash": "73f719253b7306e33cb8937ba91e77f49e2d2da0e9bce189a5cb7bd7c0e33b55",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "scikit-learn digits",
+      "benchmark": {
+        "rows": 1797,
+        "features": 64,
+        "task": "classification",
+        "accuracy": 0.9722,
+        "macro_f1": 0.9722,
+        "dummy_accuracy": 0.1019,
+        "dummy_macro_f1": 0.0185,
+        "shuffled_label_macro_f1": 0.1133
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0286",
+    "targetId": "erv3-target-0286",
+    "predictionId": "ERV3-P0083",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0286",
+    "briefPath": "reviewer-briefs/ERV3-C0286.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 54920,
+        "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "pytest documentation",
+      "package": {
+        "module": "pytest",
+        "import_ok": false,
+        "error": "ModuleNotFoundError"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0461",
+    "targetId": "erv3-target-0461",
+    "predictionId": "ERV3-P0084",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0461",
+    "briefPath": "reviewer-briefs/ERV3-C0461.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "statsmodels co2",
+      "benchmark": {
+        "rows": 2225,
+        "features": 1,
+        "task": "regression",
+        "temporal_r2": 0.3735,
+        "dummy_r2": -24.6181,
+        "temporal_mae": 4.1926,
+        "dummy_mae": 30.4327
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0041",
+    "targetId": "erv3-target-0041",
+    "predictionId": "ERV3-P0085",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0041",
+    "briefPath": "reviewer-briefs/ERV3-C0041.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "statsmodels co2",
+      "benchmark": {
+        "rows": 2225,
+        "features": 1,
+        "task": "regression",
+        "temporal_r2": 0.3735,
+        "dummy_r2": -24.6181,
+        "temporal_mae": 4.1926,
+        "dummy_mae": 30.4327
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0216",
+    "targetId": "erv3-target-0216",
+    "predictionId": "ERV3-P0086",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0216",
+    "briefPath": "reviewer-briefs/ERV3-C0216.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "packaging version docs",
+      "package": {
+        "module": "packaging",
+        "import_ok": true,
+        "version": "26.2"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0391",
+    "targetId": "erv3-target-0391",
+    "predictionId": "ERV3-P0087",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0391",
+    "briefPath": "reviewer-briefs/ERV3-C0391.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "pandas package",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9333,
+        "macro_f1": 0.9333,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.6185
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0146",
+    "targetId": "erv3-target-0146",
+    "predictionId": "ERV3-P0088",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0146",
+    "briefPath": "reviewer-briefs/ERV3-C0146.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "scikit-learn wine",
+      "package": {
+        "module": "sklearn",
+        "import_ok": true,
+        "version": "1.8.0"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0321",
+    "targetId": "erv3-target-0321",
+    "predictionId": "ERV3-P0089",
+    "claimFamily": "benchmark_protocol",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0321",
+    "briefPath": "reviewer-briefs/ERV3-C0321.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "benchmark_protocol",
+      "sourceName": "pypa sampleproject",
+      "benchmark": {
+        "rows": 150,
+        "features": 4,
+        "task": "classification",
+        "accuracy": 0.9778,
+        "macro_f1": 0.9778,
+        "dummy_accuracy": 0.3333,
+        "dummy_macro_f1": 0.1667,
+        "shuffled_label_macro_f1": 0.1778
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0496",
+    "targetId": "erv3-target-0496",
+    "predictionId": "ERV3-P0090",
+    "claimFamily": "tool_usefulness",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0496",
+    "briefPath": "reviewer-briefs/ERV3-C0496.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "tool_usefulness",
+      "sourceName": "statsmodels sunspots",
+      "package": {
+        "module": "statsmodels",
+        "import_ok": true,
+        "version": "0.14.6"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0077",
+    "targetId": "erv3-target-0077",
+    "predictionId": "ERV3-P0091",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0077",
+    "briefPath": "reviewer-briefs/ERV3-C0077.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 44796,
+        "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "statsmodels co2",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0252",
+    "targetId": "erv3-target-0252",
+    "predictionId": "ERV3-P0092",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0252",
+    "briefPath": "reviewer-briefs/ERV3-C0252.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 85053,
+        "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "packaging version docs",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0427",
+    "targetId": "erv3-target-0427",
+    "predictionId": "ERV3-P0093",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0427",
+    "briefPath": "reviewer-briefs/ERV3-C0427.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "pandas package",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0007",
+    "targetId": "erv3-target-0007",
+    "predictionId": "ERV3-P0094",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0007",
+    "briefPath": "reviewer-briefs/ERV3-C0007.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 545691,
+        "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "pandas package",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0182",
+    "targetId": "erv3-target-0182",
+    "predictionId": "ERV3-P0095",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0182",
+    "briefPath": "reviewer-briefs/ERV3-C0182.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 115535,
+        "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "scikit-learn wine",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0357",
+    "targetId": "erv3-target-0357",
+    "predictionId": "ERV3-P0096",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "allowed_with_caveats",
+    "correct": true,
+    "wrongPartialOrInconclusive": false,
+    "missingFields": [
+      "replay"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0357",
+    "briefPath": "reviewer-briefs/ERV3-C0357.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 260662,
+        "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "pypa sampleproject",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0112",
+    "targetId": "erv3-target-0112",
+    "predictionId": "ERV3-P0097",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "predictedDecision": "downgraded",
+    "observedDecision": "allowed_with_caveats",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "negative_control"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0112",
+    "briefPath": "reviewer-briefs/ERV3-C0112.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 43971,
+        "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "statsmodels sunspots",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0287",
+    "targetId": "erv3-target-0287",
+    "predictionId": "ERV3-P0098",
+    "claimFamily": "conceptual_principle",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "receiptId": "receipt-erv3-target-0287",
+    "briefPath": "reviewer-briefs/ERV3-C0287.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 435098,
+        "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+        "method": "https public source retrieval"
+      },
+      "family": "conceptual_principle",
+      "sourceName": "scikit-learn model evaluation",
+      "concept": {
+        "examples_checked": 2,
+        "non_examples_checked": 1,
+        "rival_explanations": 2,
+        "status": "evidence_check_complete"
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0462",
+    "targetId": "erv3-target-0462",
+    "predictionId": "ERV3-P0099",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "downgraded",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "negative_control",
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "baseline"
+    ],
+    "receiptId": "receipt-erv3-target-0462",
+    "briefPath": "reviewer-briefs/ERV3-C0462.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "numpy package",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  },
+  {
+    "claimId": "ERV3-C0042",
+    "targetId": "erv3-target-0042",
+    "predictionId": "ERV3-P0100",
+    "claimFamily": "repo_test_reproduction",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "predictedDecision": "allowed_with_caveats",
+    "observedDecision": "not_testable",
+    "correct": false,
+    "wrongPartialOrInconclusive": true,
+    "missingFields": [
+      "replay",
+      "runtime_evidence"
+    ],
+    "presentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "runtime_evidence",
+      "baseline",
+      "negative_control"
+    ],
+    "receiptId": "receipt-erv3-target-0042",
+    "briefPath": "reviewer-briefs/ERV3-C0042.md",
+    "metricsSummary": {
+      "source": {
+        "ok": true,
+        "status": 200,
+        "bytes": 749334,
+        "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+        "method": "https public source retrieval"
+      },
+      "family": "repo_test_reproduction",
+      "sourceName": "numpy package",
+      "repo": {
+        "repo_check": "metadata_only",
+        "runtime_available": false
+      }
+    }
+  }
+]

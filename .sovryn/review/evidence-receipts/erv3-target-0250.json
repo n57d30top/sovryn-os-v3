@@ -1,0 +1,56 @@
+{
+  "receiptId": "receipt-erv3-target-0250",
+  "targetId": "erv3-target-0250",
+  "claimId": "ERV3-C0250",
+  "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+  "retrievalMethod": "public documentation evidence-field check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.581566Z",
+  "artifactHash": "1391036f5f62933fcb135b1767887dacd6e3f4cb2cf5545959fc54fac3e820bc",
+  "downloadedBytes": 54920,
+  "fileSize": 54920,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for review_standard",
+    "run bounded evidence-field check for ERV3-C0250",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 54920,
+      "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+      "method": "https public source retrieval"
+    },
+    "family": "review_standard",
+    "sourceName": "pytest documentation",
+    "document": {
+      "source_status": 200,
+      "bytes_seen": 54920,
+      "review_fields_checked": 4
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control"
+  ]
+}

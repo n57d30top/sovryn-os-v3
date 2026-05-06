@@ -1,0 +1,56 @@
+{
+  "receiptId": "receipt-erv3-target-0352",
+  "targetId": "erv3-target-0352",
+  "claimId": "ERV3-C0352",
+  "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+  "retrievalMethod": "public repository availability and runtime-evidence check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.415004Z",
+  "artifactHash": "af743f6411f5dc09f7be81ef914336200e369ef588a6aa45595da60ddeeaf628",
+  "downloadedBytes": 43971,
+  "fileSize": 43971,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for repo_test_reproduction",
+    "run bounded evidence-field check for ERV3-C0352",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": false,
+  "failureReason": "Repository runtime evidence was partial or unavailable after public metadata check.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 43971,
+      "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+      "method": "https public source retrieval"
+    },
+    "family": "repo_test_reproduction",
+    "sourceName": "statsmodels sunspots",
+    "repo": {
+      "repo_check": "metadata_only",
+      "runtime_available": false
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "replay",
+    "runtime_evidence"
+  ]
+}

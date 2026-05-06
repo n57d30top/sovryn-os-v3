@@ -1,0 +1,55 @@
+{
+  "receiptId": "receipt-erv3-target-0182",
+  "targetId": "erv3-target-0182",
+  "claimId": "ERV3-C0182",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+  "retrievalMethod": "public repository availability and runtime-evidence check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.763907Z",
+  "artifactHash": "f118f1394f6d5f0e6c194d38da5ea3e6f1e2f915d8c973a069eb2d9a7402a800",
+  "downloadedBytes": 115535,
+  "fileSize": 115535,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for repo_test_reproduction",
+    "run bounded evidence-field check for ERV3-C0182",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 115535,
+      "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+      "method": "https public source retrieval"
+    },
+    "family": "repo_test_reproduction",
+    "sourceName": "scikit-learn wine",
+    "repo": {
+      "repo_check": "metadata_only",
+      "runtime_available": false
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control"
+  ]
+}

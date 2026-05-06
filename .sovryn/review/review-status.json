@@ -1,0 +1,13 @@
+{
+  "kind": "external_review_scientist_status",
+  "updatedAt": "2026-05-06T19:10:52.646Z",
+  "targetUniverseCount": 500,
+  "screenedTargetCount": 200,
+  "frozenPredictionCount": 100,
+  "evidenceReceiptCount": 100,
+  "claimDecisionCount": 100,
+  "readinessLabel": "receipt_backed_review_ready",
+  "artifactRefs": [
+    ".sovryn/review/review-status.json"
+  ]
+}

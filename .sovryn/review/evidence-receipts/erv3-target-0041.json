@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0041",
+  "targetId": "erv3-target-0041",
+  "claimId": "ERV3-C0041",
+  "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.735667Z",
+  "artifactHash": "bd55e8be9187661774b986436054cf514ec95729de01bc09559b7643a37c7a9c",
+  "downloadedBytes": 44796,
+  "fileSize": 44796,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for benchmark_protocol",
+    "run bounded evidence-field check for ERV3-C0041",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 44796,
+      "hash": "db626dd78ec738da2b4c791f3be820c40efc8dd5f4ecf4450471a37340dff1b0",
+      "method": "https public source retrieval"
+    },
+    "family": "benchmark_protocol",
+    "sourceName": "statsmodels co2",
+    "benchmark": {
+      "rows": 2225,
+      "features": 1,
+      "task": "regression",
+      "temporal_r2": 0.3735,
+      "dummy_r2": -24.6181,
+      "temporal_mae": 4.1926,
+      "dummy_mae": 30.4327
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

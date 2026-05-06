@@ -52,6 +52,7 @@ import { FieldGradeService } from "../core/field/field-grade-service.js";
 import { FrontierService } from "../core/frontier/frontier-service.js";
 import { ExternalProductionService } from "../core/external-production/external-production-service.js";
 import { ExternalReproductionService } from "../core/external-reproduction/external-reproduction-service.js";
+import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
@@ -118,6 +119,19 @@ Commands:
   sovryn scientist review [--json]
   sovryn scientist memory [--json]
   sovryn scientist audit [--target-repo <path>] [--json]
+  sovryn review status [--json]
+  sovryn review mine-targets --count 500 [--json]
+  sovryn review screen-targets [--json]
+  sovryn review freeze-predictions --count 100 [--json]
+  sovryn review plan-executions [--json]
+  sovryn review run-audit <claim-id> [--json]
+  sovryn review run-wave <wave-id> [--json]
+  sovryn review receipts verify [--json]
+  sovryn review package [--json]
+  sovryn review calibrate [--json]
+  sovryn review kill-week [--json]
+  sovryn review final-report [--json]
+  sovryn review audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -542,6 +556,16 @@ export async function executeCli(
         });
       }
       case "review": {
+        if (isExternalReviewCommand(parsed.positionals[0])) {
+          const result = await reviewScientistCommand(parsed, root);
+          return okEnvelope("review", result, {
+            artifactRefs: Array.isArray(result.artifactRefs)
+              ? result.artifactRefs.filter(
+                  (value): value is string => typeof value === "string",
+                )
+              : [],
+          });
+        }
         const id = requiredId(parsed);
         const result = await service.review(id);
         return okEnvelope("mission.review", result, {
@@ -1168,6 +1192,76 @@ async function scientistCommand(
       throw new AppError(
         "UNKNOWN_SCIENTIST_COMMAND",
         `Unknown scientist command: ${subcommand}`,
+      );
+  }
+}
+
+async function reviewScientistCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "REVIEW_COMMAND_REQUIRED",
+      "Use: sovryn review <status|mine-targets|screen-targets|freeze-predictions|plan-executions|run-audit|run-wave|receipts|package|calibrate|kill-week|final-report|audit>.",
+    );
+  }
+  const service = new ExternalReviewScientistService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "mine-targets":
+      return service.mineTargets(flagInt(parsed.flags, "--count", 500));
+    case "screen-targets":
+      return service.screenTargets();
+    case "freeze-predictions":
+      return service.freezePredictions(flagInt(parsed.flags, "--count", 100));
+    case "plan-executions":
+      return service.planExecutions();
+    case "run-audit": {
+      const claimId = parsed.positionals[1];
+      if (!claimId) {
+        throw new AppError(
+          "REVIEW_CLAIM_ID_REQUIRED",
+          "review run-audit requires a claim id or prediction id.",
+        );
+      }
+      return service.runAudit(claimId);
+    }
+    case "run-wave": {
+      const waveId = parsed.positionals[1];
+      if (!waveId) {
+        throw new AppError(
+          "REVIEW_WAVE_ID_REQUIRED",
+          "review run-wave requires a wave id.",
+        );
+      }
+      return service.runWave(waveId);
+    }
+    case "receipts": {
+      if (parsed.positionals[1] !== "verify") {
+        throw new AppError(
+          "REVIEW_RECEIPTS_COMMAND_REQUIRED",
+          "Use: sovryn review receipts verify.",
+        );
+      }
+      return service.verifyReceipts();
+    }
+    case "package":
+      return service.package();
+    case "calibrate":
+      return service.calibrate();
+    case "kill-week":
+      return service.killWeek();
+    case "final-report":
+      return service.finalReport();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_REVIEW_COMMAND",
+        `Unknown review command: ${subcommand}`,
       );
   }
 }
@@ -3558,6 +3652,27 @@ function requiredId(parsed: ParsedArgs): string {
       `${parsed.command} requires a mission id.`,
     );
   return id;
+}
+
+function isExternalReviewCommand(subcommand: string | undefined): boolean {
+  return (
+    subcommand !== undefined &&
+    [
+      "status",
+      "mine-targets",
+      "screen-targets",
+      "freeze-predictions",
+      "plan-executions",
+      "run-audit",
+      "run-wave",
+      "receipts",
+      "package",
+      "calibrate",
+      "kill-week",
+      "final-report",
+      "audit",
+    ].includes(subcommand)
+  );
 }
 
 function flagString(

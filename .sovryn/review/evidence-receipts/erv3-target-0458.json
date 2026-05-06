@@ -1,0 +1,61 @@
+{
+  "receiptId": "receipt-erv3-target-0458",
+  "targetId": "erv3-target-0458",
+  "claimId": "ERV3-C0458",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.485814Z",
+  "artifactHash": "bb99211613ab6b0a7f80fc1304de890595ac830612e0fa3bf76cccd6fe7a3659",
+  "downloadedBytes": 115535,
+  "fileSize": 115535,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for model_comparison",
+    "run bounded evidence-field check for ERV3-C0458",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 115535,
+      "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+      "method": "https public source retrieval"
+    },
+    "family": "model_comparison",
+    "sourceName": "scikit-learn wine",
+    "benchmark": {
+      "rows": 178,
+      "features": 13,
+      "task": "classification",
+      "accuracy": 0.9444,
+      "macro_f1": 0.9444,
+      "dummy_accuracy": 0.3889,
+      "dummy_macro_f1": 0.1867,
+      "shuffled_label_macro_f1": 0.5507
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "receiptId": "receipt-erv3-target-0282",
+  "targetId": "erv3-target-0282",
+  "claimId": "ERV3-C0282",
+  "sourceUrl": "https://pypi.org/project/numpy/",
+  "retrievalMethod": "public repository availability and runtime-evidence check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.418487Z",
+  "artifactHash": "a61dbaac3dde69a1bc325fef36e99d244fbc01c1df8210c20433bc60c05893fc",
+  "downloadedBytes": 749334,
+  "fileSize": 749334,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for repo_test_reproduction",
+    "run bounded evidence-field check for ERV3-C0282",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 749334,
+      "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+      "method": "https public source retrieval"
+    },
+    "family": "repo_test_reproduction",
+    "sourceName": "numpy package",
+    "repo": {
+      "repo_check": "metadata_only",
+      "runtime_available": false
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

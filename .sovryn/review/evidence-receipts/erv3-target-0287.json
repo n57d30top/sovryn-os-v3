@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0287",
+  "targetId": "erv3-target-0287",
+  "claimId": "ERV3-C0287",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+  "retrievalMethod": "public concept evidence and non-example check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.766536Z",
+  "artifactHash": "2cced53cffb1d54dbf64a2f7d7118b4d9d44d086e9e76440f45f8be96b621389",
+  "downloadedBytes": 435098,
+  "fileSize": 435098,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for conceptual_principle",
+    "run bounded evidence-field check for ERV3-C0287",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": "Conceptual claim lacked enough non-example evidence for a strong decision.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 435098,
+      "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+      "method": "https public source retrieval"
+    },
+    "family": "conceptual_principle",
+    "sourceName": "scikit-learn model evaluation",
+    "concept": {
+      "examples_checked": 2,
+      "non_examples_checked": 1,
+      "rival_explanations": 2,
+      "status": "evidence_check_complete"
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "runtime_evidence"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "receiptId": "receipt-erv3-target-0427",
+  "targetId": "erv3-target-0427",
+  "claimId": "ERV3-C0427",
+  "sourceUrl": "https://pypi.org/project/pandas/",
+  "retrievalMethod": "public concept evidence and non-example check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.762127Z",
+  "artifactHash": "244961771f03e37f8b952c29b2ce1014d3e6c66c24257148613acd628e57f65b",
+  "downloadedBytes": 545691,
+  "fileSize": 545691,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for conceptual_principle",
+    "run bounded evidence-field check for ERV3-C0427",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 545691,
+      "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+      "method": "https public source retrieval"
+    },
+    "family": "conceptual_principle",
+    "sourceName": "pandas package",
+    "concept": {
+      "examples_checked": 2,
+      "non_examples_checked": 1,
+      "rival_explanations": 2,
+      "status": "evidence_check_complete"
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

@@ -1,0 +1,54 @@
+{
+  "receiptId": "receipt-erv3-target-0176",
+  "targetId": "erv3-target-0176",
+  "claimId": "ERV3-C0176",
+  "sourceUrl": "https://pypi.org/project/requests/",
+  "retrievalMethod": "public package import or behavior smoke check",
+  "retrievalTimestamp": "2026-05-06T19:10:18.147331Z",
+  "artifactHash": "1339a9e09d90fa75c7e38ea018563d8173fb5f5dba16d1498b47c48568aff869",
+  "downloadedBytes": 195360,
+  "fileSize": 195360,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for tool_usefulness",
+    "run bounded evidence-field check for ERV3-C0176",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": true,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 195360,
+      "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+      "method": "https public source retrieval"
+    },
+    "family": "tool_usefulness",
+    "sourceName": "requests package",
+    "package": {
+      "module": "requests",
+      "import_ok": true,
+      "version": "2.33.1"
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

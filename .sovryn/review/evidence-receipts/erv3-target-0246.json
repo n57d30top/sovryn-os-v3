@@ -1,0 +1,54 @@
+{
+  "receiptId": "receipt-erv3-target-0246",
+  "targetId": "erv3-target-0246",
+  "claimId": "ERV3-C0246",
+  "sourceUrl": "https://pypi.org/project/numpy/",
+  "retrievalMethod": "public package import or behavior smoke check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.393067Z",
+  "artifactHash": "d8dd88ed676c258a7677083c558d47baacfe3d423c4230eda039e1fbb270a604",
+  "downloadedBytes": 749334,
+  "fileSize": 749334,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for tool_usefulness",
+    "run bounded evidence-field check for ERV3-C0246",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": true,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": "Required field set was incomplete for a strong claim decision.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 749334,
+      "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+      "method": "https public source retrieval"
+    },
+    "family": "tool_usefulness",
+    "sourceName": "numpy package",
+    "package": {
+      "module": "numpy",
+      "import_ok": true,
+      "version": "2.4.4"
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": []
+}

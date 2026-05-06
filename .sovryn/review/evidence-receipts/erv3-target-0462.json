@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0462",
+  "targetId": "erv3-target-0462",
+  "claimId": "ERV3-C0462",
+  "sourceUrl": "https://pypi.org/project/numpy/",
+  "retrievalMethod": "public repository availability and runtime-evidence check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.767432Z",
+  "artifactHash": "8e8f653ab38a3463ad3dccebff539f5cb26e3f26fe6813e0f01f80e270fff26e",
+  "downloadedBytes": 749334,
+  "fileSize": 749334,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for repo_test_reproduction",
+    "run bounded evidence-field check for ERV3-C0462",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": false,
+  "failureReason": "Repository runtime evidence was partial or unavailable after public metadata check.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 749334,
+      "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+      "method": "https public source retrieval"
+    },
+    "family": "repo_test_reproduction",
+    "sourceName": "numpy package",
+    "repo": {
+      "repo_check": "metadata_only",
+      "runtime_available": false
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "replay",
+    "negative_control",
+    "runtime_evidence"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "receiptId": "receipt-erv3-target-0037",
+  "targetId": "erv3-target-0037",
+  "claimId": "ERV3-C0037",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+  "retrievalMethod": "public concept evidence and non-example check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.420880Z",
+  "artifactHash": "b3024c30e13927f3c17918cc49be3f65edefae9241574287e9a228965ce7b86f",
+  "downloadedBytes": 135535,
+  "fileSize": 135535,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for conceptual_principle",
+    "run bounded evidence-field check for ERV3-C0037",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 135535,
+      "hash": "3329c2327b1290e5e6375e52b41400c85557a4fb2b192cfab8d3cf0fc7f51004",
+      "method": "https public source retrieval"
+    },
+    "family": "conceptual_principle",
+    "sourceName": "scikit-learn iris",
+    "concept": {
+      "examples_checked": 2,
+      "non_examples_checked": 1,
+      "rival_explanations": 2,
+      "status": "evidence_check_complete"
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

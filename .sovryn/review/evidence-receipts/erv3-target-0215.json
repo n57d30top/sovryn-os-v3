@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0215",
+  "targetId": "erv3-target-0215",
+  "claimId": "ERV3-C0215",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+  "retrievalMethod": "public time-series load with temporal and shuffled-time checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.572415Z",
+  "artifactHash": "c87743b136c6cf664ff72ae06e139fb10a77ccbb49140fa6d887defb36338032",
+  "downloadedBytes": 435098,
+  "fileSize": 435098,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for timeseries_temporal",
+    "run bounded evidence-field check for ERV3-C0215",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 435098,
+      "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+      "method": "https public source retrieval"
+    },
+    "family": "timeseries_temporal",
+    "sourceName": "scikit-learn model evaluation",
+    "temporal": {
+      "series": "statsmodels sunspots",
+      "observations": 309,
+      "temporal_mae": 41.299,
+      "random_split_mae": 31.672,
+      "shuffled_time_mae": 40.7028
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

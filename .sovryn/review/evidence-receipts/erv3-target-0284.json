@@ -1,0 +1,56 @@
+{
+  "receiptId": "receipt-erv3-target-0284",
+  "targetId": "erv3-target-0284",
+  "claimId": "ERV3-C0284",
+  "sourceUrl": "https://pypi.org/project/requests/",
+  "retrievalMethod": "public dataset load with schema and duplicate checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.545789Z",
+  "artifactHash": "9318a088d48f0edc0fc8bbc47618f710dab9a7c34d0a8dfc9b1b12bc6786c97e",
+  "downloadedBytes": 195360,
+  "fileSize": 195360,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for dataset_quality",
+    "run bounded evidence-field check for ERV3-C0284",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 195360,
+      "hash": "cf86ee8ace1b8480f463d8c3977bad238e151e8b5fe3788703921127daa368fa",
+      "method": "https public source retrieval"
+    },
+    "family": "dataset_quality",
+    "sourceName": "requests package",
+    "dataset_quality": {
+      "rows": 150,
+      "columns": 4,
+      "missing_values": 0,
+      "duplicate_feature_rows": 1,
+      "classes_or_targets": 3
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

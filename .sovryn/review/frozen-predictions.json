@@ -1,0 +1,3502 @@
+[
+  {
+    "predictionId": "ERV3-P0001",
+    "claimId": "ERV3-C0001",
+    "targetId": "erv3-target-0001",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.883Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "598080e7a72c6d9bdf9b5843618dc7e0da3e72d1e74bdcb4c8f9e95fd36ee763"
+  },
+  {
+    "predictionId": "ERV3-P0002",
+    "claimId": "ERV3-C0176",
+    "targetId": "erv3-target-0176",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a5dfa9ed64c7f9bccba528c3a6aea160338606de30b09c66e6bf4a33ca9c5a92"
+  },
+  {
+    "predictionId": "ERV3-P0003",
+    "claimId": "ERV3-C0351",
+    "targetId": "erv3-target-0351",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "b1b5179b5ba945fb49e29e5872eb2ddc61d2d3b766188d72194983f0052c3689"
+  },
+  {
+    "predictionId": "ERV3-P0004",
+    "claimId": "ERV3-C0106",
+    "targetId": "erv3-target-0106",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "07c8252ad7e4396c875e20828afa0cfbb66adc7d01eca675743201babaacdea2"
+  },
+  {
+    "predictionId": "ERV3-P0005",
+    "claimId": "ERV3-C0281",
+    "targetId": "erv3-target-0281",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "88b60ad1736e834c1b7981a7feaea568443109bcb2958300757e1afed29fd53a"
+  },
+  {
+    "predictionId": "ERV3-P0006",
+    "claimId": "ERV3-C0456",
+    "targetId": "erv3-target-0456",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "52f3abddaee3b20225389a4f6c946c4384efb3f56dcba0afc5fadab66fca99f5"
+  },
+  {
+    "predictionId": "ERV3-P0007",
+    "claimId": "ERV3-C0036",
+    "targetId": "erv3-target-0036",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "168f0f2aa9862c278be377ba2227489d58c30352454738bd91c1115cda0e0d5e"
+  },
+  {
+    "predictionId": "ERV3-P0008",
+    "claimId": "ERV3-C0211",
+    "targetId": "erv3-target-0211",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "2ffa9f29df34ca88d99f6c987fa7f52108bd2f399255fb0640baae9fc9f97ba0"
+  },
+  {
+    "predictionId": "ERV3-P0009",
+    "claimId": "ERV3-C0386",
+    "targetId": "erv3-target-0386",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "50bcd3eaddc5cfbe2fd67696e5fa4f560f17a6e65f554657d349f8fd38050e12"
+  },
+  {
+    "predictionId": "ERV3-P0010",
+    "claimId": "ERV3-C0141",
+    "targetId": "erv3-target-0141",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "blocked",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "4d749e015a69709d7e6693058c39d1121fc5213035253c3690ebe3038918b202"
+  },
+  {
+    "predictionId": "ERV3-P0011",
+    "claimId": "ERV3-C0316",
+    "targetId": "erv3-target-0316",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "e7d0216ba3f6a497da689d40353066dc9db186efc534b44698efb620816f96dc"
+  },
+  {
+    "predictionId": "ERV3-P0012",
+    "claimId": "ERV3-C0491",
+    "targetId": "erv3-target-0491",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "c4b0693fc363a9dcc9c88002c2dc7806efa34942f6c227b06ca4eec2d69fec93"
+  },
+  {
+    "predictionId": "ERV3-P0013",
+    "claimId": "ERV3-C0071",
+    "targetId": "erv3-target-0071",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "83d359bc84181c68f5502042ad909886604f470a60feb970a0c05d462fc47455"
+  },
+  {
+    "predictionId": "ERV3-P0014",
+    "claimId": "ERV3-C0246",
+    "targetId": "erv3-target-0246",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "fac707b37490132dbf6b762cee6c5c99f61eb7774429027a5397870e87382263"
+  },
+  {
+    "predictionId": "ERV3-P0015",
+    "claimId": "ERV3-C0421",
+    "targetId": "erv3-target-0421",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "8603bdebad2718e6a1f750957b649d3f90abfcaa48039dead1e3b84a169f65ec"
+  },
+  {
+    "predictionId": "ERV3-P0016",
+    "claimId": "ERV3-C0002",
+    "targetId": "erv3-target-0002",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6f8e641c9ee6f2d412d49293c243112692ac3f4828c891a2d6c73893e8bbc552"
+  },
+  {
+    "predictionId": "ERV3-P0017",
+    "claimId": "ERV3-C0177",
+    "targetId": "erv3-target-0177",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "9147a44fff3bd8e7f01f3c0070526fba768788b6446ce26f17c04ed573f39d2f"
+  },
+  {
+    "predictionId": "ERV3-P0018",
+    "claimId": "ERV3-C0352",
+    "targetId": "erv3-target-0352",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "417b0c735b886b2f1a8f56e1509a308b05cdbcd989f4996419413043425723ca"
+  },
+  {
+    "predictionId": "ERV3-P0019",
+    "claimId": "ERV3-C0107",
+    "targetId": "erv3-target-0107",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "4a5647ed96c6f62634a1c3f555eac914e36a258fd762bb62f0eb28c6f70add1e"
+  },
+  {
+    "predictionId": "ERV3-P0020",
+    "claimId": "ERV3-C0282",
+    "targetId": "erv3-target-0282",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "865d00f620bdedb374130465c125d3df57be753556db9b5777c2916f032ec4cb"
+  },
+  {
+    "predictionId": "ERV3-P0021",
+    "claimId": "ERV3-C0457",
+    "targetId": "erv3-target-0457",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a1c5d16befe52fa28f370b1de85e4c925604468742dc2d1b34db58a61329820e"
+  },
+  {
+    "predictionId": "ERV3-P0022",
+    "claimId": "ERV3-C0037",
+    "targetId": "erv3-target-0037",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "1a9e03dc9b2c791167ed45bdbf7b0ab2ce912f807da5125b94ae2a635bd8ff2a"
+  },
+  {
+    "predictionId": "ERV3-P0023",
+    "claimId": "ERV3-C0212",
+    "targetId": "erv3-target-0212",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "5ca17494e2e6d5142206fab84dea1ca64cd7d55227ed7b2acd496db1cb5c911a"
+  },
+  {
+    "predictionId": "ERV3-P0024",
+    "claimId": "ERV3-C0387",
+    "targetId": "erv3-target-0387",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "843e4a4ffadc785d84b8712bfa528cff75e79dc832b10483bce87ec306dcad22"
+  },
+  {
+    "predictionId": "ERV3-P0025",
+    "claimId": "ERV3-C0142",
+    "targetId": "erv3-target-0142",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "ebcfb31b870052999531d36cb47800600d7f0ff6da6c0636f0acbf1f9e24c996"
+  },
+  {
+    "predictionId": "ERV3-P0026",
+    "claimId": "ERV3-C0317",
+    "targetId": "erv3-target-0317",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "4a378f7560ca212342a3fb379dd0068fefd48427e68a5c6d2e0532c5fd40040c"
+  },
+  {
+    "predictionId": "ERV3-P0027",
+    "claimId": "ERV3-C0492",
+    "targetId": "erv3-target-0492",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "2c7d3c7ec351d45e1b39d7fd0b691ef58d4bcad363e6f7c4d7392c64cd2ad0c0"
+  },
+  {
+    "predictionId": "ERV3-P0028",
+    "claimId": "ERV3-C0072",
+    "targetId": "erv3-target-0072",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6842b6f0fe8b2c974a21a6f74978be726ed889d65ea9aadeed5e9038f6635689"
+  },
+  {
+    "predictionId": "ERV3-P0029",
+    "claimId": "ERV3-C0247",
+    "targetId": "erv3-target-0247",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "00e7a0643ecd94854bc7e71500c0187551a4fbb0afa900dc3a772ee6963a357a"
+  },
+  {
+    "predictionId": "ERV3-P0030",
+    "claimId": "ERV3-C0422",
+    "targetId": "erv3-target-0422",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "52da60c6eabffd8cd6f0d684d8d257ed0daed61ca92842d54d54a1bc6ecffe6c"
+  },
+  {
+    "predictionId": "ERV3-P0031",
+    "claimId": "ERV3-C0003",
+    "targetId": "erv3-target-0003",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "9bb3f626f650229e55936bbab995b3ca2cbb1807b1fc49fa7b634d8cbee16736"
+  },
+  {
+    "predictionId": "ERV3-P0032",
+    "claimId": "ERV3-C0178",
+    "targetId": "erv3-target-0178",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "818d39974750793c78db604dbe66e8a0a1ddf3486e6ecaaa287810763b33774a"
+  },
+  {
+    "predictionId": "ERV3-P0033",
+    "claimId": "ERV3-C0353",
+    "targetId": "erv3-target-0353",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "06bdf707f25753b84829668a6b06da3fb18eb7d41042bbb6c2efce971b9a2515"
+  },
+  {
+    "predictionId": "ERV3-P0034",
+    "claimId": "ERV3-C0108",
+    "targetId": "erv3-target-0108",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6d89166a22dc7c2fed73e402f442ec0c2ba9678758e34b896aebc488f754d58f"
+  },
+  {
+    "predictionId": "ERV3-P0035",
+    "claimId": "ERV3-C0283",
+    "targetId": "erv3-target-0283",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "not_testable",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6b273960ff77567c82525292fe79f0eae1d7a6ba7ac85a9e8be5e12805ea0011"
+  },
+  {
+    "predictionId": "ERV3-P0036",
+    "claimId": "ERV3-C0458",
+    "targetId": "erv3-target-0458",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "0a659ef08e84bcf0a4d7525635b05747da62e1323f4395ad44bb7b8f6aaeca70"
+  },
+  {
+    "predictionId": "ERV3-P0037",
+    "claimId": "ERV3-C0038",
+    "targetId": "erv3-target-0038",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "94e663bf8be34ac4b364bb0802dbb8c188bb18ec546584b86ce4e72b273fe166"
+  },
+  {
+    "predictionId": "ERV3-P0038",
+    "claimId": "ERV3-C0213",
+    "targetId": "erv3-target-0213",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "3ff822ba9568a071ecda9b836a40c1bbbca7daba13147f23072ecd9545a323cf"
+  },
+  {
+    "predictionId": "ERV3-P0039",
+    "claimId": "ERV3-C0388",
+    "targetId": "erv3-target-0388",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "20be8d310e6af742240e8f665cd51910cfbde79aeccef293b3830bbc59135837"
+  },
+  {
+    "predictionId": "ERV3-P0040",
+    "claimId": "ERV3-C0143",
+    "targetId": "erv3-target-0143",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "01d62b75b3f0352b0a524fdf0207ccb23566620b51bdbece27d61d95daabe56f"
+  },
+  {
+    "predictionId": "ERV3-P0041",
+    "claimId": "ERV3-C0318",
+    "targetId": "erv3-target-0318",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "7d20eec96634d40b5aebd24d92fbbbef782ca517a46a21bebb792b0e002a2c17"
+  },
+  {
+    "predictionId": "ERV3-P0042",
+    "claimId": "ERV3-C0493",
+    "targetId": "erv3-target-0493",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "29f24d3bd21449e42f2db605d1fea4528cb6c5242e19d55c791b96d0335c2526"
+  },
+  {
+    "predictionId": "ERV3-P0043",
+    "claimId": "ERV3-C0073",
+    "targetId": "erv3-target-0073",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "58ead9f3d78c29622dd3aab4622105ed0d2da95e503ca9f34198fac2e23eb39b"
+  },
+  {
+    "predictionId": "ERV3-P0044",
+    "claimId": "ERV3-C0248",
+    "targetId": "erv3-target-0248",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "model_comparison",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split",
+      "same_metric",
+      "simple_baseline",
+      "seed_or_replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "same_split"
+    ],
+    "expectedMissingFields": [
+      "same_metric",
+      "simple_baseline"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "f94f0ea0dd26f80cac582c78bdef46c750ea49788cc293df78b37fd929578a53"
+  },
+  {
+    "predictionId": "ERV3-P0045",
+    "claimId": "ERV3-C0423",
+    "targetId": "erv3-target-0423",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "package_install_test",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version",
+      "install_attempt",
+      "behavior_check",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "package_version"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "behavior_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a3ba122cb9826d4e36db2491352e24b6441b98a8a6b565f3e7bff7f3024a99ae"
+  },
+  {
+    "predictionId": "ERV3-P0046",
+    "claimId": "ERV3-C0004",
+    "targetId": "erv3-target-0004",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "26c64d5d43802996e5bf5ad726398a6eb29744a368a89ba68e23716c52ee8b31"
+  },
+  {
+    "predictionId": "ERV3-P0047",
+    "claimId": "ERV3-C0179",
+    "targetId": "erv3-target-0179",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6b99751df9764f2b09018a36e3ec810333bd0601e4311aca377fcb884c844f71"
+  },
+  {
+    "predictionId": "ERV3-P0048",
+    "claimId": "ERV3-C0354",
+    "targetId": "erv3-target-0354",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a14211211ad3f306605139161a6988efdf1e64db741213f7c60d149ae5a061d0"
+  },
+  {
+    "predictionId": "ERV3-P0049",
+    "claimId": "ERV3-C0109",
+    "targetId": "erv3-target-0109",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "e089bd4993faaa31938a1a63e05f1acc8ef9068e4118ea1cd6d1cdd5cccac8f6"
+  },
+  {
+    "predictionId": "ERV3-P0050",
+    "claimId": "ERV3-C0284",
+    "targetId": "erv3-target-0284",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "48045fd282f5352853114e16dfd883588ed7d56078ef4f4eee2cb64f026e953a"
+  },
+  {
+    "predictionId": "ERV3-P0051",
+    "claimId": "ERV3-C0459",
+    "targetId": "erv3-target-0459",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a3a985940549105b6bac41376ab90dfef989a01a764fa37338865c941ebe58e2"
+  },
+  {
+    "predictionId": "ERV3-P0052",
+    "claimId": "ERV3-C0039",
+    "targetId": "erv3-target-0039",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "2e26bf2e2b3c0e9b27c304f152cfce282a00385506c1d64c135ddb4f6d2cbce9"
+  },
+  {
+    "predictionId": "ERV3-P0053",
+    "claimId": "ERV3-C0214",
+    "targetId": "erv3-target-0214",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "c5dffe133c885c5c69ef3586e4f7e61e8b973ca90b0e00b80dc6b6217bb2ac3b"
+  },
+  {
+    "predictionId": "ERV3-P0054",
+    "claimId": "ERV3-C0389",
+    "targetId": "erv3-target-0389",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "7e98af81730e5bc6ab8948ede4bc91af5bdefa64aebfe00654e33be67671d8c9"
+  },
+  {
+    "predictionId": "ERV3-P0055",
+    "claimId": "ERV3-C0144",
+    "targetId": "erv3-target-0144",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "7dc590ea74216a316e25c416e702ec030882e9216f2c53e15da92b1655e601c5"
+  },
+  {
+    "predictionId": "ERV3-P0056",
+    "claimId": "ERV3-C0319",
+    "targetId": "erv3-target-0319",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "56dbb4fc72d12cd3ca4b0db34e54a3854c34ae6764fdb776b75a4f892de1fe9b"
+  },
+  {
+    "predictionId": "ERV3-P0057",
+    "claimId": "ERV3-C0494",
+    "targetId": "erv3-target-0494",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "7f89fca97bf537e0e2d6d16ffda874dd37fd494875916751442156cbf91655f2"
+  },
+  {
+    "predictionId": "ERV3-P0058",
+    "claimId": "ERV3-C0074",
+    "targetId": "erv3-target-0074",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "b7a9aff2b649d38ea88cf8d3a9320a0280c28e8af282d71a10f7fdecb151a726"
+  },
+  {
+    "predictionId": "ERV3-P0059",
+    "claimId": "ERV3-C0249",
+    "targetId": "erv3-target-0249",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "documentation_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version",
+      "access_method",
+      "reproduce_steps",
+      "limitations"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "version"
+    ],
+    "expectedMissingFields": [
+      "access_method",
+      "reproduce_steps"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "01becd6c7b9b1345f238ebe03c180115503aa167555800aa2248656e9afe4c44"
+  },
+  {
+    "predictionId": "ERV3-P0060",
+    "claimId": "ERV3-C0424",
+    "targetId": "erv3-target-0424",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "dataset_quality",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load",
+      "schema_check",
+      "missingness_check",
+      "duplicate_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "data_load"
+    ],
+    "expectedMissingFields": [
+      "schema_check",
+      "missingness_check"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6eea7d3415ff99886b6ad789b290085e3e553342797ceffbbca3f5da67a81a74"
+  },
+  {
+    "predictionId": "ERV3-P0061",
+    "claimId": "ERV3-C0005",
+    "targetId": "erv3-target-0005",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "dc20d60bb228533ceafa0618b34a9151746573c82ec54dcf7e56951861b8aa91"
+  },
+  {
+    "predictionId": "ERV3-P0062",
+    "claimId": "ERV3-C0180",
+    "targetId": "erv3-target-0180",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "0e2d2efd00250072194ea1197950b3be6d60974ad4109274b75096f1ae05345f"
+  },
+  {
+    "predictionId": "ERV3-P0063",
+    "claimId": "ERV3-C0355",
+    "targetId": "erv3-target-0355",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "731f4cf82199246f7d268d03207e5422e238844d7a93da06ba9e231fe729bcac"
+  },
+  {
+    "predictionId": "ERV3-P0064",
+    "claimId": "ERV3-C0110",
+    "targetId": "erv3-target-0110",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "de8420a0a25d44a8d834b96b78cbf3e53f66db54b4485aca294e1808d83a1cd0"
+  },
+  {
+    "predictionId": "ERV3-P0065",
+    "claimId": "ERV3-C0285",
+    "targetId": "erv3-target-0285",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "e053f75522d28b3b5d356b935811c8ca5bd84ea73ed2d8e91f6dd3889f1db666"
+  },
+  {
+    "predictionId": "ERV3-P0066",
+    "claimId": "ERV3-C0460",
+    "targetId": "erv3-target-0460",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "916e5f5319659c8bf0ec00233f8560641d3c68f5fdaa1fbc80c5f0c2da57d351"
+  },
+  {
+    "predictionId": "ERV3-P0067",
+    "claimId": "ERV3-C0040",
+    "targetId": "erv3-target-0040",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "f28ba3dee47c24cf91061faf0bf781399b39abd1fe4eb93f7ca6b0a4a9687a9e"
+  },
+  {
+    "predictionId": "ERV3-P0068",
+    "claimId": "ERV3-C0215",
+    "targetId": "erv3-target-0215",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.884Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "8c35eb45c2941714aab738f1bdccda8cb69a846e012b44c577feac7bd461cfa9"
+  },
+  {
+    "predictionId": "ERV3-P0069",
+    "claimId": "ERV3-C0390",
+    "targetId": "erv3-target-0390",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "6519b9ad395385f8aaf79ccf02b00361fda6ec6b7ecf55f272ce9c4c0f627409"
+  },
+  {
+    "predictionId": "ERV3-P0070",
+    "claimId": "ERV3-C0145",
+    "targetId": "erv3-target-0145",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "3805e04ff8319aa86432848c6ee26d54369a8e78523e7d8fe7e122f8cf9b29cc"
+  },
+  {
+    "predictionId": "ERV3-P0071",
+    "claimId": "ERV3-C0320",
+    "targetId": "erv3-target-0320",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "226203b914709ed49ad54ef03dcbb03ba155eb3fd6b598da9561b618162f959b"
+  },
+  {
+    "predictionId": "ERV3-P0072",
+    "claimId": "ERV3-C0495",
+    "targetId": "erv3-target-0495",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "b0d717ac0704e95bd3bb8bbf4f61bce1c9fb006c642e25460f78ad3ec8daa401"
+  },
+  {
+    "predictionId": "ERV3-P0073",
+    "claimId": "ERV3-C0075",
+    "targetId": "erv3-target-0075",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "04f2418b7f7d1dc4f5e77d08c1a428166760f23b2a4c1e19348748d135b7e8c3"
+  },
+  {
+    "predictionId": "ERV3-P0074",
+    "claimId": "ERV3-C0250",
+    "targetId": "erv3-target-0250",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "review_standard",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules",
+      "examples",
+      "non_examples",
+      "overblocking_check"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "decision_rules"
+    ],
+    "expectedMissingFields": [
+      "examples",
+      "non_examples"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "bddf86f008e1abcdc5dafa981d7f903fba9e0c2c007de588d1533fb933f9c6d2"
+  },
+  {
+    "predictionId": "ERV3-P0075",
+    "claimId": "ERV3-C0425",
+    "targetId": "erv3-target-0425",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "timeseries_temporal",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split",
+      "random_challenger",
+      "shuffled_time_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "temporal_split"
+    ],
+    "expectedMissingFields": [
+      "random_challenger",
+      "shuffled_time_control"
+    ],
+    "predictedDecision": "allowed",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "e91b19131124b34a81454f1094200ee74e432473450063524959e6eebb8f971e"
+  },
+  {
+    "predictionId": "ERV3-P0076",
+    "claimId": "ERV3-C0076",
+    "targetId": "erv3-target-0076",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "e38a656cc8b94cb7983b0fb4afae7617d844631c4718b0aca2a7774952faffab"
+  },
+  {
+    "predictionId": "ERV3-P0077",
+    "claimId": "ERV3-C0251",
+    "targetId": "erv3-target-0251",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "254e31c069b6fba5daf87c2f53316f93367fac730334a3bad31b20623bf88009"
+  },
+  {
+    "predictionId": "ERV3-P0078",
+    "claimId": "ERV3-C0426",
+    "targetId": "erv3-target-0426",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "3ea9a077b4277671ba4d2a5c502c9986b1c2225d70efdcda6033067cfee983c5"
+  },
+  {
+    "predictionId": "ERV3-P0079",
+    "claimId": "ERV3-C0006",
+    "targetId": "erv3-target-0006",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "f6e9147d1384c77554cb99406609cbacaa47c50ce1732167b08b6f47690a08c1"
+  },
+  {
+    "predictionId": "ERV3-P0080",
+    "claimId": "ERV3-C0181",
+    "targetId": "erv3-target-0181",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_iris.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "2b12ebd27e0b2382c089abee09b896b1ad706375d5530520624e6cf15083684a"
+  },
+  {
+    "predictionId": "ERV3-P0081",
+    "claimId": "ERV3-C0356",
+    "targetId": "erv3-target-0356",
+    "sourceUrl": "https://pypi.org/project/requests/",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "f1e62c76d03eda5ee3795bc2dbf1fb18f2eac12d54bbea32f1f15e739dc021d7"
+  },
+  {
+    "predictionId": "ERV3-P0082",
+    "claimId": "ERV3-C0111",
+    "targetId": "erv3-target-0111",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "65f9f61bcadb6632d4d6d2a3863b99e8c6aca8db6794a97b3d1b33c17ce4fd04"
+  },
+  {
+    "predictionId": "ERV3-P0083",
+    "claimId": "ERV3-C0286",
+    "targetId": "erv3-target-0286",
+    "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "88f28da4cb741784224c299094b7d249c5b14bf733f166ce31b2b0d051616f89"
+  },
+  {
+    "predictionId": "ERV3-P0084",
+    "claimId": "ERV3-C0461",
+    "targetId": "erv3-target-0461",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a66d667b4b6e529d65e5ab63ecce05ed7420cc8a25137117f7d97a8bfa6d7d88"
+  },
+  {
+    "predictionId": "ERV3-P0085",
+    "claimId": "ERV3-C0041",
+    "targetId": "erv3-target-0041",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "cacbe90dcb568e78d2a9a71509f32a8b63ce9188905406f0fe14298a3cd2495e"
+  },
+  {
+    "predictionId": "ERV3-P0086",
+    "claimId": "ERV3-C0216",
+    "targetId": "erv3-target-0216",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "9c25525e165a838c06ed207ab52d0684a1066496e1790a8c26b1ac8bae760659"
+  },
+  {
+    "predictionId": "ERV3-P0087",
+    "claimId": "ERV3-C0391",
+    "targetId": "erv3-target-0391",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "ca37f9771849374a84d4f3c5c98e4a05a7aa17480855469089b92b50f7621496"
+  },
+  {
+    "predictionId": "ERV3-P0088",
+    "claimId": "ERV3-C0146",
+    "targetId": "erv3-target-0146",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "cbcf931966866818a31e0ee9e7a8439b4fd255a9bdfcb1cf5801f4fecee96fa3"
+  },
+  {
+    "predictionId": "ERV3-P0089",
+    "claimId": "ERV3-C0321",
+    "targetId": "erv3-target-0321",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "benchmark_protocol",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol",
+      "baseline",
+      "negative_control",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "split_protocol"
+    ],
+    "expectedMissingFields": [
+      "baseline",
+      "negative_control"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "badce69a71177a9aa4eed508b32e89c7ad5a53a9ce9c23d20d3b8225e1f46267"
+  },
+  {
+    "predictionId": "ERV3-P0090",
+    "claimId": "ERV3-C0496",
+    "targetId": "erv3-target-0496",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "tool_usefulness",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check",
+      "simple_baseline",
+      "failure_mode",
+      "scope_limit"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "behavior_check"
+    ],
+    "expectedMissingFields": [
+      "simple_baseline",
+      "failure_mode"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "28239ea908b77dbcf4aa6cf3a0c5cdef0e745918aac5d335f46d5c746a58250f"
+  },
+  {
+    "predictionId": "ERV3-P0091",
+    "claimId": "ERV3-C0077",
+    "targetId": "erv3-target-0077",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/co2.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "9bbac5c68b2c6e25f5b518abcb7aab2528fe5f8995432345e67deb234f4a9976"
+  },
+  {
+    "predictionId": "ERV3-P0092",
+    "claimId": "ERV3-C0252",
+    "targetId": "erv3-target-0252",
+    "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a9b6b55ac5ade6bc4f192fc863ad09633b4e3896f7be6fd75a3fdc5fac025bd2"
+  },
+  {
+    "predictionId": "ERV3-P0093",
+    "claimId": "ERV3-C0427",
+    "targetId": "erv3-target-0427",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "a5e91431e67bd78748ecd75518e6283b98e4942771d2e9e188a951ed549d8441"
+  },
+  {
+    "predictionId": "ERV3-P0094",
+    "claimId": "ERV3-C0007",
+    "targetId": "erv3-target-0007",
+    "sourceUrl": "https://pypi.org/project/pandas/",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "2551f89c683088b2bdec2015a28a4a8cf57e9c3ca0442390757e2e5de1ec96bc"
+  },
+  {
+    "predictionId": "ERV3-P0095",
+    "claimId": "ERV3-C0182",
+    "targetId": "erv3-target-0182",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "acd60add7dadec4941db44eafba1cd2fba5116b0d60eb328c4e102454480fc29"
+  },
+  {
+    "predictionId": "ERV3-P0096",
+    "claimId": "ERV3-C0357",
+    "targetId": "erv3-target-0357",
+    "sourceUrl": "https://github.com/pypa/sampleproject",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "document replay failure",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "c7ecd00517a71aa3bbbd7eb0ccb2f1e44b2fab2c5fc958c86e4e2d15cb24d6cf"
+  },
+  {
+    "predictionId": "ERV3-P0097",
+    "claimId": "ERV3-C0112",
+    "targetId": "erv3-target-0112",
+    "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "5a328c0f2d82b456bf30b6bc3ae85206ef69178b958873a332402911113af967"
+  },
+  {
+    "predictionId": "ERV3-P0098",
+    "claimId": "ERV3-C0287",
+    "targetId": "erv3-target-0287",
+    "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "claimFamily": "conceptual_principle",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples",
+      "non_examples",
+      "rival_explanations",
+      "failed_cases"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "examples"
+    ],
+    "expectedMissingFields": [
+      "non_examples",
+      "rival_explanations"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "b8775d0c6f1f98bc845c2165fcede9a62cbd84c8cf8a44a8c849620188ff08af"
+  },
+  {
+    "predictionId": "ERV3-P0099",
+    "claimId": "ERV3-C0462",
+    "targetId": "erv3-target-0462",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "downgraded",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "dd9334ebd6c39a9e14baae22fac0d1a884e75eede06768af301b4185b3abf579"
+  },
+  {
+    "predictionId": "ERV3-P0100",
+    "claimId": "ERV3-C0042",
+    "targetId": "erv3-target-0042",
+    "sourceUrl": "https://pypi.org/project/numpy/",
+    "claimFamily": "repo_test_reproduction",
+    "requiredEvidenceFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt",
+      "install_attempt",
+      "runtime_test",
+      "replay"
+    ],
+    "expectedPresentFields": [
+      "source_url",
+      "claim_text",
+      "retrieval_method",
+      "decision_rationale",
+      "download_attempt"
+    ],
+    "expectedMissingFields": [
+      "install_attempt",
+      "runtime_test"
+    ],
+    "predictedDecision": "allowed_with_caveats",
+    "expectedFalsifier": "Observed receipt-backed field collection supports a different claim-safety decision.",
+    "baselineOrNegativeControl": "Use simple checklist baseline, dummy baseline, shuffled control, or manual comparison as applicable.",
+    "replayPlan": "fresh rerun or fresh workspace replay",
+    "frozenTimestamp": "2026-05-06T19:06:58.885Z",
+    "noEditRule": "Frozen before execution; do not edit after evidence collection.",
+    "preregistrationHash": "f806b2c9828d07ec6cbaf2f0eca22104ed11f271c95a542ca6dfa225e796b701"
+  }
+]

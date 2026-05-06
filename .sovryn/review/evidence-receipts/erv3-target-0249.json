@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0249",
+  "targetId": "erv3-target-0249",
+  "claimId": "ERV3-C0249",
+  "sourceUrl": "https://github.com/pypa/sampleproject",
+  "retrievalMethod": "public documentation evidence-field check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.555809Z",
+  "artifactHash": "f61713cfcd31692683678ce1d376b4eeaa3561024291b96fe93c52b2c8db0a3f",
+  "downloadedBytes": 260662,
+  "fileSize": 260662,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for documentation_protocol",
+    "run bounded evidence-field check for ERV3-C0249",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": false,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 260662,
+      "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+      "method": "https public source retrieval"
+    },
+    "family": "documentation_protocol",
+    "sourceName": "pypa sampleproject",
+    "document": {
+      "source_status": 200,
+      "bytes_seen": 260662,
+      "review_fields_checked": 4
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control",
+    "baseline"
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "receiptId": "receipt-erv3-target-0143",
+  "targetId": "erv3-target-0143",
+  "claimId": "ERV3-C0143",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+  "retrievalMethod": "public package import or behavior smoke check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.520755Z",
+  "artifactHash": "39887a2f550668e03b5ab4040ae01b346c5cc0692f8a2abe884d096f85093a6b",
+  "downloadedBytes": 435098,
+  "fileSize": 435098,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for package_install_test",
+    "run bounded evidence-field check for ERV3-C0143",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": true,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 435098,
+      "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+      "method": "https public source retrieval"
+    },
+    "family": "package_install_test",
+    "sourceName": "scikit-learn model evaluation",
+    "package": {
+      "module": "sklearn",
+      "import_ok": true,
+      "version": "1.8.0"
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

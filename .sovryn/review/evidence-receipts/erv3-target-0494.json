@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0494",
+  "targetId": "erv3-target-0494",
+  "claimId": "ERV3-C0494",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html",
+  "retrievalMethod": "public dataset load with schema and duplicate checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.553570Z",
+  "artifactHash": "d07715da0314e61f00624c935a2ddd224f23f992c8a9dbab0adeaaf7f400d6d4",
+  "downloadedBytes": 115535,
+  "fileSize": 115535,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for dataset_quality",
+    "run bounded evidence-field check for ERV3-C0494",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 115535,
+      "hash": "6502576423302d21aebdd150ab6d1ef1eb0a3c2d64cd6cfb063342ee15897a5b",
+      "method": "https public source retrieval"
+    },
+    "family": "dataset_quality",
+    "sourceName": "scikit-learn wine",
+    "dataset_quality": {
+      "rows": 178,
+      "columns": 13,
+      "missing_values": 0,
+      "duplicate_feature_rows": 0,
+      "classes_or_targets": 3
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "reviewer_brief_package",
+  "createdAt": "2026-05-06T19:10:52.435Z",
+  "decisionCount": 100,
+  "receiptCount": 100,
+  "candidateClassification": "promising_but_unproven",
+  "noExternalAdoptionClaim": true,
+  "artifactRefs": [
+    ".sovryn/review/reviewer-briefs/",
+    ".sovryn/review/review-package.json"
+  ],
+  "evidenceHash": "a61aef2b0d757e13d67c17844b1fb9d9eb5871cd6843777d477a8652878cef61"
+}

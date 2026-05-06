@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0214",
+  "targetId": "erv3-target-0214",
+  "claimId": "ERV3-C0214",
+  "sourceUrl": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+  "retrievalMethod": "public dataset load with schema and duplicate checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.549293Z",
+  "artifactHash": "da757335377b8348ef9c19f621491b64702b71ddac85af3d9f91d8d9285909c7",
+  "downloadedBytes": 54920,
+  "fileSize": 54920,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for dataset_quality",
+    "run bounded evidence-field check for ERV3-C0214",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 54920,
+      "hash": "e034464b097874d5ffa428c7eba1f105c9be62d902712a2dca7069949c52840e",
+      "method": "https public source retrieval"
+    },
+    "family": "dataset_quality",
+    "sourceName": "pytest documentation",
+    "dataset_quality": {
+      "rows": 150,
+      "columns": 4,
+      "missing_values": 0,
+      "duplicate_feature_rows": 1,
+      "classes_or_targets": 3
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control"
+  ]
+}

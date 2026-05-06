@@ -1,0 +1,54 @@
+{
+  "receiptId": "receipt-erv3-target-0456",
+  "targetId": "erv3-target-0456",
+  "claimId": "ERV3-C0456",
+  "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+  "retrievalMethod": "public package import or behavior smoke check",
+  "retrievalTimestamp": "2026-05-06T19:10:18.991933Z",
+  "artifactHash": "cafc9201c2af7137d90a2f12adbc787de9f6dbb91edae2ab74943f0aa3cd7019",
+  "downloadedBytes": 85053,
+  "fileSize": 85053,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for tool_usefulness",
+    "run bounded evidence-field check for ERV3-C0456",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": true,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 85053,
+      "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+      "method": "https public source retrieval"
+    },
+    "family": "tool_usefulness",
+    "sourceName": "packaging version docs",
+    "package": {
+      "module": "packaging",
+      "import_ok": true,
+      "version": "26.2"
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

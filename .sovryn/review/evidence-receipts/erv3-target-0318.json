@@ -1,0 +1,59 @@
+{
+  "receiptId": "receipt-erv3-target-0318",
+  "targetId": "erv3-target-0318",
+  "claimId": "ERV3-C0318",
+  "sourceUrl": "https://pypi.org/project/numpy/",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.528608Z",
+  "artifactHash": "730ea94eacf7f1745fe4921fb51b5b17a4471a4c15edc3ce623eca19e6ae897b",
+  "downloadedBytes": 749334,
+  "fileSize": 749334,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for model_comparison",
+    "run bounded evidence-field check for ERV3-C0318",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 749334,
+      "hash": "d3c444765fe16118f029253c7440787252433ccc2f5c57a9e7f1c22a48708903",
+      "method": "https public source retrieval"
+    },
+    "family": "model_comparison",
+    "sourceName": "numpy package",
+    "benchmark": {
+      "rows": 150,
+      "features": 4,
+      "task": "classification",
+      "accuracy": 0.9333,
+      "macro_f1": 0.9333,
+      "dummy_accuracy": 0.3333,
+      "dummy_macro_f1": 0.1667,
+      "shuffled_label_macro_f1": 0.3871
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

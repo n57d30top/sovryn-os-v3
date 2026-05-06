@@ -1,0 +1,53 @@
+{
+  "kind": "external_review_final_report",
+  "createdAt": "2026-05-06T19:10:52.655Z",
+  "finalClassification": "promising_external_review_candidate",
+  "status": {
+    "kind": "external_review_scientist_status",
+    "updatedAt": "2026-05-06T19:10:52.646Z",
+    "targetUniverseCount": 500,
+    "screenedTargetCount": 200,
+    "frozenPredictionCount": 100,
+    "evidenceReceiptCount": 100,
+    "claimDecisionCount": 100,
+    "readinessLabel": "receipt_backed_review_ready",
+    "artifactRefs": [
+      ".sovryn/review/review-status.json"
+    ]
+  },
+  "receiptVerification": {
+    "kind": "evidence_receipt_verification",
+    "checkedAt": "2026-05-06T19:10:52.654Z",
+    "passed": true,
+    "receiptCount": 100,
+    "eligibleExternalReceiptCount": 100,
+    "replayAttemptCount": 75,
+    "failedReplayCount": 9,
+    "findings": [],
+    "artifactRefs": [
+      ".sovryn/review/evidence-receipts/",
+      ".sovryn/review/receipt-verification.json"
+    ],
+    "evidenceHash": "415d6f99786051faea597680a785ed94e1177f3284d8ec21078bdfa0e5133b67"
+  },
+  "calibration": {
+    "kind": "overblocking_underblocking_calibration",
+    "createdAt": "2026-05-06T19:10:52.655Z",
+    "decisionCount": 100,
+    "blockedDowngradedNotTestableCount": 20,
+    "allowedCaveatedPreservedCount": 80,
+    "wrongPartialInconclusiveCount": 74,
+    "overblockingRisk": "low",
+    "underblockingRisk": "low",
+    "revisedRuleCount": 8,
+    "artifactRefs": [
+      ".sovryn/review/calibration-report.json"
+    ]
+  },
+  "nextFrontierProgram": "Controlled external reviewer brief pilot with field-specific receipt checks",
+  "noFakeClaims": true,
+  "artifactRefs": [
+    ".sovryn/review/final-review-report.json"
+  ],
+  "evidenceHash": "571a5480821ea8fba07a291d40619e083be9a6ec286a3c2c8e031137ebb6b707"
+}

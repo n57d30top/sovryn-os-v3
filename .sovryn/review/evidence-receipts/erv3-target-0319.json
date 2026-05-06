@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0319",
+  "targetId": "erv3-target-0319",
+  "claimId": "ERV3-C0319",
+  "sourceUrl": "https://pypi.org/project/pandas/",
+  "retrievalMethod": "public documentation evidence-field check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.552210Z",
+  "artifactHash": "4605773c3cf02ca835ecc3dadab1d8089fc0d75faee037e49944b6e4e62edb28",
+  "downloadedBytes": 545691,
+  "fileSize": 545691,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for documentation_protocol",
+    "run bounded evidence-field check for ERV3-C0319",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": "Required field set was incomplete for a strong claim decision.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 545691,
+      "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+      "method": "https public source retrieval"
+    },
+    "family": "documentation_protocol",
+    "sourceName": "pandas package",
+    "document": {
+      "source_status": 200,
+      "bytes_seen": 545691,
+      "review_fields_checked": 4
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "replay",
+    "negative_control"
+  ]
+}

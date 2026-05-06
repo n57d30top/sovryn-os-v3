@@ -1,0 +1,55 @@
+{
+  "receiptId": "receipt-erv3-target-0177",
+  "targetId": "erv3-target-0177",
+  "claimId": "ERV3-C0177",
+  "sourceUrl": "https://github.com/pypa/sampleproject",
+  "retrievalMethod": "public concept evidence and non-example check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.413298Z",
+  "artifactHash": "e24c363f36607858a3c04b5f19ba8bb636d0c9d06dee7620a8f02d19aeb0f288",
+  "downloadedBytes": 260662,
+  "fileSize": 260662,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for conceptual_principle",
+    "run bounded evidence-field check for ERV3-C0177",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 260662,
+      "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+      "method": "https public source retrieval"
+    },
+    "family": "conceptual_principle",
+    "sourceName": "pypa sampleproject",
+    "concept": {
+      "examples_checked": 2,
+      "non_examples_checked": 1,
+      "rival_explanations": 2,
+      "status": "evidence_check_complete"
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

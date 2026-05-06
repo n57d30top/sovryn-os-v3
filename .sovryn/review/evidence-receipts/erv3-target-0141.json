@@ -1,0 +1,59 @@
+{
+  "receiptId": "receipt-erv3-target-0141",
+  "targetId": "erv3-target-0141",
+  "claimId": "ERV3-C0141",
+  "sourceUrl": "https://github.com/pypa/sampleproject",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.094900Z",
+  "artifactHash": "a18d7121345c326f18f3dc6c0c58a1017cbfbaca9fabc7cb2924a4131be13ac5",
+  "downloadedBytes": 260662,
+  "fileSize": 260662,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for benchmark_protocol",
+    "run bounded evidence-field check for ERV3-C0141",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 260662,
+      "hash": "d0b68e30aeb1a7d0db2aa52c185d817e71cb77946a3cd1cf55c58f7437dcef0f",
+      "method": "https public source retrieval"
+    },
+    "family": "benchmark_protocol",
+    "sourceName": "pypa sampleproject",
+    "benchmark": {
+      "rows": 150,
+      "features": 4,
+      "task": "classification",
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "dummy_accuracy": 0.3333,
+      "dummy_macro_f1": 0.1667,
+      "shuffled_label_macro_f1": 0.4578
+    }
+  },
+  "observedDecision": "allowed",
+  "missingFieldsObserved": []
+}

@@ -1,0 +1,61 @@
+{
+  "receiptId": "receipt-erv3-target-0491",
+  "targetId": "erv3-target-0491",
+  "claimId": "ERV3-C0491",
+  "sourceUrl": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+  "retrievalMethod": "public dataset load with baseline and negative-control check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.326268Z",
+  "artifactHash": "77a0a9673f7bbc35e54c675b6f73028fb298d559c262c802c7bac2afe6a6dd53",
+  "downloadedBytes": 435098,
+  "fileSize": 435098,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for benchmark_protocol",
+    "run bounded evidence-field check for ERV3-C0491",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": false,
+  "replaySucceeded": false,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 435098,
+      "hash": "17d862316064fc2702344fad764fd45406a28a6eec5ef75ec5591aca62eb51fd",
+      "method": "https public source retrieval"
+    },
+    "family": "benchmark_protocol",
+    "sourceName": "scikit-learn model evaluation",
+    "benchmark": {
+      "rows": 150,
+      "features": 4,
+      "task": "classification",
+      "accuracy": 0.9778,
+      "macro_f1": 0.9778,
+      "dummy_accuracy": 0.3333,
+      "dummy_macro_f1": 0.1667,
+      "shuffled_label_macro_f1": 0.3648
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

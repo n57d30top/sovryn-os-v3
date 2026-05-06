@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0040",
+  "targetId": "erv3-target-0040",
+  "claimId": "ERV3-C0040",
+  "sourceUrl": "https://www.statsmodels.org/stable/datasets/generated/sunspots.html",
+  "retrievalMethod": "public documentation evidence-field check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.569839Z",
+  "artifactHash": "8a5d00e48932595e339ee5144ef6513fa2f3eea171d1f241af3b906e80fadd28",
+  "downloadedBytes": 43971,
+  "fileSize": 43971,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for review_standard",
+    "run bounded evidence-field check for ERV3-C0040",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": true,
+  "baselineAttempted": false,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": true,
+  "failureReason": null,
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 43971,
+      "hash": "e6fa3f88675cb8ff06bdfbf0afac78dc97a62d14c8d96f2be885ae6c8718c6b5",
+      "method": "https public source retrieval"
+    },
+    "family": "review_standard",
+    "sourceName": "statsmodels sunspots",
+    "document": {
+      "source_status": 200,
+      "bytes_seen": 43971,
+      "review_fields_checked": 4
+    }
+  },
+  "observedDecision": "allowed_with_caveats",
+  "missingFieldsObserved": [
+    "negative_control",
+    "baseline"
+  ]
+}

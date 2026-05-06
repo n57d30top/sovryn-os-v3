@@ -1,0 +1,15 @@
+{
+  "kind": "external_review_kill_week",
+  "createdAt": "2026-05-06T19:10:21.308Z",
+  "attackedDecisionCount": 100,
+  "downgradedOrNarrowedCount": 20,
+  "preservedCount": 25,
+  "majorLimitations": [
+    "Field-specific review still risks overblocking practical caveated claims.",
+    "Runtime execution evidence can be unavailable for some public claims.",
+    "Reviewer brief usefulness is not external adoption evidence."
+  ],
+  "artifactRefs": [
+    ".sovryn/review/kill-week-report.json"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "receiptId": "receipt-erv3-target-0355",
+  "targetId": "erv3-target-0355",
+  "claimId": "ERV3-C0355",
+  "sourceUrl": "https://pypi.org/project/pandas/",
+  "retrievalMethod": "public time-series load with temporal and shuffled-time checks",
+  "retrievalTimestamp": "2026-05-06T19:10:20.564002Z",
+  "artifactHash": "5a9a7f89d008dd9e19c1b405671412082eb70a7ed6b7f23d72bd7f28ce594eed",
+  "downloadedBytes": 545691,
+  "fileSize": 545691,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for timeseries_temporal",
+    "run bounded evidence-field check for ERV3-C0355",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": false,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": true,
+  "replayAttempted": true,
+  "replaySucceeded": false,
+  "failureReason": "Required field set was incomplete for a strong claim decision.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 545691,
+      "hash": "87469cb03a7bef198f032e659b3005ce9ff7369108fe86c867f4376c8ac754e4",
+      "method": "https public source retrieval"
+    },
+    "family": "timeseries_temporal",
+    "sourceName": "pandas package",
+    "temporal": {
+      "series": "statsmodels sunspots",
+      "observations": 309,
+      "temporal_mae": 41.299,
+      "random_split_mae": 32.6482,
+      "shuffled_time_mae": 40.6052
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "replay"
+  ]
+}

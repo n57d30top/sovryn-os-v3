@@ -1,0 +1,15 @@
+{
+  "kind": "evidence_receipt_verification",
+  "checkedAt": "2026-05-06T19:10:52.761Z",
+  "passed": true,
+  "receiptCount": 100,
+  "eligibleExternalReceiptCount": 100,
+  "replayAttemptCount": 75,
+  "failedReplayCount": 9,
+  "findings": [],
+  "artifactRefs": [
+    ".sovryn/review/evidence-receipts/",
+    ".sovryn/review/receipt-verification.json"
+  ],
+  "evidenceHash": "5cd9d42f12d675346291342c6c868f2d6fe37262a53da18962b4c1df9b472ad4"
+}

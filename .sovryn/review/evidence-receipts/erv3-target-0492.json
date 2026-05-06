@@ -1,0 +1,57 @@
+{
+  "receiptId": "receipt-erv3-target-0492",
+  "targetId": "erv3-target-0492",
+  "claimId": "ERV3-C0492",
+  "sourceUrl": "https://packaging.pypa.io/en/stable/version.html",
+  "retrievalMethod": "public repository availability and runtime-evidence check",
+  "retrievalTimestamp": "2026-05-06T19:10:20.426280Z",
+  "artifactHash": "0b94366548e18da3cadfd71e61cd24c54029b8d92ba1355187245345c40d705e",
+  "downloadedBytes": 85053,
+  "fileSize": 85053,
+  "environment": "python 3.14.4; platform darwin",
+  "packageVersions": {
+    "python": "3.14.4",
+    "numpy": "2.4.4"
+  },
+  "commandsSummary": [
+    "retrieve public source metadata for repo_test_reproduction",
+    "run bounded evidence-field check for ERV3-C0492",
+    "record summary metrics and redacted failure reason where applicable"
+  ],
+  "installAttempted": true,
+  "installSucceeded": false,
+  "executionAttempted": true,
+  "executionSucceeded": false,
+  "baselineAttempted": true,
+  "negativeControlAttempted": false,
+  "replayAttempted": true,
+  "replaySucceeded": false,
+  "failureReason": "Repository runtime evidence was partial or unavailable after public metadata check.",
+  "publicReleaseRedactionStatus": "summary_only",
+  "noRawLogsPublic": true,
+  "noLocalPathsPublic": true,
+  "safetyScope": "public-safe computational claim review only",
+  "fixtureOrMock": false,
+  "externalQuotaEligible": true,
+  "evidenceSummary": {
+    "source": {
+      "ok": true,
+      "status": 200,
+      "bytes": 85053,
+      "hash": "9fb91b8e575e6c66e7035c9364aa305d0d3233f7e7a2cdd9cae07647c252e6a6",
+      "method": "https public source retrieval"
+    },
+    "family": "repo_test_reproduction",
+    "sourceName": "packaging version docs",
+    "repo": {
+      "repo_check": "metadata_only",
+      "runtime_available": false
+    }
+  },
+  "observedDecision": "not_testable",
+  "missingFieldsObserved": [
+    "replay",
+    "negative_control",
+    "runtime_evidence"
+  ]
+}

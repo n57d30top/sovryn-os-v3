@@ -55,6 +55,7 @@ import { ExternalReproductionService } from "../core/external-reproduction/exter
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
+import { DiscoveryValidationService } from "../core/validation/discovery-validation-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
@@ -147,6 +148,18 @@ Commands:
   sovryn nobel package [--json]
   sovryn nobel verify --fresh-workspace [--json]
   sovryn nobel final-audit [--json]
+  sovryn validate status [--json]
+  sovryn validate candidate inspect [--json]
+  sovryn validate freeze [--json]
+  sovryn validate holdout select --seed <seed> [--json]
+  sovryn validate holdout execute [--json]
+  sovryn validate replay --fresh-workspace [--json]
+  sovryn validate counterexamples [--json]
+  sovryn validate synthetic-review [--json]
+  sovryn validate mutation-test [--json]
+  sovryn validate rival-stress [--json]
+  sovryn validate decision [--json]
+  sovryn validate audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -590,6 +603,16 @@ export async function executeCli(
       case "nobel": {
         const result = await nobelCommand(parsed, root);
         return okEnvelope("nobel", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "validate": {
+        const result = await validateCommand(parsed, root);
+        return okEnvelope("validate", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1338,6 +1361,71 @@ async function nobelCommand(
       throw new AppError(
         "UNKNOWN_NOBEL_COMMAND",
         `Unknown nobel command: ${subcommand}`,
+      );
+  }
+}
+
+async function validateCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "VALIDATE_COMMAND_REQUIRED",
+      "Use: sovryn validate <status|candidate inspect|freeze|holdout select|holdout execute|replay|counterexamples|synthetic-review|mutation-test|rival-stress|decision|audit>.",
+    );
+  }
+  const service = new DiscoveryValidationService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "candidate": {
+      if (parsed.positionals[1] !== "inspect") {
+        throw new AppError(
+          "VALIDATE_CANDIDATE_COMMAND_REQUIRED",
+          "Use: sovryn validate candidate inspect.",
+        );
+      }
+      return service.inspectCandidate();
+    }
+    case "freeze":
+      return service.freeze();
+    case "holdout": {
+      const action = parsed.positionals[1];
+      if (action === "select") {
+        return service.selectHoldouts(
+          flagString(parsed.flags, "--seed") ?? "validation-seed-v0",
+        );
+      }
+      if (action === "execute") {
+        return service.executeHoldouts();
+      }
+      throw new AppError(
+        "VALIDATE_HOLDOUT_COMMAND_REQUIRED",
+        "Use: sovryn validate holdout select --seed <seed> or holdout execute.",
+      );
+    }
+    case "replay":
+      return service.replay({
+        freshWorkspace: flagBool(parsed.flags, "--fresh-workspace"),
+      });
+    case "counterexamples":
+      return service.counterexamples();
+    case "synthetic-review":
+      return service.syntheticReview();
+    case "mutation-test":
+      return service.mutationTest();
+    case "rival-stress":
+      return service.rivalStress();
+    case "decision":
+      return service.decision();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_VALIDATE_COMMAND",
+        `Unknown validate command: ${subcommand}`,
       );
   }
 }

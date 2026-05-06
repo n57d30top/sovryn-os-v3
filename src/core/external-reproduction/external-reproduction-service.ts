@@ -7,7 +7,7 @@ import { CorpusProductService } from "../corpus/corpus-product-service.js";
 import { hashEvidence } from "../invention/pipeline.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
 
-const EXTERNAL_REPRODUCTION_VERSION = "4.3.0-rc.1";
+const EXTERNAL_REPRODUCTION_VERSION = "4.2.0-rc.1";
 const TARGET_CORPUS_REPO = "/Users/sovryn/Desktop/sovryn-open-inventions";
 const TARGET_CORPUS_URL = "https://github.com/n57d30top/sovryn-open-inventions";
 const RESULT_SLUG = "external-reproduction-extension-result";
@@ -878,7 +878,7 @@ export class ExternalReproductionService {
         slug: RESULT_SLUG,
         publishedBy: "sovryn-external-reproduction-extension-autopublish",
         automatedPolicyVersion:
-          "4.3.0-rc.1-external-reproduction-extension-policy",
+          "4.2.0-rc.1-external-reproduction-extension-policy",
         targetRepo: TARGET_CORPUS_URL,
         targetPath: `results/${RESULT_SLUG}`,
         pushed: true,

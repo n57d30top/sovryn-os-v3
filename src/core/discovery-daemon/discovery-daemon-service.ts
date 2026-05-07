@@ -162,6 +162,7 @@ export type DiscoveryDaemonState = {
 };
 
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
+const fundCandidateFile = "fund-candidate.json" as const;
 
 export function discoveryDaemonDomains(): DiscoveryDomain[] {
   return [
@@ -724,11 +725,13 @@ export class AutonomousDiscoveryDaemonService {
       );
     }
     await this.ensureInitialized();
+    let fund = await this.refreshFundGateFromCandidate();
     const maxCycles = options.maxCycles ?? 1;
     const cycles: Record<string, unknown>[] = [];
     for (let index = 0; index < maxCycles; index += 1) {
+      if (fund.passed) break;
       cycles.push(await this.cycle());
-      const fund = await this.readFundGate();
+      fund = await this.readFundGate();
       if (fund.passed) break;
     }
     const state = await this.readState();
@@ -787,11 +790,7 @@ export class AutonomousDiscoveryDaemonService {
     );
     await this.writeLedgerRecords(ledger.entries());
     await this.writeGraveyardEntries(graveyard.all());
-    const fundGate = new FundGateEvaluator().evaluate(null);
-    await writeJson(
-      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
-      fundGate,
-    );
+    await this.refreshFundGateFromCandidate();
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
       status: "continue_searching" as const,
@@ -839,20 +838,38 @@ export class AutonomousDiscoveryDaemonService {
 
   async fundGate(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
-    const result = await this.readFundGate();
+    const candidate = await this.readFundCandidate();
+    const result = await this.refreshFundGateFromCandidate();
     return {
       ...result,
-      artifactRefs: [`${daemonArtifactRoot}/fund-gate-results.json`],
+      artifactRefs: [
+        `${daemonArtifactRoot}/fund-gate-results.json`,
+        ...(candidate ? [`${daemonArtifactRoot}/${fundCandidateFile}`] : []),
+      ],
     };
   }
 
   async notifyIfFund(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
-    const result = await this.readFundGate();
-    return new FundNotificationPackageBuilder(this.root).buildIfFund(
+    const candidate = await this.readFundCandidate();
+    const result = await this.refreshFundGateFromCandidate();
+    const notification = await new FundNotificationPackageBuilder(
+      this.root,
+    ).buildIfFund(result, candidate);
+    if (result.passed && candidate) {
+      await this.markFundFound(candidate);
+    }
+    return notification;
+  }
+
+  private async refreshFundGateFromCandidate(): Promise<FundGateResult> {
+    const candidate = await this.readFundCandidate();
+    const result = new FundGateEvaluator().evaluate(candidate);
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
       result,
-      null,
     );
+    return result;
   }
 
   async audit(): Promise<Record<string, unknown>> {
@@ -1066,6 +1083,28 @@ export class AutonomousDiscoveryDaemonService {
       (await readOptionalJson<FundGateResult>(
         join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
       )) ?? new FundGateEvaluator().evaluate(null)
+    );
+  }
+
+  private async readFundCandidate(): Promise<FundCandidate | null> {
+    const candidate = await readOptionalJson<
+      FundCandidate | { candidate: FundCandidate }
+    >(join(this.root, daemonArtifactRoot, fundCandidateFile));
+    if (!candidate) return null;
+    if ("candidate" in candidate) return candidate.candidate;
+    return candidate;
+  }
+
+  private async markFundFound(candidate: FundCandidate): Promise<void> {
+    const state = await this.readState();
+    await this.writeState(
+      withEvidenceHash({
+        ...state,
+        fundFound: true,
+        lastCandidateId: candidate.candidateId,
+        currentDomain: candidate.domain,
+        updatedAt: nowIso(),
+      }),
     );
   }
 }

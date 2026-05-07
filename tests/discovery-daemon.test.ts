@@ -777,6 +777,67 @@ test("discover-daemon audit fails if graveyard notification flag is tampered", a
   assert.equal(failed.includes("graveyard_internal_only"), true);
 });
 
+test("discover-daemon fund-gate evaluates persisted fund candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(fundCandidate()),
+    "utf8",
+  );
+  const result = await service.fundGate();
+  assert.equal(result.passed, true);
+  assert.equal(result.status, "FUND_FOUND");
+  assert.equal(result.candidateId, "FUND-externally_review_ready_candidate");
+  assert.deepEqual(result.failedGates, []);
+});
+
+test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(fundCandidate()),
+    "utf8",
+  );
+  const notification = await service.notifyIfFund();
+  assert.equal(notification.status, "FUND_FOUND");
+  assert.equal(notification.notificationSuppressed, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  const status = await service.status();
+  assert.equal(status.fundFound, true);
+  assert.equal(
+    status.lastCandidateId,
+    "FUND-externally_review_ready_candidate",
+  );
+});
+
+test("discover-daemon notify-if-fund suppresses incomplete persisted candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        baselineDominated: true,
+      }),
+    ),
+    "utf8",
+  );
+  const notification = await service.notifyIfFund();
+  assert.equal(notification.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  const result = await service.fundGate();
+  assert.equal(result.passed, false);
+  assert.equal(
+    (result.failedGates as string[]).includes("baseline_resistance"),
+    true,
+  );
+});
+
 test("discover-daemon run remains continue_searching without fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

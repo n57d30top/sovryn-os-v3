@@ -1895,6 +1895,55 @@ test("discover-daemon package scout rejects paper packages without FundCandidate
   );
 });
 
+test("discover-daemon generated Fund preflight is blocked without package gates", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 161,
+  });
+  const cycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0161.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(cycle.freshExternalSeed.variantSlug, "fund-package-preflight");
+  assert.equal(cycle.deathCause, "no_death_cause");
+  assert.equal(cycle.fundGateEvaluation.passed, true);
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(cycle.notificationSuppressed, true);
+
+  const fundGate = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[] };
+  assert.equal(fundGate.passed, false);
+  assert.equal(
+    fundGate.failedGates.includes("external_review_package_path"),
+    true,
+  );
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<{ candidateId: string; deathCause: string }> };
+  assert.equal(
+    graveyard.entries.some(
+      (entry) =>
+        entry.candidateId === cycle.candidateId &&
+        entry.deathCause === "not_externally_inspectable",
+    ),
+    true,
+  );
+});
+
 test("discover-daemon cycle persists generated fund candidate only after Fund Gate pass", async () => {
   const root = await tempRoot();
   const publicPackagePath = await writeFundPackage(root);

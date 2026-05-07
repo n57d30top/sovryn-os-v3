@@ -1120,6 +1120,13 @@ function freshExternalSeedVariants(): FreshExternalSeedVariant[] {
         "candidate survives only if it is not a known, trivial, or terminology-only restatement",
       expectedDeathCause: "known_trivial",
     },
+    {
+      variantSlug: "fund-package-preflight",
+      evidenceFocus: "strict Fund package preflight",
+      claimScope:
+        "candidate may pass early semantic pressure but must remain silent unless a complete external-review package passes strict package gates",
+      expectedDeathCause: "no_death_cause",
+    },
   ];
 }
 

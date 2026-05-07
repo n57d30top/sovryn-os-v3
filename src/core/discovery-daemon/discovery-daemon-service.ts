@@ -2112,6 +2112,19 @@ function packageBackedCandidateIntakeCycleComplete(
   );
 }
 
+function latestCycleFundGateStateConsistent(
+  cycle: Record<string, unknown>,
+  stateFundFound: boolean,
+): boolean {
+  const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
+  const cycleFundGatePassed = cycle.fundGatePassed === true;
+  const effectiveFundGatePassed = fundGate?.passed === true;
+  return (
+    cycleFundGatePassed === effectiveFundGatePassed &&
+    effectiveFundGatePassed === stateFundFound
+  );
+}
+
 function corpusSeedCandidateBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
@@ -2664,16 +2677,13 @@ export class AutonomousDiscoveryDaemonService {
       cycle.fundGateEvaluation.passed === true &&
       cycleFundCandidate !== null;
     const cycleId = String(cycle.cycleId);
-    await writeJson(
-      join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
-      cycle,
-    );
     await this.writeLedgerRecords(ledger.entries());
     await this.writeGraveyardEntries(graveyard.all());
     if (cycleFundGatePassed) {
       await this.writeFundCandidate(cycleFundCandidate);
     }
     const fundGate = await this.refreshFundGateFromCandidate();
+    let persistedCycle = cycle;
     if (cycleFundGatePassed && !fundGate.passed && cycleFundCandidate) {
       await this.tombstoneRejectedFundCandidate(
         cycleFundCandidate,
@@ -2681,6 +2691,23 @@ export class AutonomousDiscoveryDaemonService {
         cycleId,
       );
     }
+    if (cycleFundGatePassed) {
+      persistedCycle = withEvidenceHash({
+        ...cycle,
+        fundGateEvaluation: fundGate,
+        fundGatePassed: fundGate.passed,
+        packageGateApplied: true,
+        failedPackageGates: fundGate.failedGates.filter((code) =>
+          code.startsWith("external_review_package"),
+        ),
+        notificationSuppressed: !fundGate.passed,
+        nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+      });
+    }
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
+      persistedCycle,
+    );
     const persistedFundCandidate = fundGate.passed
       ? await this.readFundCandidate()
       : null;
@@ -2691,23 +2718,27 @@ export class AutonomousDiscoveryDaemonService {
       cycleCount: state.cycleCount + 1,
       lastCycleId: cycleId,
       lastCandidateId:
-        persistedFundCandidate?.candidateId ?? String(cycle.candidateId),
+        persistedFundCandidate?.candidateId ??
+        String(persistedCycle.candidateId),
       currentDomain:
         persistedFundCandidate?.domain ??
-        (String(cycle.domain) as DiscoveryDomain),
+        (String(persistedCycle.domain) as DiscoveryDomain),
       silentMode: true as const,
       notifyOnlyOnFund: true as const,
       updatedAt: nowIso(),
       artifactRoot: daemonArtifactRoot,
     });
     await this.writeState(nextState);
+    const checkpointGraveyard = new CandidateGraveyardService(
+      await this.readGraveyardEntries(),
+    );
     await new SearchStateCheckpointService(this.root).writeCheckpoint(cycleId, {
       state: nextState,
-      cycle,
-      graveyardSummary: graveyard.summary(),
+      cycle: persistedCycle,
+      graveyardSummary: checkpointGraveyard.summary(),
     });
     await this.notifyFromFundGateIfPassed(fundGate);
-    return cycle;
+    return persistedCycle;
   }
 
   private async cyclePackageBackedCandidateIntake(input: {
@@ -3064,6 +3095,13 @@ export class AutonomousDiscoveryDaemonService {
             (searchCyclePipelineComplete(latestCycle) ||
               latestCycleIsPackageBacked)),
         "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
+      ),
+      gate(
+        "effective_fund_gate_consistency",
+        state.cycleCount === 0 ||
+          (latestCycle !== null &&
+            latestCycleFundGateStateConsistent(latestCycle, state.fundFound)),
+        "Latest cycle Fund Gate status must match the effective persisted Fund state after package gates; semantic preflight alone must not look like a Fund.",
       ),
       gate(
         "corpus_seed_candidate_binding",

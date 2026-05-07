@@ -1087,6 +1087,34 @@ test("discover-daemon audit fails if latest cycle pipeline evidence is tampered"
   assert.equal(failed.includes("search_cycle_pipeline_complete"), true);
 });
 
+test("discover-daemon audit fails if latest cycle claims fund without persisted Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0001.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    any
+  >;
+  cycle.fundGatePassed = true;
+  cycle.fundGateEvaluation = {
+    ...cycle.fundGateEvaluation,
+    passed: true,
+    notificationAllowed: true,
+  };
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("effective_fund_gate_consistency"), true);
+});
+
 test("discover-daemon audit fails if fresh target references use placeholders", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -2034,8 +2062,13 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
   ) as Record<string, any>;
   assert.equal(cycle.freshExternalSeed.variantSlug, "fund-package-preflight");
   assert.equal(cycle.deathCause, "no_death_cause");
-  assert.equal(cycle.fundGateEvaluation.passed, true);
-  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(cycle.packageGateApplied, true);
+  assert.equal(cycle.fundGateEvaluation.passed, false);
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(
+    cycle.failedPackageGates.includes("external_review_package_path"),
+    true,
+  );
   assert.equal(cycle.notificationSuppressed, true);
 
   const fundGate = JSON.parse(
@@ -2121,7 +2154,9 @@ test("discover-daemon cycle tombstones generated fund candidate that fails packa
   const service = new AutonomousDiscoveryDaemonService(root, runner);
   await service.init();
   const cycle = await service.cycle();
-  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(cycle.packageGateApplied, true);
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(cycle.notificationSuppressed, true);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,

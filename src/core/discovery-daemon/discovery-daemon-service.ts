@@ -437,6 +437,11 @@ export class CandidateSourceRanker {
   }
 }
 
+type CorpusSeedSelection = {
+  seed: CorpusSeed | null;
+  selection: Record<string, unknown>;
+};
+
 export class FreshTargetSampler {
   sample(
     domain: DiscoveryDomain,
@@ -638,9 +643,12 @@ export class SilentSearchLoopRunner {
       corpusSnapshot: input.corpusSnapshot,
       graveyard: priorGraveyard,
     });
-    const corpusSeed = new CandidateSourceRanker().rankCorpusSeeds(
-      input.corpusSnapshot.sampledSeeds,
-    )[0];
+    const corpusSeedSelection = selectCorpusSeedForCycle({
+      seeds: input.corpusSnapshot.sampledSeeds,
+      graveyard: priorGraveyard,
+      cycleCount: input.state.cycleCount,
+    });
+    const corpusSeed = corpusSeedSelection.seed ?? undefined;
     const targets = new FreshTargetSampler().sample(
       domain,
       12,
@@ -652,7 +660,7 @@ export class SilentSearchLoopRunner {
     const candidateId = identityDriftProbe
       ? input.state.lastCandidateId!
       : corpusSeed
-        ? `DAEMON-SEED-${normalizeCandidateIdPart(corpusSeed.slug)}`
+        ? corpusSeedCandidateId(corpusSeed)
         : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
     const claim = identityDriftProbe
       ? `Unversioned semantic drift probe for ${candidateId} from silent daemon cycle ${input.state.cycleCount + 1}`
@@ -726,6 +734,7 @@ export class SilentSearchLoopRunner {
       corpusContext,
       unresolvedAnomalyFamilies,
       corpusSeed: corpusSeed ?? null,
+      corpusSeedSelection: corpusSeedSelection.selection,
       freshTargets: targets,
       sampledTargetCount: targets.length,
       candidateIdeas,
@@ -755,6 +764,75 @@ export class SilentSearchLoopRunner {
       nextStatus: "continue_searching",
     });
   }
+}
+
+function selectCorpusSeedForCycle(input: {
+  seeds: CorpusSeed[];
+  graveyard: GraveyardEntry[];
+  cycleCount: number;
+}): CorpusSeedSelection {
+  const rankedSeeds = new CandidateSourceRanker().rankCorpusSeeds(input.seeds);
+  const reuseAllowedForCoverage =
+    input.cycleCount < objectiveRejectionCoverageMinimumCycles;
+  const graveyardCandidateIds = new Set(
+    input.graveyard.map((entry) => entry.candidateId),
+  );
+  if (rankedSeeds.length === 0) {
+    return {
+      seed: null,
+      selection: {
+        kind: "corpus_seed_selection",
+        mode: "no_seed_available",
+        totalSeedCount: 0,
+        availableUnusedSeedCount: 0,
+        skippedGraveyardSeedCount: 0,
+        selectedSeedSlug: null,
+        selectedCandidateId: null,
+        selectedSeedWasInPriorGraveyard: false,
+        reuseAllowedForCoverage,
+      },
+    };
+  }
+  if (reuseAllowedForCoverage) {
+    const seed = rankedSeeds[0]!;
+    const selectedCandidateId = corpusSeedCandidateId(seed);
+    return {
+      seed,
+      selection: {
+        kind: "corpus_seed_selection",
+        mode: "coverage_bootstrap",
+        totalSeedCount: rankedSeeds.length,
+        availableUnusedSeedCount: rankedSeeds.length,
+        skippedGraveyardSeedCount: 0,
+        selectedSeedSlug: seed.slug,
+        selectedCandidateId,
+        selectedSeedWasInPriorGraveyard:
+          graveyardCandidateIds.has(selectedCandidateId),
+        reuseAllowedForCoverage,
+      },
+    };
+  }
+  const unusedSeeds = rankedSeeds.filter(
+    (seed) => !graveyardCandidateIds.has(corpusSeedCandidateId(seed)),
+  );
+  const seed = unusedSeeds[0] ?? null;
+  const selectedCandidateId = seed ? corpusSeedCandidateId(seed) : null;
+  return {
+    seed,
+    selection: {
+      kind: "corpus_seed_selection",
+      mode: seed ? "graveyard_aware" : "exhausted",
+      totalSeedCount: rankedSeeds.length,
+      availableUnusedSeedCount: unusedSeeds.length,
+      skippedGraveyardSeedCount: rankedSeeds.length - unusedSeeds.length,
+      selectedSeedSlug: seed?.slug ?? null,
+      selectedCandidateId,
+      selectedSeedWasInPriorGraveyard:
+        selectedCandidateId !== null &&
+        graveyardCandidateIds.has(selectedCandidateId),
+      reuseAllowedForCoverage,
+    },
+  };
 }
 
 function deathCauseForCycle(
@@ -872,6 +950,10 @@ function normalizeCandidateIdPart(value: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
   return normalized.length > 0 ? normalized : "UNKNOWN-SEED";
+}
+
+function corpusSeedCandidateId(seed: CorpusSeed): string {
+  return `DAEMON-SEED-${normalizeCandidateIdPart(seed.slug)}`;
 }
 
 function corpusSeedClaim(seed: CorpusSeed): string {
@@ -1422,6 +1504,10 @@ function corpusSeedCandidateBindingValid(
     : [];
   const firstIdea = candidateIdeas[0];
   const sourceSeed = firstIdea?.sourceSeed as Record<string, unknown> | null;
+  const selection = cycle.corpusSeedSelection as Record<string, unknown> | null;
+  if (selection?.mode === "exhausted") {
+    return corpusSeed === null && sourceSeed === null;
+  }
   const seedSlug = String(corpusSeed?.slug ?? "");
   const seedRef = String(corpusSeed?.publicArtifactRef ?? "");
   return (
@@ -1431,6 +1517,15 @@ function corpusSeedCandidateBindingValid(
     sourceSeed.slug === seedSlug &&
     sourceSeed.publicArtifactRef === seedRef
   );
+}
+
+function corpusSeedGraveyardReuseBlocked(
+  cycle: Record<string, unknown>,
+): boolean {
+  const selection = cycle.corpusSeedSelection as Record<string, unknown> | null;
+  if (selection === null) return false;
+  if (selection.reuseAllowedForCoverage === true) return true;
+  return selection.selectedSeedWasInPriorGraveyard !== true;
 }
 
 export class FundNotificationPackageBuilder {
@@ -1991,6 +2086,13 @@ export class AutonomousDiscoveryDaemonService {
           (latestCycle !== null &&
             corpusSeedCandidateBindingValid(latestCycle)),
         "When corpus seeds are available, the latest daemon cycle must bind candidate ideas to a concrete public corpus seed instead of using only generic synthetic claims.",
+      ),
+      gate(
+        "corpus_seed_graveyard_reuse_blocked",
+        state.cycleCount === 0 ||
+          (latestCycle !== null &&
+            corpusSeedGraveyardReuseBlocked(latestCycle)),
+        "After bootstrap rejection coverage, the daemon must not keep reusing a corpus seed whose candidate ID is already in the internal graveyard while untried seeds remain.",
       ),
       gate(
         "fresh_targets_public_safe",

@@ -1695,6 +1695,54 @@ test("discover-daemon cycle persists generated fund candidate only after Fund Ga
   assert.equal(graveyard.entryCount, 0);
 });
 
+test("discover-daemon cycle tombstones generated fund candidate that fails package gates", async () => {
+  const root = await tempRoot();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const runner = {
+    runCycle: () => ({
+      kind: "silent_search_cycle",
+      cycleId: "cycle-package-gate-0001",
+      domain: candidate.domain,
+      candidateId: candidate.candidateId,
+      fundCandidate: candidate,
+      fundGateEvaluation: new FundGateEvaluator().evaluate(candidate),
+      fundGatePassed: true,
+      notificationSuppressed: false,
+    }),
+  };
+  const service = new AutonomousDiscoveryDaemonService(root, runner);
+  await service.init();
+  const cycle = await service.cycle();
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const fundGate = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[] };
+  assert.equal(fundGate.passed, false);
+  assert.equal(
+    fundGate.failedGates.includes("external_review_package_path"),
+    true,
+  );
+
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  assert.equal(status.lastCandidateId, candidate.candidateId);
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<Record<string, unknown>> };
+  assert.equal(graveyard.entries.length, 1);
+  assert.equal(graveyard.entries[0]!.candidateId, candidate.candidateId);
+  assert.equal(graveyard.entries[0]!.cycleId, "cycle-package-gate-0001");
+  assert.equal(graveyard.entries[0]!.deathCause, "not_externally_inspectable");
+  assert.equal(graveyard.entries[0]!.noUserNotification, true);
+});
+
 test("discover-daemon notify-if-fund suppresses incomplete persisted candidate", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1711,7 +1759,13 @@ test("discover-daemon notify-if-fund suppresses incomplete persisted candidate",
   const notification = await service.notifyIfFund();
   assert.equal(notification.notificationSuppressed, true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
-  const result = await service.fundGate();
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  const result = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[] };
   assert.equal(result.passed, false);
   assert.equal(
     (result.failedGates as string[]).includes("baseline_resistance"),
@@ -1756,9 +1810,15 @@ test("discover-daemon removes stale FUND_FOUND when semantic Fund Gate rejects c
   const notification = await service.notifyIfFund();
   assert.equal(notification.notificationSuppressed, true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
   const status = await service.status();
   assert.equal(status.fundFound, false);
-  const result = await service.fundGate();
+  const result = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[] };
   assert.equal(result.passed, false);
   assert.equal(
     (result.failedGates as string[]).includes("high_impact_domain"),

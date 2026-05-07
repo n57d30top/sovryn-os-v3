@@ -2457,6 +2457,13 @@ export class AutonomousDiscoveryDaemonService {
       await this.writeFundCandidate(cycleFundCandidate);
     }
     const fundGate = await this.refreshFundGateFromCandidate();
+    if (cycleFundGatePassed && !fundGate.passed && cycleFundCandidate) {
+      await this.tombstoneRejectedFundCandidate(
+        cycleFundCandidate,
+        fundGate,
+        cycleId,
+      );
+    }
     const persistedFundCandidate = fundGate.passed
       ? await this.readFundCandidate()
       : null;
@@ -2907,12 +2914,14 @@ export class AutonomousDiscoveryDaemonService {
   private async tombstoneRejectedFundCandidate(
     candidate: FundCandidate,
     result: FundGateResult,
+    cycleIdOverride?: string,
   ): Promise<void> {
     const existing = await this.readGraveyardEntries();
     const deathCause = deathCauseFromRejectedFundCandidate(candidate, result);
     const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
     const state = await this.readState();
     const cycleId =
+      cycleIdOverride ??
       state.lastCycleId ??
       `candidate-review-${String(state.cycleCount).padStart(4, "0")}`;
     const alreadyTombstoned = existing.some(
@@ -2936,6 +2945,9 @@ export class AutonomousDiscoveryDaemonService {
           ],
     );
     await removeIfExists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"));
+    await removeIfExists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
     await this.writeState(
       withEvidenceHash({
         ...state,

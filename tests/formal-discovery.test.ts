@@ -6,17 +6,28 @@ import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import {
   auditFormalPublicText,
+  AutomataPatternExplorer,
   ConjectureCandidateScorer,
+  ConjectureFamilyBuilder,
   CounterexampleSearchRunner,
   ExhaustiveBoundTester,
+  FormalCounterexampleSearchV2,
   FormalDiscoveryService,
+  FormalNontrivialityAuditor,
   FormalReplayVerifier,
+  GraphInvariantExplorer,
   GraphPropertyExplorer,
   KnownPatternChecker,
   ProofSketchGenerator,
+  ProofPressureScorer,
+  RecurrenceRelationMiner,
+  RichFormalGeneratorService,
+  StrongKnownPatternFilter,
+  SymbolicIdentityExplorer,
   SequenceCandidateGenerator,
   type FormalRuleKind,
   type FormalSubdomain,
+  type RichFormalFamily,
 } from "../src/core/formal/formal-discovery-service.js";
 import { readJson } from "../src/shared/fs.js";
 
@@ -30,12 +41,42 @@ const exhaustiveTester = new ExhaustiveBoundTester();
 const proofSketchGenerator = new ProofSketchGenerator();
 const replayVerifier = new FormalReplayVerifier();
 const scorer = new ConjectureCandidateScorer();
+const richGenerator = new RichFormalGeneratorService();
+const graphInvariantExplorer = new GraphInvariantExplorer();
+const recurrenceMiner = new RecurrenceRelationMiner();
+const symbolicIdentityExplorer = new SymbolicIdentityExplorer();
+const automataPatternExplorer = new AutomataPatternExplorer();
+const strongFilter = new StrongKnownPatternFilter();
+const familyBuilder = new ConjectureFamilyBuilder();
+const counterexampleV2 = new FormalCounterexampleSearchV2();
+const proofPressureScorer = new ProofPressureScorer();
+const nontrivialityAuditor = new FormalNontrivialityAuditor();
+const richCandidates = richGenerator.generateAll();
+const richPromoted = richGenerator.promotedCandidates();
+const strongFilterResult = strongFilter.filter(richPromoted);
+const conjectureFamilies = familyBuilder.build(strongFilterResult.survivors, 6);
+const counterexampleV2Results = conjectureFamilies.map((family) =>
+  counterexampleV2.search(family),
+);
+const proofPressureScores = conjectureFamilies.map((family, index) =>
+  proofPressureScorer.score({
+    family,
+    counterexample: counterexampleV2Results[index]!,
+  }),
+);
 
 const subdomains: FormalSubdomain[] = [
   "integer_sequence_recurrence",
   "small_graph_property",
   "symbolic_identity_polynomial",
   "finite_automata_combinatorial",
+];
+
+const richFamilies: RichFormalFamily[] = [
+  "graph_invariant",
+  "recurrence_relation",
+  "symbolic_identity",
+  "automata_combinatorial",
 ];
 
 const ruleKinds: FormalRuleKind[] = [
@@ -118,6 +159,118 @@ for (const candidate of candidates.slice(0, 60)) {
     assert.equal(candidate.sourceScope, "local_formal_computation");
   });
 }
+
+test("rich formal generator creates one thousand structured candidates", () => {
+  assert.equal(richCandidates.length, 1000);
+  assert.deepEqual(
+    richFamilies.map(
+      (family) =>
+        richCandidates.filter((candidate) => candidate.family === family)
+          .length,
+    ),
+    [300, 300, 200, 200],
+  );
+});
+
+test("rich formal generator promotes bounded candidate set", () => {
+  assert.equal(richPromoted.length, 70);
+  assert.equal(
+    richPromoted.every((candidate) => candidate.nontrivialityScore >= 0.5),
+    true,
+  );
+});
+
+test("graph invariant explorer generates and promotes expected counts", () => {
+  assert.equal(graphInvariantExplorer.generate(300).length, 300);
+  assert.equal(graphInvariantExplorer.promote(20).length, 20);
+});
+
+test("recurrence miner generates and promotes expected counts", () => {
+  assert.equal(recurrenceMiner.generate(300).length, 300);
+  assert.equal(recurrenceMiner.promote(20).length, 20);
+});
+
+test("symbolic identity explorer generates and promotes expected counts", () => {
+  assert.equal(symbolicIdentityExplorer.generate(200).length, 200);
+  assert.equal(symbolicIdentityExplorer.promote(15).length, 15);
+});
+
+test("automata pattern explorer generates and promotes expected counts", () => {
+  assert.equal(automataPatternExplorer.generate(200).length, 200);
+  assert.equal(automataPatternExplorer.promote(15).length, 15);
+});
+
+for (const candidate of richCandidates.slice(0, 240)) {
+  test(`rich candidate has proof-pressure fields ${candidate.candidateId}`, () => {
+    assert.equal(candidate.statement.length > 40, true);
+    assert.equal(candidate.parameters.length >= 3, true);
+    assert.equal(candidate.invariantSignals.length >= 3, true);
+    assert.equal(candidate.counterexampleStrategy.length > 20, true);
+    assert.equal(candidate.holdoutStrategy.length > 20, true);
+    assert.equal(candidate.proofRoute.length > 20, true);
+    assert.equal(candidate.nontrivialityScore >= 0, true);
+    assert.equal(candidate.nontrivialityScore <= 1, true);
+    assert.equal(candidate.sourceScope, "local_formal_computation");
+  });
+}
+
+test("strong known-pattern filter rejects at least half of promoted candidates", () => {
+  assert.equal(strongFilterResult.checks.length, 70);
+  assert.equal(
+    strongFilterResult.checks.filter((check) => check.rejected).length >= 35,
+    true,
+  );
+  assert.equal(strongFilterResult.survivors.length <= 30, true);
+});
+
+test("conjecture family builder selects at most six parameterized families", () => {
+  assert.equal(conjectureFamilies.length <= 6, true);
+  assert.equal(conjectureFamilies.length > 0, true);
+  assert.equal(
+    conjectureFamilies.every(
+      (family) =>
+        family.generalStatement.length > 40 &&
+        family.parameterization.length >= 3 &&
+        family.falsifier.length > 10,
+    ),
+    true,
+  );
+});
+
+test("counterexample search v2 records all search modes", () => {
+  assert.equal(counterexampleV2Results.length, conjectureFamilies.length);
+  assert.equal(
+    counterexampleV2Results.every(
+      (result) =>
+        result.exhaustiveSmallCases > 0 &&
+        result.adversarialEdgeCases > 0 &&
+        result.randomizedLargerCases > 0 &&
+        result.parameterBoundaryCases > 0,
+    ),
+    true,
+  );
+});
+
+test("proof pressure scorer keeps scores bounded and selective", () => {
+  assert.equal(proofPressureScores.length, conjectureFamilies.length);
+  assert.equal(
+    proofPressureScores.every(
+      (score) => score.totalScore >= 0 && score.totalScore <= 1,
+    ),
+    true,
+  );
+});
+
+test("formal nontriviality auditor passes rich hard-mode invariants", () => {
+  const audit = nontrivialityAuditor.audit({
+    candidates: richPromoted,
+    checks: strongFilterResult.checks,
+    families: conjectureFamilies,
+    proofScores: proofPressureScores,
+  });
+  assert.equal(audit.kind, "formal_v1_nontriviality_audit");
+  assert.equal(audit.passed, true);
+});
 
 for (const candidate of candidates.slice(0, 50)) {
   test(`known pattern checker gives bounded scores for ${candidate.candidateId}`, () => {
@@ -406,6 +559,14 @@ const formalHelpCommands = [
   "sovryn formal proof-sketch",
   "sovryn formal holdout",
   "sovryn formal replay",
+  "sovryn formal rich-generate",
+  "sovryn formal invariant-search",
+  "sovryn formal graph-explore",
+  "sovryn formal recurrence-search",
+  "sovryn formal symbolic-identity-search",
+  "sovryn formal automata-search",
+  "sovryn formal proof-pressure",
+  "sovryn formal nontriviality-audit",
   "sovryn formal audit",
 ];
 
@@ -430,6 +591,14 @@ const formalCliCommands = [
   ["proof-sketch"],
   ["holdout"],
   ["replay"],
+  ["rich-generate"],
+  ["invariant-search"],
+  ["graph-explore"],
+  ["recurrence-search"],
+  ["symbolic-identity-search"],
+  ["automata-search"],
+  ["proof-pressure"],
+  ["nontriviality-audit"],
   ["audit"],
 ];
 
@@ -464,6 +633,9 @@ test("full formal discovery smoke flow reaches audit", async () => {
   await serviceForRoot.holdout();
   await serviceForRoot.proofSketch();
   await serviceForRoot.replay();
+  await serviceForRoot.richGenerate();
+  await serviceForRoot.nontrivialityAudit();
+  await serviceForRoot.proofPressure();
   const audit = await serviceForRoot.audit();
   assert.equal(audit.passed, true);
   assert.equal(audit.candidateCount, 200);

@@ -194,6 +194,14 @@ Commands:
   sovryn formal proof-sketch [--json]
   sovryn formal holdout [--json]
   sovryn formal replay [--json]
+  sovryn formal rich-generate [--json]
+  sovryn formal invariant-search [--json]
+  sovryn formal graph-explore [--json]
+  sovryn formal recurrence-search [--json]
+  sovryn formal symbolic-identity-search [--json]
+  sovryn formal automata-search [--json]
+  sovryn formal proof-pressure [--json]
+  sovryn formal nontriviality-audit [--json]
   sovryn formal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
@@ -1625,7 +1633,7 @@ async function formalCommand(
   if (!subcommand) {
     throw new AppError(
       "FORMAL_COMMAND_REQUIRED",
-      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|audit>.",
+      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|rich-generate|invariant-search|graph-explore|recurrence-search|symbolic-identity-search|automata-search|proof-pressure|nontriviality-audit|audit>.",
     );
   }
   const service = new FormalDiscoveryService(root);
@@ -1648,6 +1656,22 @@ async function formalCommand(
       return service.holdout();
     case "replay":
       return service.replay();
+    case "rich-generate":
+      return service.richGenerate();
+    case "invariant-search":
+      return service.invariantSearch();
+    case "graph-explore":
+      return service.graphExplore();
+    case "recurrence-search":
+      return service.recurrenceSearch();
+    case "symbolic-identity-search":
+      return service.symbolicIdentitySearch();
+    case "automata-search":
+      return service.automataSearch();
+    case "proof-pressure":
+      return service.proofPressure();
+    case "nontriviality-audit":
+      return service.nontrivialityAudit();
     case "audit":
       return service.audit();
     default:

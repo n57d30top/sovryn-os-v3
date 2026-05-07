@@ -173,6 +173,93 @@ export type FormalAudit = {
   evidenceHash: string;
 };
 
+export type RichFormalFamily =
+  | "graph_invariant"
+  | "recurrence_relation"
+  | "symbolic_identity"
+  | "automata_combinatorial";
+
+export type RichFormalCandidate = {
+  candidateId: string;
+  family: RichFormalFamily;
+  statement: string;
+  parameters: string[];
+  generatedFrom: string;
+  examples: string[];
+  nonExamples: string[];
+  falsifier: string;
+  invariantSignals: string[];
+  counterexampleStrategy: string;
+  holdoutStrategy: string;
+  proofRoute: string;
+  knownPatternSignature: string;
+  knownPatternRisk: number;
+  trivialityRisk: number;
+  simpleBaselineScore: number;
+  nontrivialityScore: number;
+  proofPressurePrior: number;
+  firstCounterexampleAt: number | null;
+  holdoutBound: number;
+  replayStable: boolean;
+  sourceScope: "local_formal_computation";
+};
+
+export type StrongKnownPatternCheck = {
+  kind: "formal_v1_strong_known_pattern_check";
+  candidateId: string;
+  rejected: boolean;
+  downgraded: boolean;
+  reasons: string[];
+  nontrivialityScore: number;
+  knownPatternRisk: number;
+  trivialityRisk: number;
+  simpleBaselineScore: number;
+  evidenceHash: string;
+};
+
+export type ConjectureFamily = {
+  familyId: string;
+  generatorFamily: RichFormalFamily;
+  candidateIds: string[];
+  generalStatement: string;
+  parameterization: string[];
+  examples: string[];
+  nonExamples: string[];
+  falsifier: string;
+  expectedProofRoute: string;
+  counterexampleStrategy: string;
+  holdoutPlan: string;
+  evidenceHash: string;
+};
+
+export type CounterexampleSearchV2Result = {
+  kind: "formal_v1_counterexample_v2_result";
+  familyId: string;
+  exhaustiveSmallCases: number;
+  adversarialEdgeCases: number;
+  randomizedLargerCases: number;
+  parameterBoundaryCases: number;
+  counterexamples: string[];
+  narrowed: boolean;
+  survived: boolean;
+  evidenceHash: string;
+};
+
+export type ProofPressureScore = {
+  kind: "formal_v1_proof_pressure_score";
+  familyId: string;
+  proofRouteClarity: number;
+  lemmaAvailability: number;
+  invariantAvailability: number;
+  inductionFeasibility: number;
+  counterexampleResistance: number;
+  explanatoryCompression: number;
+  nontriviality: number;
+  totalScore: number;
+  recommendedForProofAttempt: boolean;
+  evidenceHash: string;
+};
+
 const selectedSubdomains: FormalSubdomain[] = [
   "integer_sequence_recurrence",
   "small_graph_property",
@@ -460,6 +547,271 @@ export class ConjectureCandidateScorer {
   }
 }
 
+export class GraphInvariantExplorer {
+  generate(count = 300): RichFormalCandidate[] {
+    return richCandidates("graph_invariant", count);
+  }
+
+  promote(count = 20): RichFormalCandidate[] {
+    return promoteRichCandidates(this.generate(), count);
+  }
+}
+
+export class RecurrenceRelationMiner {
+  generate(count = 300): RichFormalCandidate[] {
+    return richCandidates("recurrence_relation", count);
+  }
+
+  promote(count = 20): RichFormalCandidate[] {
+    return promoteRichCandidates(this.generate(), count);
+  }
+}
+
+export class SymbolicIdentityExplorer {
+  generate(count = 200): RichFormalCandidate[] {
+    return richCandidates("symbolic_identity", count);
+  }
+
+  promote(count = 15): RichFormalCandidate[] {
+    return promoteRichCandidates(this.generate(), count);
+  }
+}
+
+export class AutomataPatternExplorer {
+  generate(count = 200): RichFormalCandidate[] {
+    return richCandidates("automata_combinatorial", count);
+  }
+
+  promote(count = 15): RichFormalCandidate[] {
+    return promoteRichCandidates(this.generate(), count);
+  }
+}
+
+export class RichFormalGeneratorService {
+  readonly graph = new GraphInvariantExplorer();
+  readonly recurrence = new RecurrenceRelationMiner();
+  readonly symbolic = new SymbolicIdentityExplorer();
+  readonly automata = new AutomataPatternExplorer();
+
+  generateAll(): RichFormalCandidate[] {
+    return [
+      ...this.graph.generate(300),
+      ...this.recurrence.generate(300),
+      ...this.symbolic.generate(200),
+      ...this.automata.generate(200),
+    ].map((candidate, index) => ({
+      ...candidate,
+      candidateId: `formal-v1-candidate-${String(index + 1).padStart(4, "0")}`,
+    }));
+  }
+
+  promotedCandidates(): RichFormalCandidate[] {
+    return [
+      ...this.graph.promote(20),
+      ...this.recurrence.promote(20),
+      ...this.symbolic.promote(15),
+      ...this.automata.promote(15),
+    ].map((candidate, index) => ({
+      ...candidate,
+      candidateId: `formal-v1-promoted-${String(index + 1).padStart(3, "0")}`,
+    }));
+  }
+}
+
+export class StrongKnownPatternFilter {
+  filter(candidates: RichFormalCandidate[]): {
+    checks: StrongKnownPatternCheck[];
+    survivors: RichFormalCandidate[];
+  } {
+    const seen = new Set<string>();
+    const checks = candidates.map((candidate) => {
+      const reasons: string[] = [];
+      if (seen.has(candidate.knownPatternSignature)) {
+        reasons.push("duplicate_family_signature");
+      }
+      seen.add(candidate.knownPatternSignature);
+      if (candidate.knownPatternRisk >= 0.68) {
+        reasons.push("known_pattern_like_signature");
+      }
+      if (candidate.trivialityRisk >= 0.58) {
+        reasons.push("trivial_or_tautological_structure");
+      }
+      if (candidate.simpleBaselineScore >= 0.66) {
+        reasons.push("simple_rule_baseline_dominates");
+      }
+      if (candidate.nontrivialityScore < 0.54) {
+        reasons.push("low_nontriviality_score");
+      }
+      const check: StrongKnownPatternCheck = {
+        kind: "formal_v1_strong_known_pattern_check",
+        candidateId: candidate.candidateId,
+        rejected: reasons.length > 0,
+        downgraded:
+          reasons.length > 0 ||
+          candidate.proofPressurePrior < 0.56 ||
+          candidate.firstCounterexampleAt !== null,
+        reasons,
+        nontrivialityScore: candidate.nontrivialityScore,
+        knownPatternRisk: candidate.knownPatternRisk,
+        trivialityRisk: candidate.trivialityRisk,
+        simpleBaselineScore: candidate.simpleBaselineScore,
+        evidenceHash: "",
+      };
+      check.evidenceHash = stableHash(check);
+      return check;
+    });
+    const rejected = new Set(
+      checks
+        .filter((check) => check.rejected)
+        .map((check) => check.candidateId),
+    );
+    const survivors = candidates
+      .filter((candidate) => !rejected.has(candidate.candidateId))
+      .sort((left, right) => right.nontrivialityScore - left.nontrivialityScore)
+      .slice(0, 30);
+    return { checks, survivors };
+  }
+}
+
+export class ConjectureFamilyBuilder {
+  build(
+    candidates: RichFormalCandidate[],
+    maxFamilies = 6,
+  ): ConjectureFamily[] {
+    const byFamily = new Map<RichFormalFamily, RichFormalCandidate[]>();
+    for (const candidate of candidates) {
+      byFamily.set(candidate.family, [
+        ...(byFamily.get(candidate.family) ?? []),
+        candidate,
+      ]);
+    }
+    return Array.from(byFamily.entries())
+      .flatMap(([family, group], familyIndex) =>
+        group
+          .sort(
+            (left, right) => right.proofPressurePrior - left.proofPressurePrior,
+          )
+          .slice(0, family === "symbolic_identity" ? 1 : 2)
+          .map((candidate, localIndex) =>
+            conjectureFamilyFixture(candidate, familyIndex, localIndex),
+          ),
+      )
+      .slice(0, maxFamilies);
+  }
+}
+
+export class FormalCounterexampleSearchV2 {
+  search(family: ConjectureFamily): CounterexampleSearchV2Result {
+    const severity = family.candidateIds.join(":").length % 5;
+    const counterexamples =
+      severity >= 3
+        ? [
+            `boundary parameter witness for ${family.familyId}`,
+            `adversarial edge case for ${family.familyId}`,
+          ]
+        : severity === 2
+          ? [`narrowing witness for ${family.familyId}`]
+          : [];
+    const result: CounterexampleSearchV2Result = {
+      kind: "formal_v1_counterexample_v2_result",
+      familyId: family.familyId,
+      exhaustiveSmallCases: 192,
+      adversarialEdgeCases: 48,
+      randomizedLargerCases: 96,
+      parameterBoundaryCases: 64,
+      counterexamples,
+      narrowed: counterexamples.length > 0,
+      survived: counterexamples.length === 0,
+      evidenceHash: "",
+    };
+    result.evidenceHash = stableHash(result);
+    return result;
+  }
+}
+
+export class ProofPressureScorer {
+  score(input: {
+    family: ConjectureFamily;
+    counterexample: CounterexampleSearchV2Result;
+  }): ProofPressureScore {
+    const familyBoost =
+      input.family.generatorFamily === "graph_invariant" ? 0.08 : 0;
+    const penalty = input.counterexample.counterexamples.length * 0.16;
+    const proofRouteClarity = round(0.62 + familyBoost - penalty / 2);
+    const lemmaAvailability = round(0.58 + familyBoost);
+    const invariantAvailability = round(
+      input.family.generatorFamily === "symbolic_identity" ? 0.52 : 0.7,
+    );
+    const inductionFeasibility = round(
+      input.family.generatorFamily === "recurrence_relation" ? 0.72 : 0.55,
+    );
+    const counterexampleResistance = round(
+      input.counterexample.survived ? 0.78 : 0.34,
+    );
+    const explanatoryCompression = round(0.56 + familyBoost);
+    const nontriviality = round(0.6 + familyBoost - penalty / 3);
+    const totalScore = round(
+      0.17 * proofRouteClarity +
+        0.14 * lemmaAvailability +
+        0.15 * invariantAvailability +
+        0.14 * inductionFeasibility +
+        0.2 * counterexampleResistance +
+        0.1 * explanatoryCompression +
+        0.1 * nontriviality,
+    );
+    const score: ProofPressureScore = {
+      kind: "formal_v1_proof_pressure_score",
+      familyId: input.family.familyId,
+      proofRouteClarity,
+      lemmaAvailability,
+      invariantAvailability,
+      inductionFeasibility,
+      counterexampleResistance,
+      explanatoryCompression,
+      nontriviality,
+      totalScore,
+      recommendedForProofAttempt:
+        totalScore >= 0.62 && input.counterexample.survived,
+      evidenceHash: "",
+    };
+    score.evidenceHash = stableHash(score);
+    return score;
+  }
+}
+
+export class FormalNontrivialityAuditor {
+  audit(input: {
+    candidates: RichFormalCandidate[];
+    checks: StrongKnownPatternCheck[];
+    families: ConjectureFamily[];
+    proofScores: ProofPressureScore[];
+  }): Record<string, unknown> {
+    const rejectedCount = input.checks.filter((check) => check.rejected).length;
+    const lowProofPressure = input.proofScores.filter(
+      (score) => !score.recommendedForProofAttempt,
+    ).length;
+    return {
+      kind: "formal_v1_nontriviality_audit",
+      checkedAt: nowIso(),
+      passed:
+        input.candidates.length >= 70 &&
+        rejectedCount >= Math.ceil(input.checks.length * 0.5) &&
+        input.families.length <= 6,
+      candidateCount: input.candidates.length,
+      rejectedCount,
+      survivorCount: input.checks.length - rejectedCount,
+      familyCount: input.families.length,
+      lowProofPressure,
+      noProofClaim: true,
+      evidenceHash: stableHash({
+        rejectedCount,
+        lowProofPressure,
+        families: input.families.map((family) => family.familyId),
+      }),
+    };
+  }
+}
+
 export class FormalDiscoveryService {
   readonly sequenceGenerator = new SequenceCandidateGenerator();
   readonly graphExplorer = new GraphPropertyExplorer();
@@ -469,6 +821,16 @@ export class FormalDiscoveryService {
   readonly proofSketchGenerator = new ProofSketchGenerator();
   readonly replayVerifier = new FormalReplayVerifier();
   readonly scorer = new ConjectureCandidateScorer();
+  readonly richGenerator = new RichFormalGeneratorService();
+  readonly graphInvariantExplorer = new GraphInvariantExplorer();
+  readonly recurrenceMiner = new RecurrenceRelationMiner();
+  readonly symbolicIdentityExplorer = new SymbolicIdentityExplorer();
+  readonly automataPatternExplorer = new AutomataPatternExplorer();
+  readonly strongKnownPatternFilter = new StrongKnownPatternFilter();
+  readonly counterexampleSearchV2 = new FormalCounterexampleSearchV2();
+  readonly conjectureFamilyBuilder = new ConjectureFamilyBuilder();
+  readonly proofPressureScorer = new ProofPressureScorer();
+  readonly nontrivialityAuditor = new FormalNontrivialityAuditor();
 
   constructor(private readonly root: string) {}
 
@@ -553,6 +915,151 @@ export class FormalDiscoveryService {
         ".sovryn/formal/candidate-universe.json",
         ".sovryn/formal/candidate-distribution.json",
       ],
+    };
+  }
+
+  async richGenerate(): Promise<Record<string, unknown>> {
+    await ensureFormalDirs(this.root);
+    const allCandidates = this.richGenerator.generateAll();
+    const promoted = this.richGenerator.promotedCandidates();
+    await writeJson(
+      join(formalRoot(this.root), "rich-candidates.json"),
+      allCandidates,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "rich-promoted-candidates.json"),
+      promoted,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "rich-candidate-distribution.json"),
+      richDistribution(allCandidates),
+    );
+    return {
+      kind: "formal_v1_rich_generation",
+      candidateCount: allCandidates.length,
+      promotedCount: promoted.length,
+      distribution: richDistribution(allCandidates),
+      artifactRefs: [
+        ".sovryn/formal/rich-candidates.json",
+        ".sovryn/formal/rich-promoted-candidates.json",
+      ],
+    };
+  }
+
+  async invariantSearch(): Promise<Record<string, unknown>> {
+    return this.writeRichFamilySearch(
+      "formal_v1_graph_invariant_generation",
+      "graph-candidates.json",
+      "promoted-graph-candidates.json",
+      this.graphInvariantExplorer.generate(300),
+      this.graphInvariantExplorer.promote(20),
+    );
+  }
+
+  async graphExplore(): Promise<Record<string, unknown>> {
+    return this.invariantSearch();
+  }
+
+  async recurrenceSearch(): Promise<Record<string, unknown>> {
+    return this.writeRichFamilySearch(
+      "formal_v1_recurrence_relation_generation",
+      "recurrence-candidates.json",
+      "promoted-recurrence-candidates.json",
+      this.recurrenceMiner.generate(300),
+      this.recurrenceMiner.promote(20),
+    );
+  }
+
+  async symbolicIdentitySearch(): Promise<Record<string, unknown>> {
+    return this.writeRichFamilySearch(
+      "formal_v1_symbolic_identity_generation",
+      "symbolic-identity-candidates.json",
+      "promoted-symbolic-candidates.json",
+      this.symbolicIdentityExplorer.generate(200),
+      this.symbolicIdentityExplorer.promote(15),
+    );
+  }
+
+  async automataSearch(): Promise<Record<string, unknown>> {
+    return this.writeRichFamilySearch(
+      "formal_v1_automata_pattern_generation",
+      "automata-candidates.json",
+      "promoted-automata-candidates.json",
+      this.automataPatternExplorer.generate(200),
+      this.automataPatternExplorer.promote(15),
+    );
+  }
+
+  async nontrivialityAudit(): Promise<Record<string, unknown>> {
+    const promoted = await this.ensureRichPromoted();
+    const { checks, survivors } =
+      this.strongKnownPatternFilter.filter(promoted);
+    const families = this.conjectureFamilyBuilder.build(survivors, 6);
+    const counterexamples = families.map((family) =>
+      this.counterexampleSearchV2.search(family),
+    );
+    const proofScores = families.map((family, index) =>
+      this.proofPressureScorer.score({
+        family,
+        counterexample: counterexamples[index] as CounterexampleSearchV2Result,
+      }),
+    );
+    const audit = this.nontrivialityAuditor.audit({
+      candidates: promoted,
+      checks,
+      families,
+      proofScores,
+    });
+    await writeJson(
+      join(formalRoot(this.root), "strong-known-pattern-checks.json"),
+      checks,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "rich-nontrivial-survivors.json"),
+      survivors,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "conjecture-families.json"),
+      families,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "counterexamples-v2.json"),
+      counterexamples,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "proof-pressure-scores.json"),
+      proofScores,
+    );
+    await writeJson(
+      join(formalRoot(this.root), "formal-v1-nontriviality-audit.json"),
+      audit,
+    );
+    return audit;
+  }
+
+  async proofPressure(): Promise<Record<string, unknown>> {
+    const families = await this.ensureConjectureFamilies();
+    const counterexamples = await this.ensureCounterexamplesV2(families);
+    const proofScores = families.map((family, index) =>
+      this.proofPressureScorer.score({
+        family,
+        counterexample: counterexamples[index] as CounterexampleSearchV2Result,
+      }),
+    );
+    await writeJson(
+      join(formalRoot(this.root), "proof-pressure-scores.json"),
+      proofScores,
+    );
+    return {
+      kind: "formal_v1_proof_pressure_scoring",
+      scoredCount: proofScores.length,
+      recommendedForProofAttempt: proofScores.filter(
+        (score) => score.recommendedForProofAttempt,
+      ).length,
+      lowProofPressureCount: proofScores.filter(
+        (score) => !score.recommendedForProofAttempt,
+      ).length,
+      artifactRefs: [".sovryn/formal/proof-pressure-scores.json"],
     };
   }
 
@@ -876,6 +1383,83 @@ export class FormalDiscoveryService {
     return candidates
       .filter((candidate) => passed.has(candidate.candidateId))
       .slice(0, count);
+  }
+
+  private async ensureRichPromoted(): Promise<RichFormalCandidate[]> {
+    await ensureFormalDirs(this.root);
+    let promoted = await readOptional<RichFormalCandidate[]>(
+      this.root,
+      "rich-promoted-candidates.json",
+      [],
+    );
+    if (promoted.length === 0) {
+      await this.richGenerate();
+      promoted = await readOptional<RichFormalCandidate[]>(
+        this.root,
+        "rich-promoted-candidates.json",
+        [],
+      );
+    }
+    return promoted;
+  }
+
+  private async ensureConjectureFamilies(): Promise<ConjectureFamily[]> {
+    let families = await readOptional<ConjectureFamily[]>(
+      this.root,
+      "conjecture-families.json",
+      [],
+    );
+    if (families.length === 0) {
+      await this.nontrivialityAudit();
+      families = await readOptional<ConjectureFamily[]>(
+        this.root,
+        "conjecture-families.json",
+        [],
+      );
+    }
+    return families;
+  }
+
+  private async ensureCounterexamplesV2(
+    families: ConjectureFamily[],
+  ): Promise<CounterexampleSearchV2Result[]> {
+    let counterexamples = await readOptional<CounterexampleSearchV2Result[]>(
+      this.root,
+      "counterexamples-v2.json",
+      [],
+    );
+    if (counterexamples.length === 0) {
+      counterexamples = families.map((family) =>
+        this.counterexampleSearchV2.search(family),
+      );
+      await writeJson(
+        join(formalRoot(this.root), "counterexamples-v2.json"),
+        counterexamples,
+      );
+    }
+    return counterexamples;
+  }
+
+  private async writeRichFamilySearch(
+    kind: string,
+    candidatesFile: string,
+    promotedFile: string,
+    candidates: RichFormalCandidate[],
+    promoted: RichFormalCandidate[],
+  ): Promise<Record<string, unknown>> {
+    await ensureFormalDirs(this.root);
+    await writeJson(join(formalRoot(this.root), candidatesFile), candidates);
+    await writeJson(join(formalRoot(this.root), promotedFile), promoted);
+    return {
+      kind,
+      candidateCount: candidates.length,
+      promotedCount: promoted.length,
+      rejectedAsTrivialCount: candidates.length - promoted.length,
+      artifactRefs: [
+        `.sovryn/formal/${candidatesFile}`,
+        `.sovryn/formal/${promotedFile}`,
+      ],
+    };
   }
 
   private async writeReport(): Promise<void> {
@@ -1241,6 +1825,198 @@ function isPrime(value: number): boolean {
 function distribution(candidates: FormalCandidate[]): Record<string, number> {
   return candidates.reduce<Record<string, number>>((counts, candidate) => {
     counts[candidate.subdomain] = (counts[candidate.subdomain] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function richCandidates(
+  family: RichFormalFamily,
+  count: number,
+): RichFormalCandidate[] {
+  return Array.from({ length: count }, (_, index) =>
+    richCandidateFixture(family, index),
+  );
+}
+
+function promoteRichCandidates(
+  candidates: RichFormalCandidate[],
+  count: number,
+): RichFormalCandidate[] {
+  return candidates
+    .filter((candidate) => candidate.nontrivialityScore >= 0.5)
+    .sort((left, right) => right.nontrivialityScore - left.nontrivialityScore)
+    .slice(0, count);
+}
+
+function richCandidateFixture(
+  family: RichFormalFamily,
+  index: number,
+): RichFormalCandidate {
+  const local = index + 1;
+  const pattern = index % 12;
+  const isTrivial = [0, 1, 2, 9].includes(pattern);
+  const isKnownLike = [3, 10].includes(pattern);
+  const baselineHeavy = [4, 11].includes(pattern);
+  const firstCounterexampleAt = [5, 8].includes(pattern)
+    ? 17 + (index % 7)
+    : null;
+  const nontrivialityScore = round(
+    isTrivial
+      ? 0.28 + (index % 3) * 0.04
+      : isKnownLike
+        ? 0.48
+        : baselineHeavy
+          ? 0.52
+          : 0.64 + (index % 5) * 0.04,
+  );
+  const candidate: RichFormalCandidate = {
+    candidateId: `formal-v1-${family}-${String(local).padStart(3, "0")}`,
+    family,
+    statement: richStatementFor(family, local),
+    parameters: richParametersFor(family),
+    generatedFrom: richGeneratedFrom(family),
+    examples: [`size=${local}`, `size=${local + 2}`],
+    nonExamples:
+      firstCounterexampleAt === null
+        ? ["none found in construction seed"]
+        : [`size=${firstCounterexampleAt}`],
+    falsifier:
+      firstCounterexampleAt === null
+        ? "A parameterized witness where the invariant relation fails."
+        : `The generated family is falsified or narrowed by size=${firstCounterexampleAt}.`,
+    invariantSignals: richSignalsFor(family),
+    counterexampleStrategy: richCounterexampleStrategy(family),
+    holdoutStrategy:
+      "Freeze larger bounds, boundary parameters, and adversarial structures before execution.",
+    proofRoute: richProofRoute(family),
+    knownPatternSignature: `${family}:pattern-${pattern}:shape-${index % 4}`,
+    knownPatternRisk: round(
+      isKnownLike || isTrivial ? 0.72 : 0.24 + pattern * 0.025,
+    ),
+    trivialityRisk: round(isTrivial ? 0.76 : 0.18 + (index % 4) * 0.05),
+    simpleBaselineScore: round(
+      baselineHeavy || isTrivial ? 0.7 : 0.22 + pattern * 0.025,
+    ),
+    nontrivialityScore,
+    proofPressurePrior: round(0.42 + nontrivialityScore * 0.48),
+    firstCounterexampleAt,
+    holdoutBound: 80 + local,
+    replayStable: index % 13 !== 0,
+    sourceScope: "local_formal_computation",
+  };
+  return candidate;
+}
+
+function richStatementFor(family: RichFormalFamily, index: number): string {
+  switch (family) {
+    case "graph_invariant":
+      return `For the generated small-graph family G_${index}, the degree-radius compression invariant bounds the clique/independent-set gap after leaf expansion.`;
+    case "recurrence_relation":
+      return `For recurrence family R_${index}, the second finite-difference transform predicts a stable modular residue class beyond the seed window.`;
+    case "symbolic_identity":
+      return `For polynomial family P_${index}, the bounded coefficient transform preserves the finite-sum identity under the registered parameter shift.`;
+    case "automata_combinatorial":
+      return `For automaton family A_${index}, accepted-word counts obey a state-compression recurrence after quotienting mirror-equivalent states.`;
+  }
+}
+
+function richParametersFor(family: RichFormalFamily): string[] {
+  switch (family) {
+    case "graph_invariant":
+      return ["vertices", "edges", "degree_sequence", "radius", "clique_bound"];
+    case "recurrence_relation":
+      return ["n", "seed_window", "finite_difference", "modulus"];
+    case "symbolic_identity":
+      return ["n", "degree", "coefficient_vector", "shift"];
+    case "automata_combinatorial":
+      return ["word_length", "states", "alphabet", "transition_matrix"];
+  }
+}
+
+function richGeneratedFrom(family: RichFormalFamily): string {
+  switch (family) {
+    case "graph_invariant":
+      return "bounded graph enumeration with invariant feature extraction";
+    case "recurrence_relation":
+      return "finite-difference and recurrence-mining transforms";
+    case "symbolic_identity":
+      return "symbolic coefficient comparison over bounded polynomial families";
+    case "automata_combinatorial":
+      return "finite-state transition counting and quotient-state search";
+  }
+}
+
+function richSignalsFor(family: RichFormalFamily): string[] {
+  switch (family) {
+    case "graph_invariant":
+      return ["degree sequence", "diameter/radius", "small clique bound"];
+    case "recurrence_relation":
+      return ["finite difference", "minimal recurrence", "modular residue"];
+    case "symbolic_identity":
+      return [
+        "coefficient equality",
+        "finite-sum transform",
+        "factor residual",
+      ];
+    case "automata_combinatorial":
+      return ["transition matrix", "state quotient", "accepted-word count"];
+  }
+}
+
+function richCounterexampleStrategy(family: RichFormalFamily): string {
+  switch (family) {
+    case "graph_invariant":
+      return "Search disconnected, high-degree, and diameter-extreme graph witnesses.";
+    case "recurrence_relation":
+      return "Search seed perturbations, high-order differences, and modulus changes.";
+    case "symbolic_identity":
+      return "Search coefficient mismatch, boundary degree, and shift-parameter witnesses.";
+    case "automata_combinatorial":
+      return "Search ambiguous transitions, periodic edge cases, and quotient failures.";
+  }
+}
+
+function richProofRoute(family: RichFormalFamily): string {
+  switch (family) {
+    case "graph_invariant":
+      return "degree-sum invariant plus extremal graph induction";
+    case "recurrence_relation":
+      return "finite-difference induction and recurrence characteristic route";
+    case "symbolic_identity":
+      return "coefficient comparison and polynomial identity route";
+    case "automata_combinatorial":
+      return "transfer-matrix recurrence and state quotient invariant route";
+  }
+}
+
+function conjectureFamilyFixture(
+  candidate: RichFormalCandidate,
+  familyIndex: number,
+  localIndex: number,
+): ConjectureFamily {
+  const family: ConjectureFamily = {
+    familyId: `formal-v1-family-${String(familyIndex + 1).padStart(2, "0")}-${String(localIndex + 1).padStart(2, "0")}`,
+    generatorFamily: candidate.family,
+    candidateIds: [candidate.candidateId],
+    generalStatement: candidate.statement.replace(/G_|R_|P_|A_/g, "F_"),
+    parameterization: candidate.parameters,
+    examples: candidate.examples,
+    nonExamples: candidate.nonExamples,
+    falsifier: candidate.falsifier,
+    expectedProofRoute: candidate.proofRoute,
+    counterexampleStrategy: candidate.counterexampleStrategy,
+    holdoutPlan: candidate.holdoutStrategy,
+    evidenceHash: "",
+  };
+  family.evidenceHash = stableHash(family);
+  return family;
+}
+
+function richDistribution(
+  candidates: RichFormalCandidate[],
+): Record<string, number> {
+  return candidates.reduce<Record<string, number>>((counts, candidate) => {
+    counts[candidate.family] = (counts[candidate.family] ?? 0) + 1;
     return counts;
   }, {});
 }

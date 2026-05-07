@@ -205,8 +205,19 @@ type FreshExternalSeed = {
   score: number;
 };
 
+type FreshExternalSeedVariant = {
+  variantSlug: string;
+  evidenceFocus: string;
+  claimScope: string;
+  expectedDeathCause: DeathCause;
+};
+
 type FreshExternalSeedInstance = FreshExternalSeed & {
   round: number;
+  variantSlug: string;
+  targetSliceId: string;
+  evidenceFocus: string;
+  claimScope: string;
   candidateId: string;
 };
 
@@ -811,6 +822,7 @@ export class SilentSearchLoopRunner {
       fundCandidate,
       fundGateEvaluation,
       candidateId,
+      claim,
       internalStatus: status,
       deathCause,
       fundGatePassed: fundGateEvaluation.passed,
@@ -967,6 +979,9 @@ function selectFreshExternalSeedForCycle(input: {
       selectedSeedSlug: seed.slug,
       selectedCandidateId: seed.candidateId,
       selectedSeedWasInPriorGraveyard: selectedWasGraveyarded,
+      selectedVariantSlug: seed.variantSlug,
+      selectedTargetSliceId: seed.targetSliceId,
+      selectedEvidenceFocus: seed.evidenceFocus,
       selectedPublicArtifactRef: seed.publicArtifactRef,
       selectedTargetClass: seed.targetClass,
     },
@@ -977,9 +992,16 @@ function freshExternalSeedInstance(
   seed: FreshExternalSeed,
   round: number,
 ): FreshExternalSeedInstance {
+  const variant = freshExternalSeedVariantForRound(round);
+  const targetSliceId = `${seed.slug}-${variant.variantSlug}-slice-${String(Math.floor((round - 1) / freshExternalSeedVariants().length) + 1).padStart(3, "0")}`;
   return {
     ...seed,
+    expectedDeathCause: variant.expectedDeathCause,
     round,
+    variantSlug: variant.variantSlug,
+    targetSliceId,
+    evidenceFocus: variant.evidenceFocus,
+    claimScope: variant.claimScope,
     candidateId: freshExternalSeedCandidateId(seed, round),
   };
 }
@@ -988,11 +1010,82 @@ function freshExternalSeedCandidateId(
   seed: FreshExternalSeed,
   round: number,
 ): string {
-  return `DAEMON-FRESH-R${round}-${normalizeCandidateIdPart(seed.slug)}`;
+  const variant = freshExternalSeedVariantForRound(round);
+  const slice =
+    Math.floor((round - 1) / freshExternalSeedVariants().length) + 1;
+  return `DAEMON-FRESH-R${round}-${normalizeCandidateIdPart(seed.slug)}-${normalizeCandidateIdPart(variant.variantSlug)}-S${slice}`;
 }
 
 function freshExternalSeedClaim(seed: FreshExternalSeedInstance): string {
-  return `Fresh external target seed ${seed.slug} (${seed.targetClass}): ${seed.humanReadableSummary}`;
+  return `Fresh external target slice ${seed.targetSliceId} for seed ${seed.slug} (${seed.targetClass}, ${seed.evidenceFocus}): ${seed.humanReadableSummary} Scope: ${seed.claimScope}`;
+}
+
+function freshExternalSeedVariantForRound(
+  round: number,
+): FreshExternalSeedVariant {
+  const variants = freshExternalSeedVariants();
+  return variants[(Math.max(1, round) - 1) % variants.length]!;
+}
+
+function freshExternalSeedVariants(): FreshExternalSeedVariant[] {
+  return [
+    {
+      variantSlug: "baseline-control",
+      evidenceFocus: "baseline resistance",
+      claimScope:
+        "candidate survives only if stronger simple baselines fail on this target slice",
+      expectedDeathCause: "baseline_dominated",
+    },
+    {
+      variantSlug: "rival-mechanism",
+      evidenceFocus: "rival-theory pressure",
+      claimScope:
+        "candidate survives only if direct rival mechanisms are weakened on this target slice",
+      expectedDeathCause: "rival_theory_stronger",
+    },
+    {
+      variantSlug: "holdout-support",
+      evidenceFocus: "fresh holdout support",
+      claimScope:
+        "candidate survives only if post-freeze holdouts support the same bounded claim",
+      expectedDeathCause: "holdout_not_supported",
+    },
+    {
+      variantSlug: "replay-path",
+      evidenceFocus: "fresh replay and reproduction",
+      claimScope:
+        "candidate survives only if decisive evidence has a fresh workspace replay path",
+      expectedDeathCause: "no_replay_path",
+    },
+    {
+      variantSlug: "counterexample-scarcity",
+      evidenceFocus: "counterexample scarcity",
+      claimScope:
+        "candidate survives only if adversarial counterexamples narrow rather than collapse it",
+      expectedDeathCause: "counterexample_dense",
+    },
+    {
+      variantSlug: "inspectability-package",
+      evidenceFocus: "external inspectability",
+      claimScope:
+        "candidate survives only if a public review package can bind claim, method, reproduce, and limitations",
+      expectedDeathCause: "not_externally_inspectable",
+    },
+    {
+      variantSlug: "mechanism-pressure",
+      evidenceFocus: "proof or mechanism pressure",
+      claimScope:
+        "candidate survives only if its proof, refutation, or mechanism route is explicit and non-fake",
+      expectedDeathCause: "proof_or_mechanism_failed",
+    },
+    {
+      variantSlug: "known-pattern-distance",
+      evidenceFocus: "known-pattern distance",
+      claimScope:
+        "candidate survives only if it is not a known, trivial, or terminology-only restatement",
+      expectedDeathCause: "known_trivial",
+    },
+  ];
 }
 
 function freshExternalSeedBank(): FreshExternalSeed[] {
@@ -1487,6 +1580,9 @@ function buildCandidateIdeas(input: {
               slug: input.freshExternalSeed.slug,
               targetClass: input.freshExternalSeed.targetClass,
               round: input.freshExternalSeed.round,
+              variantSlug: input.freshExternalSeed.variantSlug,
+              targetSliceId: input.freshExternalSeed.targetSliceId,
+              evidenceFocus: input.freshExternalSeed.evidenceFocus,
               publicArtifactRef: input.freshExternalSeed.publicArtifactRef,
               expectedDeathCause: input.freshExternalSeed.expectedDeathCause,
             }

@@ -1294,7 +1294,7 @@ test("discover-daemon rotates fresh external seeds after corpus exhaustion", asy
   assert.equal(audit.passed, true);
 });
 
-test("discover-daemon rejects repeated fresh seed claims under new candidate ids", async () => {
+test("discover-daemon scopes repeated fresh seed rounds to explicit target slices", async () => {
   const root = await tempRoot();
   const sibling = join(root, "..", "sovryn-open-inventions");
   await mkdir(sibling, { recursive: true });
@@ -1318,7 +1318,7 @@ test("discover-daemon rejects repeated fresh seed claims under new candidate ids
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.run({ mode: "silent", until: "fund", maxCycles: 70 });
 
-  const repeatDriftCycles = [];
+  const cyclesBySlug = new Map<string, Array<Record<string, any>>>();
   for (let index = 1; index <= 70; index += 1) {
     const cycle = JSON.parse(
       await readFile(
@@ -1331,22 +1331,40 @@ test("discover-daemon rejects repeated fresh seed claims under new candidate ids
         "utf8",
       ),
     ) as Record<string, any>;
-    if (
-      cycle.freshExternalSeed?.round > 1 &&
-      cycle.deathCause === "identity_drift" &&
-      cycle.identityLedgerDecision?.accepted === false &&
-      cycle.identityLedgerDecision?.record?.candidateId !== cycle.candidateId
-    ) {
-      repeatDriftCycles.push(cycle);
+    if (cycle.freshExternalSeed !== null) {
+      const slug = cycle.freshExternalSeed.slug;
+      cyclesBySlug.set(slug, [...(cyclesBySlug.get(slug) ?? []), cycle]);
     }
   }
 
-  assert.equal(repeatDriftCycles.length > 0, true);
-  assert.equal(repeatDriftCycles[0].fundGatePassed, false);
-  assert.equal(
-    repeatDriftCycles[0].fundGateEvaluation.notificationAllowed,
-    false,
+  const repeatedSeedCycles = [...cyclesBySlug.values()].find(
+    (cycles) => cycles.length > 1,
   );
+  assert.notEqual(repeatedSeedCycles, undefined);
+  const claims = new Set(
+    repeatedSeedCycles!.map((cycle) => String(cycle.claim)),
+  );
+  const targetSlices = new Set(
+    repeatedSeedCycles!.map((cycle) =>
+      String(cycle.freshExternalSeed.targetSliceId),
+    ),
+  );
+  assert.equal(claims.size, repeatedSeedCycles!.length);
+  assert.equal(targetSlices.size, repeatedSeedCycles!.length);
+  for (const cycle of repeatedSeedCycles!) {
+    assert.equal(cycle.identityLedgerDecision.accepted, true);
+    assert.equal(
+      cycle.identityLedgerDecision.record.candidateId,
+      cycle.candidateId,
+    );
+    assert.match(String(cycle.claim), /Fresh external target slice/);
+    assert.equal(
+      cycle.candidateIdeas[0].sourceSeed.targetSliceId,
+      cycle.freshExternalSeed.targetSliceId,
+    );
+    assert.equal(cycle.fundGatePassed, false);
+    assert.equal(cycle.fundGateEvaluation.notificationAllowed, false);
+  }
   const notification = await service.notifyIfFund();
   assert.equal(notification.notificationSuppressed, true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);

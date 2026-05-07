@@ -178,6 +178,20 @@ type CorpusSnapshot = {
   sampledResultCount: number;
   anomalySeedKinds: string[];
   sampledRefs: string[];
+  sampledSeeds: CorpusSeed[];
+};
+
+type CorpusSeed = {
+  slug: string;
+  title: string;
+  resultKind: string;
+  domain: string;
+  candidateStatus: string;
+  qualityLabel: string;
+  falsificationStatus: string;
+  humanReadableSummary: string;
+  publicArtifactRef: string;
+  score: number;
 };
 
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
@@ -413,6 +427,14 @@ export class CandidateSourceRanker {
       return left.candidateId.localeCompare(right.candidateId);
     });
   }
+
+  rankCorpusSeeds(seeds: CorpusSeed[]): CorpusSeed[] {
+    return [...seeds].sort((left, right) => {
+      const scoreDelta = right.score - left.score;
+      if (scoreDelta !== 0) return scoreDelta;
+      return left.slug.localeCompare(right.slug);
+    });
+  }
 }
 
 export class FreshTargetSampler {
@@ -616,6 +638,9 @@ export class SilentSearchLoopRunner {
       corpusSnapshot: input.corpusSnapshot,
       graveyard: priorGraveyard,
     });
+    const corpusSeed = new CandidateSourceRanker().rankCorpusSeeds(
+      input.corpusSnapshot.sampledSeeds,
+    )[0];
     const targets = new FreshTargetSampler().sample(
       domain,
       12,
@@ -626,18 +651,27 @@ export class SilentSearchLoopRunner {
       shouldRunIdentityDriftProbe(input.state.cycleCount);
     const candidateId = identityDriftProbe
       ? input.state.lastCandidateId!
-      : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
+      : corpusSeed
+        ? `DAEMON-SEED-${normalizeCandidateIdPart(corpusSeed.slug)}`
+        : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
     const claim = identityDriftProbe
       ? `Unversioned semantic drift probe for ${candidateId} from silent daemon cycle ${input.state.cycleCount + 1}`
-      : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
+      : corpusSeed
+        ? corpusSeedClaim(corpusSeed)
+        : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
     const candidateIdeas = buildCandidateIdeas({
       domain,
       cycleId,
       candidateId,
       anomalyFamilies: unresolvedAnomalyFamilies,
+      corpusSeed,
     });
     const identity = input.ledger.register({ candidateId, claim });
-    const deathCause = deathCauseForCycle(input.state.cycleCount, identity);
+    const deathCause = deathCauseForCycle(
+      input.state.cycleCount,
+      identity,
+      corpusSeed,
+    );
     const deathGates = buildDeathGateResults(deathCause);
     const promotedCandidates = new DeepValidationScheduler().promote(
       candidateIdeas,
@@ -691,6 +725,7 @@ export class SilentSearchLoopRunner {
       domain,
       corpusContext,
       unresolvedAnomalyFamilies,
+      corpusSeed: corpusSeed ?? null,
       freshTargets: targets,
       sampledTargetCount: targets.length,
       candidateIdeas,
@@ -725,6 +760,7 @@ export class SilentSearchLoopRunner {
 function deathCauseForCycle(
   cycleCount: number,
   identity: CandidateIdentityDecision,
+  corpusSeed?: CorpusSeed,
 ): DeathCause {
   const scheduledSignals: Array<
     Parameters<DeathCauseClassifier["classify"]>[0]
@@ -741,14 +777,109 @@ function deathCauseForCycle(
     { fatalKillWeekAttack: true },
     { baselineDominated: true },
   ];
+  const corpusSeedCause =
+    cycleCount >= objectiveRejectionCoverageMinimumCycles && corpusSeed
+      ? deathCauseFromCorpusSeed(corpusSeed)
+      : null;
   return new DeathCauseClassifier().classify({
-    ...scheduledSignals[cycleCount % scheduledSignals.length],
+    ...(corpusSeedCause
+      ? deathCauseSignalsFor(corpusSeedCause)
+      : scheduledSignals[cycleCount % scheduledSignals.length]),
     identityDrift: !identity.accepted,
   });
 }
 
 function shouldRunIdentityDriftProbe(cycleCount: number): boolean {
   return cycleCount % objectiveRejectionCoverageMinimumCycles === 10;
+}
+
+function deathCauseFromCorpusSeed(seed: CorpusSeed): DeathCause {
+  const combined = [
+    seed.candidateStatus,
+    seed.falsificationStatus,
+    seed.qualityLabel,
+    seed.title,
+    seed.humanReadableSummary,
+  ]
+    .join(" ")
+    .toLowerCase();
+  if (
+    combined.includes("externally_review_ready_candidate") ||
+    combined.includes("bounded_validated_conjecture_candidate") ||
+    combined.includes("checked_proof") ||
+    combined.includes("checked_refutation_with_high_external_value") ||
+    combined.includes("new_class_level_10x_candidate")
+  ) {
+    return "not_externally_inspectable";
+  }
+  if (combined.includes("identity") || combined.includes("drift")) {
+    return "identity_drift";
+  }
+  if (
+    combined.includes("baseline") ||
+    combined.includes("dominated") ||
+    combined.includes("simple")
+  ) {
+    return "baseline_dominated";
+  }
+  if (
+    combined.includes("counterexample") ||
+    combined.includes("failed_falsification") ||
+    combined.includes("rejected")
+  ) {
+    return "counterexample_dense";
+  }
+  if (combined.includes("rival")) {
+    return "rival_theory_stronger";
+  }
+  if (
+    combined.includes("unvalidated") ||
+    combined.includes("partial") ||
+    combined.includes("caveat")
+  ) {
+    return "holdout_not_supported";
+  }
+  if (combined.includes("replay") || combined.includes("reproduction")) {
+    return "no_replay_path";
+  }
+  return "not_externally_inspectable";
+}
+
+function deathCauseSignalsFor(
+  deathCause: DeathCause,
+): Parameters<DeathCauseClassifier["classify"]>[0] {
+  return {
+    unsafeOutOfScope: deathCause === "unsafe_out_of_scope",
+    identityDrift: deathCause === "identity_drift",
+    knownOrTrivial: deathCause === "known_trivial",
+    baselineDominated: deathCause === "baseline_dominated",
+    noHoldoutPath: deathCause === "no_holdout_path",
+    noReplayPath: deathCause === "no_replay_path",
+    counterexampleDense: deathCause === "counterexample_dense",
+    rivalTheoryStronger: deathCause === "rival_theory_stronger",
+    notExternallyInspectable: deathCause === "not_externally_inspectable",
+    decisiveUnreplayedClaim: deathCause === "unreplayed_decisive_claim",
+    holdoutUnsupported: deathCause === "holdout_not_supported",
+    proofOrMechanismFailed: deathCause === "proof_or_mechanism_failed",
+    fatalKillWeekAttack: deathCause === "kill_week_fatal_attack",
+  };
+}
+
+function normalizeCandidateIdPart(value: string): string {
+  const normalized = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return normalized.length > 0 ? normalized : "UNKNOWN-SEED";
+}
+
+function corpusSeedClaim(seed: CorpusSeed): string {
+  const summary = seed.humanReadableSummary.trim();
+  if (summary.length > 0) {
+    return `Corpus-seeded candidate from ${seed.slug}: ${summary}`;
+  }
+  return `Corpus-seeded candidate from ${seed.slug}: ${seed.title}`;
 }
 
 function buildAnomalyFamilies(input: {
@@ -790,6 +921,7 @@ function buildCandidateIdeas(input: {
   cycleId: string;
   candidateId: string;
   anomalyFamilies: Array<Record<string, unknown>>;
+  corpusSeed?: CorpusSeed;
 }): Array<{ candidateId: string; score: number; [key: string]: unknown }> {
   return Array.from({ length: 3 }, (_, index) => ({
     candidateId:
@@ -798,9 +930,15 @@ function buildCandidateIdeas(input: {
         : `${input.candidateId}-ALT-${String(index + 1).padStart(2, "0")}`,
     cycleId: input.cycleId,
     domain: input.domain,
-    score: 90 - index * 11,
-    concreteClaim: `Bounded ${input.domain} anomaly family ${index + 1} may survive strict Fund Gate pressure.`,
-    mechanism: "bounded public evidence triangulation",
+    score: (input.corpusSeed?.score ?? 90) - index * 11,
+    concreteClaim:
+      index === 0 && input.corpusSeed
+        ? corpusSeedClaim(input.corpusSeed)
+        : `Bounded ${input.domain} anomaly family ${index + 1} may survive strict Fund Gate pressure.`,
+    mechanism:
+      input.corpusSeed && index === 0
+        ? "corpus-seed evidence triage with strict non-fund gate inheritance"
+        : "bounded public evidence triangulation",
     whyNontrivial:
       "requires baseline, rival, holdout, replay, and mechanism pressure before notification",
     rivalTheories: [
@@ -813,6 +951,15 @@ function buildCandidateIdeas(input: {
     counterexamplePath: "adversarial public target checks",
     externalReviewPath: "paper/method/bindings/reproduce/limitations package",
     sourceFamilies: input.anomalyFamilies.map((family) => family.familyId),
+    sourceSeed:
+      index === 0 && input.corpusSeed
+        ? {
+            slug: input.corpusSeed.slug,
+            resultKind: input.corpusSeed.resultKind,
+            candidateStatus: input.corpusSeed.candidateStatus,
+            publicArtifactRef: input.corpusSeed.publicArtifactRef,
+          }
+        : null,
   }));
 }
 
@@ -1046,34 +1193,109 @@ function corpusSnapshotFromIndex(
   const results = Array.isArray(index.results)
     ? (index.results as Array<Record<string, unknown>>)
     : [];
-  const sampled = results.slice(0, 25);
+  const seeds = new CandidateSourceRanker()
+    .rankCorpusSeeds(results.map(corpusSeedFromIndexResult))
+    .slice(0, 25);
   const anomalySeedKinds = Array.from(
     new Set(
-      sampled
-        .map((result) =>
-          String(result.resultKind ?? result.domain ?? "unknown"),
-        )
+      seeds
+        .map((seed) => seed.resultKind || seed.domain || "unknown")
         .filter((kind) => kind.length > 0),
     ),
   ).slice(0, 8);
-  const sampledRefs = sampled.map((result) => {
-    const path = typeof result.path === "string" ? result.path : null;
-    const slug = typeof result.slug === "string" ? result.slug : null;
-    if (path) return `${publicCorpusBaseRef}/tree/main/${path}`;
-    if (slug) return `${publicCorpusBaseRef}/tree/main/results/${slug}`;
-    return publicCorpusBaseRef;
-  });
+  const sampledRefs = seeds.map((seed) => seed.publicArtifactRef);
   return {
     kind: "daemon_corpus_snapshot",
     source,
     resultCount: Number(index.resultCount ?? results.length),
-    sampledResultCount: sampled.length,
+    sampledResultCount: seeds.length,
     anomalySeedKinds:
       anomalySeedKinds.length > 0
         ? anomalySeedKinds
         : ["no_indexed_result_kinds"],
     sampledRefs: sampledRefs.length > 0 ? sampledRefs : [publicCorpusBaseRef],
+    sampledSeeds: seeds,
   };
+}
+
+function corpusSeedFromIndexResult(
+  result: Record<string, unknown>,
+): CorpusSeed {
+  const slug = stringField(result.slug, "unknown-result");
+  const path = stringField(result.path, `results/${slug}`);
+  const resultKind = stringField(result.resultKind, "unknown");
+  const domain = stringField(result.domain, "unknown");
+  const candidateStatus = stringField(result.candidateStatus, "unknown");
+  const qualityLabel = stringField(result.qualityLabel, "unknown");
+  const falsificationStatus = stringField(
+    result.falsificationStatus,
+    "unknown",
+  );
+  const title = stringField(result.title, slug);
+  const humanReadableSummary = stringField(result.humanReadableSummary, "");
+  return {
+    slug,
+    title,
+    resultKind,
+    domain,
+    candidateStatus,
+    qualityLabel,
+    falsificationStatus,
+    humanReadableSummary,
+    publicArtifactRef: `${publicCorpusBaseRef}/tree/main/${path}`,
+    score: corpusSeedScore({
+      slug,
+      resultKind,
+      domain,
+      candidateStatus,
+      qualityLabel,
+      falsificationStatus,
+      humanReadableSummary,
+    }),
+  };
+}
+
+function corpusSeedScore(seed: {
+  slug: string;
+  resultKind: string;
+  domain: string;
+  candidateStatus: string;
+  qualityLabel: string;
+  falsificationStatus: string;
+  humanReadableSummary: string;
+}): number {
+  const combined = [
+    seed.slug,
+    seed.resultKind,
+    seed.domain,
+    seed.candidateStatus,
+    seed.qualityLabel,
+    seed.falsificationStatus,
+    seed.humanReadableSummary,
+  ]
+    .join(" ")
+    .toLowerCase();
+  let score = 10;
+  if (combined.includes("externally_review_ready_candidate")) score += 100;
+  if (combined.includes("bounded_validated_conjecture_candidate")) score += 95;
+  if (combined.includes("checked_proof")) score += 95;
+  if (combined.includes("checked_refutation_with_high_external_value")) {
+    score += 95;
+  }
+  if (combined.includes("promising_with_strong_caveats")) score += 70;
+  if (combined.includes("promising_but_unvalidated")) score += 60;
+  if (combined.includes("partial_signal")) score += 40;
+  if (combined.includes("gbe") || combined.includes("nrs2")) score += 25;
+  if (combined.includes("anomaly") || combined.includes("candidate")) {
+    score += 20;
+  }
+  if (combined.includes("rejected") || combined.includes("failed")) score += 5;
+  if (combined.includes("autopublished")) score -= 5;
+  return score;
+}
+
+function stringField(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
 function freshTargetsPublicSafe(targets: unknown): boolean {
@@ -1182,6 +1404,32 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     Number(killWeek?.attacks ?? 0) >= 10 &&
     fundGate !== null &&
     fundGate.notificationAllowed === false
+  );
+}
+
+function corpusSeedCandidateBindingValid(
+  cycle: Record<string, unknown>,
+): boolean {
+  const context = cycle.corpusContext as Record<string, unknown> | null;
+  const snapshot = context?.corpusSnapshot as Record<string, unknown> | null;
+  const sampledSeeds = Array.isArray(snapshot?.sampledSeeds)
+    ? snapshot.sampledSeeds
+    : [];
+  if (sampledSeeds.length === 0) return true;
+  const corpusSeed = cycle.corpusSeed as Record<string, unknown> | null;
+  const candidateIdeas = Array.isArray(cycle.candidateIdeas)
+    ? (cycle.candidateIdeas as Array<Record<string, unknown>>)
+    : [];
+  const firstIdea = candidateIdeas[0];
+  const sourceSeed = firstIdea?.sourceSeed as Record<string, unknown> | null;
+  const seedSlug = String(corpusSeed?.slug ?? "");
+  const seedRef = String(corpusSeed?.publicArtifactRef ?? "");
+  return (
+    seedSlug.length > 0 &&
+    seedRef.startsWith(`${publicCorpusBaseRef}/tree/main/`) &&
+    sourceSeed !== null &&
+    sourceSeed.slug === seedSlug &&
+    sourceSeed.publicArtifactRef === seedRef
   );
 }
 
@@ -1738,6 +1986,13 @@ export class AutonomousDiscoveryDaemonService {
         "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
       ),
       gate(
+        "corpus_seed_candidate_binding",
+        state.cycleCount === 0 ||
+          (latestCycle !== null &&
+            corpusSeedCandidateBindingValid(latestCycle)),
+        "When corpus seeds are available, the latest daemon cycle must bind candidate ideas to a concrete public corpus seed instead of using only generic synthetic claims.",
+      ),
+      gate(
         "fresh_targets_public_safe",
         state.cycleCount === 0 ||
           (latestCycle !== null &&
@@ -1897,6 +2152,7 @@ export class AutonomousDiscoveryDaemonService {
       sampledResultCount: 0,
       anomalySeedKinds: ["no_local_corpus_index_available"],
       sampledRefs: [publicCorpusBaseRef],
+      sampledSeeds: [],
     };
   }
 

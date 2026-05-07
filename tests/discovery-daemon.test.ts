@@ -844,6 +844,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "graveyard_internal_only",
     "checkpoint_resume_available",
     "search_cycle_pipeline_complete",
+    "corpus_seed_candidate_binding",
     "fresh_targets_public_safe",
     "fund_gate_blocks_empty_candidate",
     "fund_only_notification",
@@ -978,6 +979,11 @@ test("discover-daemon cycle reads sibling corpus index when available", async ()
     context.corpusSnapshot.sampledRefs[0],
     `${publicCorpusBaseRef}/tree/main/results/one`,
   );
+  assert.equal(context.corpusSnapshot.sampledSeeds[0].slug, "one");
+  assert.equal(
+    context.corpusSnapshot.sampledSeeds[0].candidateStatus,
+    "unknown",
+  );
   assert.equal(
     (cycle.freshTargets as Array<Record<string, unknown>>).some(
       (target) =>
@@ -986,6 +992,114 @@ test("discover-daemon cycle reads sibling corpus index when available", async ()
     ),
     true,
   );
+});
+
+test("discover-daemon binds cycles to real corpus seeds without promoting non-fund statuses", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 3,
+      results: [
+        {
+          slug: "routine-package",
+          title: "Routine package",
+          resultKind: "claim_review",
+          candidateStatus: "autopublished",
+          qualityLabel: "good",
+          path: "results/routine-package",
+        },
+        {
+          slug: "nrs2-cand-047-package",
+          title: "NRS2-CAND-047 bounded candidate package",
+          resultKind: "nobel_readiness_candidate_decision",
+          domain: "benchmark protocol data reliability",
+          candidateStatus: "promising_but_unvalidated",
+          qualityLabel: "good",
+          falsificationStatus: "passes_falsification",
+          humanReadableSummary:
+            "NRS2-CAND-047 remains promising but unvalidated and needs holdout support before any Fund Gate.",
+          path: "results/nrs2-cand-047-package",
+        },
+        {
+          slug: "gbe018-rejected",
+          title: "GBE-CAND-018 rejected triage",
+          resultKind: "gbe_candidate_decision",
+          candidateStatus: "rejected_for_deep_validation",
+          qualityLabel: "good",
+          humanReadableSummary:
+            "GBE-CAND-018 was rejected because evidence lineage and replay gaps remain unresolved.",
+          path: "results/gbe018-rejected",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 12 });
+  const cycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0012.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(cycle.corpusSeed.slug, "nrs2-cand-047-package");
+  assert.equal(
+    cycle.corpusSeed.publicArtifactRef,
+    `${publicCorpusBaseRef}/tree/main/results/nrs2-cand-047-package`,
+  );
+  assert.equal(
+    cycle.candidateIdeas[0].sourceSeed.candidateStatus,
+    "promising_but_unvalidated",
+  );
+  assert.equal(cycle.deathCause, "holdout_not_supported");
+  assert.equal(cycle.internalStatus, "partial_signal");
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(cycle.fundGateEvaluation.notificationAllowed, false);
+  const notification = await service.notifyIfFund();
+  assert.equal(notification.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon audit fails if corpus seed binding is removed", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 1,
+      results: [
+        {
+          slug: "nrs2-cand-047-package",
+          title: "NRS2-CAND-047 bounded candidate package",
+          resultKind: "nobel_readiness_candidate_decision",
+          candidateStatus: "promising_but_unvalidated",
+          path: "results/nrs2-cand-047-package",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 12 });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0012.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    any
+  >;
+  cycle.candidateIdeas[0].sourceSeed = null;
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("corpus_seed_candidate_binding"), true);
 });
 
 test("discover-daemon audit fails if graveyard notification flag is tampered", async () => {

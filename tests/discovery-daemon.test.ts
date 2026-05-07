@@ -575,6 +575,22 @@ for (let index = 0; index < 20; index += 1) {
     assert.equal(drift.cause, "identity_drift");
   });
 
+  test(`identity ledger rejects rebadged prior claim ${index}`, () => {
+    const ledger = new CandidateIdentityLedger();
+    const first = ledger.register({
+      candidateId: `ID-ORIGINAL-${index}`,
+      claim: "same semantic discovery claim",
+    });
+    assert.equal(first.accepted, true);
+    const rebadged = ledger.register({
+      candidateId: `ID-REBADGED-${index}`,
+      claim: "same semantic discovery claim",
+    });
+    assert.equal(rebadged.accepted, false);
+    assert.equal(rebadged.cause, "identity_drift");
+    assert.equal(rebadged.record.candidateId, `ID-ORIGINAL-${index}`);
+  });
+
   test(`identity ledger accepts versioned claim change ${index}`, () => {
     const ledger = new CandidateIdentityLedger();
     const id = `ID-VERSIONED-${index}`;
@@ -1276,6 +1292,64 @@ test("discover-daemon rotates fresh external seeds after corpus exhaustion", asy
   );
   const audit = await service.audit();
   assert.equal(audit.passed, true);
+});
+
+test("discover-daemon rejects repeated fresh seed claims under new candidate ids", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 1,
+      results: [
+        {
+          slug: "nrs2-cand-047-package",
+          title: "NRS2-CAND-047 bounded candidate package",
+          resultKind: "nobel_readiness_candidate_decision",
+          candidateStatus: "promising_but_unvalidated",
+          path: "results/nrs2-cand-047-package",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 70 });
+
+  const repeatDriftCycles = [];
+  for (let index = 1; index <= 70; index += 1) {
+    const cycle = JSON.parse(
+      await readFile(
+        join(
+          root,
+          daemonRoot,
+          "search-cycles",
+          `cycle-${String(index).padStart(4, "0")}.json`,
+        ),
+        "utf8",
+      ),
+    ) as Record<string, any>;
+    if (
+      cycle.freshExternalSeed?.round > 1 &&
+      cycle.deathCause === "identity_drift" &&
+      cycle.identityLedgerDecision?.accepted === false &&
+      cycle.identityLedgerDecision?.record?.candidateId !== cycle.candidateId
+    ) {
+      repeatDriftCycles.push(cycle);
+    }
+  }
+
+  assert.equal(repeatDriftCycles.length > 0, true);
+  assert.equal(repeatDriftCycles[0].fundGatePassed, false);
+  assert.equal(
+    repeatDriftCycles[0].fundGateEvaluation.notificationAllowed,
+    false,
+  );
+  const notification = await service.notifyIfFund();
+  assert.equal(notification.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
 test("discover-daemon continues past the former top twenty five corpus seed ceiling", async () => {

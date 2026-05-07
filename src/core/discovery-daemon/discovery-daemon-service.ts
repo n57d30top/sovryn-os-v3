@@ -278,14 +278,27 @@ export class CandidateIdentityLedger {
     now?: string;
   }): CandidateIdentityDecision {
     const now = input.now ?? nowIso();
+    const claimHash = hashEvidence(input.claim);
     const existing = this.records.find(
       (record) => record.candidateId === input.candidateId,
     );
     if (!existing) {
+      const priorSameClaim = this.records.find(
+        (record) => record.claimHash === claimHash,
+      );
+      if (priorSameClaim) {
+        return withEvidenceHash({
+          candidateId: input.candidateId,
+          accepted: false,
+          cause: "identity_drift",
+          record: priorSameClaim,
+        });
+      }
+
       const record = {
         candidateId: input.candidateId,
         stableClaim: input.claim,
-        claimHash: hashEvidence(input.claim),
+        claimHash,
         version: 1,
         createdAt: now,
         updatedAt: now,
@@ -299,7 +312,7 @@ export class CandidateIdentityLedger {
       });
     }
 
-    if (existing.claimHash === hashEvidence(input.claim)) {
+    if (existing.claimHash === claimHash) {
       return withEvidenceHash({
         candidateId: input.candidateId,
         accepted: true,

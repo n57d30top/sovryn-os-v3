@@ -1021,6 +1021,61 @@ test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing can
   );
 });
 
+test("discover-daemon run notifies immediately for a persisted passing fund candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(fundCandidate()),
+    "utf8",
+  );
+  const run = await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 5,
+  });
+  assert.equal(run.cyclesExecuted, 0);
+  assert.equal(run.userNotification, "FUND_FOUND");
+  assert.equal(run.notificationSuppressed, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  const status = await service.status();
+  assert.equal(status.fundFound, true);
+});
+
+test("discover-daemon cycle persists generated fund candidate only after Fund Gate pass", async () => {
+  const root = await tempRoot();
+  const candidate = fundCandidate();
+  const runner = {
+    runCycle: () => ({
+      kind: "silent_search_cycle",
+      cycleId: "cycle-fund-0001",
+      domain: candidate.domain,
+      candidateId: candidate.candidateId,
+      fundCandidate: candidate,
+      fundGateEvaluation: new FundGateEvaluator().evaluate(candidate),
+      fundGatePassed: true,
+      notificationSuppressed: false,
+    }),
+  };
+  const service = new AutonomousDiscoveryDaemonService(root, runner);
+  await service.init();
+  const cycle = await service.cycle();
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  const fundGate = await service.fundGate();
+  assert.equal(fundGate.passed, true);
+  const status = await service.status();
+  assert.equal(status.fundFound, true);
+  assert.equal(status.lastCandidateId, candidate.candidateId);
+  const graveyard = await service.graveyard();
+  assert.equal(graveyard.entryCount, 0);
+});
+
 test("discover-daemon notify-if-fund suppresses incomplete persisted candidate", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

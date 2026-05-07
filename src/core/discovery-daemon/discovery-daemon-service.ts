@@ -663,16 +663,18 @@ export class SilentSearchLoopRunner {
     });
     const fundGateEvaluation = new FundGateEvaluator().evaluate(fundCandidate);
     const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
-    input.graveyard.add({
-      candidateId,
-      domain,
-      claim,
-      status,
-      deathCause,
-      cycleId,
-      recordedAt: nowIso(),
-      noUserNotification: true,
-    });
+    if (!fundGateEvaluation.passed) {
+      input.graveyard.add({
+        candidateId,
+        domain,
+        claim,
+        status,
+        deathCause,
+        cycleId,
+        recordedAt: nowIso(),
+        noUserNotification: true,
+      });
+    }
     return withEvidenceHash({
       kind: "silent_search_cycle",
       cycleId,
@@ -698,6 +700,7 @@ export class SilentSearchLoopRunner {
       replayResults,
       proofOrMechanismPressure,
       killWeek,
+      fundCandidate,
       fundGateEvaluation,
       candidateId,
       internalStatus: status,
@@ -1081,6 +1084,20 @@ function freshTargetsPublicSafe(targets: unknown): boolean {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isFundCandidate(value: unknown): value is FundCandidate {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.candidateId === "string" &&
+    typeof value.claim === "string" &&
+    discoveryDaemonDomains().includes(value.domain as DiscoveryDomain) &&
+    fundLabels().includes(value.requestedFundLabel as FundLabel)
+  );
+}
+
 function objectiveRejectionCoverageGroups(): Array<{
   code: string;
   causes: DeathCause[];
@@ -1202,7 +1219,13 @@ export class FundNotificationPackageBuilder {
 }
 
 export class AutonomousDiscoveryDaemonService {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly loopRunner: Pick<
+      SilentSearchLoopRunner,
+      "runCycle"
+    > = new SilentSearchLoopRunner(),
+  ) {}
 
   async status(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
@@ -1280,6 +1303,8 @@ export class AutonomousDiscoveryDaemonService {
     }
     await this.ensureInitialized();
     let fund = await this.refreshFundGateFromCandidate();
+    await this.notifyFromFundGateIfPassed(fund);
+    fund = await this.readFundGate();
     const maxCycles = options.maxCycles ?? 1;
     const cycles: Record<string, unknown>[] = [];
     for (let index = 0; index < maxCycles; index += 1) {
@@ -1288,6 +1313,7 @@ export class AutonomousDiscoveryDaemonService {
       fund = await this.readFundGate();
       if (fund.passed) break;
     }
+    await this.notifyFromFundGateIfPassed(fund);
     const state = await this.readState();
     return withEvidenceHash({
       kind: "silent_until_fund_run",
@@ -1332,12 +1358,19 @@ export class AutonomousDiscoveryDaemonService {
     const graveyard = new CandidateGraveyardService(
       await this.readGraveyardEntries(),
     );
-    const cycle = new SilentSearchLoopRunner().runCycle({
+    const cycle = this.loopRunner.runCycle({
       state,
       ledger,
       graveyard,
       corpusSnapshot: await this.readCorpusSnapshot(),
     });
+    const cycleFundCandidate = isFundCandidate(cycle.fundCandidate)
+      ? cycle.fundCandidate
+      : null;
+    const cycleFundGatePassed =
+      isRecord(cycle.fundGateEvaluation) &&
+      cycle.fundGateEvaluation.passed === true &&
+      cycleFundCandidate !== null;
     const cycleId = String(cycle.cycleId);
     await writeJson(
       join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
@@ -1345,15 +1378,24 @@ export class AutonomousDiscoveryDaemonService {
     );
     await this.writeLedgerRecords(ledger.entries());
     await this.writeGraveyardEntries(graveyard.all());
-    await this.refreshFundGateFromCandidate();
+    if (cycleFundGatePassed) {
+      await this.writeFundCandidate(cycleFundCandidate);
+    }
+    const fundGate = await this.refreshFundGateFromCandidate();
+    const persistedFundCandidate = fundGate.passed
+      ? await this.readFundCandidate()
+      : null;
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
       status: "continue_searching" as const,
-      fundFound: false,
+      fundFound: fundGate.passed,
       cycleCount: state.cycleCount + 1,
       lastCycleId: cycleId,
-      lastCandidateId: String(cycle.candidateId),
-      currentDomain: String(cycle.domain) as DiscoveryDomain,
+      lastCandidateId:
+        persistedFundCandidate?.candidateId ?? String(cycle.candidateId),
+      currentDomain:
+        persistedFundCandidate?.domain ??
+        (String(cycle.domain) as DiscoveryDomain),
       silentMode: true as const,
       notifyOnlyOnFund: true as const,
       updatedAt: nowIso(),
@@ -1365,6 +1407,7 @@ export class AutonomousDiscoveryDaemonService {
       cycle,
       graveyardSummary: graveyard.summary(),
     });
+    await this.notifyFromFundGateIfPassed(fundGate);
     return cycle;
   }
 
@@ -1431,6 +1474,19 @@ export class AutonomousDiscoveryDaemonService {
       result,
     );
     return result;
+  }
+
+  private async notifyFromFundGateIfPassed(
+    result: FundGateResult,
+  ): Promise<void> {
+    if (!result.passed) return;
+    const candidate = await this.readFundCandidate();
+    if (!candidate) return;
+    await new FundNotificationPackageBuilder(this.root).buildIfFund(
+      result,
+      candidate,
+    );
+    await this.markFundFound(candidate);
   }
 
   async audit(): Promise<Record<string, unknown>> {
@@ -1685,6 +1741,16 @@ export class AutonomousDiscoveryDaemonService {
     if (!candidate) return null;
     if ("candidate" in candidate) return candidate.candidate;
     return candidate;
+  }
+
+  private async writeFundCandidate(candidate: FundCandidate): Promise<void> {
+    await writeJson(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+      withEvidenceHash({
+        kind: "fund_candidate",
+        candidate,
+      }),
+    );
   }
 
   private async readCorpusSnapshot(): Promise<CorpusSnapshot> {

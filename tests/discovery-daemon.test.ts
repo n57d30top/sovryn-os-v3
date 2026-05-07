@@ -814,6 +814,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "safe_high_impact_domain_rotation",
     "candidate_identity_drift_rejected",
     "death_gate_rejection_coverage",
+    "actual_rejection_path_coverage",
     "graveyard_internal_only",
     "checkpoint_resume_available",
     "search_cycle_pipeline_complete",
@@ -825,6 +826,49 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
   ]) {
     assert.equal(gateCodes.includes(code), true, code);
   }
+  assert.equal(audit.passed, true);
+});
+
+test("discover-daemon cycles exercise objective rejection paths in the internal graveyard", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 11,
+  });
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<Record<string, unknown>> };
+  const causes = graveyard.entries.map((entry) => entry.deathCause);
+  assert.equal(causes.includes("identity_drift"), true);
+  assert.equal(causes.includes("baseline_dominated"), true);
+  assert.equal(causes.includes("counterexample_dense"), true);
+  assert.equal(
+    causes.includes("no_replay_path") ||
+      causes.includes("unreplayed_decisive_claim"),
+    true,
+  );
+  assert.equal(
+    causes.includes("no_holdout_path") ||
+      causes.includes("holdout_not_supported"),
+    true,
+  );
+  assert.equal(causes.includes("not_externally_inspectable"), true);
+  assert.equal(
+    graveyard.entries.every((entry) => entry.noUserNotification === true),
+    true,
+  );
+  const cycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0011.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(cycle.deathCause, "identity_drift");
+  assert.equal(cycle.identityLedgerDecision.accepted, false);
+  assert.equal(cycle.notificationSuppressed, true);
+  const audit = await service.audit();
   assert.equal(audit.passed, true);
 });
 

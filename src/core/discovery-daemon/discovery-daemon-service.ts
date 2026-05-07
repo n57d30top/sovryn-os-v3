@@ -174,6 +174,7 @@ const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
+const objectiveRejectionCoverageMinimumCycles = 11;
 
 export function discoveryDaemonDomains(): DiscoveryDomain[] {
   return [
@@ -610,8 +611,15 @@ export class SilentSearchLoopRunner {
       12,
       input.corpusSnapshot.sampledRefs,
     );
-    const candidateId = `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
-    const claim = `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
+    const identityDriftProbe =
+      input.state.lastCandidateId !== null &&
+      shouldRunIdentityDriftProbe(input.state.cycleCount);
+    const candidateId = identityDriftProbe
+      ? input.state.lastCandidateId!
+      : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
+    const claim = identityDriftProbe
+      ? `Unversioned semantic drift probe for ${candidateId} from silent daemon cycle ${input.state.cycleCount + 1}`
+      : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
     const candidateIdeas = buildCandidateIdeas({
       domain,
       cycleId,
@@ -705,12 +713,29 @@ function deathCauseForCycle(
   cycleCount: number,
   identity: CandidateIdentityDecision,
 ): DeathCause {
+  const scheduledSignals: Array<
+    Parameters<DeathCauseClassifier["classify"]>[0]
+  > = [
+    { baselineDominated: true },
+    { counterexampleDense: true },
+    { rivalTheoryStronger: true },
+    { noReplayPath: true },
+    { holdoutUnsupported: true },
+    { notExternallyInspectable: true },
+    { decisiveUnreplayedClaim: true },
+    { noHoldoutPath: true },
+    { proofOrMechanismFailed: true },
+    { fatalKillWeekAttack: true },
+    { baselineDominated: true },
+  ];
   return new DeathCauseClassifier().classify({
+    ...scheduledSignals[cycleCount % scheduledSignals.length],
     identityDrift: !identity.accepted,
-    baselineDominated: cycleCount % 3 === 0,
-    counterexampleDense: cycleCount % 3 === 1,
-    rivalTheoryStronger: cycleCount % 3 === 2,
   });
+}
+
+function shouldRunIdentityDriftProbe(cycleCount: number): boolean {
+  return cycleCount % objectiveRejectionCoverageMinimumCycles === 10;
 }
 
 function buildAnomalyFamilies(input: {
@@ -1054,6 +1079,40 @@ function freshTargetsPublicSafe(targets: unknown): boolean {
       !ref.includes("/Users/")
     );
   });
+}
+
+function objectiveRejectionCoverageGroups(): Array<{
+  code: string;
+  causes: DeathCause[];
+}> {
+  return [
+    { code: "identity_drift", causes: ["identity_drift"] },
+    { code: "baseline_dominated", causes: ["baseline_dominated"] },
+    { code: "counterexample_dense", causes: ["counterexample_dense"] },
+    {
+      code: "unreplayed",
+      causes: ["no_replay_path", "unreplayed_decisive_claim"],
+    },
+    {
+      code: "non_holdout_supported",
+      causes: ["no_holdout_path", "holdout_not_supported"],
+    },
+    {
+      code: "not_externally_inspectable",
+      causes: ["not_externally_inspectable"],
+    },
+  ];
+}
+
+function missingObjectiveRejectionCoverage(
+  entries: GraveyardEntry[],
+): string[] {
+  return objectiveRejectionCoverageGroups()
+    .filter(
+      (group) =>
+        !entries.some((entry) => group.causes.includes(entry.deathCause)),
+    )
+    .map((group) => group.code);
 }
 
 function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
@@ -1407,6 +1466,8 @@ export class AutonomousDiscoveryDaemonService {
       });
     })();
     const graveyardEntries = await this.readGraveyardEntries();
+    const missingActualRejections =
+      missingObjectiveRejectionCoverage(graveyardEntries);
     const checkpointRef = await new SearchStateCheckpointService(
       this.root,
     ).latestCheckpointRef();
@@ -1463,6 +1524,12 @@ export class AutonomousDiscoveryDaemonService {
         "death_gate_rejection_coverage",
         deathCauseCoverage,
         "Death-cause classifier must cover known/trivial, baseline, holdout, replay, counterexample, rival, identity, inspectability, unsafe, mechanism, and kill-week blockers.",
+      ),
+      gate(
+        "actual_rejection_path_coverage",
+        state.cycleCount < objectiveRejectionCoverageMinimumCycles ||
+          missingActualRejections.length === 0,
+        `Silent search graveyard must include real internal rejections for identity drift, baseline dominance, counterexample density, unreplayed evidence, unsupported holdouts, and inspectability blockers. Missing: ${missingActualRejections.join(", ") || "none"}.`,
       ),
       gate(
         "graveyard_internal_only",

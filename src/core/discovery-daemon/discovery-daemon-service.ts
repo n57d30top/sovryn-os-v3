@@ -26,6 +26,8 @@ export type DiscoveryDaemonInternalStatus =
   | "candidate_graveyard_updated"
   | "continue_searching";
 
+export type DiscoveryDaemonStateStatus = "continue_searching" | "FUND_FOUND";
+
 export type FundLabel =
   | "externally_review_ready_candidate"
   | "bounded_validated_conjecture_candidate"
@@ -166,7 +168,7 @@ export type GraveyardEntry = {
 
 export type DiscoveryDaemonState = {
   kind: "discovery_daemon_state";
-  status: DiscoveryDaemonInternalStatus;
+  status: DiscoveryDaemonStateStatus;
   fundFound: boolean;
   cycleCount: number;
   lastCycleId: string | null;
@@ -2713,7 +2715,9 @@ export class AutonomousDiscoveryDaemonService {
       : null;
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
-      status: "continue_searching" as const,
+      status: fundGate.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching" as const),
       fundFound: fundGate.passed,
       cycleCount: state.cycleCount + 1,
       lastCycleId: cycleId,
@@ -2828,7 +2832,9 @@ export class AutonomousDiscoveryDaemonService {
     await removeIfExists(join(this.root, input.intake.fileRef));
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
-      status: "continue_searching" as const,
+      status: fundGate.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching" as const),
       fundFound: fundGate.passed,
       cycleCount: input.state.cycleCount + 1,
       lastCycleId: cycleId,
@@ -3045,6 +3051,13 @@ export class AutonomousDiscoveryDaemonService {
         "continue_searching_without_fund",
         state.fundFound || state.status === "continue_searching",
         "No-fund state must remain continue_searching.",
+      ),
+      gate(
+        "fund_state_status_consistency",
+        state.fundFound
+          ? state.status === "FUND_FOUND"
+          : state.status === "continue_searching",
+        "Daemon state status must be FUND_FOUND only when a Fund exists, and continue_searching otherwise.",
       ),
       gate(
         "safe_high_impact_domain_rotation",
@@ -3403,6 +3416,7 @@ export class AutonomousDiscoveryDaemonService {
     await this.writeState(
       withEvidenceHash({
         ...state,
+        status: "FUND_FOUND",
         fundFound: true,
         lastCandidateId: candidate.candidateId,
         currentDomain: candidate.domain,

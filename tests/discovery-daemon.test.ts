@@ -1894,11 +1894,42 @@ test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing can
   assert.equal(notification.notificationSuppressed, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
   const status = await service.status();
+  assert.equal(status.status, "FUND_FOUND");
   assert.equal(status.fundFound, true);
   assert.equal(
     status.lastCandidateId,
     "FUND-externally_review_ready_candidate",
   );
+});
+
+test("discover-daemon audit fails if Fund state keeps continue_searching status", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const publicPackagePath = await writeFundPackage(root);
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+  await service.notifyIfFund();
+  const statePath = join(root, daemonRoot, "state.json");
+  const state = JSON.parse(await readFile(statePath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  state.status = "continue_searching";
+  await writeFile(statePath, JSON.stringify(state), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("fund_state_status_consistency"), true);
 });
 
 test("discover-daemon run notifies immediately for a persisted passing fund candidate", async () => {
@@ -1921,10 +1952,16 @@ test("discover-daemon run notifies immediately for a persisted passing fund cand
     maxCycles: 5,
   });
   assert.equal(run.cyclesExecuted, 0);
+  assert.equal(run.status, "FUND_FOUND");
+  assert.equal(
+    (run.finalState as Record<string, unknown>).status,
+    "FUND_FOUND",
+  );
   assert.equal(run.userNotification, "FUND_FOUND");
   assert.equal(run.notificationSuppressed, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
   const status = await service.status();
+  assert.equal(status.status, "FUND_FOUND");
   assert.equal(status.fundFound, true);
 });
 
@@ -1958,6 +1995,7 @@ test("discover-daemon cycle promotes package-backed intake only when Fund Gate p
     true,
   );
   const status = await service.status();
+  assert.equal(status.status, "FUND_FOUND");
   assert.equal(status.fundFound, true);
   assert.equal(status.lastCandidateId, candidate.candidateId);
   const audit = await service.audit();

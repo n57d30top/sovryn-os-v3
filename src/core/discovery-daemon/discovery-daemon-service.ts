@@ -3466,6 +3466,18 @@ async function fundPackageArtifactGates(
     : null;
   const bindingsCandidateId = String(bindings?.candidateId ?? "");
   const bindingsClaim = String(bindings?.claim ?? "");
+  const evidenceRefsBound = packageBindingRefsValid(bindings?.evidenceRefs, 5);
+  const predictionRefsBound = packageBindingRefsValid(
+    bindings?.predictionRefs,
+    1,
+  );
+  const holdoutRefsBound = packageBindingRefsValid(bindings?.holdoutRefs, 1);
+  const counterexampleRefsBound = packageBindingRefsValid(
+    bindings?.counterexampleRefs,
+    1,
+  );
+  const replayRefsBound = packageBindingRefsValid(bindings?.replayRefs, 1);
+  const killWeekRefsBound = packageBindingRefsValid(bindings?.killWeekRefs, 1);
   return [
     gate(
       "external_review_package_path",
@@ -3484,7 +3496,72 @@ async function fundPackageArtifactGates(
       bindingsClaim === candidate.claim,
       "CLAIM_EVIDENCE_BINDINGS.json must bind to the exact candidate claim.",
     ),
+    gate(
+      "external_review_package_evidence_refs",
+      evidenceRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind at least five public-safe evidence refs.",
+    ),
+    gate(
+      "external_review_package_prediction_refs",
+      predictionRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind prediction evidence refs.",
+    ),
+    gate(
+      "external_review_package_holdout_refs",
+      holdoutRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind holdout evidence refs.",
+    ),
+    gate(
+      "external_review_package_counterexample_refs",
+      counterexampleRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind counterexample evidence refs.",
+    ),
+    gate(
+      "external_review_package_replay_refs",
+      replayRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind replay evidence refs.",
+    ),
+    gate(
+      "external_review_package_kill_week_refs",
+      killWeekRefsBound,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind kill-week evidence refs.",
+    ),
+    gate(
+      "external_review_package_method_binding",
+      bindings?.methodRef === "METHOD.md",
+      "CLAIM_EVIDENCE_BINDINGS.json must bind METHOD.md.",
+    ),
+    gate(
+      "external_review_package_reproduce_binding",
+      bindings?.reproduceRef === "REPRODUCE.md",
+      "CLAIM_EVIDENCE_BINDINGS.json must bind REPRODUCE.md.",
+    ),
+    gate(
+      "external_review_package_limitations_binding",
+      bindings?.limitationsRef === "LIMITATIONS.md",
+      "CLAIM_EVIDENCE_BINDINGS.json must bind LIMITATIONS.md.",
+    ),
   ];
+}
+
+function packageBindingRefsValid(value: unknown, minimum: number): boolean {
+  if (!Array.isArray(value) || value.length < minimum) return false;
+  const refs = value.map((item) => String(item));
+  return refs.every((ref) => {
+    const cleanRef = ref.trim();
+    const artifactRef = cleanRef.split("#", 1)[0] ?? "";
+    return (
+      cleanRef.length > 0 &&
+      requiredFundPackageFiles.includes(
+        artifactRef as (typeof requiredFundPackageFiles)[number],
+      ) &&
+      !cleanRef.includes("/Users/") &&
+      !cleanRef.toLowerCase().startsWith("file:") &&
+      !cleanRef.includes("\\") &&
+      !cleanRef.includes("..") &&
+      !cleanRef.startsWith("/")
+    );
+  });
 }
 
 async function publicSafePackageText(

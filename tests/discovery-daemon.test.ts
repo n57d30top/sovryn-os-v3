@@ -145,6 +145,21 @@ async function writeFundPackage(
       kind: "claim_evidence_bindings",
       candidateId,
       claim,
+      evidenceRefs: [
+        "PAPER.md#claim",
+        "METHOD.md#method",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#scope",
+        "CLAIM_EVIDENCE_BINDINGS.json#bindings",
+      ],
+      predictionRefs: ["PAPER.md#predictions"],
+      holdoutRefs: ["PAPER.md#holdouts"],
+      counterexampleRefs: ["PAPER.md#counterexamples"],
+      replayRefs: ["REPRODUCE.md#replay"],
+      killWeekRefs: ["PAPER.md#kill-week"],
+      methodRef: "METHOD.md",
+      reproduceRef: "REPRODUCE.md",
+      limitationsRef: "LIMITATIONS.md",
       noOverclaim: true,
     }),
     "utf8",
@@ -192,6 +207,21 @@ async function writeCorpusFundPackage(
       candidateId: candidate?.candidateId ?? "PARTIAL-CANDIDATE",
       claim: candidate?.claim ?? "A partial package without a FundCandidate.",
       candidate: candidate ?? undefined,
+      evidenceRefs: [
+        "PAPER.md#claim",
+        "METHOD.md#method",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#scope",
+        "CLAIM_EVIDENCE_BINDINGS.json#bindings",
+      ],
+      predictionRefs: ["PAPER.md#predictions"],
+      holdoutRefs: ["PAPER.md#holdouts"],
+      counterexampleRefs: ["PAPER.md#counterexamples"],
+      replayRefs: ["REPRODUCE.md#replay"],
+      killWeekRefs: ["PAPER.md#kill-week"],
+      methodRef: "METHOD.md",
+      reproduceRef: "REPRODUCE.md",
+      limitationsRef: "LIMITATIONS.md",
       noOverclaim: true,
     }),
     "utf8",
@@ -1723,6 +1753,70 @@ test("discover-daemon fund-gate rejects package with mismatched claim bindings",
   assert.equal(
     (result.failedGates as string[]).includes(
       "external_review_package_claim_binding",
+    ),
+    true,
+  );
+});
+
+test("discover-daemon fund-gate rejects package without concrete evidence refs", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const publicPackagePath = await writeFundPackage(root);
+  const bindingsPath = join(
+    root,
+    publicPackagePath,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  delete bindings.evidenceRefs;
+  bindings.predictionRefs = [];
+  bindings.replayRefs = ["file:///tmp/replay"];
+  delete bindings.methodRef;
+  bindings.reproduceRef = "MISSING.md";
+  await writeFile(bindingsPath, JSON.stringify(bindings), "utf8");
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+  const result = await service.fundGate();
+  assert.equal(result.passed, false);
+  assert.equal(result.status, "continue_searching");
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_evidence_refs",
+    ),
+    true,
+  );
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_prediction_refs",
+    ),
+    true,
+  );
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_replay_refs",
+    ),
+    true,
+  );
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_method_binding",
+    ),
+    true,
+  );
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_reproduce_binding",
     ),
     true,
   );

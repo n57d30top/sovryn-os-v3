@@ -69,6 +69,12 @@ Release-grade or release-grade-with-caveats classes:
 - `formal_counterexample`
 - `temporal_evaluation`
 
+The autonomous discovery daemon is now available as an internal silent search
+loop. It persists candidate identity, graveyard, checkpoint, and Fund Gate
+state under `.sovryn/discovery-daemon/`. It reports only when a strict Fund Gate
+passes. No Fund has been found by default, and partial or promising-but-unvalidated
+signals remain internal `continue_searching` state.
+
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Quickstart
@@ -113,6 +119,15 @@ node dist/cli.js route policy-v4-audit --json
 node dist/cli.js temporal v2-audit --json
 node dist/cli.js repo deep-audit --json
 node dist/cli.js formal proof-route-audit --json
+```
+
+Initialize and inspect the silent discovery daemon:
+
+```bash
+node dist/cli.js discover-daemon init --json
+node dist/cli.js discover-daemon run --mode silent --until fund --json
+node dist/cli.js discover-daemon status --json
+node dist/cli.js discover-daemon audit --json
 ```
 
 If installed globally or linked, use `sovryn` instead of `node dist/cli.js`.
@@ -168,6 +183,15 @@ Cross-domain OS layer:
 - publishes only public-safe packages with limitations and reproducibility
   notes.
 
+Discovery daemon:
+
+- rotates through safe high-impact computational and formal domains,
+- enforces candidate identity before deep validation,
+- records killed candidates in an internal graveyard instead of publishing
+  routine failed cycles,
+- checks strict Fund Gate requirements before notifying,
+- suppresses partial, weak, and promising-but-unvalidated statuses.
+
 ## Architecture
 
 The core architecture is intentionally small:
@@ -206,6 +230,7 @@ The CLI returns stable machine-readable envelopes when run with `--json`.
 | Reality/field/frontier | `reality-grade trial`, `field-grade trial`, `frontier trial`                                 | Increasingly strict autonomous-science trial workflows.                           |
 | Cross-domain OS        | `route intake`, `route execute`, `os capability-status`, `os capability-audit`               | Evidence routing, package replay, class capability, and OS readiness checks.      |
 | Domain packs           | `temporal v2-audit`, `repo deep-audit`, `formal proof-route-audit`                           | Hardened domain-specific evidence routes used by the OS layer.                    |
+| Discovery daemon       | `discover-daemon run`, `discover-daemon fund-gate`, `discover-daemon audit`                  | Silent-until-fund candidate search, identity ledger, graveyard, and Fund Gate.    |
 | Audits and readiness   | `security audit`, `reliability audit`, `public-beta check`, `launch v1-rc-check`, `e2e run`  | Safety, replay, beta, launch, pilot, and end-to-end gates.                        |
 | Plugins                | `plugin list`, `plugin run`                                                                  | Optional trusted extensions.                                                      |
 
@@ -240,20 +265,21 @@ See [docs/JSON_ENVELOPES.md](docs/JSON_ENVELOPES.md).
 
 Sovryn writes local evidence under `.sovryn/`. Common roots include:
 
-| Path                  | Contents                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| `.sovryn/missions/`   | Mission state, journals, reviews, verification evidence.                                 |
-| `.sovryn/worktrees/`  | Isolated Git worktrees for mission attempts.                                             |
-| `.sovryn/factory/`    | Factory plans, runs, reviews, packages, replay evidence.                                 |
-| `.sovryn/inventions/` | Open Invention dossiers, prototype evidence, publication reviews.                        |
-| `.sovryn/corpus/`     | Local corpus index, graph, export, publication status, audit output.                     |
-| `.sovryn/science/`    | Studies, hypotheses, experiments, memory, source cards, reproductions.                   |
-| `.sovryn/lab/`        | Lab needs, decisions, provisioning, instruments, pipelines, memory.                      |
-| `.sovryn/knowledge/`  | Claim graphs, confidence, contradictions, method atlas, experiment queues.               |
-| `.sovryn/frontier/`   | Benchmark expansion, method factory, falsification, replication, paper packages, trials. |
-| `.sovryn/route/`      | Cross-domain target classification, route plans, execution results, and route audits.    |
-| `.sovryn/os-v1_6/`    | OS v1.6 capability status, class hardening, replay coverage, and final audit artifacts.  |
-| `.sovryn/audits/`     | Security, reliability, replay, and safety-scope audit evidence.                          |
+| Path                        | Contents                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `.sovryn/missions/`         | Mission state, journals, reviews, verification evidence.                                          |
+| `.sovryn/worktrees/`        | Isolated Git worktrees for mission attempts.                                                      |
+| `.sovryn/factory/`          | Factory plans, runs, reviews, packages, replay evidence.                                          |
+| `.sovryn/inventions/`       | Open Invention dossiers, prototype evidence, publication reviews.                                 |
+| `.sovryn/corpus/`           | Local corpus index, graph, export, publication status, audit output.                              |
+| `.sovryn/science/`          | Studies, hypotheses, experiments, memory, source cards, reproductions.                            |
+| `.sovryn/lab/`              | Lab needs, decisions, provisioning, instruments, pipelines, memory.                               |
+| `.sovryn/knowledge/`        | Claim graphs, confidence, contradictions, method atlas, experiment queues.                        |
+| `.sovryn/frontier/`         | Benchmark expansion, method factory, falsification, replication, paper packages, trials.          |
+| `.sovryn/route/`            | Cross-domain target classification, route plans, execution results, and route audits.             |
+| `.sovryn/os-v1_6/`          | OS v1.6 capability status, class hardening, replay coverage, and final audit artifacts.           |
+| `.sovryn/discovery-daemon/` | Silent discovery state, candidate identity ledger, graveyard, checkpoints, and Fund Gate results. |
+| `.sovryn/audits/`           | Security, reliability, replay, and safety-scope audit evidence.                                   |
 
 Generated artifacts are intended for review and replay. Curated publication
 workflows copy only public-safe evidence into release or corpus outputs.

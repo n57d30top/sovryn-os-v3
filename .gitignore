@@ -36,6 +36,7 @@ graphify-out/graph.json
 .sovryn/science/
 .sovryn/lab/
 .sovryn/discovery/
+.sovryn/discovery-daemon/
 .sovryn/strategy/
 .sovryn/knowledge/
 .sovryn/sources/

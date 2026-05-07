@@ -12,6 +12,7 @@ import { configExists, loadConfig } from "../core/config.js";
 import { CorpusAutopublisher } from "../core/corpus/corpus-autopublisher.js";
 import { CorpusProductService } from "../core/corpus/corpus-product-service.js";
 import { CorpusService } from "../core/corpus/corpus-service.js";
+import { AutonomousDiscoveryDaemonService } from "../core/discovery-daemon/discovery-daemon-service.js";
 import { DiscoveryService } from "../core/discovery/discovery-service.js";
 import {
   FactoryService,
@@ -167,6 +168,16 @@ Commands:
   sovryn nobel-readiness score [--json]
   sovryn nobel-readiness package [--json]
   sovryn nobel-readiness audit [--json]
+  sovryn discover-daemon status [--json]
+  sovryn discover-daemon init [--json]
+  sovryn discover-daemon run --mode silent --until fund [--json]
+  sovryn discover-daemon resume [--json]
+  sovryn discover-daemon cycle [--json]
+  sovryn discover-daemon candidate-status [--json]
+  sovryn discover-daemon graveyard [--json]
+  sovryn discover-daemon fund-gate [--json]
+  sovryn discover-daemon notify-if-fund [--json]
+  sovryn discover-daemon audit [--json]
   sovryn os status [--json]
   sovryn os hardening-plan [--json]
   sovryn os run-scale [--json]
@@ -713,6 +724,16 @@ export async function executeCli(
       case "nobel-readiness": {
         const result = await nobelReadinessCommand(parsed, root);
         return okEnvelope("nobel-readiness", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "discover-daemon": {
+        const result = await discoverDaemonCommand(parsed, root);
+        return okEnvelope("discover-daemon", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1566,6 +1587,60 @@ async function nobelReadinessCommand(
       throw new AppError(
         "UNKNOWN_NOBEL_READINESS_COMMAND",
         `Unknown nobel-readiness command: ${subcommand}`,
+      );
+  }
+}
+
+async function discoverDaemonCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "DISCOVER_DAEMON_COMMAND_REQUIRED",
+      "Use: sovryn discover-daemon <status|init|run|resume|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
+    );
+  }
+  const service = new AutonomousDiscoveryDaemonService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "init":
+      return service.init();
+    case "run": {
+      const mode = flagString(parsed.flags, "--mode") ?? "silent";
+      const until = flagString(parsed.flags, "--until") ?? "fund";
+      if (mode !== "silent" || until !== "fund") {
+        throw new AppError(
+          "DISCOVER_DAEMON_RUN_MODE_INVALID",
+          "discover-daemon run requires --mode silent --until fund.",
+        );
+      }
+      return service.run({
+        mode: "silent",
+        until: "fund",
+        maxCycles: flagInt(parsed.flags, "--max-cycles", 1),
+      });
+    }
+    case "resume":
+      return service.resume();
+    case "cycle":
+      return service.cycle();
+    case "candidate-status":
+      return service.candidateStatus();
+    case "graveyard":
+      return service.graveyard();
+    case "fund-gate":
+      return service.fundGate();
+    case "notify-if-fund":
+      return service.notifyIfFund();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_DISCOVER_DAEMON_COMMAND",
+        `Unknown discover-daemon command: ${subcommand}`,
       );
   }
 }

@@ -55,6 +55,7 @@ import { ExternalReproductionService } from "../core/external-reproduction/exter
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
+import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
 import { DiscoveryValidationService } from "../core/validation/discovery-validation-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
@@ -160,6 +161,14 @@ Commands:
   sovryn validate rival-stress [--json]
   sovryn validate decision [--json]
   sovryn validate audit [--json]
+  sovryn temporal status [--json]
+  sovryn temporal instrument run --target <target-id> [--json]
+  sovryn temporal split-stress --target <target-id> [--json]
+  sovryn temporal leakage-control --target <target-id> [--json]
+  sovryn temporal horizon-stress --target <target-id> [--json]
+  sovryn temporal replay --target <target-id> [--json]
+  sovryn temporal classify --target <target-id> [--json]
+  sovryn temporal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -613,6 +622,16 @@ export async function executeCli(
       case "validate": {
         const result = await validateCommand(parsed, root);
         return okEnvelope("validate", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "temporal": {
+        const result = await temporalCommand(parsed, root);
+        return okEnvelope("temporal", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1428,6 +1447,61 @@ async function validateCommand(
         `Unknown validate command: ${subcommand}`,
       );
   }
+}
+
+async function temporalCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "TEMPORAL_COMMAND_REQUIRED",
+      "Use: sovryn temporal <status|instrument run|split-stress|leakage-control|horizon-stress|replay|classify|audit>.",
+    );
+  }
+  const service = new TemporalEvaluationFragilityService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "instrument": {
+      if (parsed.positionals[1] !== "run") {
+        throw new AppError(
+          "TEMPORAL_INSTRUMENT_COMMAND_REQUIRED",
+          "Use: sovryn temporal instrument run --target <target-id>.",
+        );
+      }
+      return service.runInstrument(requiredTemporalTarget(parsed));
+    }
+    case "split-stress":
+      return service.splitStress(requiredTemporalTarget(parsed));
+    case "leakage-control":
+      return service.leakageControl(requiredTemporalTarget(parsed));
+    case "horizon-stress":
+      return service.horizonStress(requiredTemporalTarget(parsed));
+    case "replay":
+      return service.replay(requiredTemporalTarget(parsed));
+    case "classify":
+      return service.classify(requiredTemporalTarget(parsed));
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_TEMPORAL_COMMAND",
+        `Unknown temporal command: ${subcommand}`,
+      );
+  }
+}
+
+function requiredTemporalTarget(parsed: ParsedArgs): string {
+  const target = flagString(parsed.flags, "--target");
+  if (!target) {
+    throw new AppError(
+      "TEMPORAL_TARGET_REQUIRED",
+      "temporal command requires --target <target-id>.",
+    );
+  }
+  return target;
 }
 
 async function theoryCommand(

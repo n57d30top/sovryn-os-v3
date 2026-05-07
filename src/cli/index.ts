@@ -58,6 +58,7 @@ import { GeneralScientistService } from "../core/scientist/general-scientist-ser
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { NobelReadinessService } from "../core/nobel/nobel-readiness-service.js";
 import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
+import { CrossDomainEvidenceRoutingService } from "../core/route/cross-domain-evidence-routing-service.js";
 import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
 import { DiscoveryValidationService } from "../core/validation/discovery-validation-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
@@ -164,6 +165,15 @@ Commands:
   sovryn nobel-readiness score [--json]
   sovryn nobel-readiness package [--json]
   sovryn nobel-readiness audit [--json]
+  sovryn route status [--json]
+  sovryn route intake --target <target> [--json]
+  sovryn route classify --target <target> [--json]
+  sovryn route plan --target <target> [--json]
+  sovryn route execute --target <target> [--json]
+  sovryn route batch --input <file> [--json]
+  sovryn route score [--json]
+  sovryn route package [--json]
+  sovryn route audit [--json]
   sovryn validate status [--json]
   sovryn validate candidate inspect [--json]
   sovryn validate freeze [--json]
@@ -677,6 +687,16 @@ export async function executeCli(
       case "nobel-readiness": {
         const result = await nobelReadinessCommand(parsed, root);
         return okEnvelope("nobel-readiness", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "route": {
+        const result = await routeCommand(parsed, root);
+        return okEnvelope("route", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1512,6 +1532,67 @@ async function nobelReadinessCommand(
         `Unknown nobel-readiness command: ${subcommand}`,
       );
   }
+}
+
+async function routeCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "ROUTE_COMMAND_REQUIRED",
+      "Use: sovryn route <status|intake|classify|plan|execute|batch|score|package|audit>.",
+    );
+  }
+  const service = new CrossDomainEvidenceRoutingService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "intake":
+      return service.intake(requiredRouteTarget(parsed));
+    case "classify":
+      return service.classify(requiredRouteTarget(parsed));
+    case "plan":
+      return service.plan(requiredRouteTarget(parsed));
+    case "execute":
+      return service.execute(requiredRouteTarget(parsed));
+    case "batch":
+      return service.batch(requiredRouteInput(parsed));
+    case "score":
+      return service.score();
+    case "package":
+      return service.package();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_ROUTE_COMMAND",
+        `Unknown route command: ${subcommand}`,
+      );
+  }
+}
+
+function requiredRouteTarget(parsed: ParsedArgs): string {
+  const target = flagString(parsed.flags, "--target");
+  if (!target) {
+    throw new AppError(
+      "ROUTE_TARGET_REQUIRED",
+      "route command requires --target <target>.",
+    );
+  }
+  return target;
+}
+
+function requiredRouteInput(parsed: ParsedArgs): string {
+  const input = flagString(parsed.flags, "--input");
+  if (!input) {
+    throw new AppError(
+      "ROUTE_INPUT_REQUIRED",
+      "route batch requires --input <file>.",
+    );
+  }
+  return input;
 }
 
 async function validateCommand(

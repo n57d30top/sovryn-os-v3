@@ -167,10 +167,13 @@ type CorpusSnapshot = {
   resultCount: number;
   sampledResultCount: number;
   anomalySeedKinds: string[];
+  sampledRefs: string[];
 };
 
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
+export const publicCorpusBaseRef =
+  "https://github.com/n57d30top/sovryn-open-inventions" as const;
 
 export function discoveryDaemonDomains(): DiscoveryDomain[] {
   return [
@@ -402,11 +405,17 @@ export class CandidateSourceRanker {
 }
 
 export class FreshTargetSampler {
-  sample(domain: DiscoveryDomain, count: number): Record<string, unknown>[] {
+  sample(
+    domain: DiscoveryDomain,
+    count: number,
+    publicRefs: string[] = [publicCorpusBaseRef],
+  ): Record<string, unknown>[] {
+    const refs = publicRefs.length > 0 ? publicRefs : [publicCorpusBaseRef];
     return Array.from({ length: count }, (_, index) => ({
       targetId: `${domain}-target-${String(index + 1).padStart(3, "0")}`,
       domain,
-      publicArtifactRef: `https://example.org/sovryn-safe-targets/${domain}/${String(index + 1).padStart(3, "0")}`,
+      publicArtifactRef: refs[index % refs.length],
+      source: "public_corpus_or_canonical_repo",
       safePublic: true,
       privateData: false,
       unsafeScope: false,
@@ -596,7 +605,11 @@ export class SilentSearchLoopRunner {
       corpusSnapshot: input.corpusSnapshot,
       graveyard: priorGraveyard,
     });
-    const targets = new FreshTargetSampler().sample(domain, 12);
+    const targets = new FreshTargetSampler().sample(
+      domain,
+      12,
+      input.corpusSnapshot.sampledRefs,
+    );
     const candidateId = `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
     const claim = `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
     const candidateIdeas = buildCandidateIdeas({
@@ -1005,6 +1018,13 @@ function corpusSnapshotFromIndex(
         .filter((kind) => kind.length > 0),
     ),
   ).slice(0, 8);
+  const sampledRefs = sampled.map((result) => {
+    const path = typeof result.path === "string" ? result.path : null;
+    const slug = typeof result.slug === "string" ? result.slug : null;
+    if (path) return `${publicCorpusBaseRef}/tree/main/${path}`;
+    if (slug) return `${publicCorpusBaseRef}/tree/main/results/${slug}`;
+    return publicCorpusBaseRef;
+  });
   return {
     kind: "daemon_corpus_snapshot",
     source,
@@ -1014,7 +1034,26 @@ function corpusSnapshotFromIndex(
       anomalySeedKinds.length > 0
         ? anomalySeedKinds
         : ["no_indexed_result_kinds"],
+    sampledRefs: sampledRefs.length > 0 ? sampledRefs : [publicCorpusBaseRef],
   };
+}
+
+function freshTargetsPublicSafe(targets: unknown): boolean {
+  if (!Array.isArray(targets) || targets.length === 0) return false;
+  return targets.every((target) => {
+    if (!target || typeof target !== "object") return false;
+    const row = target as Record<string, unknown>;
+    const ref = String(row.publicArtifactRef ?? "");
+    return (
+      row.safePublic === true &&
+      row.privateData === false &&
+      row.unsafeScope === false &&
+      row.rawLogsPublic === false &&
+      ref.startsWith(publicCorpusBaseRef) &&
+      !ref.includes("example.org") &&
+      !ref.includes("/Users/")
+    );
+  });
 }
 
 function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
@@ -1035,8 +1074,8 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     Boolean(cycle.corpusContext) &&
     Array.isArray(cycle.unresolvedAnomalyFamilies) &&
     cycle.unresolvedAnomalyFamilies.length >= 3 &&
-    Array.isArray(cycle.freshTargets) &&
-    cycle.freshTargets.length >= 12 &&
+    freshTargetsPublicSafe(cycle.freshTargets) &&
+    (cycle.freshTargets as unknown[]).length >= 12 &&
     Array.isArray(cycle.candidateIdeas) &&
     cycle.candidateIdeas.length >= 3 &&
     Boolean(cycle.identityLedgerDecision) &&
@@ -1448,6 +1487,13 @@ export class AutonomousDiscoveryDaemonService {
         "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
       ),
       gate(
+        "fresh_targets_public_safe",
+        state.cycleCount === 0 ||
+          (latestCycle !== null &&
+            freshTargetsPublicSafe(latestCycle.freshTargets)),
+        "Fresh daemon targets must bind to public corpus references and must not use placeholders, local paths, private data, unsafe scope, or raw public logs.",
+      ),
+      gate(
         "fund_gate_blocks_empty_candidate",
         new FundGateEvaluator().evaluate(null).passed === false,
         "Fund Gate must not pass without a concrete candidate.",
@@ -1589,6 +1635,7 @@ export class AutonomousDiscoveryDaemonService {
       resultCount: 0,
       sampledResultCount: 0,
       anomalySeedKinds: ["no_local_corpus_index_available"],
+      sampledRefs: [publicCorpusBaseRef],
     };
   }
 

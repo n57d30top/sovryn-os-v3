@@ -17,6 +17,7 @@ import {
   FundGateEvaluator,
   fundLabels,
   FundNotificationPackageBuilder,
+  publicCorpusBaseRef,
   type DeathCause,
   type FundCandidate,
   type FundLabel,
@@ -148,6 +149,18 @@ for (const domain of discoveryDaemonDomains()) {
     );
     assert.equal(
       targets.every((target) => target.privateData === false),
+      true,
+    );
+    assert.equal(
+      targets.every((target) =>
+        String(target.publicArtifactRef).startsWith(publicCorpusBaseRef),
+      ),
+      true,
+    );
+    assert.equal(
+      targets.every(
+        (target) => !String(target.publicArtifactRef).includes("example.org"),
+      ),
       true,
     );
   });
@@ -724,6 +737,18 @@ test("discover-daemon cycle records full silent discovery pipeline", async () =>
     true,
   );
   assert.equal(
+    (cycle.freshTargets as Array<Record<string, unknown>>).every(
+      (target) =>
+        target.safePublic === true &&
+        target.privateData === false &&
+        target.unsafeScope === false &&
+        target.rawLogsPublic === false &&
+        String(target.publicArtifactRef).startsWith(publicCorpusBaseRef) &&
+        !String(target.publicArtifactRef).includes("example.org"),
+    ),
+    true,
+  );
+  assert.equal(
     Array.isArray(cycle.candidateIdeas) && cycle.candidateIdeas.length >= 3,
     true,
   );
@@ -792,6 +817,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "graveyard_internal_only",
     "checkpoint_resume_available",
     "search_cycle_pipeline_complete",
+    "fresh_targets_public_safe",
     "fund_gate_blocks_empty_candidate",
     "fund_only_notification",
     "no_internal_status_notifies",
@@ -825,6 +851,31 @@ test("discover-daemon audit fails if latest cycle pipeline evidence is tampered"
   assert.equal(failed.includes("search_cycle_pipeline_complete"), true);
 });
 
+test("discover-daemon audit fails if fresh target references use placeholders", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0001.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const freshTargets = cycle.freshTargets as Array<Record<string, unknown>>;
+  freshTargets[0]!.publicArtifactRef = "https://example.org/placeholder";
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("fresh_targets_public_safe"), true);
+  assert.equal(failed.includes("search_cycle_pipeline_complete"), true);
+});
+
 test("discover-daemon cycle reads sibling corpus index when available", async () => {
   const root = await tempRoot();
   const sibling = join(root, "..", "sovryn-open-inventions");
@@ -848,6 +899,18 @@ test("discover-daemon cycle reads sibling corpus index when available", async ()
   assert.equal(context.corpusSnapshot.resultCount, 2);
   assert.equal(
     context.corpusSnapshot.anomalySeedKinds.includes("claim_review"),
+    true,
+  );
+  assert.equal(
+    context.corpusSnapshot.sampledRefs[0],
+    `${publicCorpusBaseRef}/tree/main/results/one`,
+  );
+  assert.equal(
+    (cycle.freshTargets as Array<Record<string, unknown>>).some(
+      (target) =>
+        target.publicArtifactRef ===
+        `${publicCorpusBaseRef}/tree/main/results/one`,
+    ),
     true,
   );
 });

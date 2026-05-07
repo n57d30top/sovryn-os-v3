@@ -1606,6 +1606,31 @@ test("discover-daemon fund-gate rejects package-less otherwise passing candidate
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon audit fails if stale fund candidate file remains without fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(fundCandidate()),
+    "utf8",
+  );
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("no_stale_fund_candidate_file"), true);
+  const fundGate = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[] };
+  assert.equal(fundGate.passed, false);
+  assert.equal(
+    fundGate.failedGates.includes("external_review_package_path"),
+    true,
+  );
+});
+
 test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing candidate", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

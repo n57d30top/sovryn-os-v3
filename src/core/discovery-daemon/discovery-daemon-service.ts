@@ -2614,7 +2614,10 @@ export class AutonomousDiscoveryDaemonService {
     const fundFoundFile = await exists(
       join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
     );
-    const fundGate = await this.readFundGate();
+    const fundCandidateFilePresent = await exists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
+    const fundGate = await this.refreshFundGateFromCandidate();
     const ledgerDriftDecision = (() => {
       const ledger = new CandidateIdentityLedger();
       ledger.register({
@@ -2660,6 +2663,13 @@ export class AutonomousDiscoveryDaemonService {
         "no_fake_fund_file",
         state.fundFound || !fundFoundFile,
         "FUND_FOUND.md must not exist unless a fund exists.",
+      ),
+      gate(
+        "no_stale_fund_candidate_file",
+        state.fundFound
+          ? fundCandidateFilePresent && fundGate.passed
+          : !fundCandidateFilePresent,
+        "fund-candidate.json must exist only for an actual passing Fund state; rejected candidates must be tombstoned into the internal graveyard.",
       ),
       gate(
         "continue_searching_without_fund",

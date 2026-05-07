@@ -192,6 +192,27 @@ Discovery daemon:
 - checks strict Fund Gate requirements before notifying,
 - suppresses partial, weak, and promising-but-unvalidated statuses.
 
+### Discovery Daemon Semantics
+
+The discovery daemon is intentionally silent until a strict Fund Gate passes.
+`continue_searching` is a persisted search state, not a completed discovery
+claim. The daemon may kill or tombstone candidates internally for baseline
+dominance, counterexamples, replay failure, identity drift, known-pattern
+matches, rival-theory pressure, missing holdouts, missing package evidence, or
+unsafe/out-of-scope status.
+
+A Fund notification is allowed only when the candidate has stable identity,
+frozen predictions, holdout support, replayed decisive evidence, rival-theory
+and counterexample pressure, proof or mechanism pressure, a completed kill week,
+and an external-review package with `PAPER.md`, `METHOD.md`,
+`CLAIM_EVIDENCE_BINDINGS.json`, `REPRODUCE.md`, and `LIMITATIONS.md`.
+
+No Fund is currently claimed. The default daemon state remains
+`continue_searching` unless `discover-daemon fund-gate` confirms that every
+required gate passed. Sovryn does not treat partial signals,
+`promising_but_unvalidated`, `promising_with_strong_caveats`, corpus
+maintenance, or graveyard updates as user-notifiable success.
+
 ## Architecture
 
 The core architecture is intentionally small:
@@ -354,6 +375,7 @@ Workflow docs:
 - [docs/FIELD_GRADE_AUTONOMOUS_SCIENCE.md](docs/FIELD_GRADE_AUTONOMOUS_SCIENCE.md)
 - [docs/FRONTIER_SCIENTIFIC_PRODUCTION.md](docs/FRONTIER_SCIENTIFIC_PRODUCTION.md)
 - [docs/FRONTIER_PRODUCTION_TRIAL.md](docs/FRONTIER_PRODUCTION_TRIAL.md)
+- [docs/DISCOVERY_DAEMON.md](docs/DISCOVERY_DAEMON.md)
 
 Operations and audit docs:
 

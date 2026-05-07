@@ -55,6 +55,7 @@ import { ExternalReproductionService } from "../core/external-reproduction/exter
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
+import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
 import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
 import { DiscoveryValidationService } from "../core/validation/discovery-validation-service.js";
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
@@ -174,6 +175,15 @@ Commands:
   sovryn temporal blind-mechanism-test [--json]
   sovryn temporal mechanism-audit [--json]
   sovryn temporal audit [--json]
+  sovryn repo status [--json]
+  sovryn repo instrument run --target <target-id> [--json]
+  sovryn repo static-scan --target <target-id> [--json]
+  sovryn repo install-probe --target <target-id> [--json]
+  sovryn repo runtime-probe --target <target-id> [--json]
+  sovryn repo environment-stress --target <target-id> [--json]
+  sovryn repo replay --target <target-id> [--json]
+  sovryn repo classify --target <target-id> [--json]
+  sovryn repo audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -637,6 +647,16 @@ export async function executeCli(
       case "temporal": {
         const result = await temporalCommand(parsed, root);
         return okEnvelope("temporal", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "repo": {
+        const result = await repoCommand(parsed, root);
+        return okEnvelope("repo", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1514,6 +1534,63 @@ function requiredTemporalTarget(parsed: ParsedArgs): string {
     throw new AppError(
       "TEMPORAL_TARGET_REQUIRED",
       "temporal command requires --target <target-id>.",
+    );
+  }
+  return target;
+}
+
+async function repoCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "REPO_COMMAND_REQUIRED",
+      "Use: sovryn repo <status|instrument run|static-scan|install-probe|runtime-probe|environment-stress|replay|classify|audit>.",
+    );
+  }
+  const service = new RuntimeReproductionAlignmentService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "instrument": {
+      if (parsed.positionals[1] !== "run") {
+        throw new AppError(
+          "REPO_INSTRUMENT_COMMAND_REQUIRED",
+          "Use: sovryn repo instrument run --target <target-id>.",
+        );
+      }
+      return service.runInstrument(requiredRepoTarget(parsed));
+    }
+    case "static-scan":
+      return service.staticScan(requiredRepoTarget(parsed));
+    case "install-probe":
+      return service.installProbe(requiredRepoTarget(parsed));
+    case "runtime-probe":
+      return service.runtimeProbe(requiredRepoTarget(parsed));
+    case "environment-stress":
+      return service.environmentStress(requiredRepoTarget(parsed));
+    case "replay":
+      return service.replay(requiredRepoTarget(parsed));
+    case "classify":
+      return service.classify(requiredRepoTarget(parsed));
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_REPO_COMMAND",
+        `Unknown repo command: ${subcommand}`,
+      );
+  }
+}
+
+function requiredRepoTarget(parsed: ParsedArgs): string {
+  const target = flagString(parsed.flags, "--target");
+  if (!target) {
+    throw new AppError(
+      "REPO_TARGET_REQUIRED",
+      "repo command requires --target <target-id>.",
     );
   }
   return target;

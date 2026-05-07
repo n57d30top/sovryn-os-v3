@@ -857,6 +857,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "search_cycle_pipeline_complete",
     "corpus_seed_candidate_binding",
     "corpus_seed_graveyard_reuse_blocked",
+    "fresh_external_seed_binding",
     "fresh_targets_public_safe",
     "fund_gate_blocks_empty_candidate",
     "fund_only_notification",
@@ -1168,8 +1169,72 @@ test("discover-daemon falls back after all corpus seeds are internally tombstone
   assert.equal(cycle.corpusSeed, null);
   assert.equal(cycle.corpusSeedSelection.mode, "exhausted");
   assert.equal(cycle.corpusSeedSelection.availableUnusedSeedCount, 0);
-  assert.equal(cycle.candidateIdeas[0].sourceSeed, null);
-  assert.equal(cycle.candidateId, "DAEMON-CAND-000012");
+  assert.notEqual(cycle.freshExternalSeed, null);
+  assert.equal(cycle.freshExternalSeedSelection.mode, "graveyard_aware");
+  assert.equal(
+    String(cycle.freshExternalSeed.publicArtifactRef).startsWith("https://"),
+    true,
+  );
+  assert.equal(
+    cycle.candidateIdeas[0].sourceSeed.kind,
+    "fresh_external_target",
+  );
+  assert.equal(
+    cycle.candidateIdeas[0].sourceSeed.publicArtifactRef,
+    cycle.freshExternalSeed.publicArtifactRef,
+  );
+  assert.equal(String(cycle.candidateId).startsWith("DAEMON-FRESH-R1-"), true);
+  const audit = await service.audit();
+  assert.equal(audit.passed, true);
+});
+
+test("discover-daemon rotates fresh external seeds after corpus exhaustion", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 1,
+      results: [
+        {
+          slug: "nrs2-cand-047-package",
+          title: "NRS2-CAND-047 bounded candidate package",
+          resultKind: "nobel_readiness_candidate_decision",
+          candidateStatus: "promising_but_unvalidated",
+          path: "results/nrs2-cand-047-package",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 13 });
+  const cycle12 = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0012.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  const cycle13 = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0013.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(cycle12.corpusSeedSelection.mode, "exhausted");
+  assert.equal(cycle13.corpusSeedSelection.mode, "exhausted");
+  assert.equal(cycle12.freshExternalSeedSelection.mode, "graveyard_aware");
+  assert.equal(cycle13.freshExternalSeedSelection.mode, "graveyard_aware");
+  assert.notEqual(
+    cycle12.freshExternalSeedSelection.selectedCandidateId,
+    cycle13.freshExternalSeedSelection.selectedCandidateId,
+  );
+  assert.equal(
+    cycle13.freshExternalSeedSelection.selectedSeedWasInPriorGraveyard,
+    false,
+  );
   const audit = await service.audit();
   assert.equal(audit.passed, true);
 });
@@ -1307,6 +1372,44 @@ test("discover-daemon audit fails if a graveyarded corpus seed is reused after b
     .filter((gate) => !gate.passed)
     .map((gate) => gate.code);
   assert.equal(failed.includes("corpus_seed_graveyard_reuse_blocked"), true);
+});
+
+test("discover-daemon audit fails if fresh external seed binding is tampered", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 1,
+      results: [
+        {
+          slug: "nrs2-cand-047-package",
+          title: "NRS2-CAND-047 bounded candidate package",
+          resultKind: "nobel_readiness_candidate_decision",
+          candidateStatus: "promising_but_unvalidated",
+          path: "results/nrs2-cand-047-package",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 12 });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0012.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    any
+  >;
+  cycle.freshExternalSeedSelection.selectedSeedWasInPriorGraveyard = true;
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("fresh_external_seed_binding"), true);
 });
 
 test("discover-daemon audit fails if graveyard notification flag is tampered", async () => {

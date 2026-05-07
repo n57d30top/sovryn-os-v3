@@ -194,6 +194,22 @@ type CorpusSeed = {
   score: number;
 };
 
+type FreshExternalSeed = {
+  slug: string;
+  title: string;
+  domain: DiscoveryDomain;
+  targetClass: string;
+  publicArtifactRef: string;
+  humanReadableSummary: string;
+  expectedDeathCause: DeathCause;
+  score: number;
+};
+
+type FreshExternalSeedInstance = FreshExternalSeed & {
+  round: number;
+  candidateId: string;
+};
+
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 export const daemonDefaultRunQuantum = 25;
@@ -443,6 +459,11 @@ type CorpusSeedSelection = {
   selection: Record<string, unknown>;
 };
 
+type FreshExternalSeedSelection = {
+  seed: FreshExternalSeedInstance | null;
+  selection: Record<string, unknown>;
+};
+
 export class FreshTargetSampler {
   sample(
     domain: DiscoveryDomain,
@@ -651,36 +672,52 @@ export class SilentSearchLoopRunner {
       cycleCount: input.state.cycleCount,
     });
     const corpusSeed = corpusSeedSelection.seed ?? undefined;
-    const targets = new FreshTargetSampler().sample(
-      domain,
-      12,
-      input.corpusSnapshot.sampledRefs,
-    );
+    const freshExternalSeedSelection = corpusSeed
+      ? emptyFreshExternalSeedSelection("corpus_seed_available")
+      : selectFreshExternalSeedForCycle({
+          domain,
+          graveyard: priorGraveyard,
+        });
+    const freshExternalSeed = freshExternalSeedSelection.seed ?? undefined;
+    const targetRefs = freshExternalSeed
+      ? [
+          freshExternalSeed.publicArtifactRef,
+          ...input.corpusSnapshot.sampledRefs,
+        ]
+      : input.corpusSnapshot.sampledRefs;
+    const targets = new FreshTargetSampler().sample(domain, 12, targetRefs);
     const identityDriftProbe =
+      corpusSeed !== undefined &&
       input.state.lastCandidateId !== null &&
       shouldRunIdentityDriftProbe(input.state.cycleCount);
     const candidateId = identityDriftProbe
       ? input.state.lastCandidateId!
       : corpusSeed
         ? corpusSeedCandidateId(corpusSeed)
-        : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
+        : freshExternalSeed
+          ? freshExternalSeed.candidateId
+          : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
     const claim = identityDriftProbe
       ? `Unversioned semantic drift probe for ${candidateId} from silent daemon cycle ${input.state.cycleCount + 1}`
       : corpusSeed
         ? corpusSeedClaim(corpusSeed)
-        : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
+        : freshExternalSeed
+          ? freshExternalSeedClaim(freshExternalSeed)
+          : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
     const candidateIdeas = buildCandidateIdeas({
       domain,
       cycleId,
       candidateId,
       anomalyFamilies: unresolvedAnomalyFamilies,
       corpusSeed,
+      freshExternalSeed,
     });
     const identity = input.ledger.register({ candidateId, claim });
     const deathCause = deathCauseForCycle(
       input.state.cycleCount,
       identity,
       corpusSeed,
+      freshExternalSeed,
     );
     const deathGates = buildDeathGateResults(deathCause);
     const promotedCandidates = new DeepValidationScheduler().promote(
@@ -737,6 +774,8 @@ export class SilentSearchLoopRunner {
       unresolvedAnomalyFamilies,
       corpusSeed: corpusSeed ?? null,
       corpusSeedSelection: corpusSeedSelection.selection,
+      freshExternalSeed: freshExternalSeed ?? null,
+      freshExternalSeedSelection: freshExternalSeedSelection.selection,
       freshTargets: targets,
       sampledTargetCount: targets.length,
       candidateIdeas,
@@ -837,10 +876,342 @@ function selectCorpusSeedForCycle(input: {
   };
 }
 
+function emptyFreshExternalSeedSelection(
+  reason: string,
+): FreshExternalSeedSelection {
+  return {
+    seed: null,
+    selection: {
+      kind: "fresh_external_seed_selection",
+      mode: "not_needed_corpus_seed_available",
+      reason,
+      totalSeedCount: freshExternalSeedBank().length,
+      selectedSeedSlug: null,
+      selectedCandidateId: null,
+      selectedSeedWasInPriorGraveyard: false,
+    },
+  };
+}
+
+function selectFreshExternalSeedForCycle(input: {
+  domain: DiscoveryDomain;
+  graveyard: GraveyardEntry[];
+}): FreshExternalSeedSelection {
+  const bank = freshExternalSeedBank();
+  const byRank = (left: FreshExternalSeed, right: FreshExternalSeed) => {
+    const scoreDelta = right.score - left.score;
+    if (scoreDelta !== 0) return scoreDelta;
+    return left.slug.localeCompare(right.slug);
+  };
+  const preferred = bank
+    .filter((seed) => seed.domain === input.domain)
+    .sort(byRank);
+  const fallback = bank
+    .filter((seed) => seed.domain !== input.domain)
+    .sort(byRank);
+  const ranked = [...preferred, ...fallback];
+  if (ranked.length === 0) {
+    return {
+      seed: null,
+      selection: {
+        kind: "fresh_external_seed_selection",
+        mode: "exhausted",
+        totalSeedCount: 0,
+        round: 0,
+        availableUnusedSeedCount: 0,
+        skippedGraveyardSeedCount: 0,
+        selectedSeedSlug: null,
+        selectedCandidateId: null,
+        selectedSeedWasInPriorGraveyard: false,
+      },
+    };
+  }
+  const graveyardCandidateIds = new Set(
+    input.graveyard.map((entry) => entry.candidateId),
+  );
+  const freshGraveyardCount = input.graveyard.filter((entry) =>
+    entry.candidateId.startsWith("DAEMON-FRESH-R"),
+  ).length;
+  const currentRound = Math.floor(freshGraveyardCount / ranked.length) + 1;
+  const currentRoundSeeds = ranked.map((seed) =>
+    freshExternalSeedInstance(seed, currentRound),
+  );
+  const unused = currentRoundSeeds.filter(
+    (seed) => !graveyardCandidateIds.has(seed.candidateId),
+  );
+  const seed =
+    unused[0] ?? freshExternalSeedInstance(ranked[0]!, currentRound + 1);
+  const selectedWasGraveyarded = graveyardCandidateIds.has(seed.candidateId);
+  return {
+    seed,
+    selection: {
+      kind: "fresh_external_seed_selection",
+      mode: "graveyard_aware",
+      totalSeedCount: ranked.length,
+      round: seed.round,
+      availableUnusedSeedCount: unused.length,
+      skippedGraveyardSeedCount: ranked.length - unused.length,
+      selectedSeedSlug: seed.slug,
+      selectedCandidateId: seed.candidateId,
+      selectedSeedWasInPriorGraveyard: selectedWasGraveyarded,
+      selectedPublicArtifactRef: seed.publicArtifactRef,
+      selectedTargetClass: seed.targetClass,
+    },
+  };
+}
+
+function freshExternalSeedInstance(
+  seed: FreshExternalSeed,
+  round: number,
+): FreshExternalSeedInstance {
+  return {
+    ...seed,
+    round,
+    candidateId: freshExternalSeedCandidateId(seed, round),
+  };
+}
+
+function freshExternalSeedCandidateId(
+  seed: FreshExternalSeed,
+  round: number,
+): string {
+  return `DAEMON-FRESH-R${round}-${normalizeCandidateIdPart(seed.slug)}`;
+}
+
+function freshExternalSeedClaim(seed: FreshExternalSeedInstance): string {
+  return `Fresh external target seed ${seed.slug} (${seed.targetClass}): ${seed.humanReadableSummary}`;
+}
+
+function freshExternalSeedBank(): FreshExternalSeed[] {
+  return [
+    {
+      slug: "materials-project-property-metadata",
+      title: "Materials Project property metadata triage",
+      domain: "computational_materials_property_data",
+      targetClass: "materials_property_data",
+      publicArtifactRef: "https://materialsproject.org/",
+      humanReadableSummary:
+        "Check whether public materials property metadata leaves a bounded, baseline-resistant residual with a replayable holdout path.",
+      expectedDeathCause: "holdout_not_supported",
+      score: 94,
+    },
+    {
+      slug: "nist-materials-data-curation",
+      title: "NIST materials data curation residual",
+      domain: "computational_materials_property_data",
+      targetClass: "materials_property_data",
+      publicArtifactRef: "https://www.nist.gov/",
+      humanReadableSummary:
+        "Probe public materials data curation signals for provenance or descriptor artifacts before any discovery promotion.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 88,
+    },
+    {
+      slug: "nasa-exoplanet-archive-anomaly",
+      title: "NASA Exoplanet Archive anomaly triage",
+      domain: "astrophysics_open_catalog_anomalies",
+      targetClass: "astrophysics_open_catalog",
+      publicArtifactRef: "https://exoplanetarchive.ipac.caltech.edu/",
+      humanReadableSummary:
+        "Screen open exoplanet catalog records for a bounded anomaly that survives catalog-quality and rival-selection effects.",
+      expectedDeathCause: "rival_theory_stronger",
+      score: 93,
+    },
+    {
+      slug: "gaia-archive-quality-residual",
+      title: "Gaia archive quality residual triage",
+      domain: "astrophysics_open_catalog_anomalies",
+      targetClass: "astrophysics_open_catalog",
+      publicArtifactRef: "https://gea.esac.esa.int/archive/",
+      humanReadableSummary:
+        "Probe public Gaia archive metadata for a replayable residual while guarding against selection and known-catalog artifacts.",
+      expectedDeathCause: "baseline_dominated",
+      score: 89,
+    },
+    {
+      slug: "oeis-counterexample-distance",
+      title: "OEIS counterexample-distance triage",
+      domain: "formal_mathematics_conjecture_refutation",
+      targetClass: "formal_counterexample",
+      publicArtifactRef: "https://oeis.org/",
+      humanReadableSummary:
+        "Use public sequence references to reject known-like formal patterns before proof or Fund Gate promotion.",
+      expectedDeathCause: "known_trivial",
+      score: 94,
+    },
+    {
+      slug: "lean-community-proof-route",
+      title: "Lean community proof-route triage",
+      domain: "formal_mathematics_conjecture_refutation",
+      targetClass: "formal_proof_route",
+      publicArtifactRef: "https://leanprover-community.github.io/",
+      humanReadableSummary:
+        "Check whether a small formal target has a clear proof or refutation route instead of bounded-only evidence.",
+      expectedDeathCause: "proof_or_mechanism_failed",
+      score: 90,
+    },
+    {
+      slug: "paperswithcode-protocol-fragility",
+      title: "Papers with Code protocol fragility triage",
+      domain: "benchmark_protocol_methodology",
+      targetClass: "benchmark_protocol_audit",
+      publicArtifactRef: "https://paperswithcode.com/",
+      humanReadableSummary:
+        "Screen benchmark protocol metadata for a candidate that is not merely a leaderboard or reporting heuristic.",
+      expectedDeathCause: "baseline_dominated",
+      score: 92,
+    },
+    {
+      slug: "mlcommons-benchmark-methodology",
+      title: "MLCommons benchmark methodology triage",
+      domain: "benchmark_protocol_methodology",
+      targetClass: "benchmark_protocol_audit",
+      publicArtifactRef: "https://mlcommons.org/",
+      humanReadableSummary:
+        "Probe public benchmark methodology claims for an evidence route with controls, holdouts, and rival explanations.",
+      expectedDeathCause: "counterexample_dense",
+      score: 88,
+    },
+    {
+      slug: "ncei-public-data-reliability",
+      title: "NCEI public data reliability triage",
+      domain: "scientific_public_data_reliability",
+      targetClass: "scientific_public_data_reliability",
+      publicArtifactRef: "https://www.ncei.noaa.gov/",
+      humanReadableSummary:
+        "Check whether public scientific data reliability metadata yields a nontrivial, replayable candidate rather than provenance noise.",
+      expectedDeathCause: "no_replay_path",
+      score: 92,
+    },
+    {
+      slug: "zenodo-dataset-provenance",
+      title: "Zenodo dataset provenance triage",
+      domain: "scientific_public_data_reliability",
+      targetClass: "dataset_provenance_reliability",
+      publicArtifactRef: "https://zenodo.org/",
+      humanReadableSummary:
+        "Probe public dataset provenance records for reliability signals that are inspectable beyond static metadata.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 88,
+    },
+    {
+      slug: "nrel-solar-power-data-residual",
+      title: "NREL solar power data residual triage",
+      domain: "climate_energy_residuals",
+      targetClass: "climate_energy_public_data",
+      publicArtifactRef: "https://www.nrel.gov/grid/solar-power-data.html",
+      humanReadableSummary:
+        "Screen safe public energy data residuals for candidate mechanisms while guarding against weather and horizon baselines.",
+      expectedDeathCause: "baseline_dominated",
+      score: 93,
+    },
+    {
+      slug: "open-meteo-horizon-control",
+      title: "Open-Meteo horizon-control triage",
+      domain: "climate_energy_residuals",
+      targetClass: "climate_energy_public_data",
+      publicArtifactRef: "https://open-meteo.com/",
+      humanReadableSummary:
+        "Probe safe public weather horizon controls for a temporal residual with leakage and shuffled-time safeguards.",
+      expectedDeathCause: "holdout_not_supported",
+      score: 89,
+    },
+    {
+      slug: "scipy-runtime-reproduction",
+      title: "SciPy runtime reproduction triage",
+      domain: "scientific_software_reproduction_mechanisms",
+      targetClass: "repo_package_reproduction",
+      publicArtifactRef: "https://github.com/scipy/scipy",
+      humanReadableSummary:
+        "Check runtime reproduction alignment across install, smoke, examples, tests, dependency behavior, and replay.",
+      expectedDeathCause: "no_replay_path",
+      score: 91,
+    },
+    {
+      slug: "requests-package-reproduction",
+      title: "Requests package reproduction triage",
+      domain: "scientific_software_reproduction_mechanisms",
+      targetClass: "repo_package_reproduction",
+      publicArtifactRef: "https://github.com/psf/requests",
+      humanReadableSummary:
+        "Probe package reproduction claims for the smoke-vs-real-test gap and fresh workspace replay constraints.",
+      expectedDeathCause: "counterexample_dense",
+      score: 87,
+    },
+    {
+      slug: "rcsb-structure-metadata",
+      title: "RCSB structure metadata triage",
+      domain: "safe_protein_structure_metadata",
+      targetClass: "safe_structure_metadata",
+      publicArtifactRef: "https://www.rcsb.org/",
+      humanReadableSummary:
+        "Screen safe public structure metadata for reliability or provenance signals without optimization or wet-lab claims.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 90,
+    },
+    {
+      slug: "alphafold-metadata-coverage",
+      title: "AlphaFold metadata coverage triage",
+      domain: "safe_protein_structure_metadata",
+      targetClass: "safe_structure_metadata",
+      publicArtifactRef: "https://alphafold.ebi.ac.uk/",
+      humanReadableSummary:
+        "Probe safe structure metadata coverage for bounded public-data reliability, excluding unsafe biological optimization.",
+      expectedDeathCause: "rival_theory_stronger",
+      score: 86,
+    },
+    {
+      slug: "uci-dataset-provenance-gap",
+      title: "UCI dataset provenance gap triage",
+      domain: "dataset_provenance_reliability",
+      targetClass: "dataset_audit",
+      publicArtifactRef: "https://archive.ics.uci.edu/",
+      humanReadableSummary:
+        "Check public dataset provenance and documentation gaps for nontrivial reliability signals beyond static completeness.",
+      expectedDeathCause: "baseline_dominated",
+      score: 91,
+    },
+    {
+      slug: "huggingface-dataset-card-reliability",
+      title: "Hugging Face dataset card reliability triage",
+      domain: "dataset_provenance_reliability",
+      targetClass: "dataset_audit",
+      publicArtifactRef: "https://huggingface.co/datasets",
+      humanReadableSummary:
+        "Probe public dataset card metadata for reliability signals while guarding against terminology-only novelty.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 87,
+    },
+    {
+      slug: "openml-evaluation-fragility",
+      title: "OpenML evaluation fragility triage",
+      domain: "cross_domain_evaluation_fragility",
+      targetClass: "cross_domain_evaluation_fragility",
+      publicArtifactRef: "https://openml.org/",
+      humanReadableSummary:
+        "Screen open evaluation tasks for cross-domain fragility with baseline, temporal, and replay pressure.",
+      expectedDeathCause: "holdout_not_supported",
+      score: 92,
+    },
+    {
+      slug: "sovryn-open-inventions-cross-domain",
+      title: "Sovryn open inventions cross-domain corpus triage",
+      domain: "cross_domain_evaluation_fragility",
+      targetClass: "cross_domain_evaluation_fragility",
+      publicArtifactRef: "https://github.com/n57d30top/sovryn-open-inventions",
+      humanReadableSummary:
+        "Probe public cross-domain result packages for evaluation fragility without treating corpus maintenance as discovery.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 86,
+    },
+  ];
+}
+
 function deathCauseForCycle(
   cycleCount: number,
   identity: CandidateIdentityDecision,
   corpusSeed?: CorpusSeed,
+  freshExternalSeed?: FreshExternalSeedInstance,
 ): DeathCause {
   const scheduledSignals: Array<
     Parameters<DeathCauseClassifier["classify"]>[0]
@@ -861,9 +1232,15 @@ function deathCauseForCycle(
     cycleCount >= objectiveRejectionCoverageMinimumCycles && corpusSeed
       ? deathCauseFromCorpusSeed(corpusSeed)
       : null;
+  const freshExternalSeedCause =
+    cycleCount >= objectiveRejectionCoverageMinimumCycles && freshExternalSeed
+      ? freshExternalSeed.expectedDeathCause
+      : null;
   const baseSignals = corpusSeedCause
     ? deathCauseSignalsFor(corpusSeedCause)
-    : scheduledSignals[cycleCount % scheduledSignals.length]!;
+    : freshExternalSeedCause
+      ? deathCauseSignalsFor(freshExternalSeedCause)
+      : scheduledSignals[cycleCount % scheduledSignals.length]!;
   return new DeathCauseClassifier().classify({
     ...baseSignals,
     identityDrift: baseSignals.identityDrift === true || !identity.accepted,
@@ -1046,6 +1423,7 @@ function buildCandidateIdeas(input: {
   candidateId: string;
   anomalyFamilies: Array<Record<string, unknown>>;
   corpusSeed?: CorpusSeed;
+  freshExternalSeed?: FreshExternalSeedInstance;
 }): Array<{ candidateId: string; score: number; [key: string]: unknown }> {
   return Array.from({ length: 3 }, (_, index) => ({
     candidateId:
@@ -1054,15 +1432,21 @@ function buildCandidateIdeas(input: {
         : `${input.candidateId}-ALT-${String(index + 1).padStart(2, "0")}`,
     cycleId: input.cycleId,
     domain: input.domain,
-    score: (input.corpusSeed?.score ?? 90) - index * 11,
+    score:
+      (input.corpusSeed?.score ?? input.freshExternalSeed?.score ?? 90) -
+      index * 11,
     concreteClaim:
       index === 0 && input.corpusSeed
         ? corpusSeedClaim(input.corpusSeed)
-        : `Bounded ${input.domain} anomaly family ${index + 1} may survive strict Fund Gate pressure.`,
+        : index === 0 && input.freshExternalSeed
+          ? freshExternalSeedClaim(input.freshExternalSeed)
+          : `Bounded ${input.domain} anomaly family ${index + 1} may survive strict Fund Gate pressure.`,
     mechanism:
       input.corpusSeed && index === 0
         ? "corpus-seed evidence triage with strict non-fund gate inheritance"
-        : "bounded public evidence triangulation",
+        : input.freshExternalSeed && index === 0
+          ? "fresh external target triage with strict Fund Gate pressure"
+          : "bounded public evidence triangulation",
     whyNontrivial:
       "requires baseline, rival, holdout, replay, and mechanism pressure before notification",
     rivalTheories: [
@@ -1078,12 +1462,22 @@ function buildCandidateIdeas(input: {
     sourceSeed:
       index === 0 && input.corpusSeed
         ? {
+            kind: "corpus_seed",
             slug: input.corpusSeed.slug,
             resultKind: input.corpusSeed.resultKind,
             candidateStatus: input.corpusSeed.candidateStatus,
             publicArtifactRef: input.corpusSeed.publicArtifactRef,
           }
-        : null,
+        : index === 0 && input.freshExternalSeed
+          ? {
+              kind: "fresh_external_target",
+              slug: input.freshExternalSeed.slug,
+              targetClass: input.freshExternalSeed.targetClass,
+              round: input.freshExternalSeed.round,
+              publicArtifactRef: input.freshExternalSeed.publicArtifactRef,
+              expectedDeathCause: input.freshExternalSeed.expectedDeathCause,
+            }
+          : null,
   }));
 }
 
@@ -1442,7 +1836,7 @@ function freshTargetsPublicSafe(targets: unknown): boolean {
       row.privateData === false &&
       row.unsafeScope === false &&
       row.rawLogsPublic === false &&
-      ref.startsWith(publicCorpusBaseRef) &&
+      ref.startsWith("https://") &&
       !ref.includes("example.org") &&
       !ref.includes("/Users/")
     );
@@ -1557,7 +1951,10 @@ function corpusSeedCandidateBindingValid(
   const sourceSeed = firstIdea?.sourceSeed as Record<string, unknown> | null;
   const selection = cycle.corpusSeedSelection as Record<string, unknown> | null;
   if (selection?.mode === "exhausted") {
-    return corpusSeed === null && sourceSeed === null;
+    return (
+      corpusSeed === null &&
+      (sourceSeed === null || sourceSeed.kind === "fresh_external_target")
+    );
   }
   const seedSlug = String(corpusSeed?.slug ?? "");
   const seedRef = String(corpusSeed?.publicArtifactRef ?? "");
@@ -1567,6 +1964,45 @@ function corpusSeedCandidateBindingValid(
     sourceSeed !== null &&
     sourceSeed.slug === seedSlug &&
     sourceSeed.publicArtifactRef === seedRef
+  );
+}
+
+function freshExternalSeedBindingValid(
+  cycle: Record<string, unknown>,
+): boolean {
+  const selection = cycle.freshExternalSeedSelection as Record<
+    string,
+    unknown
+  > | null;
+  if (selection === null) return false;
+  const freshSeed = cycle.freshExternalSeed as Record<string, unknown> | null;
+  const candidateIdeas = Array.isArray(cycle.candidateIdeas)
+    ? (cycle.candidateIdeas as Array<Record<string, unknown>>)
+    : [];
+  const sourceSeed = candidateIdeas[0]?.sourceSeed as Record<
+    string,
+    unknown
+  > | null;
+  if (selection.mode === "not_needed_corpus_seed_available") {
+    return freshSeed === null;
+  }
+  if (selection.mode === "exhausted") {
+    return freshSeed === null;
+  }
+  if (selection.mode !== "graveyard_aware") return false;
+  const selectedCandidateId = String(selection.selectedCandidateId ?? "");
+  const selectedRef = String(selection.selectedPublicArtifactRef ?? "");
+  return (
+    freshSeed !== null &&
+    sourceSeed !== null &&
+    selectedCandidateId.length > 0 &&
+    selectedRef.startsWith("https://") &&
+    selection.selectedSeedWasInPriorGraveyard === false &&
+    freshSeed.candidateId === selectedCandidateId &&
+    cycle.candidateId === selectedCandidateId &&
+    sourceSeed.kind === "fresh_external_target" &&
+    sourceSeed.publicArtifactRef === freshSeed.publicArtifactRef &&
+    sourceSeed.publicArtifactRef === selectedRef
   );
 }
 
@@ -2156,6 +2592,12 @@ export class AutonomousDiscoveryDaemonService {
           (latestCycle !== null &&
             corpusSeedGraveyardReuseBlocked(latestCycle)),
         "After bootstrap rejection coverage, the daemon must not keep reusing a corpus seed whose candidate ID is already in the internal graveyard while untried seeds remain.",
+      ),
+      gate(
+        "fresh_external_seed_binding",
+        state.cycleCount === 0 ||
+          (latestCycle !== null && freshExternalSeedBindingValid(latestCycle)),
+        "After corpus seeds are exhausted, daemon fallback candidates must bind to concrete safe public fresh external targets before generic fallback.",
       ),
       gate(
         "fresh_targets_public_safe",

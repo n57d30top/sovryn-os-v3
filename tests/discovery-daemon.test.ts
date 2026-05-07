@@ -597,6 +597,32 @@ test("FundNotificationPackageBuilder writes FUND_FOUND only for passing fund", a
   );
   assert.equal(result.status, "FUND_FOUND");
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  const fundReport = await readFile(
+    join(root, daemonRoot, "FUND_FOUND.md"),
+    "utf8",
+  );
+  for (const heading of [
+    "Candidate ID:",
+    "Fund label:",
+    "Domain:",
+    "## Exact Claim",
+    "## Why It Matters",
+    "## What Is Not Claimed",
+    "## Evidence Summary",
+    "## Rival Theories",
+    "## Prediction Outcomes",
+    "## Holdout Outcomes",
+    "## Counterexample Outcomes",
+    "## Replay Outcomes",
+    "## Kill Week Result",
+    "## Public Package Path",
+    "## Remaining Limitations",
+    "## Next Required External Review Or Validation Step",
+  ]) {
+    assert.equal(fundReport.includes(heading), true);
+  }
+  assert.equal(fundReport.includes("/Users/"), false);
+  assert.equal(fundReport.includes("Nobel-level discovery claim"), true);
 });
 
 const cliScenarios: {

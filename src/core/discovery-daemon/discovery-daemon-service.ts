@@ -58,6 +58,16 @@ export type FundCandidate = {
   claim: string;
   domain: DiscoveryDomain;
   requestedFundLabel: FundLabel;
+  whyItMatters?: string;
+  rivalTheories?: string[];
+  predictionOutcomes?: string[];
+  holdoutOutcomes?: string[];
+  counterexampleOutcomes?: string[];
+  replayOutcomes?: string[];
+  killWeekResult?: string;
+  publicPackagePath?: string;
+  remainingLimitations?: string[];
+  nextExternalReviewStep?: string;
   stableIdentity: boolean;
   identityDriftDetected?: boolean;
   highImpactDomain: boolean;
@@ -1192,23 +1202,7 @@ export class FundNotificationPackageBuilder {
     }
     const path = join(this.root, daemonArtifactRoot, "FUND_FOUND.md");
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(
-      path,
-      [
-        "# FUND_FOUND",
-        "",
-        `Candidate ID: ${candidate.candidateId}`,
-        "",
-        `Fund label: ${candidate.requestedFundLabel}`,
-        "",
-        `Exact claim: ${candidate.claim}`,
-        "",
-        "This notification is emitted only because every Fund Gate passed.",
-        "",
-        "No prize, broad intelligence, external adoption, legal, medical, wet-lab, unsafe, or universal truth claim is made.",
-      ].join("\n"),
-      "utf8",
-    );
+    await writeFile(path, renderFundFoundMarkdown(candidate), "utf8");
     return withEvidenceHash({
       kind: "fund_notification",
       status: "FUND_FOUND",
@@ -1216,6 +1210,136 @@ export class FundNotificationPackageBuilder {
       fundFoundPath: `${daemonArtifactRoot}/FUND_FOUND.md`,
     });
   }
+}
+
+function renderFundFoundMarkdown(candidate: FundCandidate): string {
+  const publicPackagePath =
+    candidate.publicPackagePath ?? `${daemonArtifactRoot}/${fundCandidateFile}`;
+  const whyItMatters =
+    candidate.whyItMatters ??
+    "The candidate passed the bounded Fund Gate in a safe high-impact computational or formal domain and is packaged for external expert review.";
+  const rivalTheories =
+    candidate.rivalTheories && candidate.rivalTheories.length > 0
+      ? candidate.rivalTheories
+      : [
+          `${candidate.rivalTheoryCount} rival theories were directly compared; at least one was weakened or scope-limited.`,
+        ];
+  const predictionOutcomes =
+    candidate.predictionOutcomes && candidate.predictionOutcomes.length > 0
+      ? candidate.predictionOutcomes
+      : [
+          `${candidate.predictionsExecuted} preregistered predictions executed, including ${candidate.nonObviousPredictions} non-obvious predictions, with no post-hoc edits.`,
+        ];
+  const holdoutOutcomes =
+    candidate.holdoutOutcomes && candidate.holdoutOutcomes.length > 0
+      ? candidate.holdoutOutcomes
+      : [
+          candidate.freshHoldoutsAfterFreeze && candidate.holdoutSupported
+            ? "Fresh post-freeze holdouts supported the bounded candidate."
+            : "Holdout support is not asserted beyond the Fund Gate fields.",
+        ];
+  const counterexampleOutcomes =
+    candidate.counterexampleOutcomes &&
+    candidate.counterexampleOutcomes.length > 0
+      ? candidate.counterexampleOutcomes
+      : [
+          `${candidate.counterexampleChecksExecuted} counterexample checks executed without dense counterexamples collapsing the candidate.`,
+        ];
+  const replayOutcomes =
+    candidate.replayOutcomes && candidate.replayOutcomes.length > 0
+      ? candidate.replayOutcomes
+      : [
+          candidate.decisiveEvidenceReplayed && candidate.freshWorkspaceReplay
+            ? "Decisive evidence was replayed, including at least one fresh workspace or container-style replay."
+            : "Replay support is not asserted beyond the Fund Gate fields.",
+        ];
+  const remainingLimitations =
+    candidate.remainingLimitations && candidate.remainingLimitations.length > 0
+      ? candidate.remainingLimitations
+      : [
+          "This is not external validation or external adoption.",
+          "The claim remains bounded to the evidence package and safe computational/formal scope.",
+          "A domain expert must review the method, evidence bindings, reproduce path, and limitations before any stronger interpretation.",
+        ];
+  return [
+    "# FUND_FOUND",
+    "",
+    `Candidate ID: ${candidate.candidateId}`,
+    "",
+    `Fund label: ${candidate.requestedFundLabel}`,
+    "",
+    `Domain: ${candidate.domain}`,
+    "",
+    "## Exact Claim",
+    "",
+    candidate.claim,
+    "",
+    "## Why It Matters",
+    "",
+    whyItMatters,
+    "",
+    "## What Is Not Claimed",
+    "",
+    "- No Nobel-level discovery claim.",
+    "- No breakthrough claim.",
+    "- No AGI, Einstein-level intelligence, or human-level science claim.",
+    "- No external validation or external adoption claim.",
+    "- No legal, medical, wet-lab, unsafe, or universal-truth claim.",
+    "",
+    "## Evidence Summary",
+    "",
+    `- Candidate identity stable: ${candidate.stableIdentity && candidate.identityDriftDetected !== true}.`,
+    `- High-impact safe domain: ${candidate.highImpactDomain && candidate.plausibleScientificValue}.`,
+    `- Nontriviality gate: ${candidate.nontrivial && candidate.knownOrTrivial !== true && candidate.renamedPriorIdea !== true}.`,
+    `- Baseline resistance: ${candidate.strongBaselinesExecuted && candidate.baselineDominated !== true}.`,
+    `- External review package artifacts present: ${candidate.paperExists && candidate.methodExists && candidate.claimEvidenceBindingsExists && candidate.reproduceExists && candidate.limitationsExists}.`,
+    "",
+    "## Rival Theories",
+    "",
+    ...markdownList(rivalTheories),
+    "",
+    "## Prediction Outcomes",
+    "",
+    ...markdownList(predictionOutcomes),
+    "",
+    "## Holdout Outcomes",
+    "",
+    ...markdownList(holdoutOutcomes),
+    "",
+    "## Counterexample Outcomes",
+    "",
+    ...markdownList(counterexampleOutcomes),
+    "",
+    "## Replay Outcomes",
+    "",
+    ...markdownList(replayOutcomes),
+    "",
+    "## Kill Week Result",
+    "",
+    candidate.killWeekResult ??
+      (candidate.killWeekComplete && candidate.fatalUnresolvedAttack !== true
+        ? "Adversarial kill week completed with no fatal unresolved attack."
+        : "Kill-week status is not asserted beyond the Fund Gate fields."),
+    "",
+    "## Public Package Path",
+    "",
+    publicPackagePath,
+    "",
+    "## Remaining Limitations",
+    "",
+    ...markdownList(remainingLimitations),
+    "",
+    "## Next Required External Review Or Validation Step",
+    "",
+    candidate.nextExternalReviewStep ??
+      "Send the package to a qualified external domain expert for method, evidence, replay, and limitation review before any stronger public interpretation.",
+    "",
+    "This notification is emitted only because every Fund Gate passed.",
+  ].join("\n");
+}
+
+function markdownList(items: string[]): string[] {
+  return items.map((item) => `- ${item}`);
 }
 
 export class AutonomousDiscoveryDaemonService {

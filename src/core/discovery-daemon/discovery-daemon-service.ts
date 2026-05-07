@@ -2929,6 +2929,7 @@ export class AutonomousDiscoveryDaemonService {
       "candidate-identity-ledger.json",
       "graveyard.json",
       "fund-gate-results.json",
+      packageScoutFile,
       "DAEMON_REPORT.md",
       "LIMITATIONS.md",
     ];
@@ -2950,6 +2951,9 @@ export class AutonomousDiscoveryDaemonService {
       join(this.root, daemonArtifactRoot, fundCandidateFile),
     );
     const fundGate = await this.refreshFundGateFromCandidate();
+    const packageScoutReport = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, daemonArtifactRoot, packageScoutFile),
+    );
     const ledgerDriftDecision = (() => {
       const ledger = new CandidateIdentityLedger();
       ledger.register({
@@ -3093,6 +3097,18 @@ export class AutonomousDiscoveryDaemonService {
         "Fresh daemon targets must bind to public corpus references and must not use placeholders, local paths, private data, unsafe scope, or raw public logs.",
       ),
       gate(
+        "package_scout_report_silent",
+        packageScoutReport?.kind === "discovery_daemon_package_scout" &&
+          packageScoutReport.notificationSuppressed === true &&
+          packageScoutReport.fundFound === false &&
+          Number.isInteger(packageScoutReport.scannedPackageCount) &&
+          Number.isInteger(packageScoutReport.stagedIntakeCount) &&
+          Number.isInteger(packageScoutReport.rejectedCount) &&
+          Array.isArray(packageScoutReport.staged) &&
+          Array.isArray(packageScoutReport.rejected),
+        "Corpus package scout evidence must be present, structured, and silent; package scanning alone must never notify.",
+      ),
+      gate(
         "fund_gate_blocks_empty_candidate",
         new FundGateEvaluator().evaluate(null).passed === false,
         "Fund Gate must not pass without a concrete candidate.",
@@ -3129,6 +3145,7 @@ export class AutonomousDiscoveryDaemonService {
       artifactRefs: [
         `${daemonArtifactRoot}/state.json`,
         `${daemonArtifactRoot}/fund-gate-results.json`,
+        `${daemonArtifactRoot}/${packageScoutFile}`,
       ],
     });
   }

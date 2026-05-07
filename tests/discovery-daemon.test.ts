@@ -977,6 +977,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "corpus_seed_graveyard_reuse_blocked",
     "fresh_external_seed_binding",
     "fresh_targets_public_safe",
+    "package_scout_report_silent",
     "fund_gate_blocks_empty_candidate",
     "fund_only_notification",
     "no_internal_status_notifies",
@@ -1079,6 +1080,29 @@ test("discover-daemon audit fails if fresh target references use placeholders", 
     .map((gate) => gate.code);
   assert.equal(failed.includes("fresh_targets_public_safe"), true);
   assert.equal(failed.includes("search_cycle_pipeline_complete"), true);
+});
+
+test("discover-daemon audit fails if package scout report is not silent", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const scoutPath = join(root, daemonRoot, "package-scout.json");
+  const scout = JSON.parse(await readFile(scoutPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  scout.notificationSuppressed = false;
+  await writeFile(scoutPath, JSON.stringify(scout), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("package_scout_report_silent"), true);
 });
 
 test("discover-daemon cycle reads sibling corpus index when available", async () => {

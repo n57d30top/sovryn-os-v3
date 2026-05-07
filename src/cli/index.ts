@@ -53,6 +53,7 @@ import { FrontierService } from "../core/frontier/frontier-service.js";
 import { ExternalProductionService } from "../core/external-production/external-production-service.js";
 import { ExternalReproductionService } from "../core/external-reproduction/external-reproduction-service.js";
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
+import { FormalDiscoveryService } from "../core/formal/formal-discovery-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
@@ -184,6 +185,16 @@ Commands:
   sovryn repo replay --target <target-id> [--json]
   sovryn repo classify --target <target-id> [--json]
   sovryn repo audit [--json]
+  sovryn formal status [--json]
+  sovryn formal domain-scan [--json]
+  sovryn formal generate-candidates [--json]
+  sovryn formal check-known [--json]
+  sovryn formal counterexamples [--json]
+  sovryn formal exhaustive-test [--json]
+  sovryn formal proof-sketch [--json]
+  sovryn formal holdout [--json]
+  sovryn formal replay [--json]
+  sovryn formal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
   sovryn theory generate --domain protocol-risk [--target-repo <path>] [--json]
@@ -657,6 +668,16 @@ export async function executeCli(
       case "repo": {
         const result = await repoCommand(parsed, root);
         return okEnvelope("repo", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "formal": {
+        const result = await formalCommand(parsed, root);
+        return okEnvelope("formal", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1594,6 +1615,47 @@ function requiredRepoTarget(parsed: ParsedArgs): string {
     );
   }
   return target;
+}
+
+async function formalCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "FORMAL_COMMAND_REQUIRED",
+      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|audit>.",
+    );
+  }
+  const service = new FormalDiscoveryService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "domain-scan":
+      return service.domainScan();
+    case "generate-candidates":
+      return service.generateCandidates();
+    case "check-known":
+      return service.checkKnown();
+    case "counterexamples":
+      return service.counterexamples();
+    case "exhaustive-test":
+      return service.exhaustiveTest();
+    case "proof-sketch":
+      return service.proofSketch();
+    case "holdout":
+      return service.holdout();
+    case "replay":
+      return service.replay();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_FORMAL_COMMAND",
+        `Unknown formal command: ${subcommand}`,
+      );
+  }
 }
 
 async function theoryCommand(

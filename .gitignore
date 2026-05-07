@@ -41,6 +41,7 @@ graphify-out/graph.json
 .sovryn/sources/
 .sovryn/reproduction/
 .sovryn/repo/
+.sovryn/formal/
 .sovryn/falsification/
 .sovryn/reality-trials/
 .sovryn/reality-grade/

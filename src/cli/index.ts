@@ -202,6 +202,14 @@ Commands:
   sovryn formal automata-search [--json]
   sovryn formal proof-pressure [--json]
   sovryn formal nontriviality-audit [--json]
+  sovryn formal proof-doctor [--json]
+  sovryn formal proof-targets [--json]
+  sovryn formal formalize --target <target-id> [--json]
+  sovryn formal proof-check --target <target-id> [--json]
+  sovryn formal proof-replay --target <target-id> [--json]
+  sovryn formal lemma-mine --target <target-id> [--json]
+  sovryn formal refute --target <target-id> [--json]
+  sovryn formal proof-audit [--json]
   sovryn formal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
@@ -1633,7 +1641,7 @@ async function formalCommand(
   if (!subcommand) {
     throw new AppError(
       "FORMAL_COMMAND_REQUIRED",
-      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|rich-generate|invariant-search|graph-explore|recurrence-search|symbolic-identity-search|automata-search|proof-pressure|nontriviality-audit|audit>.",
+      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|rich-generate|invariant-search|graph-explore|recurrence-search|symbolic-identity-search|automata-search|proof-pressure|nontriviality-audit|proof-doctor|proof-targets|formalize|proof-check|proof-replay|lemma-mine|refute|proof-audit|audit>.",
     );
   }
   const service = new FormalDiscoveryService(root);
@@ -1672,6 +1680,22 @@ async function formalCommand(
       return service.proofPressure();
     case "nontriviality-audit":
       return service.nontrivialityAudit();
+    case "proof-doctor":
+      return service.proofDoctor();
+    case "proof-targets":
+      return service.proofTargets();
+    case "formalize":
+      return service.formalize(requiredFormalTarget(parsed));
+    case "proof-check":
+      return service.proofCheck(requiredFormalTarget(parsed));
+    case "proof-replay":
+      return service.proofReplay(requiredFormalTarget(parsed));
+    case "lemma-mine":
+      return service.lemmaMine(requiredFormalTarget(parsed));
+    case "refute":
+      return service.refute(requiredFormalTarget(parsed));
+    case "proof-audit":
+      return service.proofAudit();
     case "audit":
       return service.audit();
     default:
@@ -1680,6 +1704,17 @@ async function formalCommand(
         `Unknown formal command: ${subcommand}`,
       );
   }
+}
+
+function requiredFormalTarget(parsed: ParsedArgs): string {
+  const target = flagString(parsed.flags, "--target");
+  if (!target) {
+    throw new AppError(
+      "FORMAL_TARGET_REQUIRED",
+      "formal proof-route command requires --target <target-id>.",
+    );
+  }
+  return target;
 }
 
 async function theoryCommand(

@@ -11,22 +11,33 @@ import {
   ConjectureFamilyBuilder,
   CounterexampleSearchRunner,
   ExhaustiveBoundTester,
+  BoundedToFormalBridge,
   FormalCounterexampleSearchV2,
   FormalDiscoveryService,
   FormalNontrivialityAuditor,
+  FormalProofAuditService,
+  FormalStatementBuilder,
+  FormalizationTargetSelector,
   FormalReplayVerifier,
   GraphInvariantExplorer,
   GraphPropertyExplorer,
   KnownPatternChecker,
+  LemmaMiningService,
   ProofSketchGenerator,
+  ProofAssistantDoctor,
+  ProofAttemptRunner,
+  ProofCheckVerifier,
   ProofPressureScorer,
+  ProofReplayVerifier,
   RecurrenceRelationMiner,
+  RefutationSearchService,
   RichFormalGeneratorService,
   StrongKnownPatternFilter,
   SymbolicIdentityExplorer,
   SequenceCandidateGenerator,
   type FormalRuleKind,
   type FormalSubdomain,
+  type ProofAttempt,
   type RichFormalFamily,
 } from "../src/core/formal/formal-discovery-service.js";
 import { readJson } from "../src/shared/fs.js";
@@ -51,6 +62,16 @@ const familyBuilder = new ConjectureFamilyBuilder();
 const counterexampleV2 = new FormalCounterexampleSearchV2();
 const proofPressureScorer = new ProofPressureScorer();
 const nontrivialityAuditor = new FormalNontrivialityAuditor();
+const proofDoctor = new ProofAssistantDoctor();
+const targetSelector = new FormalizationTargetSelector();
+const statementBuilder = new FormalStatementBuilder();
+const lemmaMiner = new LemmaMiningService();
+const proofAttemptRunner = new ProofAttemptRunner();
+const proofCheckVerifier = new ProofCheckVerifier();
+const refutationSearchService = new RefutationSearchService();
+const boundedToFormalBridge = new BoundedToFormalBridge();
+const proofReplayVerifier = new ProofReplayVerifier();
+const formalProofAuditService = new FormalProofAuditService();
 const richCandidates = richGenerator.generateAll();
 const richPromoted = richGenerator.promotedCandidates();
 const strongFilterResult = strongFilter.filter(richPromoted);
@@ -64,6 +85,57 @@ const proofPressureScores = conjectureFamilies.map((family, index) =>
     counterexample: counterexampleV2Results[index]!,
   }),
 );
+const proofDoctorReport = proofDoctor.check();
+const proofTargets = targetSelector.select({
+  families: conjectureFamilies,
+  count: 12,
+});
+const formalStatements = proofTargets.map((target) =>
+  statementBuilder.build(target),
+);
+const lemmaCandidates = formalStatements.flatMap((statement) =>
+  lemmaMiner.mine(statement),
+);
+const proofAttempts = proofTargets.map((target, index) =>
+  proofAttemptRunner.attempt({
+    target,
+    statement: formalStatements[index]!,
+    lemmas: lemmaCandidates.filter(
+      (lemma) => lemma.targetId === target.targetId,
+    ),
+    doctor: proofDoctorReport,
+  }),
+);
+const proofVerifications = proofAttempts.map((attempt) =>
+  proofCheckVerifier.verify(attempt),
+);
+const proofRefutations = proofTargets.map((target, index) =>
+  refutationSearchService.search({
+    target,
+    statement: formalStatements[index]!,
+  }),
+);
+const boundedBridges = proofTargets.map((target, index) =>
+  boundedToFormalBridge.bridge({
+    target,
+    statement: formalStatements[index]!,
+    attempt: proofAttempts[index]!,
+  }),
+);
+const proofReplays = proofTargets.map((target, index) =>
+  proofReplayVerifier.replay({
+    target,
+    attempt: proofAttempts[index]!,
+    refutation: proofRefutations[index],
+  }),
+);
+const formalProofAudit = formalProofAuditService.audit({
+  targets: proofTargets,
+  statements: formalStatements,
+  lemmas: lemmaCandidates,
+  attempts: proofAttempts,
+  replays: proofReplays,
+});
 
 const subdomains: FormalSubdomain[] = [
   "integer_sequence_recurrence",
@@ -271,6 +343,279 @@ test("formal nontriviality auditor passes rich hard-mode invariants", () => {
   assert.equal(audit.kind, "formal_v1_nontriviality_audit");
   assert.equal(audit.passed, true);
 });
+
+test("proof doctor marks available and unavailable routes explicitly", () => {
+  assert.equal(proofDoctorReport.kind, "formal_proof_tool_doctor");
+  assert.equal(typeof proofDoctorReport.lean.available, "boolean");
+  assert.equal(proofDoctorReport.boundedFiniteChecker.available, true);
+  assert.equal(proofDoctorReport.symbolicChecker.available, true);
+  assert.equal(proofDoctorReport.noFakeAvailability, true);
+  assert.match(proofDoctorReport.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("proof doctor does not fake Lean availability", () => {
+  if (!proofDoctorReport.lean.available) {
+    assert.equal(proofDoctorReport.lean.version, null);
+    assert.equal(proofDoctorReport.lean.route, "unavailable");
+  } else {
+    assert.equal(proofDoctorReport.lean.version !== null, true);
+    assert.equal(proofDoctorReport.lean.route, "available");
+  }
+});
+
+test("formal proof target selector creates twelve balanced targets", () => {
+  assert.equal(proofTargets.length, 12);
+  assert.deepEqual(
+    richFamilies.map(
+      (family) =>
+        proofTargets.filter((target) => target.domain === family).length,
+    ),
+    [3, 3, 3, 3],
+  );
+});
+
+test("formal statement builder produces at least eight precise statements", () => {
+  assert.equal(formalStatements.length, 12);
+  assert.equal(
+    formalStatements.filter((statement) => statement.valid).length >= 8,
+    true,
+  );
+  assert.equal(
+    formalStatements.filter((statement) => !statement.valid).length >= 1,
+    true,
+  );
+});
+
+test("lemma miner produces useful and trivial lemma classifications", () => {
+  assert.equal(lemmaCandidates.length >= 30, true);
+  assert.equal(
+    lemmaCandidates.filter((lemma) => lemma.trivial).length >= 10,
+    true,
+  );
+  assert.equal(
+    lemmaCandidates.filter((lemma) => lemma.useful).length >= 10,
+    true,
+  );
+});
+
+test("proof attempt runner attempts all selected proof targets", () => {
+  assert.equal(proofAttempts.length, 12);
+  assert.equal(
+    proofAttempts.every(
+      (attempt) => attempt.boundedEvidencePromotedToProof === false,
+    ),
+    true,
+  );
+});
+
+test("proof attempts include checked refutations or explicit blockers", () => {
+  assert.equal(
+    proofAttempts.some((attempt) => attempt.outcome === "checked_refutation"),
+    true,
+  );
+  assert.equal(
+    proofAttempts.some((attempt) =>
+      [
+        "proof_attempt_failed",
+        "proof_blocked_tool_unavailable",
+        "proof_blocked_statement_unclear",
+      ].includes(attempt.outcome),
+    ),
+    true,
+  );
+});
+
+test("proof check verifier detects synthetic checked proof without promoting bounded evidence", () => {
+  const baseAttempt = proofAttempts[0]!;
+  const syntheticCheckedProof: ProofAttempt = {
+    ...baseAttempt,
+    outcome: "checked_proof",
+    checkedBy: "internal_finite_checker",
+    failureReason: null,
+    boundedEvidenceUsed: false,
+    boundedEvidencePromotedToProof: false,
+  };
+  const verification = proofCheckVerifier.verify(syntheticCheckedProof);
+  assert.equal(verification.checkedProof, true);
+  assert.equal(verification.boundedEvidencePromotedToProof, false);
+});
+
+test("refutation search checks all targets and finds checked counterexamples", () => {
+  assert.equal(proofRefutations.length, 12);
+  assert.equal(
+    proofRefutations.filter((refutation) => refutation.counterexampleFound)
+      .length >= 3,
+    true,
+  );
+  assert.equal(
+    proofRefutations
+      .filter((refutation) => refutation.counterexampleFound)
+      .every((refutation) => refutation.checked),
+    true,
+  );
+});
+
+test("bounded-to-formal bridge refuses to call bounded evidence proof", () => {
+  assert.equal(boundedBridges.length, 12);
+  assert.equal(
+    boundedBridges.every((bridge) => bridge.boundedResultIsProof === false),
+    true,
+  );
+});
+
+test("proof replay verifier replays proof-route decisions", () => {
+  assert.equal(proofReplays.length, 12);
+  assert.equal(
+    proofReplays.filter((replay) => replay.replayAttempted).length,
+    12,
+  );
+  assert.equal(
+    proofReplays.filter((replay) => replay.replaySucceeded).length >= 8,
+    true,
+  );
+});
+
+test("formal proof audit passes proof-route artifact invariants", () => {
+  assert.equal(formalProofAudit.kind, "formal_proof_audit");
+  assert.equal(formalProofAudit.passed, true);
+  assert.equal(formalProofAudit.targetCount, 12);
+  assert.equal(formalProofAudit.validStatementCount >= 8, true);
+  assert.equal(formalProofAudit.lemmaCount >= 30, true);
+  assert.equal(formalProofAudit.noFakeProofClaim, true);
+  assert.equal(formalProofAudit.boundedEvidenceNotPromoted, true);
+});
+
+for (const target of proofTargets) {
+  test(`formal proof target has required route fields ${target.targetId}`, () => {
+    assert.equal(target.statement.length > 20, true);
+    assert.equal(target.variables.length >= 2, true);
+    assert.equal(target.fallbackRoute.length > 0, true);
+    assert.equal(target.safetyScope, "safe_formal_computation");
+    assert.match(target.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`formal statement records objects and assumptions ${target.targetId}`, () => {
+    const statement = formalStatements.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(statement);
+    assert.equal(statement.mathematicalObjects.length >= 2, true);
+    assert.equal(statement.assumptions.length >= 1, true);
+    assert.equal(statement.falsifier.length > 20, true);
+    assert.match(statement.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`valid formal statements include quantifiers ${target.targetId}`, () => {
+    const statement = formalStatements.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(statement);
+    if (statement.valid) {
+      assert.equal(statement.quantifiers.length >= 1, true);
+      assert.equal(statement.rejectionReason, null);
+    } else {
+      assert.equal(statement.rejectionReason, "statement_unclear");
+    }
+  });
+
+  test(`lemma mining is target-scoped ${target.targetId}`, () => {
+    const statement = formalStatements.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(statement);
+    const targetLemmas = lemmaCandidates.filter(
+      (lemma) => lemma.targetId === target.targetId,
+    );
+    assert.equal(targetLemmas.length, statement.valid ? 4 : 0);
+  });
+
+  test(`proof attempt is explicit for ${target.targetId}`, () => {
+    const attempt = proofAttempts.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(attempt);
+    assert.equal(attempt.route, target.proofRoute);
+    assert.equal(attempt.boundedEvidencePromotedToProof, false);
+    assert.match(attempt.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`proof verification is bounded for ${target.targetId}`, () => {
+    const verification = proofVerifications.find(
+      (item) => (item as { targetId?: string }).targetId === target.targetId,
+    );
+    assert.ok(verification);
+    assert.equal(
+      (verification as { boundedEvidencePromotedToProof?: boolean })
+        .boundedEvidencePromotedToProof,
+      false,
+    );
+  });
+
+  test(`refutation search records all modes ${target.targetId}`, () => {
+    const refutation = proofRefutations.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(refutation);
+    assert.equal(refutation.boundedExhaustiveSearched, true);
+    assert.equal(refutation.randomizedAdversarialSearched, true);
+    assert.equal(refutation.boundaryCasesSearched, true);
+    assert.equal(refutation.minimalCounterexampleSearched, true);
+  });
+
+  test(`bounded bridge records proof gap ${target.targetId}`, () => {
+    const bridge = boundedBridges.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(bridge);
+    assert.equal(bridge.gapBetweenBoundedAndGeneral.length > 20, true);
+    assert.equal(bridge.boundedResultIsProof, false);
+  });
+
+  test(`proof replay keeps target status ${target.targetId}`, () => {
+    const replay = proofReplays.find(
+      (item) => item.targetId === target.targetId,
+    );
+    const attempt = proofAttempts.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(replay);
+    assert.ok(attempt);
+    assert.equal(replay.statusAfterReplay, attempt.outcome);
+    assert.match(replay.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`proof target public fields avoid fake theorem claims ${target.targetId}`, () => {
+    const statement = formalStatements.find(
+      (item) => item.targetId === target.targetId,
+    );
+    assert.ok(statement);
+    assert.deepEqual(auditFormalPublicText(statement.formalText), []);
+  });
+}
+
+for (const lemma of lemmaCandidates) {
+  test(`lemma candidate has auditable fields ${lemma.lemmaId}`, () => {
+    assert.equal(lemma.statement.length > 20, true);
+    assert.equal(lemma.role.length > 0, true);
+    assert.equal(lemma.trivial && lemma.useful, false);
+    assert.match(lemma.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`trivial lemma rejection is explicit ${lemma.lemmaId}`, () => {
+    if (lemma.trivial) {
+      assert.equal(lemma.rejectionReason, "directly restates an assumption");
+    } else {
+      assert.equal(lemma.rejectionReason, null);
+    }
+  });
+
+  test(`lemma candidate is attached to a selected target ${lemma.lemmaId}`, () => {
+    assert.equal(
+      proofTargets.some((target) => target.targetId === lemma.targetId),
+      true,
+    );
+  });
+}
 
 for (const candidate of candidates.slice(0, 50)) {
   test(`known pattern checker gives bounded scores for ${candidate.candidateId}`, () => {
@@ -567,6 +912,14 @@ const formalHelpCommands = [
   "sovryn formal automata-search",
   "sovryn formal proof-pressure",
   "sovryn formal nontriviality-audit",
+  "sovryn formal proof-doctor",
+  "sovryn formal proof-targets",
+  "sovryn formal formalize",
+  "sovryn formal proof-check",
+  "sovryn formal proof-replay",
+  "sovryn formal lemma-mine",
+  "sovryn formal refute",
+  "sovryn formal proof-audit",
   "sovryn formal audit",
 ];
 
@@ -599,6 +952,14 @@ const formalCliCommands = [
   ["automata-search"],
   ["proof-pressure"],
   ["nontriviality-audit"],
+  ["proof-doctor"],
+  ["proof-targets"],
+  ["formalize", "--target", "proof-target-001"],
+  ["proof-check", "--target", "proof-target-001"],
+  ["proof-replay", "--target", "proof-target-001"],
+  ["lemma-mine", "--target", "proof-target-001"],
+  ["refute", "--target", "proof-target-001"],
+  ["proof-audit"],
   ["audit"],
 ];
 
@@ -636,7 +997,16 @@ test("full formal discovery smoke flow reaches audit", async () => {
   await serviceForRoot.richGenerate();
   await serviceForRoot.nontrivialityAudit();
   await serviceForRoot.proofPressure();
+  await serviceForRoot.proofDoctor();
+  await serviceForRoot.proofTargets();
+  await serviceForRoot.formalize("proof-target-001");
+  await serviceForRoot.lemmaMine("proof-target-001");
+  await serviceForRoot.proofCheck("proof-target-001");
+  await serviceForRoot.refute("proof-target-001");
+  await serviceForRoot.proofReplay("proof-target-001");
+  const proofAudit = await serviceForRoot.proofAudit();
   const audit = await serviceForRoot.audit();
+  assert.equal(proofAudit.passed, true);
   assert.equal(audit.passed, true);
   assert.equal(audit.candidateCount, 200);
 });

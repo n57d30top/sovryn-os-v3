@@ -2477,6 +2477,9 @@ export class AutonomousDiscoveryDaemonService {
     }
     await this.notifyFromFundGateIfPassed(fund);
     const state = await this.readState();
+    const latestCheckpointRef = await new SearchStateCheckpointService(
+      this.root,
+    ).latestCheckpointRef();
     return withEvidenceHash({
       kind: "silent_until_fund_run",
       mode: "silent",
@@ -2484,6 +2487,23 @@ export class AutonomousDiscoveryDaemonService {
       cyclesExecuted: cycles.length,
       status: state.status,
       fundFound: state.fundFound,
+      cycleCount: state.cycleCount,
+      lastCycleId: state.lastCycleId,
+      lastCandidateId: state.lastCandidateId,
+      latestCheckpointRef,
+      fundGateStatus: {
+        passed: fund.passed,
+        fundLabel: fund.fundLabel,
+        failedGates: fund.failedGates,
+      },
+      finalState: {
+        status: state.status,
+        fundFound: state.fundFound,
+        cycleCount: state.cycleCount,
+        lastCycleId: state.lastCycleId,
+        lastCandidateId: state.lastCandidateId,
+        currentDomain: state.currentDomain,
+      },
       completionLabel: state.fundFound
         ? "fund_found"
         : "daemon_built_continue_searching",

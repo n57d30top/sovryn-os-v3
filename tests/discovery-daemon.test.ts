@@ -2111,6 +2111,26 @@ test("discover-daemon run remains continue_searching without fund", async () => 
   assert.equal(run.daemonRunQuantum, 2);
   assert.equal(run.operatorBoundedQuantum, true);
   assert.equal(run.unboundedSearchIntent, false);
+  assert.equal(run.cycleCount, 2);
+  assert.equal(run.lastCycleId, "cycle-0002");
+  assert.equal(
+    run.latestCheckpointRef,
+    `${daemonRoot}/checkpoints/cycle-0002.json`,
+  );
+  assert.deepEqual(run.fundGateStatus, {
+    passed: false,
+    fundLabel: null,
+    failedGates: ["candidate_present"],
+  });
+  assert.deepEqual(run.finalState, {
+    status: "continue_searching",
+    fundFound: false,
+    cycleCount: 2,
+    lastCycleId: "cycle-0002",
+    lastCandidateId:
+      "DAEMON-FRESH-R1-NASA-EXOPLANET-ARCHIVE-ANOMALY-BASELINE-CONTROL-S1",
+    currentDomain: "astrophysics_open_catalog_anomalies",
+  });
 });
 
 test("discover-daemon run uses resumable default quantum without explicit max-cycles", async () => {
@@ -2129,6 +2149,11 @@ test("discover-daemon run uses resumable default quantum without explicit max-cy
   assert.equal(run.resumeRequiredUnlessFundFound, true);
   assert.equal(run.notificationSuppressed, true);
   assert.equal(run.userNotification, null);
+  assert.equal(run.cycleCount, daemonDefaultRunQuantum);
+  assert.equal(
+    run.latestCheckpointRef,
+    `${daemonRoot}/checkpoints/cycle-${String(daemonDefaultRunQuantum).padStart(4, "0")}.json`,
+  );
   const status = await service.status();
   assert.equal(status.cycleCount, daemonDefaultRunQuantum);
 });

@@ -168,6 +168,11 @@ Commands:
   sovryn temporal horizon-stress --target <target-id> [--json]
   sovryn temporal replay --target <target-id> [--json]
   sovryn temporal classify --target <target-id> [--json]
+  sovryn temporal mechanism-panel --target <target-id> [--json]
+  sovryn temporal compare-mechanisms --target <target-id> [--json]
+  sovryn temporal calibrate-mechanisms [--json]
+  sovryn temporal blind-mechanism-test [--json]
+  sovryn temporal mechanism-audit [--json]
   sovryn temporal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
@@ -1457,7 +1462,7 @@ async function temporalCommand(
   if (!subcommand) {
     throw new AppError(
       "TEMPORAL_COMMAND_REQUIRED",
-      "Use: sovryn temporal <status|instrument run|split-stress|leakage-control|horizon-stress|replay|classify|audit>.",
+      "Use: sovryn temporal <status|instrument run|split-stress|leakage-control|horizon-stress|replay|classify|mechanism-panel|compare-mechanisms|calibrate-mechanisms|blind-mechanism-test|mechanism-audit|audit>.",
     );
   }
   const service = new TemporalEvaluationFragilityService(root);
@@ -1483,6 +1488,16 @@ async function temporalCommand(
       return service.replay(requiredTemporalTarget(parsed));
     case "classify":
       return service.classify(requiredTemporalTarget(parsed));
+    case "mechanism-panel":
+      return service.mechanismPanel(requiredTemporalTarget(parsed));
+    case "compare-mechanisms":
+      return service.compareMechanisms(requiredTemporalTarget(parsed));
+    case "calibrate-mechanisms":
+      return service.calibrateMechanisms();
+    case "blind-mechanism-test":
+      return service.blindMechanismTest();
+    case "mechanism-audit":
+      return service.mechanismAudit();
     case "audit":
       return service.audit();
     default:

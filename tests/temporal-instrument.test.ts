@@ -6,13 +6,19 @@ import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import {
   auditTemporalPublicText,
+  ClassSpecificFalsifierRunner,
   HorizonWindowStressRunner,
   ShuffledTimeControlRunner,
   TemporalBaselineSuite,
   temporalClassificationLabels,
   TemporalEvaluationFragilityService,
   TemporalFragilityClassifier,
+  TemporalLabelConfusionAnalyzer,
   TemporalLeakageControlRunner,
+  TemporalMechanismCalibrationService,
+  TemporalMechanismComparator,
+  TemporalMechanismDecisionEngine,
+  TemporalMechanismPanelBuilder,
   TemporalReplayVerifier,
   TemporalSplitStressRunner,
   type TemporalFragilityLabel,
@@ -23,6 +29,7 @@ import { readJson } from "../src/shared/fs.js";
 
 const service = new TemporalEvaluationFragilityService(".");
 const registry = service.targetRegistry(48);
+const mechanismRegistry = service.targetRegistry(80);
 const labels = temporalClassificationLabels();
 
 for (const label of [
@@ -414,6 +421,225 @@ test("full temporal instrument smoke flow reaches audit", async () => {
   const audit = await service.audit();
   assert.equal(audit.passed, true);
   assert.equal(audit.splitStressResultCount >= 3, true);
+});
+
+const mechanismPanelBuilder = new TemporalMechanismPanelBuilder();
+const mechanismComparator = new TemporalMechanismComparator();
+const mechanismDecisionEngine = new TemporalMechanismDecisionEngine();
+const falsifierRunner = new ClassSpecificFalsifierRunner();
+
+test("class-specific falsifier runner defines thirty falsifier tests", () => {
+  assert.equal(falsifierRunner.definitions().length, 30);
+});
+
+for (const label of labels) {
+  test(`class-specific falsifier runner defines three tests for ${label}`, () => {
+    assert.equal(
+      falsifierRunner
+        .definitions()
+        .filter((definition) => definition.label === label).length,
+      3,
+    );
+  });
+
+  test(`mechanism panel includes row for ${label}`, () => {
+    const panel = mechanismPanelBuilder.build(targetWithLabel(label));
+    const row = panel.panels.find((item) => item.label === label);
+    assert.ok(row);
+    assert.equal(row.requiredEvidencePresent.length >= 5, true);
+    assert.equal(row.classSpecificFalsifier.includes(label), true);
+  });
+
+  test(`mechanism panel row has downgrade rule state for ${label}`, () => {
+    const panel = mechanismPanelBuilder.build(targetWithLabel(label));
+    const row = panel.panels.find((item) => item.label === label);
+    assert.ok(row);
+    assert.equal(typeof row.downgradeRuleTriggered, "boolean");
+  });
+}
+
+for (const definition of falsifierRunner.definitions()) {
+  test(`falsifier ${definition.falsifierId} executes with evidence hash`, () => {
+    const result = falsifierRunner.runDefinition(
+      targetWithLabel(definition.label),
+      definition,
+    );
+    assert.equal(result.falsifierId, definition.falsifierId);
+    assert.match(result.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+}
+
+for (const target of mechanismRegistry.slice(0, 60)) {
+  test(`mechanism panel has ten rows for ${target.targetId}`, () => {
+    const panel = mechanismPanelBuilder.build(target);
+    assert.equal(panel.panels.length, 10);
+    assert.match(panel.evidenceHash, /^[a-f0-9]{64}$/);
+  });
+
+  test(`mechanism comparator ranks rivals for ${target.targetId}`, () => {
+    const panel = mechanismPanelBuilder.build(target);
+    const comparison = mechanismComparator.compare(panel);
+    assert.equal(comparison.targetId, target.targetId);
+    assert.equal(comparison.rivalMechanisms.length, 3);
+    assert.match(comparison.confusionRisk, /low|moderate|high/);
+  });
+
+  test(`mechanism decision returns bounded label for ${target.targetId}`, () => {
+    const panel = mechanismPanelBuilder.build(target);
+    const comparison = mechanismComparator.compare(panel);
+    const decision = mechanismDecisionEngine.decide({ panel, comparison });
+    assert.equal(labels.includes(decision.label), true);
+    assert.equal(decision.confidence >= 0, true);
+    assert.equal(decision.confidence <= 0.95, true);
+  });
+
+  test(`mechanism falsifiers run for primary panel ${target.targetId}`, () => {
+    const panel = mechanismPanelBuilder.build(target);
+    const results = falsifierRunner.run(target, panel.primaryMechanism);
+    assert.equal(results.length, 3);
+    assert.equal(
+      results.every((result) => /^[a-f0-9]{64}$/.test(result.evidenceHash)),
+      true,
+    );
+  });
+}
+
+test("mechanism comparator marks close margins as confusion risk", () => {
+  const panel = mechanismPanelBuilder.build(targetWithLabel("inconclusive"));
+  const comparison = mechanismComparator.compare(panel);
+  assert.match(comparison.confusionRisk, /low|moderate|high/);
+});
+
+test("label confusion analyzer summarizes eighty-target matrix", () => {
+  const analysis = new TemporalLabelConfusionAnalyzer().analyze(
+    mechanismRegistry,
+  );
+  assert.equal(analysis.analyzedTargets, 80);
+  assert.equal(analysis.topConfusionPairs.length <= 5, true);
+  assert.match(analysis.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("mechanism calibration computes v0 to v1 comparison", () => {
+  const calibration = new TemporalMechanismCalibrationService().calibrate(
+    mechanismRegistry.slice(0, 40),
+  );
+  assert.equal(calibration.caseCount, 40);
+  assert.equal(calibration.falsifierExecutionCount, 120);
+  assert.equal(typeof calibration.labelCorrectionsRelativeToV0, "number");
+});
+
+test("mechanism panel command writes per-target panel artifact", async () => {
+  const root = await tempRoot();
+  const result = await new TemporalEvaluationFragilityService(
+    root,
+  ).mechanismPanel("temporal-target-001");
+  assert.equal(result.kind, "temporal_mechanism_panel");
+  const artifact = await readJson<Record<string, unknown>>(
+    join(
+      root,
+      ".sovryn",
+      "temporal",
+      "mechanism-panels",
+      "temporal-target-001.json",
+    ),
+  );
+  assert.equal(artifact.kind, "temporal_mechanism_panel");
+});
+
+test("compare-mechanisms command writes mechanism decision report", async () => {
+  const root = await tempRoot();
+  const result = await new TemporalEvaluationFragilityService(
+    root,
+  ).compareMechanisms("temporal-target-002");
+  assert.equal(result.kind, "temporal_mechanism_comparison");
+  const report = await readJson<Record<string, unknown>>(
+    join(root, ".sovryn", "temporal", "mechanism-decision-report.json"),
+  );
+  assert.equal(report.kind, "temporal_mechanism_decision_report");
+});
+
+test("calibrate-mechanisms writes calibration and confusion artifacts", async () => {
+  const root = await tempRoot();
+  const service = new TemporalEvaluationFragilityService(root);
+  const result = await service.calibrateMechanisms();
+  assert.equal(result.caseCount, 40);
+  for (const file of [
+    "mechanism-calibration.json",
+    "label-confusion-analysis.json",
+    "class-specific-falsifiers.json",
+  ]) {
+    const artifact = await readFile(join(root, ".sovryn", "temporal", file));
+    assert.equal(artifact.length > 0, true);
+  }
+});
+
+test("blind mechanism test records thirty two rows", async () => {
+  const root = await tempRoot();
+  const result = await new TemporalEvaluationFragilityService(
+    root,
+  ).blindMechanismTest();
+  assert.equal(result.kind, "temporal_blind_mechanism_test");
+  assert.equal(result.targetCount, 32);
+  assert.equal(result.falsifierExecutionCount, 96);
+});
+
+test("mechanism audit passes after calibration artifacts exist", async () => {
+  const root = await tempRoot();
+  const service = new TemporalEvaluationFragilityService(root);
+  await service.calibrateMechanisms();
+  const audit = await service.mechanismAudit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.falsifierDefinitionCount, 30);
+});
+
+const temporalMechanismHelpCommands = [
+  "sovryn temporal mechanism-panel",
+  "sovryn temporal compare-mechanisms",
+  "sovryn temporal calibrate-mechanisms",
+  "sovryn temporal blind-mechanism-test",
+  "sovryn temporal mechanism-audit",
+];
+
+for (const command of temporalMechanismHelpCommands) {
+  test(`CLI help lists ${command}`, async () => {
+    const response = await executeCli(["--help"], await tempRoot());
+    assert.equal(response.ok, true);
+    assert.match(
+      String((response.data as { help?: unknown } | undefined)?.help),
+      new RegExp(command.replace(/[ -]/g, "[ -]")),
+    );
+  });
+}
+
+const temporalMechanismCliCommands = [
+  ["mechanism-panel", "--target", "temporal-target-001"],
+  ["compare-mechanisms", "--target", "temporal-target-002"],
+  ["calibrate-mechanisms"],
+  ["blind-mechanism-test"],
+  ["mechanism-audit"],
+];
+
+for (const args of temporalMechanismCliCommands) {
+  test(`temporal mechanism CLI command works: ${args.join(" ")}`, async () => {
+    const response = await executeCli(
+      ["temporal", ...args, "--json"],
+      await tempRoot(),
+    );
+    assert.equal(response.ok, true, JSON.stringify(response.errors, null, 2));
+  });
+}
+
+test("full mechanism smoke flow reaches mechanism audit", async () => {
+  const root = await tempRoot();
+  const service = new TemporalEvaluationFragilityService(root);
+  await service.mechanismPanel("temporal-target-001");
+  await service.compareMechanisms("temporal-target-002");
+  await service.calibrateMechanisms();
+  await service.blindMechanismTest();
+  const audit = await service.mechanismAudit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.calibrationPresent, true);
+  assert.equal(audit.labelConfusionAnalysisPresent, true);
 });
 
 function targetWithLabel(label: TemporalFragilityLabel): TemporalTarget {

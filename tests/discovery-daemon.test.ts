@@ -1109,6 +1109,50 @@ test("discover-daemon falls back after all corpus seeds are internally tombstone
   assert.equal(audit.passed, true);
 });
 
+test("discover-daemon continues past the former top twenty five corpus seed ceiling", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 30,
+      results: Array.from({ length: 30 }, (_, index) => {
+        const slug = `seed-${String(index + 1).padStart(3, "0")}`;
+        return {
+          slug,
+          title: `Seed ${index + 1}`,
+          resultKind: "scientific_public_data_reliability",
+          candidateStatus: "partial_signal",
+          path: `results/${slug}`,
+        };
+      }),
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 38 });
+  const cycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0038.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(cycle.corpusContext.corpusSnapshot.sampledResultCount, 30);
+  assert.equal(cycle.corpusSeed.slug, "seed-026");
+  assert.equal(cycle.corpusSeedSelection.mode, "graveyard_aware");
+  assert.equal(cycle.corpusSeedSelection.availableUnusedSeedCount, 5);
+  assert.equal(cycle.corpusSeedSelection.skippedGraveyardSeedCount, 25);
+  assert.equal(
+    cycle.corpusSeedSelection.selectedSeedWasInPriorGraveyard,
+    false,
+  );
+  assert.equal(cycle.candidateIdeas[0].sourceSeed.slug, "seed-026");
+  const audit = await service.audit();
+  assert.equal(audit.passed, true);
+});
+
 test("discover-daemon audit fails if corpus seed binding is removed", async () => {
   const root = await tempRoot();
   const sibling = join(root, "..", "sovryn-open-inventions");

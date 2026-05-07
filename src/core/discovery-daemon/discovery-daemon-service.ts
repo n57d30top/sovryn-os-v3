@@ -1275,9 +1275,9 @@ function corpusSnapshotFromIndex(
   const results = Array.isArray(index.results)
     ? (index.results as Array<Record<string, unknown>>)
     : [];
-  const seeds = new CandidateSourceRanker()
-    .rankCorpusSeeds(results.map(corpusSeedFromIndexResult))
-    .slice(0, 25);
+  const seeds = new CandidateSourceRanker().rankCorpusSeeds(
+    results.map(corpusSeedFromIndexResult),
+  );
   const anomalySeedKinds = Array.from(
     new Set(
       seeds

@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-016",
+  "candidateId": "NR-CAND-021",
+  "domainId": "computational_materials",
+  "category": "candidate_weakening",
+  "claimComponent": "alignment between mechanism evidence and holdout behavior",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "NR-CAND-021 weakens under a stronger baseline or rival artifact check.",
+  "expectedBaselineResult": "stronger baseline explains part of signal",
+  "expectedRivalOutcome": "rival partially strengthened",
+  "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "unseen material families",
+  "replayPlan": "public table replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "f3976f90ec1e5edaeae2fbf3342f192199c703fbe2efeec13da29109075f03a2"
+}

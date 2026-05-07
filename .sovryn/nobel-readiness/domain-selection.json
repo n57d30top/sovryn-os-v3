@@ -1,0 +1,371 @@
+{
+  "kind": "nobel_readiness_domain_selection",
+  "generatedAt": "2026-05-07T11:05:20.443Z",
+  "considered": [
+    {
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "name": "Formal mathematics and bounded conjecture discovery",
+      "family": "formal",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Formal targets have decisive counterexamples and clear proof obligations.",
+      "publicTargets": [
+        "local bounded graph families",
+        "finite automata structures"
+      ],
+      "baselineFeasibility": "simple rule, known pattern, and bounded counterexample filters",
+      "holdoutFeasibility": "higher bounds and edge structures",
+      "replayFeasibility": "deterministic recomputation",
+      "score": 86,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "computational_materials",
+      "name": "Computational materials public descriptor data",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Materials property residuals are high-value and public-data compatible.",
+      "publicTargets": [
+        "Materials Project derived public metadata",
+        "Open Quantum Materials records"
+      ],
+      "baselineFeasibility": "composition and descriptor baselines",
+      "holdoutFeasibility": "unseen material families",
+      "replayFeasibility": "public table replay",
+      "score": 84,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "astrophysics_open_data",
+      "name": "Astrophysics open catalog anomaly structure",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Open sky catalogs support safe high-impact anomaly and rival-model tests.",
+      "publicTargets": [
+        "Gaia-like public catalog slices",
+        "NASA Exoplanet Archive metadata"
+      ],
+      "baselineFeasibility": "magnitude, selection, and instrument bias baselines",
+      "holdoutFeasibility": "catalog region or object-class holdouts",
+      "replayFeasibility": "public catalog query replay",
+      "score": 82,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "climate_energy_data",
+      "name": "Climate and energy public time-indexed records",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Safe public climate and energy records matter and have strong baselines.",
+      "publicTargets": [
+        "NOAA safe aggregates",
+        "public grid demand summaries"
+      ],
+      "baselineFeasibility": "seasonal and persistence baselines",
+      "holdoutFeasibility": "region and time holdouts",
+      "replayFeasibility": "public table replay",
+      "score": 76,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "scientific_software_reproduction",
+      "name": "Scientific software reproduction fragility",
+      "family": "software_reproduction",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Reproduction alignment is practically useful and externally inspectable.",
+      "publicTargets": [
+        "safe public scientific packages",
+        "small reproducibility examples"
+      ],
+      "baselineFeasibility": "static checklist and tests-present baselines",
+      "holdoutFeasibility": "fresh repo package holdouts",
+      "replayFeasibility": "fresh workspace replay",
+      "score": 80,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "time_series_evaluation",
+      "name": "Temporal evaluation fragility",
+      "family": "methodology",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Temporal evaluation errors are common but previous tools remained partial.",
+      "publicTargets": [
+        "forecasting benchmark slices",
+        "temporal classification controls"
+      ],
+      "baselineFeasibility": "seasonal, persistence, and random split baselines",
+      "holdoutFeasibility": "new target family holdouts",
+      "replayFeasibility": "public dataset replay",
+      "score": 72,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "safe_protein_structure_metadata",
+      "name": "Safe protein structure metadata reliability",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Metadata-level structure reliability is useful while avoiding wet-lab claims.",
+      "publicTargets": [
+        "public non-sensitive structure metadata",
+        "safe benchmark annotations"
+      ],
+      "baselineFeasibility": "source, resolution, and annotation baselines",
+      "holdoutFeasibility": "new annotation family holdouts",
+      "replayFeasibility": "public metadata replay",
+      "score": 70,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "scientific_dataset_reliability",
+      "name": "Scientific dataset reliability anomalies",
+      "family": "methodology",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Dataset reliability signals can prevent false downstream claims.",
+      "publicTargets": [
+        "public dataset cards",
+        "safe benchmark metadata"
+      ],
+      "baselineFeasibility": "missingness and provenance baselines",
+      "holdoutFeasibility": "fresh dataset families",
+      "replayFeasibility": "receipt and metadata replay",
+      "score": 74,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "simulation_reproducibility",
+      "name": "Simulation reproducibility and parameter sensitivity",
+      "family": "software_reproduction",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Simulation parameters can reveal reproducibility boundaries.",
+      "publicTargets": [
+        "safe toy simulations",
+        "public benchmark simulations"
+      ],
+      "baselineFeasibility": "parameter and seed baselines",
+      "holdoutFeasibility": "fresh parameter families",
+      "replayFeasibility": "container or clean workspace replay",
+      "score": 78,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "benchmark_methodology",
+      "name": "Benchmark methodology fragility",
+      "family": "methodology",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Benchmark artifacts are inspectable but often baseline dominated.",
+      "publicTargets": [
+        "safe public benchmark reports",
+        "small benchmark fixtures"
+      ],
+      "baselineFeasibility": "leaderboard and protocol baselines",
+      "holdoutFeasibility": "fresh benchmark family holdouts",
+      "replayFeasibility": "protocol replay where available",
+      "score": 68,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    }
+  ],
+  "selected": [
+    {
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "name": "Formal mathematics and bounded conjecture discovery",
+      "family": "formal",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Formal targets have decisive counterexamples and clear proof obligations.",
+      "publicTargets": [
+        "local bounded graph families",
+        "finite automata structures"
+      ],
+      "baselineFeasibility": "simple rule, known pattern, and bounded counterexample filters",
+      "holdoutFeasibility": "higher bounds and edge structures",
+      "replayFeasibility": "deterministic recomputation",
+      "score": 86,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "computational_materials",
+      "name": "Computational materials public descriptor data",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Materials property residuals are high-value and public-data compatible.",
+      "publicTargets": [
+        "Materials Project derived public metadata",
+        "Open Quantum Materials records"
+      ],
+      "baselineFeasibility": "composition and descriptor baselines",
+      "holdoutFeasibility": "unseen material families",
+      "replayFeasibility": "public table replay",
+      "score": 84,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "astrophysics_open_data",
+      "name": "Astrophysics open catalog anomaly structure",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Open sky catalogs support safe high-impact anomaly and rival-model tests.",
+      "publicTargets": [
+        "Gaia-like public catalog slices",
+        "NASA Exoplanet Archive metadata"
+      ],
+      "baselineFeasibility": "magnitude, selection, and instrument bias baselines",
+      "holdoutFeasibility": "catalog region or object-class holdouts",
+      "replayFeasibility": "public catalog query replay",
+      "score": 82,
+      "selected": true,
+      "rejectionReason": null
+    },
+    {
+      "domainId": "scientific_software_reproduction",
+      "name": "Scientific software reproduction fragility",
+      "family": "software_reproduction",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Reproduction alignment is practically useful and externally inspectable.",
+      "publicTargets": [
+        "safe public scientific packages",
+        "small reproducibility examples"
+      ],
+      "baselineFeasibility": "static checklist and tests-present baselines",
+      "holdoutFeasibility": "fresh repo package holdouts",
+      "replayFeasibility": "fresh workspace replay",
+      "score": 80,
+      "selected": true,
+      "rejectionReason": null
+    }
+  ],
+  "rejected": [
+    {
+      "domainId": "climate_energy_data",
+      "name": "Climate and energy public time-indexed records",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Safe public climate and energy records matter and have strong baselines.",
+      "publicTargets": [
+        "NOAA safe aggregates",
+        "public grid demand summaries"
+      ],
+      "baselineFeasibility": "seasonal and persistence baselines",
+      "holdoutFeasibility": "region and time holdouts",
+      "replayFeasibility": "public table replay",
+      "score": 76,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "time_series_evaluation",
+      "name": "Temporal evaluation fragility",
+      "family": "methodology",
+      "priorPartialBranch": true,
+      "safePublicScope": true,
+      "impactRationale": "Temporal evaluation errors are common but previous tools remained partial.",
+      "publicTargets": [
+        "forecasting benchmark slices",
+        "temporal classification controls"
+      ],
+      "baselineFeasibility": "seasonal, persistence, and random split baselines",
+      "holdoutFeasibility": "new target family holdouts",
+      "replayFeasibility": "public dataset replay",
+      "score": 72,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "safe_protein_structure_metadata",
+      "name": "Safe protein structure metadata reliability",
+      "family": "real_scientific_data",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Metadata-level structure reliability is useful while avoiding wet-lab claims.",
+      "publicTargets": [
+        "public non-sensitive structure metadata",
+        "safe benchmark annotations"
+      ],
+      "baselineFeasibility": "source, resolution, and annotation baselines",
+      "holdoutFeasibility": "new annotation family holdouts",
+      "replayFeasibility": "public metadata replay",
+      "score": 70,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "scientific_dataset_reliability",
+      "name": "Scientific dataset reliability anomalies",
+      "family": "methodology",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Dataset reliability signals can prevent false downstream claims.",
+      "publicTargets": [
+        "public dataset cards",
+        "safe benchmark metadata"
+      ],
+      "baselineFeasibility": "missingness and provenance baselines",
+      "holdoutFeasibility": "fresh dataset families",
+      "replayFeasibility": "receipt and metadata replay",
+      "score": 74,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "simulation_reproducibility",
+      "name": "Simulation reproducibility and parameter sensitivity",
+      "family": "software_reproduction",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Simulation parameters can reveal reproducibility boundaries.",
+      "publicTargets": [
+        "safe toy simulations",
+        "public benchmark simulations"
+      ],
+      "baselineFeasibility": "parameter and seed baselines",
+      "holdoutFeasibility": "fresh parameter families",
+      "replayFeasibility": "container or clean workspace replay",
+      "score": 78,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    },
+    {
+      "domainId": "benchmark_methodology",
+      "name": "Benchmark methodology fragility",
+      "family": "methodology",
+      "priorPartialBranch": false,
+      "safePublicScope": true,
+      "impactRationale": "Benchmark artifacts are inspectable but often baseline dominated.",
+      "publicTargets": [
+        "safe public benchmark reports",
+        "small benchmark fixtures"
+      ],
+      "baselineFeasibility": "leaderboard and protocol baselines",
+      "holdoutFeasibility": "fresh benchmark family holdouts",
+      "replayFeasibility": "protocol replay where available",
+      "score": 68,
+      "selected": false,
+      "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
+    }
+  ],
+  "evidenceHash": "2e013db438e436d3a3d7d178264d9ae5105e4bf932a4a17261890aa90a138d32"
+}

@@ -1,0 +1,46 @@
+{
+  "kind": "nobel_readiness_criteria",
+  "generatedAt": "2026-05-07T11:05:20.442Z",
+  "criteria": [
+    "high-impact safe domain",
+    "nontrivial bounded anomaly or principle",
+    "baseline resistance",
+    "rival theory comparison",
+    "preregistered predictions",
+    "holdout support",
+    "counterexample pressure",
+    "replay support",
+    "falsifiability",
+    "external inspectability",
+    "bounded scope",
+    "clear next experiment"
+  ],
+  "scoreModel": [
+    "scientific_importance_score",
+    "novelty_risk_score",
+    "baseline_resistance_score",
+    "prediction_quality_score",
+    "rival_theory_score",
+    "holdout_score",
+    "replay_score",
+    "counterexample_pressure_score",
+    "external_review_readiness_score",
+    "safety_score",
+    "overclaim_risk_score"
+  ],
+  "labels": [
+    "failed_candidate",
+    "partial_signal",
+    "promising_but_unvalidated",
+    "promising_with_strong_caveats",
+    "externally_review_ready_candidate"
+  ],
+  "noOverclaimRules": [
+    "Do not describe any candidate as prize-level.",
+    "Do not describe bounded computation as real-world validation.",
+    "Do not say outside experts reviewed the package unless that happened.",
+    "Use externally_review_ready_candidate only when all hard evidence gates pass.",
+    "Classify insufficient evidence as partial, failed, or not ready for expert review."
+  ],
+  "evidenceHash": "5073a82a8662e0cefd54889246f402eda99b5a08ac3656de2b9678bb7c84e06f"
+}

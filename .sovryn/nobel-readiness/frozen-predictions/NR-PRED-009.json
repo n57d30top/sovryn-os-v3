@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-009",
+  "candidateId": "NR-CAND-050",
+  "domainId": "astrophysics_open_data",
+  "category": "candidate_weakening",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-050 weakens under a stronger baseline or rival artifact check.",
+  "expectedBaselineResult": "stronger baseline explains part of signal",
+  "expectedRivalOutcome": "rival partially strengthened",
+  "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "catalog region or object-class holdouts",
+  "replayPlan": "public catalog query replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "1f73912617415f13393652f37e974335d7a05bf2842847032bae7bb651bb86e4"
+}

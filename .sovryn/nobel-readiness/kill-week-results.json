@@ -1,0 +1,313 @@
+{
+  "kind": "nobel_readiness_kill_week",
+  "attackedAt": "2026-05-07T11:05:20.450Z",
+  "attacks": [
+    {
+      "attackId": "NR-KILL-001",
+      "candidateId": "NR-CAND-001",
+      "attackType": "novelty",
+      "outcome": "downgraded",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-002",
+      "candidateId": "NR-CAND-004",
+      "attackType": "baseline",
+      "outcome": "downgraded",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-003",
+      "candidateId": "NR-CAND-010",
+      "attackType": "rival_theory",
+      "outcome": "downgraded",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-004",
+      "candidateId": "NR-CAND-021",
+      "attackType": "counterexample",
+      "outcome": "downgraded",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-005",
+      "candidateId": "NR-CAND-024",
+      "attackType": "replay",
+      "outcome": "downgraded",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-006",
+      "candidateId": "NR-CAND-030",
+      "attackType": "holdout",
+      "outcome": "narrowed",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-007",
+      "candidateId": "NR-CAND-041",
+      "attackType": "domain_importance",
+      "outcome": "narrowed",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-008",
+      "candidateId": "NR-CAND-044",
+      "attackType": "external_inspectability",
+      "outcome": "narrowed",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-009",
+      "candidateId": "NR-CAND-050",
+      "attackType": "overclaim",
+      "outcome": "narrowed",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-010",
+      "candidateId": "NR-CAND-061",
+      "attackType": "novelty",
+      "outcome": "narrowed",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-011",
+      "candidateId": "NR-CAND-064",
+      "attackType": "baseline",
+      "outcome": "rejected",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-012",
+      "candidateId": "NR-CAND-070",
+      "attackType": "rival_theory",
+      "outcome": "rejected",
+      "rationale": "Attack exposed baseline, replay, counterexample, or inspectability pressure requiring weaker scope."
+    },
+    {
+      "attackId": "NR-KILL-013",
+      "candidateId": "NR-CAND-001",
+      "attackType": "counterexample",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-014",
+      "candidateId": "NR-CAND-004",
+      "attackType": "replay",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-015",
+      "candidateId": "NR-CAND-010",
+      "attackType": "holdout",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-016",
+      "candidateId": "NR-CAND-021",
+      "attackType": "domain_importance",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-017",
+      "candidateId": "NR-CAND-024",
+      "attackType": "external_inspectability",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-018",
+      "candidateId": "NR-CAND-030",
+      "attackType": "overclaim",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-019",
+      "candidateId": "NR-CAND-041",
+      "attackType": "novelty",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-020",
+      "candidateId": "NR-CAND-044",
+      "attackType": "baseline",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-021",
+      "candidateId": "NR-CAND-050",
+      "attackType": "rival_theory",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-022",
+      "candidateId": "NR-CAND-061",
+      "attackType": "counterexample",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-023",
+      "candidateId": "NR-CAND-064",
+      "attackType": "replay",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-024",
+      "candidateId": "NR-CAND-070",
+      "attackType": "holdout",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-025",
+      "candidateId": "NR-CAND-001",
+      "attackType": "domain_importance",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-026",
+      "candidateId": "NR-CAND-004",
+      "attackType": "external_inspectability",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-027",
+      "candidateId": "NR-CAND-010",
+      "attackType": "overclaim",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-028",
+      "candidateId": "NR-CAND-021",
+      "attackType": "novelty",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-029",
+      "candidateId": "NR-CAND-024",
+      "attackType": "baseline",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-030",
+      "candidateId": "NR-CAND-030",
+      "attackType": "rival_theory",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-031",
+      "candidateId": "NR-CAND-041",
+      "attackType": "counterexample",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-032",
+      "candidateId": "NR-CAND-044",
+      "attackType": "replay",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-033",
+      "candidateId": "NR-CAND-050",
+      "attackType": "holdout",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-034",
+      "candidateId": "NR-CAND-061",
+      "attackType": "domain_importance",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-035",
+      "candidateId": "NR-CAND-064",
+      "attackType": "external_inspectability",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-036",
+      "candidateId": "NR-CAND-070",
+      "attackType": "overclaim",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-037",
+      "candidateId": "NR-CAND-001",
+      "attackType": "novelty",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-038",
+      "candidateId": "NR-CAND-004",
+      "attackType": "baseline",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-039",
+      "candidateId": "NR-CAND-010",
+      "attackType": "rival_theory",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    },
+    {
+      "attackId": "NR-KILL-040",
+      "candidateId": "NR-CAND-021",
+      "attackType": "counterexample",
+      "outcome": "preserved",
+      "rationale": "Evidence remained bounded and inspectable after this attack."
+    }
+  ],
+  "downgradedOrRejectedCount": 12,
+  "preservedCount": 28,
+  "majorLimitations": [
+    "No candidate reached all hard gates for expert review packaging.",
+    "Counterexample pressure narrowed the strongest candidate.",
+    "Replay caveats require narrower claims.",
+    "Rival theories still explain parts of several signals.",
+    "Holdout support is bounded and computational.",
+    "Scientific importance is plausible but not externally reviewed.",
+    "Known-pattern and prior-art checks remain local and incomplete.",
+    "The package is inspectable but not validated by outside experts."
+  ],
+  "updatedConfidence": {
+    "NR-CAND-001": 0.34,
+    "NR-CAND-004": 0.37,
+    "NR-CAND-010": 0.4,
+    "NR-CAND-021": 0.43,
+    "NR-CAND-024": 0.34,
+    "NR-CAND-030": 0.37,
+    "NR-CAND-041": 0.4,
+    "NR-CAND-044": 0.43,
+    "NR-CAND-050": 0.34,
+    "NR-CAND-061": 0.37,
+    "NR-CAND-064": 0.4,
+    "NR-CAND-070": 0.43
+  },
+  "evidenceHash": "e18e31cd4cda6b37be6d5686b92f4b3bb2f1533725e47e6b15106ea766104fe7"
+}

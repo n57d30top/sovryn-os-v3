@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-012",
+  "candidateId": "NR-CAND-070",
+  "domainId": "scientific_software_reproduction",
+  "category": "candidate_weakening",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "NR-CAND-070 weakens under a stronger baseline or rival artifact check.",
+  "expectedBaselineResult": "stronger baseline explains part of signal",
+  "expectedRivalOutcome": "rival partially strengthened",
+  "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "fresh repo package holdouts",
+  "replayPlan": "fresh workspace replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "be6d52b2d91abfdc9ed87aeef3b4bd131e410518ff6f513286ee1924b58cb41e"
+}

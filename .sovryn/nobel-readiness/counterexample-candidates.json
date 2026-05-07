@@ -1,0 +1,282 @@
+[
+  {
+    "counterexampleId": "NR-CE-001",
+    "candidateId": "NR-CAND-001",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-002",
+    "candidateId": "NR-CAND-004",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-003",
+    "candidateId": "NR-CAND-010",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-004",
+    "candidateId": "NR-CAND-021",
+    "domainId": "computational_materials",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-005",
+    "candidateId": "NR-CAND-024",
+    "domainId": "computational_materials",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-006",
+    "candidateId": "NR-CAND-030",
+    "domainId": "computational_materials",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-007",
+    "candidateId": "NR-CAND-041",
+    "domainId": "astrophysics_open_data",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-008",
+    "candidateId": "NR-CAND-044",
+    "domainId": "astrophysics_open_data",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-009",
+    "candidateId": "NR-CAND-050",
+    "domainId": "astrophysics_open_data",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-010",
+    "candidateId": "NR-CAND-061",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-011",
+    "candidateId": "NR-CAND-064",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-012",
+    "candidateId": "NR-CAND-070",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-013",
+    "candidateId": "NR-CAND-001",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-014",
+    "candidateId": "NR-CAND-004",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-015",
+    "candidateId": "NR-CAND-010",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-016",
+    "candidateId": "NR-CAND-021",
+    "domainId": "computational_materials",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-017",
+    "candidateId": "NR-CAND-024",
+    "domainId": "computational_materials",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-018",
+    "candidateId": "NR-CAND-030",
+    "domainId": "computational_materials",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-019",
+    "candidateId": "NR-CAND-041",
+    "domainId": "astrophysics_open_data",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-020",
+    "candidateId": "NR-CAND-044",
+    "domainId": "astrophysics_open_data",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-021",
+    "candidateId": "NR-CAND-050",
+    "domainId": "astrophysics_open_data",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-022",
+    "candidateId": "NR-CAND-061",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-023",
+    "candidateId": "NR-CAND-064",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-024",
+    "candidateId": "NR-CAND-070",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-025",
+    "candidateId": "NR-CAND-001",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-026",
+    "candidateId": "NR-CAND-004",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-027",
+    "candidateId": "NR-CAND-010",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-028",
+    "candidateId": "NR-CAND-021",
+    "domainId": "computational_materials",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-029",
+    "candidateId": "NR-CAND-024",
+    "domainId": "computational_materials",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-030",
+    "candidateId": "NR-CAND-030",
+    "domainId": "computational_materials",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-031",
+    "candidateId": "NR-CAND-041",
+    "domainId": "astrophysics_open_data",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-032",
+    "candidateId": "NR-CAND-044",
+    "domainId": "astrophysics_open_data",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-033",
+    "candidateId": "NR-CAND-050",
+    "domainId": "astrophysics_open_data",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-034",
+    "candidateId": "NR-CAND-061",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-035",
+    "candidateId": "NR-CAND-064",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-036",
+    "candidateId": "NR-CAND-070",
+    "domainId": "scientific_software_reproduction",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-037",
+    "candidateId": "NR-CAND-001",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  },
+  {
+    "counterexampleId": "NR-CE-038",
+    "candidateId": "NR-CAND-004",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "public target with similar mechanism but no holdout support",
+    "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+  },
+  {
+    "counterexampleId": "NR-CE-039",
+    "candidateId": "NR-CAND-010",
+    "domainId": "formal_mathematics_conjecture_discovery",
+    "pattern": "replayable artifact that preserves rival explanation",
+    "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+  },
+  {
+    "counterexampleId": "NR-CE-040",
+    "candidateId": "NR-CAND-021",
+    "domainId": "computational_materials",
+    "pattern": "safe low-risk control with apparent but spurious signal",
+    "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+  }
+]

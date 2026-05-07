@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-015",
+  "candidateId": "NR-CAND-010",
+  "domainId": "formal_mathematics_conjecture_discovery",
+  "category": "candidate_weakening",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-010 weakens under a stronger baseline or rival artifact check.",
+  "expectedBaselineResult": "stronger baseline explains part of signal",
+  "expectedRivalOutcome": "rival partially strengthened",
+  "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "higher bounds and edge structures",
+  "replayPlan": "deterministic recomputation",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "4f44ba4db23d2d27c681c727404560a2c9aa844b86e6d6830decfc653c661f1c"
+}

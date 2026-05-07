@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-008",
+  "candidateId": "NR-CAND-044",
+  "domainId": "astrophysics_open_data",
+  "category": "support",
+  "claimComponent": "receipt-stable replay evidence with explicit limitations",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "NR-CAND-044 shows bounded signal beyond the simplest baseline on one safe public target.",
+  "expectedBaselineResult": "simple baseline weaker but not absent",
+  "expectedRivalOutcome": "rival not eliminated",
+  "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "catalog region or object-class holdouts",
+  "replayPlan": "public catalog query replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "8d38dc7fb6de6254cf19c7e57c1117a928d8990deb0020e7fb3da270a052ea78"
+}

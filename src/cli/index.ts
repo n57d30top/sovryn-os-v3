@@ -56,6 +56,7 @@ import { ExternalReviewScientistService } from "../core/external-review/external
 import { FormalDiscoveryService } from "../core/formal/formal-discovery-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
+import { NobelReadinessService } from "../core/nobel/nobel-readiness-service.js";
 import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
 import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
 import { DiscoveryValidationService } from "../core/validation/discovery-validation-service.js";
@@ -151,6 +152,18 @@ Commands:
   sovryn nobel package [--json]
   sovryn nobel verify --fresh-workspace [--json]
   sovryn nobel final-audit [--json]
+  sovryn nobel-readiness status [--json]
+  sovryn nobel-readiness criteria [--json]
+  sovryn nobel-readiness domain-select [--json]
+  sovryn nobel-readiness candidate-search [--json]
+  sovryn nobel-readiness freeze [--json]
+  sovryn nobel-readiness execute [--json]
+  sovryn nobel-readiness holdout [--json]
+  sovryn nobel-readiness replay [--json]
+  sovryn nobel-readiness rival-review [--json]
+  sovryn nobel-readiness score [--json]
+  sovryn nobel-readiness package [--json]
+  sovryn nobel-readiness audit [--json]
   sovryn validate status [--json]
   sovryn validate candidate inspect [--json]
   sovryn validate freeze [--json]
@@ -654,6 +667,16 @@ export async function executeCli(
       case "nobel": {
         const result = await nobelCommand(parsed, root);
         return okEnvelope("nobel", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "nobel-readiness": {
+        const result = await nobelReadinessCommand(parsed, root);
+        return okEnvelope("nobel-readiness", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1442,6 +1465,51 @@ async function nobelCommand(
       throw new AppError(
         "UNKNOWN_NOBEL_COMMAND",
         `Unknown nobel command: ${subcommand}`,
+      );
+  }
+}
+
+async function nobelReadinessCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "NOBEL_READINESS_COMMAND_REQUIRED",
+      "Use: sovryn nobel-readiness <status|criteria|domain-select|candidate-search|freeze|execute|holdout|replay|rival-review|score|package|audit>.",
+    );
+  }
+  const service = new NobelReadinessService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "criteria":
+      return service.criteria();
+    case "domain-select":
+      return service.domainSelect();
+    case "candidate-search":
+      return service.candidateSearch();
+    case "freeze":
+      return service.freeze();
+    case "execute":
+      return service.execute();
+    case "holdout":
+      return service.holdout();
+    case "replay":
+      return service.replay();
+    case "rival-review":
+      return service.rivalReview();
+    case "score":
+      return service.score();
+    case "package":
+      return service.package();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_NOBEL_READINESS_COMMAND",
+        `Unknown nobel-readiness command: ${subcommand}`,
       );
   }
 }

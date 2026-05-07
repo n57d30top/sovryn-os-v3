@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-020",
+  "candidateId": "NR-CAND-044",
+  "domainId": "astrophysics_open_data",
+  "category": "rival_favoring",
+  "claimComponent": "receipt-stable replay evidence with explicit limitations",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "A rival theory explains at least one observation more simply than the candidate.",
+  "expectedBaselineResult": "rival baseline matches or beats candidate",
+  "expectedRivalOutcome": "rival strengthened",
+  "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "catalog region or object-class holdouts",
+  "replayPlan": "public catalog query replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "3e6ae8d07c81853ef7a5e3cbc9b3b0f73956ed9022501983eef2527699000401"
+}

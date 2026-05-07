@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-021",
+  "candidateId": "NR-CAND-050",
+  "domainId": "astrophysics_open_data",
+  "category": "low_risk_control",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "Low-risk control produces no positive discovery-candidate signal.",
+  "expectedBaselineResult": "control baseline remains null",
+  "expectedRivalOutcome": "rival not applicable",
+  "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "catalog region or object-class holdouts",
+  "replayPlan": "public catalog query replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "f8a19a552e36225482772b7d79a5ffce7288a2aaa4b648133450fd80740dd1b6"
+}

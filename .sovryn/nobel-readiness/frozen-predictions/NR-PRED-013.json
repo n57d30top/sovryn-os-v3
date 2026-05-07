@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-013",
+  "candidateId": "NR-CAND-001",
+  "domainId": "formal_mathematics_conjecture_discovery",
+  "category": "candidate_weakening",
+  "claimComponent": "alignment between mechanism evidence and holdout behavior",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-001 weakens under a stronger baseline or rival artifact check.",
+  "expectedBaselineResult": "stronger baseline explains part of signal",
+  "expectedRivalOutcome": "rival partially strengthened",
+  "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "higher bounds and edge structures",
+  "replayPlan": "deterministic recomputation",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "747e793aa5a71ed3b4ad49a7939cf0004cd6dcfec55fb7a50bbda3b24f6d3947"
+}

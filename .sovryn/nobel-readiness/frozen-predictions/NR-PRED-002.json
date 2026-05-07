@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-002",
+  "candidateId": "NR-CAND-004",
+  "domainId": "formal_mathematics_conjecture_discovery",
+  "category": "support",
+  "claimComponent": "receipt-stable replay evidence with explicit limitations",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "NR-CAND-004 shows bounded signal beyond the simplest baseline on one safe public target.",
+  "expectedBaselineResult": "simple baseline weaker but not absent",
+  "expectedRivalOutcome": "rival not eliminated",
+  "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "higher bounds and edge structures",
+  "replayPlan": "deterministic recomputation",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "e2240b1c30858f3c6983e313ea2d0176e60b150c903e58614f40d892ac838a92"
+}

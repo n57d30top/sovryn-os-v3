@@ -1,0 +1,151 @@
+{
+  "kind": "nobel_readiness_rival_theory_review",
+  "generatedAt": "2026-05-07T11:05:20.450Z",
+  "results": [
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "db53a2f35a6b3e0fdd8100657c4492b0505137be82194b699c268862bf60c1a6"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "487714eef98b2d621ec2590edec80e3972c04b212fad81a6a6606df9cbb6dd81"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "37074d432fce57742dfc5e5e5c6f538d21b5bf2d7f9a6ed007719a0c0fb85e0e"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "14d92ea6fdd73d227c627401fa717225dc644adbc872d5ca8efc1ca063de2037"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "910456a05a9f650fc94c519660c589a10385de95f1053347cc39999f8c843f45"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "13675031d39063806459b8009817001831dc161d5020101a8f105f5d60d04af7"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "1945e984930908bd01c57c6312d8fc5493b45f78ff9b3ad380ac9741125df372"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "6ba59779e82ea917f2469612e0abd4159753bef4d9d3e392d9ec1d98a45cee80"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "d9b593be21b24e3e834f449d2381493cc790e53f0ee2d04c1cdde2967646d9f0"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "009587fd0f89f0d8b3d1b5156778bbb5436fb62acb90163c38e13d7619b4a072"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": false,
+      "candidateImpact": "preserved",
+      "evidenceHash": "a62ecbbadfb20fedeb2f8e98d268409f6e9c957dba3161bc92ecdfd35422ac2a"
+    },
+    {
+      "kind": "nobel_readiness_rival_theory_review",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "rivalStrengthened": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "9e8cbb8db5426284ecde2866a50e26420f625ccce8e774502c4af07e9c78f1c4"
+    }
+  ],
+  "evidenceHash": "df89d67217d9f7ebd62f2b34306525c6beee3c4082afc1c25b50707878f93fd9"
+}

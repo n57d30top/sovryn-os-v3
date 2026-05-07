@@ -1,0 +1,595 @@
+{
+  "kind": "nobel_readiness_holdout_counterexample_gauntlet",
+  "generatedAt": "2026-05-07T11:05:20.449Z",
+  "holdouts": [
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-001",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "534f1703de2632a8bf5c83bb5bfbe40b216f412e948c4a8bf354bfc4c37e233b"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-002",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "0b631c6420646a98aba2aee9d0708f828a0c0da5352d891cfd2dc340024c6247"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-003",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "partial",
+      "baselineResistant": false,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "5fce4f81b545a88ab8e1323f33c70ee34b445993999566491b8cdf4903d4baaa"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-004",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "42aaa173765c9a17a939083f38643bd0f408ba45a0c7efd6c09500f1cdc2de65"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-005",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "2040531966590aa8bfdc002be8cff2235bdd7967c3c163ebd993a4c073738bf8"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-006",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "partial",
+      "baselineResistant": false,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "06fb4d93552d32c53fa703f7dcb0f544d37d281518d0b3514c266d2b1cbc3192"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-007",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "7611f3b42353b8e52df21f3baad7e746bdb2530a32416e80b518e90020190b0a"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-008",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "005f7866b8d9b570dcb03be357a428dc7a2b9acc4ecaf96032f4dedc616cd14d"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-009",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "partial",
+      "baselineResistant": false,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "94a7dde602c07efd16f091bdae67b875bec048e2133e51bcdbc8bdf090ddc25e"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-010",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "f562629086f9769f43732467cf5d92464de720a748f4da98e3b3f07f61e1774b"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-011",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "support",
+      "baselineResistant": true,
+      "candidateImpact": "preserved",
+      "evidenceHash": "81da4b2189968151ec7f0a7962a33e76d4d9c04c7ef03b56221423bd990c98dc"
+    },
+    {
+      "kind": "nobel_readiness_holdout_result",
+      "holdoutId": "NR-HOLDOUT-012",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "selectedAfterFreeze": true,
+      "executed": true,
+      "observedOutcome": "inconclusive",
+      "baselineResistant": false,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "159d5cea4135981060d93a8d9903784ad2afc7e741648cc5a6bc7c73ac1c8b6a"
+    }
+  ],
+  "counterexampleCandidates": [
+    {
+      "counterexampleId": "NR-CE-001",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-002",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-003",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-004",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-005",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-006",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-007",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-008",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-009",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-010",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-011",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-012",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-013",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-014",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-015",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-016",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-017",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-018",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-019",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-020",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-021",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-022",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-023",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-024",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-025",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-026",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-027",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-028",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-029",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-030",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-031",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-032",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-033",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-034",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-035",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-036",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-037",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "baseline-resistant-looking signal collapses under stronger baseline",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    },
+    {
+      "counterexampleId": "NR-CE-038",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "public target with similar mechanism but no holdout support",
+      "targetMechanism": "receipt-stable replay evidence with explicit limitations"
+    },
+    {
+      "counterexampleId": "NR-CE-039",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "pattern": "replayable artifact that preserves rival explanation",
+      "targetMechanism": "bounded anomaly surviving simple baseline pressure"
+    },
+    {
+      "counterexampleId": "NR-CE-040",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "pattern": "safe low-risk control with apparent but spurious signal",
+      "targetMechanism": "alignment between mechanism evidence and holdout behavior"
+    }
+  ],
+  "counterexamples": [
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-001",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "4a1d13267a0967f883692737660b4eff3f691556485caf673984b4403b0d0b36"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-002",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "11b4573ff6a30d810452b6b1f890e73c2c4bffc79cfde8d469b7afc3b1d7a271"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-003",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "7aa68098f8ebb31fffe36e387c73786c98f2680bbbcf907305cc81a6bc10a1d5"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-004",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "c20d5fcfae10c439f5e645bc6a3bc7b4ffb4dae46a0b5366eb455e0cfd0576dc"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-005",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "executed": true,
+      "foundCounterexampleOrPartial": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "26081ab9904cfa14cee45b04401ba3286c4584ce6453db5e0c6bbc5c75f1827a"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-006",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "660a5139f258bae4f9cdafc2b44284e1b915df1ddb6bae7a81d0276c007e19b7"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-007",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "adb06a2b37ae6a03e7a9283e06f6351483ee80e5b12a52c8d8e44dbdf28c6901"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-008",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "executed": true,
+      "foundCounterexampleOrPartial": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "e6fe95c57c50fd84c0c891041dbd2ce775a124cfe609dcd91cbfb95ae7f22d92"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-009",
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "cf7c98be9958bcf495c0a6bb30290947c23890ea6bed192249580b44854ed5e7"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-010",
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "5362009c7d8259d517952adeb2c74a894bdc1836ac66a863bc6ceed009c5e550"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-011",
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "executed": true,
+      "foundCounterexampleOrPartial": true,
+      "candidateImpact": "narrowed",
+      "evidenceHash": "2834faa59472628acbc5cb844585d2c75d6b36cc465105093f2db39075135ece"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-012",
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "7167827b3d6ddfa34bfc1cf3d098f4c76640cb542d15b3ea64b8e82792747c9a"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-013",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "5cf5975e470f85c8c0120580d9999cf9f5c44c7df4bc852d64a9ecc046507f00"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-014",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": true,
+      "candidateImpact": "weakened",
+      "evidenceHash": "56a239514bf4d9f8952c7b918648621625d4e4a4e98706f99d77d8d932ee56b3"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-015",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "1118781b68c6c78c913d2f1c05492ef52b68b83e179b7e9306f7469e56f75d12"
+    },
+    {
+      "kind": "nobel_readiness_counterexample_result",
+      "counterexampleId": "NR-CE-016",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "executed": true,
+      "foundCounterexampleOrPartial": false,
+      "candidateImpact": "none",
+      "evidenceHash": "844f4cc65d9ad1a09422b328f6a2020bd6d5af2a48c715ba4169330d72966c3c"
+    }
+  ],
+  "evidenceHash": "1c620fb2a348dca0622f83d85c8cc39c05c07755f1265988a462caa94afbec5a"
+}

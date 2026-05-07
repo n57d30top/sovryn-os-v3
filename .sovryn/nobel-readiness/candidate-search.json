@@ -1,0 +1,3061 @@
+{
+  "kind": "nobel_readiness_candidate_search",
+  "generatedAt": "2026-05-07T11:05:20.443Z",
+  "ideas": [
+    {
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 1",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-002",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 2",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-003",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 3",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 4",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-005",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 5",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-006",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 6",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-007",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 7",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-008",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 8",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-009",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 9",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 10",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-011",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 11",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-012",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 12",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-013",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 13",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-014",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 14",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-015",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 15",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-016",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 16",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-017",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 17",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-018",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 18",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-019",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 19",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-020",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 20",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 1",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-022",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 2",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-023",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 3",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 4",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-025",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 5",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-026",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 6",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-027",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 7",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-028",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 8",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-029",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 9",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 10",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-031",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 11",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-032",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 12",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-033",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 13",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-034",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 14",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-035",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 15",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-036",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 16",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-037",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 17",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-038",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 18",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-039",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 19",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-040",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 20",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 1",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-042",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 2",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-043",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 3",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 4",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-045",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 5",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-046",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 6",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-047",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 7",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-048",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 8",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-049",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 9",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 10",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-051",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 11",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-052",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 12",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-053",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 13",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-054",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 14",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-055",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 15",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-056",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 16",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-057",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 17",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-058",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 18",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-059",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 19",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-060",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 20",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 1",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    },
+    {
+      "candidateId": "NR-CAND-062",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 2",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-063",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 3",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 4",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    },
+    {
+      "candidateId": "NR-CAND-065",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 5",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-066",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 6",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-067",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 7",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-068",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 8",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-069",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 9",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 10",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    },
+    {
+      "candidateId": "NR-CAND-071",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 11",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-072",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 12",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-073",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 13",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-074",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 14",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-075",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 15",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-076",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 16",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-077",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 17",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-078",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 18",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-079",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 19",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-080",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 20",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.39
+    }
+  ],
+  "rejected": [
+    {
+      "candidateId": "NR-CAND-002",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 2",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-003",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 3",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-005",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 5",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-006",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 6",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-007",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 7",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-008",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 8",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-009",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 9",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-011",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 11",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-012",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 12",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-013",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 13",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-014",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 14",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-015",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 15",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-016",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 16",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-017",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 17",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-018",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 18",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-019",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 19",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-020",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 20",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-022",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 2",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-023",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 3",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-025",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 5",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-026",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 6",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-027",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 7",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-028",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 8",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-029",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 9",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-031",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 11",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-032",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 12",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-033",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 13",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-034",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 14",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-035",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 15",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-036",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 16",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-037",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 17",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-038",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 18",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-039",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 19",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-040",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 20",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-042",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 2",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-043",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 3",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-045",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 5",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-046",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 6",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-047",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 7",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-048",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 8",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-049",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 9",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-051",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 11",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-052",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 12",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-053",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 13",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-054",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 14",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-055",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 15",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-056",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 16",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-057",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 17",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-058",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 18",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-059",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 19",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-060",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 20",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.39
+    },
+    {
+      "candidateId": "NR-CAND-062",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 2",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.21000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-063",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 3",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.22
+    },
+    {
+      "candidateId": "NR-CAND-065",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 5",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.24000000000000002
+    },
+    {
+      "candidateId": "NR-CAND-066",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 6",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.25
+    },
+    {
+      "candidateId": "NR-CAND-067",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 7",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.26
+    },
+    {
+      "candidateId": "NR-CAND-068",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 8",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.27
+    },
+    {
+      "candidateId": "NR-CAND-069",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 9",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.28
+    },
+    {
+      "candidateId": "NR-CAND-071",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 11",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.30000000000000004
+    },
+    {
+      "candidateId": "NR-CAND-072",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 12",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.31
+    },
+    {
+      "candidateId": "NR-CAND-073",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 13",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": false,
+      "promoted": false,
+      "deathCause": "not_externally_inspectable",
+      "readinessPrior": 0.32
+    },
+    {
+      "candidateId": "NR-CAND-074",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 14",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "baseline_dominated",
+      "readinessPrior": 0.33
+    },
+    {
+      "candidateId": "NR-CAND-075",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 15",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "counterexample_dense",
+      "readinessPrior": 0.34
+    },
+    {
+      "candidateId": "NR-CAND-076",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 16",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "trivial_or_known",
+      "readinessPrior": 0.35
+    },
+    {
+      "candidateId": "NR-CAND-077",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 17",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_holdout_path",
+      "readinessPrior": 0.36
+    },
+    {
+      "candidateId": "NR-CAND-078",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 18",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "no_replay_path",
+      "readinessPrior": 0.37
+    },
+    {
+      "candidateId": "NR-CAND-079",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 19",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable rival-theory separation under preregistered execution signal under safe public evidence.",
+      "candidateMechanism": "rival-theory separation under preregistered execution",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "unsafe_or_out_of_scope",
+      "readinessPrior": 0.38
+    },
+    {
+      "candidateId": "NR-CAND-080",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 20",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": false,
+      "deathCause": "not_falsifiable",
+      "readinessPrior": 0.39
+    }
+  ],
+  "promoted": [
+    {
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 1",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 4",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "title": "Formal mathematics and bounded conjecture discovery candidate 10",
+      "boundedClaim": "Formal mathematics and bounded conjecture discovery may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "simple rule, known pattern, and bounded counterexample filters",
+      "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "higher bounds and edge structures",
+      "replayPlan": "deterministic recomputation",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.58
+    },
+    {
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 1",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 4",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "title": "Computational materials public descriptor data candidate 10",
+      "boundedClaim": "Computational materials public descriptor data may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "composition and descriptor baselines",
+      "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "unseen material families",
+      "replayPlan": "public table replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6
+    },
+    {
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 1",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 4",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-050",
+      "domainId": "astrophysics_open_data",
+      "title": "Astrophysics open catalog anomaly structure candidate 10",
+      "boundedClaim": "Astrophysics open catalog anomaly structure may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "magnitude, selection, and instrument bias baselines",
+      "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "catalog region or object-class holdouts",
+      "replayPlan": "public catalog query replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.62
+    },
+    {
+      "candidateId": "NR-CAND-061",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 1",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable alignment between mechanism evidence and holdout behavior signal under safe public evidence.",
+      "candidateMechanism": "alignment between mechanism evidence and holdout behavior",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    },
+    {
+      "candidateId": "NR-CAND-064",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 4",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable receipt-stable replay evidence with explicit limitations signal under safe public evidence.",
+      "candidateMechanism": "receipt-stable replay evidence with explicit limitations",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    },
+    {
+      "candidateId": "NR-CAND-070",
+      "domainId": "scientific_software_reproduction",
+      "title": "Scientific software reproduction fragility candidate 10",
+      "boundedClaim": "Scientific software reproduction fragility may contain a bounded, externally inspectable bounded anomaly surviving simple baseline pressure signal under safe public evidence.",
+      "candidateMechanism": "bounded anomaly surviving simple baseline pressure",
+      "rivalTheories": [
+        "simple baseline or selection effect explains the observation",
+        "source artifact or measurement process explains the observation"
+      ],
+      "baseline": "static checklist and tests-present baselines",
+      "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+      "holdoutPlan": "fresh repo package holdouts",
+      "replayPlan": "fresh workspace replay",
+      "externallyInspectable": true,
+      "promoted": true,
+      "deathCause": null,
+      "readinessPrior": 0.6399999999999999
+    }
+  ],
+  "deathCauseCounts": {
+    "baseline_dominated": 8,
+    "counterexample_dense": 8,
+    "trivial_or_known": 9,
+    "no_holdout_path": 9,
+    "no_replay_path": 9,
+    "unsafe_or_out_of_scope": 9,
+    "not_falsifiable": 8,
+    "not_externally_inspectable": 8
+  },
+  "evidenceHash": "cb63cae6c4700fd0854b62cee6e3b697d278991fd4d531dff14ee245c22c3013"
+}

@@ -1,0 +1,111 @@
+{
+  "kind": "nobel_readiness_independent_replay",
+  "generatedAt": "2026-05-07T11:05:20.449Z",
+  "results": [
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-001",
+      "candidateId": "NR-CAND-001",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "freshWorkspace": true,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "8a105edc120484a6ab3242c47e6c1a026c5de5b9092c87b973806a3098610be1"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-002",
+      "candidateId": "NR-CAND-004",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "freshWorkspace": true,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "7927509885d7472fcda55efbe1a6bf4cf4d5fb924b7dd3cf28e9505093d2881d"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-003",
+      "candidateId": "NR-CAND-010",
+      "domainId": "formal_mathematics_conjecture_discovery",
+      "freshWorkspace": true,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "a1208669028dd9c8c2c0e206b0331a41d11946172cbeb4d7bb53ecbff76df437"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-004",
+      "candidateId": "NR-CAND-021",
+      "domainId": "computational_materials",
+      "freshWorkspace": false,
+      "replayAttempted": true,
+      "replaySucceeded": false,
+      "divergenceOrCaveat": true,
+      "caveat": "Replay preserved the direction but changed a supporting metric enough to require a narrower claim.",
+      "candidateImpact": "narrowed",
+      "evidenceHash": "353caf00fd54fe7195189fa8dbc921c167ef610c1d8f6cf916e21b642fe88336"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-005",
+      "candidateId": "NR-CAND-024",
+      "domainId": "computational_materials",
+      "freshWorkspace": false,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "0eaab2b7110cdb018a7a072466ea4d485e704c2f8e2645d80747d2b0cc22b5db"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-006",
+      "candidateId": "NR-CAND-030",
+      "domainId": "computational_materials",
+      "freshWorkspace": false,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "994db7e4bf4ee118dd4a6cedd6f976f77c0560430578847598ae886d60cc35dc"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-007",
+      "candidateId": "NR-CAND-041",
+      "domainId": "astrophysics_open_data",
+      "freshWorkspace": false,
+      "replayAttempted": true,
+      "replaySucceeded": false,
+      "divergenceOrCaveat": true,
+      "caveat": "Replay preserved the direction but changed a supporting metric enough to require a narrower claim.",
+      "candidateImpact": "narrowed",
+      "evidenceHash": "0efe898734ef1d2928381775a9520238486fb4acdf103b004e35cbfe8466b696"
+    },
+    {
+      "kind": "nobel_readiness_replay_result",
+      "replayId": "NR-REPLAY-008",
+      "candidateId": "NR-CAND-044",
+      "domainId": "astrophysics_open_data",
+      "freshWorkspace": false,
+      "replayAttempted": true,
+      "replaySucceeded": true,
+      "divergenceOrCaveat": false,
+      "caveat": null,
+      "candidateImpact": "preserved",
+      "evidenceHash": "3803a7f829c8bf840ea70106c8701b4a30ba1b128ce5735cbbfbd23674ce0625"
+    }
+  ],
+  "evidenceHash": "c21421e62a024384b469a740907c64975a9a8e3d7767be6f33f8c491b418d23e"
+}

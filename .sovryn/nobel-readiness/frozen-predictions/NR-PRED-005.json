@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-005",
+  "candidateId": "NR-CAND-024",
+  "domainId": "computational_materials",
+  "category": "support",
+  "claimComponent": "receipt-stable replay evidence with explicit limitations",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-024 shows bounded signal beyond the simplest baseline on one safe public target.",
+  "expectedBaselineResult": "simple baseline weaker but not absent",
+  "expectedRivalOutcome": "rival not eliminated",
+  "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "unseen material families",
+  "replayPlan": "public table replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "835c18421af8fcaff30f4ef9c09d000282e7d18102acb6e9582ce1b7c4085a3e"
+}

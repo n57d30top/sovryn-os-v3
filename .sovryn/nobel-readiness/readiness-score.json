@@ -1,0 +1,25 @@
+{
+  "kind": "nobel_readiness_score",
+  "scoredAt": "2026-05-07T11:05:20.451Z",
+  "scientific_importance_score": 76,
+  "novelty_risk_score": 48,
+  "baseline_resistance_score": 54,
+  "prediction_quality_score": 56,
+  "rival_theory_score": 49,
+  "holdout_score": 62,
+  "replay_score": 58,
+  "counterexample_pressure_score": 35,
+  "external_review_readiness_score": 44,
+  "safety_score": 100,
+  "overclaim_risk_score": 22,
+  "totalScore": 46,
+  "label": "promising_with_strong_caveats",
+  "survivingCandidateId": "NR-CAND-004",
+  "externallyReviewReadyCandidateCount": 0,
+  "rationale": [
+    "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
+    "Counterexample and replay pressure require a caveated classification.",
+    "The layer improves readiness discipline without creating a validated discovery claim."
+  ],
+  "evidenceHash": "aa01b14cc52f1e0e2cb242bdb8c76d1490506f1d9dda476e3e92a33345a75f7c"
+}

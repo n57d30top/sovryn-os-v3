@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-003",
+  "candidateId": "NR-CAND-010",
+  "domainId": "formal_mathematics_conjecture_discovery",
+  "category": "support",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-010 shows bounded signal beyond the simplest baseline on one safe public target.",
+  "expectedBaselineResult": "simple baseline weaker but not absent",
+  "expectedRivalOutcome": "rival not eliminated",
+  "falsifier": "Fresh holdout in Formal mathematics and bounded conjecture discovery matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "higher bounds and edge structures",
+  "replayPlan": "deterministic recomputation",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "7d85d7168072d8dd83f50c7340262b0572f119d9a59f6e570758d87b55455a8f"
+}

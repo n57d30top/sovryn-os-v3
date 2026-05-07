@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-007",
+  "candidateId": "NR-CAND-041",
+  "domainId": "astrophysics_open_data",
+  "category": "support",
+  "claimComponent": "alignment between mechanism evidence and holdout behavior",
+  "rivalTheory": "simple baseline or selection effect explains the observation",
+  "expectedObservation": "NR-CAND-041 shows bounded signal beyond the simplest baseline on one safe public target.",
+  "expectedBaselineResult": "simple baseline weaker but not absent",
+  "expectedRivalOutcome": "rival not eliminated",
+  "falsifier": "Fresh holdout in Astrophysics open catalog anomaly structure matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "catalog region or object-class holdouts",
+  "replayPlan": "public catalog query replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "9c6cd9a2ce75e057131e0841c4f7aab1eb74f4637aaa3df617ae14022e47e76d"
+}

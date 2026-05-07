@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-022",
+  "candidateId": "NR-CAND-061",
+  "domainId": "scientific_software_reproduction",
+  "category": "low_risk_control",
+  "claimComponent": "alignment between mechanism evidence and holdout behavior",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "Low-risk control produces no positive discovery-candidate signal.",
+  "expectedBaselineResult": "control baseline remains null",
+  "expectedRivalOutcome": "rival not applicable",
+  "falsifier": "Fresh holdout in Scientific software reproduction fragility matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "fresh repo package holdouts",
+  "replayPlan": "fresh workspace replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "32ece0eb311be1151d65752625927ad47ad92e73c89d0fbcf66150eddabf710c"
+}

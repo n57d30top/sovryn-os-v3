@@ -1,0 +1,17 @@
+{
+  "predictionId": "NR-PRED-018",
+  "candidateId": "NR-CAND-030",
+  "domainId": "computational_materials",
+  "category": "rival_favoring",
+  "claimComponent": "bounded anomaly surviving simple baseline pressure",
+  "rivalTheory": "source artifact or measurement process explains the observation",
+  "expectedObservation": "A rival theory explains at least one observation more simply than the candidate.",
+  "expectedBaselineResult": "rival baseline matches or beats candidate",
+  "expectedRivalOutcome": "rival strengthened",
+  "falsifier": "Fresh holdout in Computational materials public descriptor data matches the rival baseline or produces no nontrivial separation.",
+  "holdoutPlan": "unseen material families",
+  "replayPlan": "public table replay",
+  "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
+  "frozenTimestamp": "2026-05-07T11:05:20.444Z",
+  "preregistrationHash": "679c0eeda398c1b606c203da51414e52cc256b72f94dbef907c3169b09afb139"
+}

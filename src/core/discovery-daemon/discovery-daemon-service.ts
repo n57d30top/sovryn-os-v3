@@ -1372,9 +1372,13 @@ export class AutonomousDiscoveryDaemonService {
     await this.ensureInitialized();
     const state = await this.readState();
     const entries = await this.readGraveyardEntries();
-    const latest = entries.find(
-      (entry) => entry.candidateId === state.lastCandidateId,
-    );
+    let latest: GraveyardEntry | undefined;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index]!.candidateId === state.lastCandidateId) {
+        latest = entries[index];
+        break;
+      }
+    }
     return withEvidenceHash({
       kind: "daemon_candidate_status",
       candidateId: state.lastCandidateId,

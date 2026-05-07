@@ -868,6 +868,9 @@ test("discover-daemon cycles exercise objective rejection paths in the internal 
   assert.equal(cycle.deathCause, "identity_drift");
   assert.equal(cycle.identityLedgerDecision.accepted, false);
   assert.equal(cycle.notificationSuppressed, true);
+  const status = await service.candidateStatus();
+  assert.equal(status.internalStatus, "killed_by_identity_drift");
+  assert.equal(status.deathCause, "identity_drift");
   const audit = await service.audit();
   assert.equal(audit.passed, true);
 });

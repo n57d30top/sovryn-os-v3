@@ -58,6 +58,7 @@ import { GeneralScientistService } from "../core/scientist/general-scientist-ser
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { NobelReadinessService } from "../core/nobel/nobel-readiness-service.js";
 import { OSHardeningService } from "../core/os/os-v15-hardening-service.js";
+import { OSCapabilityCompletionService } from "../core/os/os-v16-capability-service.js";
 import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
 import { CrossDomainEvidenceRoutingService } from "../core/route/cross-domain-evidence-routing-service.js";
 import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
@@ -171,6 +172,10 @@ Commands:
   sovryn os run-scale [--json]
   sovryn os package-verify [--json]
   sovryn os final-audit [--json]
+  sovryn os capability-status [--json]
+  sovryn os harden-class --class <class> [--json]
+  sovryn os replay-coverage [--json]
+  sovryn os capability-audit [--json]
   sovryn route status [--json]
   sovryn route intake --target <target> [--json]
   sovryn route classify --target <target> [--json]
@@ -212,6 +217,7 @@ Commands:
   sovryn temporal calibrate-mechanisms [--json]
   sovryn temporal blind-mechanism-test [--json]
   sovryn temporal mechanism-audit [--json]
+  sovryn temporal v2-audit [--json]
   sovryn temporal audit [--json]
   sovryn repo status [--json]
   sovryn repo instrument run --target <target-id> [--json]
@@ -221,6 +227,7 @@ Commands:
   sovryn repo environment-stress --target <target-id> [--json]
   sovryn repo replay --target <target-id> [--json]
   sovryn repo classify --target <target-id> [--json]
+  sovryn repo deep-audit [--json]
   sovryn repo audit [--json]
   sovryn formal status [--json]
   sovryn formal domain-scan [--json]
@@ -247,6 +254,7 @@ Commands:
   sovryn formal lemma-mine --target <target-id> [--json]
   sovryn formal refute --target <target-id> [--json]
   sovryn formal proof-audit [--json]
+  sovryn formal proof-route-audit [--json]
   sovryn formal audit [--json]
   sovryn theory status [--json]
   sovryn theory corpus-scan [--target-repo <path>] [--json]
@@ -1606,7 +1614,7 @@ async function routeCommand(
     case "v3-audit":
       return service.v3Audit();
     case "policy-v4-audit":
-      return os15.routePolicyV4Audit();
+      return new OSCapabilityCompletionService(root).routePolicyV4Audit();
     case "scale-batch":
       return os15.scaleBatch(requiredRouteInput(parsed));
     case "class-harden":
@@ -1629,10 +1637,11 @@ async function osCommand(
   if (!subcommand) {
     throw new AppError(
       "OS_COMMAND_REQUIRED",
-      "Use: sovryn os <status|hardening-plan|run-scale|package-verify|final-audit>.",
+      "Use: sovryn os <status|hardening-plan|run-scale|package-verify|final-audit|capability-status|harden-class|replay-coverage|capability-audit>.",
     );
   }
   const service = new OSHardeningService(root);
+  const os16 = new OSCapabilityCompletionService(root);
   switch (subcommand) {
     case "status":
       return service.status();
@@ -1644,6 +1653,14 @@ async function osCommand(
       return service.packageVerify();
     case "final-audit":
       return service.finalAudit();
+    case "capability-status":
+      return os16.capabilityStatus();
+    case "harden-class":
+      return os16.hardenClass(requiredRouteClass(parsed));
+    case "replay-coverage":
+      return os16.replayCoverage();
+    case "capability-audit":
+      return os16.capabilityAudit();
     default:
       throw new AppError(
         "UNKNOWN_OS_COMMAND",
@@ -1771,10 +1788,11 @@ async function temporalCommand(
   if (!subcommand) {
     throw new AppError(
       "TEMPORAL_COMMAND_REQUIRED",
-      "Use: sovryn temporal <status|instrument run|split-stress|leakage-control|horizon-stress|replay|classify|mechanism-panel|compare-mechanisms|calibrate-mechanisms|blind-mechanism-test|mechanism-audit|audit>.",
+      "Use: sovryn temporal <status|instrument run|split-stress|leakage-control|horizon-stress|replay|classify|mechanism-panel|compare-mechanisms|calibrate-mechanisms|blind-mechanism-test|mechanism-audit|v2-audit|audit>.",
     );
   }
   const service = new TemporalEvaluationFragilityService(root);
+  const os16 = new OSCapabilityCompletionService(root);
   switch (subcommand) {
     case "status":
       return service.status();
@@ -1807,6 +1825,8 @@ async function temporalCommand(
       return service.blindMechanismTest();
     case "mechanism-audit":
       return service.mechanismAudit();
+    case "v2-audit":
+      return os16.temporalV2Audit();
     case "audit":
       return service.audit();
     default:
@@ -1836,10 +1856,11 @@ async function repoCommand(
   if (!subcommand) {
     throw new AppError(
       "REPO_COMMAND_REQUIRED",
-      "Use: sovryn repo <status|instrument run|static-scan|install-probe|runtime-probe|environment-stress|replay|classify|audit>.",
+      "Use: sovryn repo <status|instrument run|static-scan|install-probe|runtime-probe|environment-stress|replay|classify|deep-audit|audit>.",
     );
   }
   const service = new RuntimeReproductionAlignmentService(root);
+  const os16 = new OSCapabilityCompletionService(root);
   switch (subcommand) {
     case "status":
       return service.status();
@@ -1864,6 +1885,8 @@ async function repoCommand(
       return service.replay(requiredRepoTarget(parsed));
     case "classify":
       return service.classify(requiredRepoTarget(parsed));
+    case "deep-audit":
+      return os16.repoDeepAudit();
     case "audit":
       return service.audit();
     default:
@@ -1893,10 +1916,11 @@ async function formalCommand(
   if (!subcommand) {
     throw new AppError(
       "FORMAL_COMMAND_REQUIRED",
-      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|rich-generate|invariant-search|graph-explore|recurrence-search|symbolic-identity-search|automata-search|proof-pressure|nontriviality-audit|proof-doctor|proof-targets|formalize|proof-check|proof-replay|lemma-mine|refute|proof-audit|audit>.",
+      "Use: sovryn formal <status|domain-scan|generate-candidates|check-known|counterexamples|exhaustive-test|proof-sketch|holdout|replay|rich-generate|invariant-search|graph-explore|recurrence-search|symbolic-identity-search|automata-search|proof-pressure|nontriviality-audit|proof-doctor|proof-targets|formalize|proof-check|proof-replay|lemma-mine|refute|proof-audit|proof-route-audit|audit>.",
     );
   }
   const service = new FormalDiscoveryService(root);
+  const os16 = new OSCapabilityCompletionService(root);
   switch (subcommand) {
     case "status":
       return service.status();
@@ -1948,6 +1972,8 @@ async function formalCommand(
       return service.refute(requiredFormalTarget(parsed));
     case "proof-audit":
       return service.proofAudit();
+    case "proof-route-audit":
+      return os16.formalProofRouteAudit();
     case "audit":
       return service.audit();
     default:

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -725,6 +725,56 @@ test("discover-daemon audit passes after init", async () => {
   const audit = await service.audit();
   assert.equal(audit.passed, true);
   assert.equal(audit.fundFound, false);
+});
+
+test("discover-daemon audit covers objective-level daemon gates", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 2,
+  });
+  const audit = await service.audit();
+  const gateCodes = (audit.gates as Array<{ code: string }>).map(
+    (gate) => gate.code,
+  );
+  for (const code of [
+    "safe_high_impact_domain_rotation",
+    "candidate_identity_drift_rejected",
+    "death_gate_rejection_coverage",
+    "graveyard_internal_only",
+    "checkpoint_resume_available",
+    "fund_gate_blocks_empty_candidate",
+    "fund_only_notification",
+    "no_internal_status_notifies",
+    "resumable_indefinite_search_model",
+  ]) {
+    assert.equal(gateCodes.includes(code), true, code);
+  }
+  assert.equal(audit.passed, true);
+});
+
+test("discover-daemon audit fails if graveyard notification flag is tampered", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const graveyardPath = join(root, daemonRoot, "graveyard.json");
+  const graveyard = JSON.parse(await readFile(graveyardPath, "utf8")) as {
+    entries: Array<Record<string, unknown>>;
+  };
+  graveyard.entries[0]!.noUserNotification = false;
+  await writeFile(graveyardPath, JSON.stringify(graveyard), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("graveyard_internal_only"), true);
 });
 
 test("discover-daemon run remains continue_searching without fund", async () => {

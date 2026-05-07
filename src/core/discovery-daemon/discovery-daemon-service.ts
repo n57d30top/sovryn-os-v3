@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { writeJson } from "../../shared/fs.js";
@@ -879,6 +879,30 @@ export class AutonomousDiscoveryDaemonService {
     const fundFoundFile = await exists(
       join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
     );
+    const fundGate = await this.readFundGate();
+    const ledgerDriftDecision = (() => {
+      const ledger = new CandidateIdentityLedger();
+      ledger.register({
+        candidateId: "AUDIT-IDENTITY",
+        claim: "stable audit claim",
+      });
+      return ledger.register({
+        candidateId: "AUDIT-IDENTITY",
+        claim: "silently changed audit claim",
+      });
+    })();
+    const graveyardEntries = await this.readGraveyardEntries();
+    const checkpointRef = await new SearchStateCheckpointService(
+      this.root,
+    ).latestCheckpointRef();
+    const deathCauseCoverage = requiredDeathCauseSignals().every(
+      (item) =>
+        new DeathCauseClassifier().classify(item.signals) === item.cause &&
+        discoveryDaemonInternalStatuses().includes(
+          new DeathCauseClassifier().statusForDeathCause(item.cause),
+        ),
+    );
+    const domains = discoveryDaemonDomains();
     gates.push(
       gate(
         "silent_mode",
@@ -894,6 +918,68 @@ export class AutonomousDiscoveryDaemonService {
         "continue_searching_without_fund",
         state.fundFound || state.status === "continue_searching",
         "No-fund state must remain continue_searching.",
+      ),
+      gate(
+        "safe_high_impact_domain_rotation",
+        domains.length >= 10 &&
+          domains.every(
+            (domain) =>
+              !domain.includes("unsafe") && !domain.includes("private"),
+          ),
+        "Daemon must rotate across safe public high-impact computational/formal domains.",
+      ),
+      gate(
+        "candidate_identity_drift_rejected",
+        ledgerDriftDecision.accepted === false &&
+          ledgerDriftDecision.cause === "identity_drift",
+        "Candidate identity ledger must reject silent semantic drift.",
+      ),
+      gate(
+        "death_gate_rejection_coverage",
+        deathCauseCoverage,
+        "Death-cause classifier must cover known/trivial, baseline, holdout, replay, counterexample, rival, identity, inspectability, unsafe, mechanism, and kill-week blockers.",
+      ),
+      gate(
+        "graveyard_internal_only",
+        graveyardEntries.every(
+          (entry) =>
+            entry.noUserNotification === true &&
+            discoveryDaemonInternalStatuses().includes(entry.status),
+        ),
+        "Failed, partial, and killed candidates must remain internal graveyard entries.",
+      ),
+      gate(
+        "checkpoint_resume_available",
+        state.cycleCount === 0 ||
+          (checkpointRef !== null &&
+            (await exists(join(this.root, checkpointRef)))),
+        "A non-fund search cycle must persist a checkpoint for resume.",
+      ),
+      gate(
+        "fund_gate_blocks_empty_candidate",
+        new FundGateEvaluator().evaluate(null).passed === false,
+        "Fund Gate must not pass without a concrete candidate.",
+      ),
+      gate(
+        "fund_only_notification",
+        fundGate.notificationAllowed === state.fundFound &&
+          (state.fundFound || fundGate.status === "continue_searching"),
+        "Notification must be allowed only when the Fund Gate passes.",
+      ),
+      gate(
+        "no_internal_status_notifies",
+        discoveryDaemonInternalStatuses().every(
+          (status) =>
+            status !== ("FUND_FOUND" as DiscoveryDaemonInternalStatus),
+        ),
+        "Internal statuses must never equal FUND_FOUND.",
+      ),
+      gate(
+        "resumable_indefinite_search_model",
+        state.silentMode &&
+          state.notifyOnlyOnFund &&
+          (state.fundFound || state.status === "continue_searching"),
+        "Without a Fund, the daemon must remain resumable and continue searching instead of completing.",
       ),
     );
     return withEvidenceHash({
@@ -1012,7 +1098,7 @@ async function writeText(path: string, value: string): Promise<void> {
 
 async function exists(path: string): Promise<boolean> {
   try {
-    await readFile(path, "utf8");
+    await stat(path);
     return true;
   } catch {
     return false;
@@ -1025,4 +1111,37 @@ async function readOptionalJson<T>(path: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+function requiredDeathCauseSignals(): Array<{
+  cause: DeathCause;
+  signals: Parameters<DeathCauseClassifier["classify"]>[0];
+}> {
+  return [
+    { cause: "unsafe_out_of_scope", signals: { unsafeOutOfScope: true } },
+    { cause: "identity_drift", signals: { identityDrift: true } },
+    { cause: "known_trivial", signals: { knownOrTrivial: true } },
+    { cause: "baseline_dominated", signals: { baselineDominated: true } },
+    { cause: "no_holdout_path", signals: { noHoldoutPath: true } },
+    { cause: "no_replay_path", signals: { noReplayPath: true } },
+    { cause: "counterexample_dense", signals: { counterexampleDense: true } },
+    { cause: "rival_theory_stronger", signals: { rivalTheoryStronger: true } },
+    {
+      cause: "not_externally_inspectable",
+      signals: { notExternallyInspectable: true },
+    },
+    {
+      cause: "unreplayed_decisive_claim",
+      signals: { decisiveUnreplayedClaim: true },
+    },
+    { cause: "holdout_not_supported", signals: { holdoutUnsupported: true } },
+    {
+      cause: "proof_or_mechanism_failed",
+      signals: { proofOrMechanismFailed: true },
+    },
+    {
+      cause: "kill_week_fatal_attack",
+      signals: { fatalKillWeekAttack: true },
+    },
+  ];
 }

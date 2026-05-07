@@ -2128,7 +2128,8 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
     ),
   ) as Record<string, any>;
   assert.equal(cycle.freshExternalSeed.variantSlug, "fund-package-preflight");
-  assert.equal(cycle.deathCause, "no_death_cause");
+  assert.equal(cycle.deathCause, "not_externally_inspectable");
+  assert.equal(cycle.internalStatus, "partial_signal");
   assert.equal(cycle.packageGateApplied, true);
   assert.equal(cycle.fundGateEvaluation.passed, false);
   assert.equal(cycle.fundGatePassed, false);
@@ -2163,6 +2164,33 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
         entry.candidateId === cycle.candidateId &&
         entry.deathCause === "not_externally_inspectable",
     ),
+    true,
+  );
+});
+
+test("discover-daemon audit fails if a package-gate rejection keeps no-death cause", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 161,
+  });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0161.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    any
+  >;
+  cycle.deathCause = "no_death_cause";
+  cycle.internalStatus = "continue_searching";
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(
+    failed.includes("search_cycle_package_rejection_cause_consistency"),
     true,
   );
 });

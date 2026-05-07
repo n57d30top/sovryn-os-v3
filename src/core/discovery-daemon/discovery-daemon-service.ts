@@ -2147,6 +2147,25 @@ function searchCycleFundGateRecordConsistent(
   );
 }
 
+function searchCyclePackageRejectionCauseConsistent(
+  cycle: Record<string, unknown>,
+): boolean {
+  const failedPackageGates = Array.isArray(cycle.failedPackageGates)
+    ? cycle.failedPackageGates.map((item) => String(item))
+    : [];
+  const packageRejected =
+    cycle.packageGateApplied === true &&
+    cycle.fundGatePassed !== true &&
+    failedPackageGates.some((code) =>
+      code.startsWith("external_review_package"),
+    );
+  if (!packageRejected) return true;
+  return (
+    cycle.deathCause === "not_externally_inspectable" &&
+    cycle.internalStatus === "partial_signal"
+  );
+}
+
 function corpusSeedCandidateBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
@@ -2706,6 +2725,10 @@ export class AutonomousDiscoveryDaemonService {
     }
     const fundGate = await this.refreshFundGateFromCandidate();
     let persistedCycle = cycle;
+    const effectiveDeathCause =
+      cycleFundGatePassed && !fundGate.passed && cycleFundCandidate
+        ? deathCauseFromRejectedFundCandidate(cycleFundCandidate, fundGate)
+        : String(cycle.deathCause ?? "no_death_cause");
     if (cycleFundGatePassed && !fundGate.passed && cycleFundCandidate) {
       await this.tombstoneRejectedFundCandidate(
         cycleFundCandidate,
@@ -2721,6 +2744,10 @@ export class AutonomousDiscoveryDaemonService {
         packageGateApplied: true,
         failedPackageGates: fundGate.failedGates.filter((code) =>
           code.startsWith("external_review_package"),
+        ),
+        deathCause: effectiveDeathCause,
+        internalStatus: new DeathCauseClassifier().statusForDeathCause(
+          effectiveDeathCause as DeathCause,
         ),
         notificationSuppressed: !fundGate.passed,
         nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
@@ -3050,6 +3077,11 @@ export class AutonomousDiscoveryDaemonService {
           ),
       )
       .map((cycle) => String(cycle.cycleId ?? "unknown"));
+    const packageRejectionCauseInconsistencies = (
+      await this.readSearchCycleRecords()
+    )
+      .filter((cycle) => !searchCyclePackageRejectionCauseConsistent(cycle))
+      .map((cycle) => String(cycle.cycleId ?? "unknown"));
     const latestCycleIsPackageBacked =
       latestCycle !== null &&
       packageBackedCandidateIntakeCycleComplete(latestCycle);
@@ -3152,6 +3184,11 @@ export class AutonomousDiscoveryDaemonService {
         "search_cycle_fund_gate_consistency",
         searchCycleFundGateInconsistencies.length === 0,
         `Search cycle records must not preserve package-less or stale Fund Gate pass markers. Inconsistent cycles: ${searchCycleFundGateInconsistencies.slice(0, 5).join(", ") || "none"}.`,
+      ),
+      gate(
+        "search_cycle_package_rejection_cause_consistency",
+        packageRejectionCauseInconsistencies.length === 0,
+        `Search cycle records rejected by Fund package gates must be classified as not_externally_inspectable partial signals. Inconsistent cycles: ${packageRejectionCauseInconsistencies.slice(0, 5).join(", ") || "none"}.`,
       ),
       gate(
         "corpus_seed_candidate_binding",

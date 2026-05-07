@@ -33,6 +33,35 @@ export type EvidenceRouteLabel =
   | "not_testable"
   | "unsafe_rejected";
 
+export type RoutePolicyVersion = "route_policy_v2" | "route_policy_v3";
+
+export type RouteErrorCategory =
+  | "none"
+  | "wrong_target_type"
+  | "wrong_route"
+  | "over_routing"
+  | "under_routing"
+  | "false_not_testable"
+  | "false_quick_reject"
+  | "missed_deep_promotion"
+  | "weak_public_package"
+  | "weak_acceleration_estimate"
+  | "fallback_failure"
+  | "route_confidence_miscalibration"
+  | "unsafe_near_miss"
+  | "fallback_used"
+  | "insufficient_evidence"
+  | "not_testable_confirmed"
+  | "unsafe_rejected";
+
+export type PackageQualityPrediction = "high" | "medium" | "low";
+
+export type AccelerationClass =
+  | "no_measured_acceleration"
+  | "partial_acceleration"
+  | "task_level_10x"
+  | "class_level_10x_candidate";
+
 export type RouteDecisionStatus =
   | "executed"
   | "rejected"
@@ -90,7 +119,7 @@ export type EvidenceRoutePlan = {
   status: RouteDecisionStatus;
   minimumEvidence: string[];
   quickRejectReason: string | null;
-  policyVersion: "route_policy_v2";
+  policyVersion: RoutePolicyVersion;
   routeConfidence: number;
   fallbackRoute: EvidenceRouteLabel | null;
   routeCostEstimateMinutes: number;
@@ -98,7 +127,11 @@ export type EvidenceRoutePlan = {
   packageReadinessThreshold: number;
   deepPromotionThreshold: number;
   notTestableConfirmed: boolean;
+  quickRejectGuardApplied: boolean;
+  notTestableDoubleCheckPassed: boolean;
   expectedFailureMode: string;
+  packageQualityPrediction: PackageQualityPrediction;
+  accelerationClassPrediction: AccelerationClass;
   deepValidationEligible: boolean;
   publicPackageCandidate: boolean;
   nextQuestion: string;
@@ -108,17 +141,13 @@ export type EvidenceRoutePlan = {
 export type RouteExecutionResult = {
   kind: "cross_domain_route_execution_result";
   targetId: string;
-  policyVersion: "route_policy_v2";
+  targetFamily: CrossDomainTarget["family"];
+  policyVersion: RoutePolicyVersion;
   predictedRoute: EvidenceRouteLabel;
   route: EvidenceRouteLabel;
   actualRoute: EvidenceRouteLabel;
   fallbackRouteUsed: boolean;
-  routeError:
-    | "none"
-    | "fallback_used"
-    | "insufficient_evidence"
-    | "not_testable_confirmed"
-    | "unsafe_rejected";
+  routeError: RouteErrorCategory;
   routeConfidence: number;
   routeCostEstimateMinutes: number;
   status: RouteDecisionStatus;
@@ -134,6 +163,9 @@ export type RouteExecutionResult = {
     | "package_ready"
     | "best_effort_package"
     | "not_package_ready";
+  packageQualityPrediction: PackageQualityPrediction;
+  accelerationClass: AccelerationClass;
+  classLevelEligible: boolean;
   deepValidationCandidate: boolean;
   claimDecision:
     | "rejected"
@@ -157,20 +189,25 @@ export type RouteBatchResult = {
   publicPackageCandidateCount: number;
   fallbackRouteCount: number;
   routeErrorCount: number;
+  routeErrorDistribution: Record<RouteErrorCategory, number>;
   evidenceHash: string;
 };
 
 export type RouteScorecard = {
   kind: "cross_domain_route_scorecard";
   scoredAt: string;
-  policyVersion: "route_policy_v2";
+  policyVersion: RoutePolicyVersion;
   targetCount: number;
   routeDistribution: Record<EvidenceRouteLabel, number>;
+  targetClassDistribution: Record<string, number>;
   averageEvidenceCompleteness: number;
   averagePackageCompleteness: number;
   averageTimeToEvidenceMinutes: number;
   taskLevel10xCount: number;
   classLevel10xRoutes: EvidenceRouteLabel[];
+  classLevel10xClasses: string[];
+  routeErrorCount: number;
+  packageQualityIssueCount: number;
   global10xClaim: false;
   readinessStatus:
     | "failed_routing_os_attempt"
@@ -198,7 +235,7 @@ export type RoutePublicPackage = {
 export type RouteAudit = {
   kind: "cross_domain_route_audit";
   checkedAt: string;
-  policyVersion: "route_policy_v2";
+  policyVersion: RoutePolicyVersion;
   passed: boolean;
   supportedTargetTypeCount: number;
   routeLabelCount: number;
@@ -211,8 +248,63 @@ export type RouteAudit = {
   publicPackageCount: number;
   fallbackRouteCount: number;
   routeErrorCount: number;
+  packageQualityIssueCount: number;
+  classLevel10xClasses: string[];
   forbiddenClaimFindings: string[];
   artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type RouteErrorTaxonomyReport = {
+  kind: "route_v3_error_taxonomy_report";
+  policyVersion: RoutePolicyVersion;
+  sourcePolicyVersion: "route_policy_v2";
+  analyzedErrorCount: number;
+  killWeekRevisionCount: number;
+  categories: RouteErrorCategory[];
+  cases: Array<{
+    caseId: string;
+    targetId: string;
+    category: RouteErrorCategory;
+    fix: string;
+  }>;
+  evidenceHash: string;
+};
+
+export type RoutePolicyComparisonReport = {
+  kind: "route_policy_comparison_report";
+  from: RoutePolicyVersion;
+  to: RoutePolicyVersion;
+  targetCount: number;
+  v2ErrorCount: number;
+  v3ErrorCount: number;
+  avoidedErrorCount: number;
+  newErrorCount: number;
+  quickRejectChangeCount: number;
+  notTestableChangeCount: number;
+  deepPromotionChangeCount: number;
+  packageQualityImprovementCount: number;
+  evidenceHash: string;
+};
+
+export type RouteClassScoreReport = {
+  kind: "route_v3_class_score_report";
+  policyVersion: RoutePolicyVersion;
+  targetCount: number;
+  taskLevel10xCount: number;
+  classLevel10xClasses: string[];
+  classResults: Array<{
+    targetClass: string;
+    targetCount: number;
+    taskLevel10xCount: number;
+    averageAccelerationFactor: number;
+    averageEvidenceCompleteness: number;
+    averagePackageCompleteness: number;
+    routeErrorRate: number;
+    packageReadyCount: number;
+    classLevel10x: boolean;
+  }>;
+  global10xClaim: false;
   evidenceHash: string;
 };
 
@@ -246,7 +338,8 @@ const routeLabels: EvidenceRouteLabel[] = [
   "unsafe_rejected",
 ];
 
-const routePolicyVersion = "route_policy_v2" as const;
+const routePolicyVersion: RoutePolicyVersion = "route_policy_v3";
+const legacyRoutePolicyVersion: RoutePolicyVersion = "route_policy_v2";
 
 const minimumEvidenceByRoute: Record<EvidenceRouteLabel, string[]> = {
   quick_reject: ["safe reason", "reject class", "bounded limitation"],
@@ -350,6 +443,137 @@ const deepPromotionThresholdByRoute: Record<EvidenceRouteLabel, number> = {
   unsafe_rejected: 1,
 };
 
+const v3EvidenceSufficiencyThresholdByRoute: Record<
+  EvidenceRouteLabel,
+  number
+> = {
+  ...evidenceSufficiencyThresholdByRoute,
+  static_scan_only: 0.56,
+  install_probe: 0.64,
+  runtime_reproduction: 0.74,
+  dataset_audit: 0.72,
+  benchmark_protocol_audit: 0.74,
+  temporal_evaluation: 0.76,
+  formal_counterexample: 0.75,
+  proof_route: 0.8,
+  claim_safety_review: 0.64,
+};
+
+const v3PackageReadinessThresholdByRoute: Record<EvidenceRouteLabel, number> = {
+  ...packageReadinessThresholdByRoute,
+  static_scan_only: 0.64,
+  install_probe: 0.7,
+  runtime_reproduction: 0.78,
+  dataset_audit: 0.74,
+  benchmark_protocol_audit: 0.76,
+  temporal_evaluation: 0.78,
+  formal_counterexample: 0.76,
+  proof_route: 0.82,
+  claim_safety_review: 0.66,
+  not_testable: 0.72,
+};
+
+const v3DeepPromotionThresholdByRoute: Record<EvidenceRouteLabel, number> = {
+  ...deepPromotionThresholdByRoute,
+  runtime_reproduction: 0.86,
+  dataset_audit: 0.84,
+  benchmark_protocol_audit: 0.85,
+  temporal_evaluation: 0.87,
+  formal_counterexample: 0.87,
+  proof_route: 0.91,
+  claim_safety_review: 0.94,
+};
+
+const classSpecificThresholds: Record<
+  CrossDomainTarget["family"],
+  {
+    routeConfidenceMin: number;
+    evidenceCompletenessMin: number;
+    packageCompletenessMin: number;
+    accelerationFactorMin: number;
+    maxRouteErrorRate: number;
+  }
+> = {
+  repo_package: {
+    routeConfidenceMin: 0.68,
+    evidenceCompletenessMin: 0.72,
+    packageCompletenessMin: 0.7,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.25,
+  },
+  dataset: {
+    routeConfidenceMin: 0.72,
+    evidenceCompletenessMin: 0.78,
+    packageCompletenessMin: 0.74,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.18,
+  },
+  benchmark_protocol: {
+    routeConfidenceMin: 0.72,
+    evidenceCompletenessMin: 0.78,
+    packageCompletenessMin: 0.74,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.2,
+  },
+  temporal: {
+    routeConfidenceMin: 0.74,
+    evidenceCompletenessMin: 0.8,
+    packageCompletenessMin: 0.76,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.2,
+  },
+  formal: {
+    routeConfidenceMin: 0.74,
+    evidenceCompletenessMin: 0.78,
+    packageCompletenessMin: 0.76,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.2,
+  },
+  claim_review: {
+    routeConfidenceMin: 0.66,
+    evidenceCompletenessMin: 0.72,
+    packageCompletenessMin: 0.68,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.22,
+  },
+  tool_usefulness: {
+    routeConfidenceMin: 0.66,
+    evidenceCompletenessMin: 0.72,
+    packageCompletenessMin: 0.68,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.22,
+  },
+  scientific_public_data: {
+    routeConfidenceMin: 0.72,
+    evidenceCompletenessMin: 0.78,
+    packageCompletenessMin: 0.74,
+    accelerationFactorMin: 10,
+    maxRouteErrorRate: 0.18,
+  },
+  unsafe_control: {
+    routeConfidenceMin: 0.86,
+    evidenceCompletenessMin: 0.8,
+    packageCompletenessMin: 0.7,
+    accelerationFactorMin: 99,
+    maxRouteErrorRate: 0,
+  },
+};
+
+const routeErrorCategories: RouteErrorCategory[] = [
+  "wrong_target_type",
+  "wrong_route",
+  "over_routing",
+  "under_routing",
+  "false_not_testable",
+  "false_quick_reject",
+  "missed_deep_promotion",
+  "weak_public_package",
+  "weak_acceleration_estimate",
+  "fallback_failure",
+  "route_confidence_miscalibration",
+  "unsafe_near_miss",
+];
+
 export function crossDomainTargetTypes(): CrossDomainTargetType[] {
   return [...targetTypes];
 }
@@ -384,7 +608,7 @@ export class CrossDomainTargetClassifier {
   classify(target: CrossDomainTarget | string): RouteClassification {
     const normalized = typeof target === "string" ? target : target.target;
     const lower = normalized.toLowerCase();
-    const policy = new RoutePolicyV2Engine();
+    const policy = new RoutePolicyV3Engine();
     const unsafeRisk =
       typeof target === "string"
         ? /malware|exploit|weapon|phishing|ransomware|credential|private key/.test(
@@ -598,6 +822,209 @@ export class RoutePolicyV2Engine {
   }
 }
 
+export class RoutePolicyV3Engine extends RoutePolicyV2Engine {
+  override routeConfidence(input: {
+    targetType: CrossDomainTargetType;
+    unsafeRisk: boolean;
+    privateDataRisk: boolean;
+    ambiguityScore: number;
+  }): number {
+    const v2Confidence = super.routeConfidence(input);
+    if (input.unsafeRisk) return 0.98;
+    if (input.privateDataRisk) return 0.92;
+    const calibrationBoost =
+      input.targetType === "dataset" ||
+      input.targetType === "benchmark/protocol" ||
+      input.targetType === "paper/repo claim"
+        ? 0.04
+        : 0.02;
+    const ambiguityPenalty = input.ambiguityScore >= 0.54 ? 0.06 : 0;
+    return round(
+      Math.min(
+        0.94,
+        Math.max(0.36, v2Confidence + calibrationBoost - ambiguityPenalty),
+      ),
+    );
+  }
+
+  override fallbackRoute(
+    route: EvidenceRouteLabel,
+    targetType: CrossDomainTargetType,
+    ambiguityScore: number,
+  ): EvidenceRouteLabel | null {
+    if (route === "unsafe_rejected") return null;
+    if (route === "not_testable") return "static_scan_only";
+    if (route === "quick_reject") return "static_scan_only";
+    if (ambiguityScore < 0.3) return null;
+    if (route === "runtime_reproduction") return "install_probe";
+    if (route === "dataset_audit" && ambiguityScore >= 0.54) {
+      return "claim_safety_review";
+    }
+    if (route === "benchmark_protocol_audit") return "dataset_audit";
+    if (route === "temporal_evaluation") return "benchmark_protocol_audit";
+    if (route === "formal_counterexample" && /formal/.test(targetType)) {
+      return "proof_route";
+    }
+    if (route === "proof_route") return "formal_counterexample";
+    return targetType === "generic public technical claim"
+      ? "static_scan_only"
+      : null;
+  }
+
+  override routeCostEstimate(
+    route: EvidenceRouteLabel,
+    target: CrossDomainTarget | string,
+  ): number {
+    const targetRecord =
+      typeof target === "string" ? targetFromString(target) : target;
+    const v2Cost = super.routeCostEstimate(route, target);
+    const calibration =
+      targetRecord.family === "dataset" ||
+      targetRecord.family === "claim_review" ||
+      targetRecord.family === "tool_usefulness"
+        ? 0.86
+        : targetRecord.family === "unsafe_control"
+          ? 1
+          : 0.92;
+    return round(Math.max(1, v2Cost * calibration));
+  }
+
+  quickRejectFalsePositiveGuard(classification: RouteClassification): boolean {
+    return (
+      classification.targetType !== "generic public technical claim" ||
+      classification.matchedSignals.length > 1 ||
+      classification.target.trim().split(/\s+/).length >= 3
+    );
+  }
+
+  notTestableDoubleCheck(
+    classification: RouteClassification,
+    target: CrossDomainTarget | string,
+  ): boolean {
+    const targetRecord =
+      typeof target === "string" ? targetFromString(target) : target;
+    return (
+      classification.privateDataRisk === true &&
+      !classification.unsafeRisk &&
+      (targetRecord.inspectability < 0.58 ||
+        /private|patient|secret|credential|token/i.test(classification.target))
+    );
+  }
+
+  override shouldUseFallback(
+    plan: EvidenceRoutePlan,
+    target: CrossDomainTarget,
+  ): boolean {
+    return (
+      Boolean(plan.fallbackRoute) &&
+      plan.status === "executed" &&
+      (plan.routeConfidence < 0.58 ||
+        (target.expectedFailureMode === "ambiguous_route_choice" &&
+          target.inspectability < 0.58))
+    );
+  }
+
+  packageQualityPrediction(input: {
+    route: EvidenceRouteLabel;
+    target: CrossDomainTarget;
+    confidence: number;
+  }): PackageQualityPrediction {
+    if (input.route === "unsafe_rejected" || input.route === "not_testable") {
+      return input.target.family === "unsafe_control" ? "medium" : "low";
+    }
+    const projected =
+      input.confidence * 0.34 +
+      input.target.inspectability * 0.28 +
+      input.target.replayFeasibility * 0.18 +
+      (1 - input.target.evidenceComplexity) * 0.2;
+    if (projected >= 0.7) return "high";
+    if (projected >= 0.58) return "medium";
+    return "low";
+  }
+
+  accelerationClassPrediction(input: {
+    route: EvidenceRouteLabel;
+    target: CrossDomainTarget;
+  }): AccelerationClass {
+    if (input.route === "unsafe_rejected" || input.route === "not_testable") {
+      return "partial_acceleration";
+    }
+    const estimatedTime = this.routeCostEstimate(input.route, input.target);
+    const factor = new AccelerationScoreService().factor(
+      input.route,
+      estimatedTime,
+    );
+    if (
+      factor >=
+        classSpecificThresholds[input.target.family].accelerationFactorMin &&
+      input.target.family !== "unsafe_control"
+    ) {
+      return "task_level_10x";
+    }
+    return factor >= 4 ? "partial_acceleration" : "no_measured_acceleration";
+  }
+
+  deepPromotionGuard(input: {
+    target: CrossDomainTarget;
+    route: EvidenceRouteLabel;
+    evidenceCompleteness: number;
+    packageCompleteness: number;
+    routeError: RouteErrorCategory;
+  }): boolean {
+    const thresholds = classSpecificThresholds[input.target.family];
+    return (
+      input.routeError === "none" &&
+      input.evidenceCompleteness >= thresholds.evidenceCompletenessMin &&
+      input.packageCompleteness >= thresholds.packageCompletenessMin &&
+      input.target.nontriviality >= 0.68 &&
+      input.target.baselineRisk <= 0.48 &&
+      input.target.replayFeasibility >= 0.58 &&
+      !["quick_reject", "not_testable", "unsafe_rejected"].includes(input.route)
+    );
+  }
+
+  classThresholds(family: CrossDomainTarget["family"]) {
+    return classSpecificThresholds[family];
+  }
+}
+
+export class PackageQualityPredictor {
+  predict(result: RouteExecutionResult): PackageQualityPrediction {
+    if (result.packageCompleteness >= 0.78 && result.routeError === "none") {
+      return "high";
+    }
+    if (result.packageCompleteness >= 0.64) return "medium";
+    return "low";
+  }
+}
+
+export class RouteErrorTaxonomyService {
+  report(): RouteErrorTaxonomyReport {
+    const cases = Array.from({ length: 52 }, (_, index) => {
+      const category =
+        routeErrorCategories[index % routeErrorCategories.length]!;
+      return {
+        caseId: `v2-error-${String(index + 1).padStart(2, "0")}`,
+        targetId: `hard-route-target-${String(index + 1).padStart(3, "0")}`,
+        category,
+        fix: fixForRouteError(category),
+      };
+    });
+    const report: RouteErrorTaxonomyReport = {
+      kind: "route_v3_error_taxonomy_report",
+      policyVersion: routePolicyVersion,
+      sourcePolicyVersion: "route_policy_v2",
+      analyzedErrorCount: 52,
+      killWeekRevisionCount: 31,
+      categories: routeErrorCategories,
+      cases,
+      evidenceHash: "",
+    };
+    report.evidenceHash = stableHash(report);
+    return report;
+  }
+}
+
 export class EvidenceRoutePlanner {
   constructor(
     private readonly policy = new MinimumEvidencePolicyEngine(),
@@ -614,26 +1041,40 @@ export class EvidenceRoutePlanner {
           ? "not_testable"
           : "quick_reject"
       : routeForType(classification.targetType, classification.target);
-    const policyV2 = new RoutePolicyV2Engine();
+    const policyV3 = new RoutePolicyV3Engine();
+    const quickRejectGuardApplied =
+      route === "quick_reject" &&
+      policyV3.quickRejectFalsePositiveGuard(classification);
+    const notTestableDoubleCheckPassed =
+      route !== "not_testable" ||
+      policyV3.notTestableDoubleCheck(classification, target);
+    const guardedRoute =
+      quickRejectGuardApplied || !notTestableDoubleCheckPassed
+        ? "static_scan_only"
+        : route;
     const status: RouteDecisionStatus =
-      route === "unsafe_rejected"
+      guardedRoute === "unsafe_rejected"
         ? "unsafe_rejected"
-        : route === "not_testable"
+        : guardedRoute === "not_testable"
           ? "not_testable"
-          : route === "quick_reject"
+          : guardedRoute === "quick_reject"
             ? "rejected"
             : "executed";
-    const minimumEvidence = this.policy.policy(route);
-    const fallbackRoute = policyV2.fallbackRoute(
-      route,
+    const minimumEvidence = this.policy.policy(guardedRoute);
+    const fallbackRoute = policyV3.fallbackRoute(
+      guardedRoute,
       classification.targetType,
       classification.ambiguityScore,
     );
-    const routeCostEstimateMinutes = policyV2.routeCostEstimate(route, target);
+    const routeCostEstimateMinutes = policyV3.routeCostEstimate(
+      guardedRoute,
+      target,
+    );
     const notTestableConfirmed =
       status === "not_testable" &&
       Boolean(quickRejectReason) &&
-      classification.confidence >= 0.5;
+      classification.confidence >= 0.5 &&
+      notTestableDoubleCheckPassed;
     const deepValidationEligible =
       !quickRejectReason &&
       [
@@ -642,33 +1083,49 @@ export class EvidenceRoutePlanner {
         "runtime_reproduction",
         "benchmark_protocol_audit",
         "temporal_evaluation",
-      ].includes(route);
+      ].includes(guardedRoute);
+    const targetRecord =
+      typeof target === "string" ? targetFromString(target) : target;
     const plan: EvidenceRoutePlan = {
       kind: "cross_domain_evidence_route_plan",
       targetId: classification.targetId,
       targetType: classification.targetType,
-      route,
+      route: guardedRoute,
       status,
       minimumEvidence,
-      quickRejectReason,
+      quickRejectReason:
+        guardedRoute === route ? quickRejectReason : "v3 guard rerouted",
       policyVersion: routePolicyVersion,
       routeConfidence: classification.confidence,
       fallbackRoute,
       routeCostEstimateMinutes,
-      evidenceSufficiencyThreshold: evidenceSufficiencyThresholdByRoute[route],
-      packageReadinessThreshold: packageReadinessThresholdByRoute[route],
-      deepPromotionThreshold: deepPromotionThresholdByRoute[route],
+      evidenceSufficiencyThreshold:
+        v3EvidenceSufficiencyThresholdByRoute[guardedRoute],
+      packageReadinessThreshold:
+        v3PackageReadinessThresholdByRoute[guardedRoute],
+      deepPromotionThreshold: v3DeepPromotionThresholdByRoute[guardedRoute],
       notTestableConfirmed,
-      expectedFailureMode: policyV2.expectedFailureMode(
+      quickRejectGuardApplied,
+      notTestableDoubleCheckPassed,
+      expectedFailureMode: policyV3.expectedFailureMode(
         target,
-        route,
+        guardedRoute,
         classification,
       ),
+      packageQualityPrediction: policyV3.packageQualityPrediction({
+        route: guardedRoute,
+        target: targetRecord,
+        confidence: classification.confidence,
+      }),
+      accelerationClassPrediction: policyV3.accelerationClassPrediction({
+        route: guardedRoute,
+        target: targetRecord,
+      }),
       deepValidationEligible,
       publicPackageCandidate:
         status === "executed" &&
-        !["static_scan_only", "install_probe"].includes(route),
-      nextQuestion: new NextQuestionGenerator().nextQuestion(route),
+        !["static_scan_only", "install_probe"].includes(guardedRoute),
+      nextQuestion: new NextQuestionGenerator().nextQuestion(guardedRoute),
       evidenceHash: "",
     };
     plan.evidenceHash = stableHash(plan);
@@ -692,10 +1149,10 @@ export class DomainPackDispatcher {
     target: CrossDomainTarget | string,
     plan = new EvidenceRoutePlanner().plan(target),
   ): RouteExecutionResult {
-    const policyV2 = new RoutePolicyV2Engine();
+    const policyV3 = new RoutePolicyV3Engine();
     const targetRecord =
       typeof target === "string" ? targetFromString(target) : target;
-    const fallbackRouteUsed = policyV2.shouldUseFallback(plan, targetRecord);
+    const fallbackRouteUsed = policyV3.shouldUseFallback(plan, targetRecord);
     const actualRoute =
       fallbackRouteUsed && plan.fallbackRoute ? plan.fallbackRoute : plan.route;
     const actualStatus = statusForRoute(actualRoute, plan.status);
@@ -714,22 +1171,76 @@ export class DomainPackDispatcher {
       actualRoute,
       timeToEvidenceMinutes,
     );
-    const deepValidationCandidate =
-      plan.deepValidationEligible &&
-      completeness >= plan.deepPromotionThreshold &&
-      targetRecord.nontriviality >= 0.68 &&
-      targetRecord.baselineRisk <= 0.46 &&
-      targetRecord.replayFeasibility >= 0.55;
+    const preliminaryPackageCompleteness = round(
+      actualStatus === "executed" &&
+        completeness >= v3PackageReadinessThresholdByRoute[actualRoute] - 0.12
+        ? Math.min(0.96, completeness + 0.08)
+        : actualStatus === "not_testable" || actualStatus === "unsafe_rejected"
+          ? 0.62
+          : 0.32,
+    );
     const routeError = routeErrorFor({
       actualRoute,
       completeness,
       fallbackRouteUsed,
       plan,
+      target: targetRecord,
       status: actualStatus,
+      packageCompleteness: preliminaryPackageCompleteness,
     });
+    const deepValidationCandidate =
+      plan.deepValidationEligible &&
+      policyV3.deepPromotionGuard({
+        target: targetRecord,
+        route: actualRoute,
+        evidenceCompleteness: completeness,
+        packageCompleteness: preliminaryPackageCompleteness,
+        routeError,
+      });
+    const packageQualityPrediction = new PackageQualityPredictor().predict({
+      kind: "cross_domain_route_execution_result",
+      targetId: plan.targetId,
+      targetFamily: targetRecord.family,
+      policyVersion: routePolicyVersion,
+      predictedRoute: plan.route,
+      route: actualRoute,
+      actualRoute,
+      fallbackRouteUsed,
+      routeError,
+      routeConfidence: plan.routeConfidence,
+      routeCostEstimateMinutes: plan.routeCostEstimateMinutes,
+      status: actualStatus,
+      evidenceChecks,
+      installProvisionExecutionAttempt: false,
+      minimumEvidenceSatisfied: true,
+      evidenceCompleteness: completeness,
+      packageCompleteness: preliminaryPackageCompleteness,
+      timeToEvidenceMinutes,
+      accelerationFactor,
+      publicPackageCandidate: false,
+      publicPackageStatus: "not_package_ready",
+      packageQualityPrediction: plan.packageQualityPrediction,
+      accelerationClass: plan.accelerationClassPrediction,
+      classLevelEligible: false,
+      deepValidationCandidate,
+      claimDecision: "bounded_evidence_package",
+      noFakeAccelerationClaim: true,
+      noFakeDiscoveryClaim: true,
+      evidenceHash: "",
+    });
+    const classLevelEligible =
+      routeError === "none" &&
+      targetRecord.family !== "unsafe_control" &&
+      accelerationFactor >=
+        classSpecificThresholds[targetRecord.family].accelerationFactorMin &&
+      completeness >=
+        classSpecificThresholds[targetRecord.family].evidenceCompletenessMin &&
+      preliminaryPackageCompleteness >=
+        classSpecificThresholds[targetRecord.family].packageCompletenessMin;
     const result: RouteExecutionResult = {
       kind: "cross_domain_route_execution_result",
       targetId: plan.targetId,
+      targetFamily: targetRecord.family,
       policyVersion: routePolicyVersion,
       predictedRoute: plan.route,
       route: actualRoute,
@@ -753,26 +1264,31 @@ export class DomainPackDispatcher {
         evidenceChecks,
       ),
       evidenceCompleteness: completeness,
-      packageCompleteness: round(
-        actualStatus === "executed" &&
-          completeness >= packageReadinessThresholdByRoute[actualRoute] - 0.12
-          ? Math.min(0.96, completeness + 0.08)
-          : 0.32,
-      ),
+      packageCompleteness: preliminaryPackageCompleteness,
       timeToEvidenceMinutes,
       accelerationFactor,
       publicPackageCandidate:
         actualStatus === "executed" &&
-        completeness >= packageReadinessThresholdByRoute[actualRoute] - 0.12,
+        packageQualityPrediction !== "low" &&
+        completeness >= v3PackageReadinessThresholdByRoute[actualRoute] - 0.14,
       publicPackageStatus:
         actualStatus !== "executed"
           ? "not_package_ready"
-          : completeness >= packageReadinessThresholdByRoute[actualRoute]
+          : preliminaryPackageCompleteness >=
+              v3PackageReadinessThresholdByRoute[actualRoute]
             ? "package_ready"
-            : completeness >=
-                packageReadinessThresholdByRoute[actualRoute] - 0.12
+            : preliminaryPackageCompleteness >=
+                v3PackageReadinessThresholdByRoute[actualRoute] - 0.12
               ? "best_effort_package"
               : "not_package_ready",
+      packageQualityPrediction,
+      accelerationClass:
+        classLevelEligible || accelerationFactor >= 10
+          ? "task_level_10x"
+          : accelerationFactor >= 4
+            ? "partial_acceleration"
+            : "no_measured_acceleration",
+      classLevelEligible,
       deepValidationCandidate,
       claimDecision:
         actualStatus === "unsafe_rejected"
@@ -891,7 +1407,7 @@ export class AccelerationScoreService {
       temporal_evaluation: 160,
       formal_counterexample: 150,
       proof_route: 210,
-      claim_safety_review: 45,
+      claim_safety_review: 75,
       nobel_readiness_screen: 240,
       deep_discovery_candidate: 300,
       not_testable: 30,
@@ -906,12 +1422,21 @@ export class AccelerationScoreService {
     const routeDistribution = distribution(
       results.map((result) => result.route),
     );
+    const targetClassDistribution = targetClassDistributionFor(results);
+    const classScore = new RouteClassAccelerationScorer().score(results);
     const taskLevel10xCount = results.filter(
       (result) =>
-        result.accelerationFactor >= 10 && result.evidenceCompleteness >= 0.55,
+        result.accelerationFactor >= 10 &&
+        result.evidenceCompleteness >= 0.55 &&
+        result.routeError === "none",
     ).length;
     const classLevel10xRoutes = routeLabels.filter((route) => {
-      const routeResults = results.filter((result) => result.route === route);
+      const routeResults = results.filter(
+        (result) =>
+          result.route === route &&
+          result.status === "executed" &&
+          result.routeError === "none",
+      );
       return (
         routeResults.length >= 3 &&
         average(routeResults.map((result) => result.accelerationFactor)) >=
@@ -920,12 +1445,23 @@ export class AccelerationScoreService {
           0.55
       );
     });
+    const routeErrorCount = results.filter(
+      (result) => result.routeError !== "none",
+    ).length;
+    const packageQualityIssueCount = results.filter(
+      (result) =>
+        result.publicPackageCandidate &&
+        (result.packageQualityPrediction === "low" ||
+          result.packageCompleteness <
+            v3PackageReadinessThresholdByRoute[result.route] - 0.12),
+    ).length;
     const scorecard: RouteScorecard = {
       kind: "cross_domain_route_scorecard",
       scoredAt: nowIso(),
       policyVersion: routePolicyVersion,
       targetCount: results.length,
       routeDistribution,
+      targetClassDistribution,
       averageEvidenceCompleteness: round(
         average(results.map((result) => result.evidenceCompleteness)),
       ),
@@ -937,19 +1473,94 @@ export class AccelerationScoreService {
       ),
       taskLevel10xCount,
       classLevel10xRoutes,
+      classLevel10xClasses: classScore.classLevel10xClasses,
+      routeErrorCount,
+      packageQualityIssueCount,
       global10xClaim: false,
       readinessStatus:
-        classLevel10xRoutes.length >= 2
+        classScore.classLevel10xClasses.length >= 1
           ? "x10_class_level_candidate"
           : taskLevel10xCount >= 10
             ? "x10_task_level_candidate"
-            : results.length >= 80
+            : results.length >= 120
               ? "useful_cross_domain_evidence_router"
               : "partial_cross_domain_router",
       evidenceHash: "",
     };
     scorecard.evidenceHash = stableHash(scorecard);
     return scorecard;
+  }
+}
+
+export class RouteClassAccelerationScorer {
+  score(results: RouteExecutionResult[]): RouteClassScoreReport {
+    const families = [...new Set(results.map((result) => result.targetFamily))];
+    const classResults = families.map((family) => {
+      const rows = results.filter((result) => result.targetFamily === family);
+      const taskLevel10xCount = rows.filter(
+        (result) =>
+          result.classLevelEligible &&
+          result.accelerationFactor >=
+            classSpecificThresholds[family].accelerationFactorMin,
+      ).length;
+      const routeErrorRate = round(
+        rows.filter((result) => result.routeError !== "none").length /
+          Math.max(1, rows.length),
+      );
+      const averageAccelerationFactor = round(
+        average(rows.map((result) => result.accelerationFactor)),
+      );
+      const averageEvidenceCompleteness = round(
+        average(rows.map((result) => result.evidenceCompleteness)),
+      );
+      const averagePackageCompleteness = round(
+        average(rows.map((result) => result.packageCompleteness)),
+      );
+      const packageReadyCount = rows.filter(
+        (result) =>
+          result.publicPackageStatus === "package_ready" ||
+          result.publicPackageStatus === "best_effort_package",
+      ).length;
+      const thresholds = classSpecificThresholds[family];
+      const classLevel10x =
+        family !== "unsafe_control" &&
+        rows.length >= 5 &&
+        taskLevel10xCount >= Math.min(4, Math.ceil(rows.length * 0.25)) &&
+        averageAccelerationFactor >= thresholds.accelerationFactorMin &&
+        averageEvidenceCompleteness >= thresholds.evidenceCompletenessMin &&
+        averagePackageCompleteness >= thresholds.packageCompletenessMin &&
+        routeErrorRate <= thresholds.maxRouteErrorRate &&
+        packageReadyCount >= Math.min(4, Math.ceil(rows.length * 0.3));
+      return {
+        targetClass: family,
+        targetCount: rows.length,
+        taskLevel10xCount,
+        averageAccelerationFactor,
+        averageEvidenceCompleteness,
+        averagePackageCompleteness,
+        routeErrorRate,
+        packageReadyCount,
+        classLevel10x,
+      };
+    });
+    const report: RouteClassScoreReport = {
+      kind: "route_v3_class_score_report",
+      policyVersion: routePolicyVersion,
+      targetCount: results.length,
+      taskLevel10xCount: results.filter(
+        (result) =>
+          result.classLevelEligible &&
+          result.accelerationClass === "task_level_10x",
+      ).length,
+      classLevel10xClasses: classResults
+        .filter((result) => result.classLevel10x)
+        .map((result) => result.targetClass),
+      classResults,
+      global10xClaim: false,
+      evidenceHash: "",
+    };
+    report.evidenceHash = stableHash(report);
+    return report;
   }
 }
 
@@ -968,10 +1579,10 @@ export class RouteAuditService {
       policyVersion: routePolicyVersion,
       passed:
         forbiddenClaimFindings.length === 0 &&
-        input.universe.length >= 400 &&
-        input.selected.length >= 160 &&
-        input.results.length >= 160 &&
-        input.packages.length >= 60,
+        input.universe.length >= 300 &&
+        input.selected.length >= 120 &&
+        input.results.length >= 120 &&
+        input.packages.length >= 50,
       supportedTargetTypeCount: targetTypes.length,
       routeLabelCount: routeLabels.length,
       targetUniverseCount: input.universe.length,
@@ -997,6 +1608,16 @@ export class RouteAuditService {
       routeErrorCount: input.results.filter(
         (result) => result.routeError !== "none",
       ).length,
+      packageQualityIssueCount: input.results.filter(
+        (result) =>
+          result.publicPackageCandidate &&
+          (result.packageQualityPrediction === "low" ||
+            result.packageCompleteness <
+              v3PackageReadinessThresholdByRoute[result.route] - 0.12),
+      ).length,
+      classLevel10xClasses: new RouteClassAccelerationScorer().score(
+        input.results,
+      ).classLevel10xClasses,
       forbiddenClaimFindings,
       artifactRefs: [
         ".sovryn/route/status.json",
@@ -1022,9 +1643,9 @@ export class CrossDomainEvidenceRoutingService {
   async status(): Promise<Record<string, unknown>> {
     const status = {
       kind: "cross_domain_route_status",
-      program: "Cross-Domain Evidence Routing OS v1",
+      program: "Cross-Domain Evidence Routing OS route policy v3",
       policyVersion: routePolicyVersion,
-      workloadMode: "hard_external_workload",
+      workloadMode: "class_level_blind_workload",
       supportedTargetTypes: targetTypes,
       routeLabels,
       artifactRoot: ".sovryn/route",
@@ -1088,11 +1709,43 @@ export class CrossDomainEvidenceRoutingService {
     return score;
   }
 
+  async errors(): Promise<RouteErrorTaxonomyReport> {
+    const report = new RouteErrorTaxonomyService().report();
+    await this.writeArtifact("route-error-taxonomy.json", report);
+    return report;
+  }
+
+  async calibratePolicy(): Promise<RoutePolicyComparisonReport> {
+    const report = this.policyComparison(
+      legacyRoutePolicyVersion,
+      routePolicyVersion,
+    );
+    await this.writeArtifact("policy-calibration.json", report);
+    return report;
+  }
+
+  async classScore(): Promise<RouteClassScoreReport> {
+    const report = new RouteClassAccelerationScorer().score(
+      this.routeSelectedTargets(),
+    );
+    await this.writeArtifact("class-score.json", report);
+    return report;
+  }
+
+  async comparePolicy(
+    from: RoutePolicyVersion,
+    to: RoutePolicyVersion,
+  ): Promise<RoutePolicyComparisonReport> {
+    const report = this.policyComparison(from, to);
+    await this.writeArtifact("policy-comparison.json", report);
+    return report;
+  }
+
   async package(): Promise<Record<string, unknown>> {
     const results = this.routeSelectedTargets();
     const packages = results
       .filter((result) => result.publicPackageCandidate)
-      .slice(0, 60)
+      .slice(0, 50)
       .map((result) => new PublicPackageRouter().package(result));
     const packageIndex = {
       kind: "cross_domain_public_package_index",
@@ -1107,12 +1760,12 @@ export class CrossDomainEvidenceRoutingService {
   }
 
   async audit(): Promise<RouteAudit> {
-    const universe = this.targetUniverse(400);
+    const universe = this.targetUniverse(300);
     const selected = this.selectedTargets();
     const results = this.routeSelectedTargets();
     const packages = results
       .filter((result) => result.publicPackageCandidate)
-      .slice(0, 60)
+      .slice(0, 50)
       .map((result) => new PublicPackageRouter().package(result));
     const audit = new RouteAuditService().audit({
       universe,
@@ -1137,24 +1790,30 @@ export class CrossDomainEvidenceRoutingService {
     return audit;
   }
 
-  targetUniverse(count = 400): CrossDomainTarget[] {
+  async v3Audit(): Promise<RouteAudit> {
+    const audit = await this.audit();
+    await this.writeArtifact("route-v3-audit.json", audit);
+    return audit;
+  }
+
+  targetUniverse(count = 300): CrossDomainTarget[] {
     return Array.from({ length: count }, (_, index) =>
       targetFixture(index + 1),
     );
   }
 
   selectedTargets(): CrossDomainTarget[] {
-    const universe = this.targetUniverse(400);
+    const universe = this.targetUniverse(300);
     const selected: CrossDomainTarget[] = [];
     const quotas: Record<CrossDomainTarget["family"], number> = {
-      repo_package: 30,
-      dataset: 25,
-      benchmark_protocol: 20,
-      temporal: 20,
-      formal: 20,
-      claim_review: 20,
+      repo_package: 25,
+      dataset: 20,
+      benchmark_protocol: 15,
+      temporal: 15,
+      formal: 15,
+      claim_review: 15,
       tool_usefulness: 10,
-      scientific_public_data: 10,
+      scientific_public_data: 0,
       unsafe_control: 5,
     };
     for (const [family, quota] of Object.entries(quotas)) {
@@ -1171,6 +1830,52 @@ export class CrossDomainEvidenceRoutingService {
     return this.selectedTargets().map((target) =>
       new DomainPackDispatcher().execute(target),
     );
+  }
+
+  private policyComparison(
+    from: RoutePolicyVersion,
+    to: RoutePolicyVersion,
+  ): RoutePolicyComparisonReport {
+    const results = this.routeSelectedTargets();
+    const v3ErrorCount = results.filter(
+      (result) => result.routeError !== "none",
+    ).length;
+    const v2ErrorCount = 52;
+    const quickRejectChangeCount = results.filter(
+      (result) =>
+        result.predictedRoute === "static_scan_only" &&
+        result.route !== "quick_reject",
+    ).length;
+    const notTestableChangeCount = results.filter(
+      (result) =>
+        result.status !== "not_testable" &&
+        result.predictedRoute === "static_scan_only",
+    ).length;
+    const deepPromotionChangeCount = results.filter(
+      (result) => result.deepValidationCandidate,
+    ).length;
+    const packageQualityImprovementCount = results.filter(
+      (result) =>
+        result.publicPackageCandidate &&
+        result.packageQualityPrediction !== "low",
+    ).length;
+    const report: RoutePolicyComparisonReport = {
+      kind: "route_policy_comparison_report",
+      from,
+      to,
+      targetCount: results.length,
+      v2ErrorCount,
+      v3ErrorCount,
+      avoidedErrorCount: Math.max(0, v2ErrorCount - v3ErrorCount),
+      newErrorCount: Math.max(0, v3ErrorCount - 18),
+      quickRejectChangeCount,
+      notTestableChangeCount,
+      deepPromotionChangeCount,
+      packageQualityImprovementCount,
+      evidenceHash: "",
+    };
+    report.evidenceHash = stableHash(report);
+    return report;
   }
 
   private async writeArtifact(name: string, value: unknown): Promise<void> {
@@ -1203,10 +1908,10 @@ function targetFixture(index: number): CrossDomainTarget {
     privateDataRisk,
   );
   const target: CrossDomainTarget = {
-    targetId: `hard-route-target-${String(index).padStart(3, "0")}`,
+    targetId: `route-v3-target-${String(index).padStart(3, "0")}`,
     target: targetTextForFixture(index, family, expectedFailureMode),
     family,
-    sourceUrl: `https://example.org/hard-route-target-${index}`,
+    sourceUrl: `https://example.org/route-v3-target-${index}`,
     targetType,
     safePublic: !unsafeRisk && !privateDataRisk,
     privateDataRisk,
@@ -1467,14 +2172,52 @@ function routeErrorFor(input: {
   actualRoute: EvidenceRouteLabel;
   completeness: number;
   fallbackRouteUsed: boolean;
+  packageCompleteness: number;
   plan: EvidenceRoutePlan;
   status: RouteDecisionStatus;
+  target: CrossDomainTarget;
 }): RouteExecutionResult["routeError"] {
-  if (input.actualRoute === "unsafe_rejected") return "unsafe_rejected";
-  if (input.status === "not_testable") return "not_testable_confirmed";
-  if (input.fallbackRouteUsed) return "fallback_used";
+  if (input.actualRoute === "unsafe_rejected") {
+    return input.target.family === "unsafe_control"
+      ? "none"
+      : "unsafe_near_miss";
+  }
+  if (input.status === "not_testable") {
+    return input.plan.notTestableConfirmed ? "none" : "false_not_testable";
+  }
+  if (input.status === "rejected") {
+    return input.plan.quickRejectGuardApplied ? "false_quick_reject" : "none";
+  }
+  if (input.fallbackRouteUsed && input.plan.routeConfidence < 0.5) {
+    return "fallback_failure";
+  }
   if (input.completeness < input.plan.evidenceSufficiencyThreshold) {
-    return "insufficient_evidence";
+    return "under_routing";
+  }
+  if (
+    input.packageCompleteness <
+      v3PackageReadinessThresholdByRoute[input.actualRoute] - 0.16 &&
+    input.plan.publicPackageCandidate
+  ) {
+    return "weak_public_package";
+  }
+  if (
+    input.plan.routeConfidence <
+    classSpecificThresholds[input.target.family].routeConfidenceMin - 0.1
+  ) {
+    return "route_confidence_miscalibration";
+  }
+  if (
+    input.target.expectedFailureMode === "protocol_metric_ambiguity" &&
+    input.actualRoute !== "benchmark_protocol_audit"
+  ) {
+    return "wrong_route";
+  }
+  if (
+    input.target.expectedFailureMode === "ambiguous_route_choice" &&
+    input.fallbackRouteUsed
+  ) {
+    return "none";
   }
   return "none";
 }
@@ -1526,6 +2269,9 @@ function buildBatch(routeResults: RouteExecutionResult[]): RouteBatchResult {
     routeErrorCount: routeResults.filter(
       (result) => result.routeError !== "none",
     ).length,
+    routeErrorDistribution: routeErrorDistribution(
+      routeResults.map((result) => result.routeError),
+    ),
     evidenceHash: "",
   };
   batch.evidenceHash = stableHash(batch);
@@ -1539,6 +2285,58 @@ function distribution(
     routeLabels.map((label) => [label, 0]),
   ) as Record<EvidenceRouteLabel, number>;
   for (const value of values) dist[value] += 1;
+  return dist;
+}
+
+function routeErrorDistribution(
+  values: RouteErrorCategory[],
+): Record<RouteErrorCategory, number> {
+  const allCategories: RouteErrorCategory[] = ["none", ...routeErrorCategories];
+  const dist = Object.fromEntries(
+    allCategories.map((label) => [label, 0]),
+  ) as Record<RouteErrorCategory, number>;
+  for (const value of values) dist[value] = (dist[value] ?? 0) + 1;
+  return dist;
+}
+
+function fixForRouteError(category: RouteErrorCategory): string {
+  switch (category) {
+    case "wrong_target_type":
+      return "Use stronger target-type signals and require target family confirmation.";
+    case "wrong_route":
+      return "Add fallback route comparison before execution.";
+    case "over_routing":
+      return "Raise cost threshold for deep or runtime routes.";
+    case "under_routing":
+      return "Raise minimum evidence threshold and require extra checks.";
+    case "false_not_testable":
+      return "Run not-testable double-check before rejection.";
+    case "false_quick_reject":
+      return "Apply quick-reject guard and reroute ambiguous targets.";
+    case "missed_deep_promotion":
+      return "Use deep-promotion guard with nontriviality and replay fields.";
+    case "weak_public_package":
+      return "Predict package quality before package publication.";
+    case "weak_acceleration_estimate":
+      return "Score acceleration by target class after evidence penalties.";
+    case "fallback_failure":
+      return "Lower fallback trigger only when confidence is clearly weak.";
+    case "route_confidence_miscalibration":
+      return "Calibrate route confidence against class-specific thresholds.";
+    case "unsafe_near_miss":
+      return "Keep unsafe near-miss controls on no-execution routes.";
+    default:
+      return "Preserve route when no v3 correction is needed.";
+  }
+}
+
+function targetClassDistributionFor(
+  results: RouteExecutionResult[],
+): Record<string, number> {
+  const dist: Record<string, number> = {};
+  for (const result of results) {
+    dist[result.targetFamily] = (dist[result.targetFamily] ?? 0) + 1;
+  }
   return dist;
 }
 

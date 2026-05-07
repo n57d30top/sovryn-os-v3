@@ -173,6 +173,11 @@ Commands:
   sovryn route batch --input <file> [--json]
   sovryn route score [--json]
   sovryn route package [--json]
+  sovryn route errors [--json]
+  sovryn route calibrate-policy [--json]
+  sovryn route class-score [--json]
+  sovryn route compare-policy --from v2 --to v3 [--json]
+  sovryn route v3-audit [--json]
   sovryn route audit [--json]
   sovryn validate status [--json]
   sovryn validate candidate inspect [--json]
@@ -1542,7 +1547,7 @@ async function routeCommand(
   if (!subcommand) {
     throw new AppError(
       "ROUTE_COMMAND_REQUIRED",
-      "Use: sovryn route <status|intake|classify|plan|execute|batch|score|package|audit>.",
+      "Use: sovryn route <status|intake|classify|plan|execute|batch|score|package|errors|calibrate-policy|class-score|compare-policy|v3-audit|audit>.",
     );
   }
   const service = new CrossDomainEvidenceRoutingService(root);
@@ -1563,6 +1568,19 @@ async function routeCommand(
       return service.score();
     case "package":
       return service.package();
+    case "errors":
+      return service.errors();
+    case "calibrate-policy":
+      return service.calibratePolicy();
+    case "class-score":
+      return service.classScore();
+    case "compare-policy":
+      return service.comparePolicy(
+        requiredRoutePolicyVersion(parsed, "--from"),
+        requiredRoutePolicyVersion(parsed, "--to"),
+      );
+    case "v3-audit":
+      return service.v3Audit();
     case "audit":
       return service.audit();
     default:
@@ -1593,6 +1611,19 @@ function requiredRouteInput(parsed: ParsedArgs): string {
     );
   }
   return input;
+}
+
+function requiredRoutePolicyVersion(
+  parsed: ParsedArgs,
+  flag: "--from" | "--to",
+): "route_policy_v2" | "route_policy_v3" {
+  const value = flagString(parsed.flags, flag);
+  if (value === "v2" || value === "route_policy_v2") return "route_policy_v2";
+  if (value === "v3" || value === "route_policy_v3") return "route_policy_v3";
+  throw new AppError(
+    "ROUTE_POLICY_VERSION_REQUIRED",
+    `route compare-policy requires ${flag} v2|v3.`,
+  );
 }
 
 async function validateCommand(

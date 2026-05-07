@@ -836,6 +836,49 @@ test("discover-daemon notify-if-fund suppresses incomplete persisted candidate",
     (result.failedGates as string[]).includes("baseline_resistance"),
     true,
   );
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<Record<string, unknown>> };
+  assert.equal(graveyard.entries.length, 1);
+  assert.equal(
+    graveyard.entries[0]!.candidateId,
+    "FUND-externally_review_ready_candidate",
+  );
+  assert.equal(graveyard.entries[0]!.deathCause, "baseline_dominated");
+  assert.equal(graveyard.entries[0]!.noUserNotification, true);
+});
+
+test("discover-daemon rejected persisted candidate is tombstoned only once", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        holdoutSupported: false,
+        decisiveEvidenceReplayed: false,
+        proofOrMechanismPressureClear: false,
+      }),
+    ),
+    "utf8",
+  );
+  await service.notifyIfFund();
+  await service.notifyIfFund();
+  const status = await service.status();
+  const candidateStatus = await service.candidateStatus();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(candidateStatus.internalStatus, "killed_by_replay");
+  assert.equal(candidateStatus.deathCause, "no_replay_path");
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<Record<string, unknown>> };
+  assert.equal(graveyard.entries.length, 1);
+  assert.equal(graveyard.entries[0]!.deathCause, "no_replay_path");
+  assert.equal(graveyard.entries[0]!.noUserNotification, true);
 });
 
 test("discover-daemon run remains continue_searching without fund", async () => {

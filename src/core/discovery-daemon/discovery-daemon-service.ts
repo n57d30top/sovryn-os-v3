@@ -343,10 +343,16 @@ export class DeathCauseClassifier {
   statusForDeathCause(cause: DeathCause): DiscoveryDaemonInternalStatus {
     if (cause === "baseline_dominated") return "killed_by_baseline";
     if (cause === "counterexample_dense") return "killed_by_counterexample";
+    if (cause === "no_replay_path") return "killed_by_replay";
     if (cause === "unreplayed_decisive_claim") return "killed_by_replay";
     if (cause === "identity_drift") return "killed_by_identity_drift";
     if (cause === "known_trivial") return "killed_by_known_pattern";
     if (cause === "rival_theory_stronger") return "killed_by_rival_theory";
+    if (cause === "no_holdout_path") return "partial_signal";
+    if (cause === "holdout_not_supported") return "partial_signal";
+    if (cause === "not_externally_inspectable") return "partial_signal";
+    if (cause === "proof_or_mechanism_failed") return "partial_signal";
+    if (cause === "kill_week_fatal_attack") return "partial_signal";
     return "continue_searching";
   }
 }
@@ -858,6 +864,8 @@ export class AutonomousDiscoveryDaemonService {
     ).buildIfFund(result, candidate);
     if (result.passed && candidate) {
       await this.markFundFound(candidate);
+    } else if (candidate) {
+      await this.tombstoneRejectedFundCandidate(candidate, result);
     }
     return notification;
   }
@@ -1107,6 +1115,45 @@ export class AutonomousDiscoveryDaemonService {
       }),
     );
   }
+
+  private async tombstoneRejectedFundCandidate(
+    candidate: FundCandidate,
+    result: FundGateResult,
+  ): Promise<void> {
+    const existing = await this.readGraveyardEntries();
+    if (existing.some((entry) => entry.candidateId === candidate.candidateId)) {
+      return;
+    }
+    const deathCause = deathCauseFromRejectedFundCandidate(candidate, result);
+    const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
+    const state = await this.readState();
+    const cycleId =
+      state.lastCycleId ??
+      `candidate-review-${String(state.cycleCount).padStart(4, "0")}`;
+    await this.writeGraveyardEntries([
+      ...existing,
+      {
+        candidateId: candidate.candidateId,
+        domain: candidate.domain,
+        claim: candidate.claim,
+        status,
+        deathCause,
+        cycleId,
+        recordedAt: nowIso(),
+        noUserNotification: true,
+      },
+    ]);
+    await this.writeState(
+      withEvidenceHash({
+        ...state,
+        status: "continue_searching",
+        fundFound: false,
+        lastCandidateId: candidate.candidateId,
+        currentDomain: candidate.domain,
+        updatedAt: nowIso(),
+      }),
+    );
+  }
 }
 
 function gate(code: string, passed: boolean, message: string): FundGate {
@@ -1183,4 +1230,45 @@ function requiredDeathCauseSignals(): Array<{
       signals: { fatalKillWeekAttack: true },
     },
   ];
+}
+
+function deathCauseFromRejectedFundCandidate(
+  candidate: FundCandidate,
+  result: FundGateResult,
+): DeathCause {
+  if (result.passed) return "no_death_cause";
+  return new DeathCauseClassifier().classify({
+    identityDrift:
+      candidate.identityDriftDetected === true || !candidate.stableIdentity,
+    knownOrTrivial:
+      candidate.knownOrTrivial === true ||
+      candidate.renamedPriorIdea === true ||
+      !candidate.nontrivial,
+    baselineDominated:
+      candidate.baselineDominated === true ||
+      result.failedGates.includes("baseline_resistance"),
+    noHoldoutPath: !candidate.freshHoldoutsAfterFreeze,
+    noReplayPath: !candidate.decisiveEvidenceReplayed,
+    counterexampleDense:
+      candidate.counterexampleDense === true ||
+      result.failedGates.includes("counterexample_pressure"),
+    rivalTheoryStronger: result.failedGates.includes("rival_theory_pressure"),
+    notExternallyInspectable:
+      !candidate.paperExists ||
+      !candidate.methodExists ||
+      !candidate.claimEvidenceBindingsExists ||
+      !candidate.reproduceExists ||
+      !candidate.limitationsExists,
+    decisiveUnreplayedClaim:
+      candidate.decisiveUnreplayedClaims === true ||
+      !candidate.freshWorkspaceReplay,
+    holdoutUnsupported:
+      !candidate.holdoutSupported ||
+      result.failedGates.includes("holdout_support"),
+    proofOrMechanismFailed:
+      !candidate.proofOrMechanismPressureClear ||
+      candidate.fakeProofDetected === true,
+    fatalKillWeekAttack:
+      candidate.fatalUnresolvedAttack === true || !candidate.killWeekComplete,
+  });
 }

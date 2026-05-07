@@ -2470,8 +2470,9 @@ export class AutonomousDiscoveryDaemonService {
     }
     await this.notifyFromFundGateIfPassed(fund);
     fund = await this.readFundGate();
+    let packageScoutSummary: Record<string, unknown> | null = null;
     if (!fund.passed) {
-      await this.packageScout();
+      packageScoutSummary = await this.packageScout();
     }
     const operatorBoundedQuantum = options.maxCycles !== undefined;
     const maxCycles = options.maxCycles ?? daemonDefaultRunQuantum;
@@ -2498,6 +2499,7 @@ export class AutonomousDiscoveryDaemonService {
       lastCycleId: state.lastCycleId,
       lastCandidateId: state.lastCandidateId,
       latestCheckpointRef,
+      packageScoutSummary,
       fundGateStatus: {
         passed: fund.passed,
         fundLabel: fund.fundLabel,

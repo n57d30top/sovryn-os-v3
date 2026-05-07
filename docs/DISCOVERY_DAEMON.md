@@ -11,6 +11,7 @@ signals as success.
 node dist/cli.js discover-daemon init --json
 node dist/cli.js discover-daemon run --mode silent --until fund --json
 node dist/cli.js discover-daemon resume --json
+node dist/cli.js discover-daemon package-scout --json
 node dist/cli.js discover-daemon cycle --json
 node dist/cli.js discover-daemon status --json
 node dist/cli.js discover-daemon candidate-status --json

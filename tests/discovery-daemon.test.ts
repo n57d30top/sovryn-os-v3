@@ -2165,6 +2165,13 @@ test("discover-daemon run remains continue_searching without fund", async () => 
   assert.equal(run.daemonRunQuantum, 2);
   assert.equal(run.operatorBoundedQuantum, true);
   assert.equal(run.unboundedSearchIntent, false);
+  assert.equal(
+    (run.packageScoutSummary as any).kind,
+    "discovery_daemon_package_scout",
+  );
+  assert.equal((run.packageScoutSummary as any).scannedPackageCount, 0);
+  assert.equal((run.packageScoutSummary as any).stagedIntakeCount, 0);
+  assert.equal((run.packageScoutSummary as any).notificationSuppressed, true);
   assert.equal(run.cycleCount, 2);
   assert.equal(run.lastCycleId, "cycle-0002");
   assert.equal(

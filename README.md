@@ -206,6 +206,9 @@ frozen predictions, holdout support, replayed decisive evidence, rival-theory
 and counterexample pressure, proof or mechanism pressure, a completed kill week,
 and an external-review package with `PAPER.md`, `METHOD.md`,
 `CLAIM_EVIDENCE_BINDINGS.json`, `REPRODUCE.md`, and `LIMITATIONS.md`.
+Package-backed intake files under `.sovryn/discovery-daemon/candidate-intake/`
+are evaluated by the same gate and must bind `CLAIM_EVIDENCE_BINDINGS.json` to
+the exact candidate ID and exact claim.
 
 No Fund is currently claimed. The default daemon state remains
 `continue_searching` unless `discover-daemon fund-gate` confirms that every

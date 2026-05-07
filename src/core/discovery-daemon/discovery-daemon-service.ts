@@ -1,4 +1,11 @@
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { writeJson } from "../../shared/fs.js";
@@ -221,8 +228,16 @@ type FreshExternalSeedInstance = FreshExternalSeed & {
   candidateId: string;
 };
 
+type PackageBackedCandidateIntake = {
+  candidate: FundCandidate;
+  fileName: string;
+  fileRef: string;
+  publicPackagePath: string;
+};
+
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
+const candidateIntakeDir = "candidate-intake" as const;
 export const daemonDefaultRunQuantum = 25;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
@@ -2043,6 +2058,33 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
   );
 }
 
+function packageBackedCandidateIntakeCycleComplete(
+  cycle: Record<string, unknown>,
+): boolean {
+  const intake = cycle.packageBackedCandidateIntake as Record<
+    string,
+    unknown
+  > | null;
+  const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
+  const candidate = cycle.fundCandidate as Record<string, unknown> | null;
+  const packageRef = String(intake?.publicPackagePath ?? "");
+  return (
+    cycle.kind === "package_backed_candidate_intake_cycle" &&
+    typeof cycle.cycleId === "string" &&
+    typeof cycle.candidateId === "string" &&
+    typeof cycle.claim === "string" &&
+    Boolean(cycle.identityLedgerDecision) &&
+    candidate !== null &&
+    candidate.candidateId === cycle.candidateId &&
+    packageRef.length > 0 &&
+    !packageRef.startsWith("/") &&
+    !packageRef.includes("..") &&
+    !packageRef.includes("/Users/") &&
+    fundGate !== null &&
+    (fundGate.notificationAllowed === false || fundGate.passed === true)
+  );
+}
+
 function corpusSeedCandidateBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
@@ -2306,6 +2348,9 @@ export class AutonomousDiscoveryDaemonService {
     await mkdir(join(this.root, daemonArtifactRoot, "checkpoints"), {
       recursive: true,
     });
+    await mkdir(join(this.root, daemonArtifactRoot, candidateIntakeDir), {
+      recursive: true,
+    });
     const state = this.initialState();
     await this.writeState(state);
     await writeJson(
@@ -2348,6 +2393,7 @@ export class AutonomousDiscoveryDaemonService {
         `${daemonArtifactRoot}/candidate-identity-ledger.json`,
         `${daemonArtifactRoot}/graveyard.json`,
         `${daemonArtifactRoot}/fund-gate-results.json`,
+        `${daemonArtifactRoot}/${candidateIntakeDir}/`,
         `${daemonArtifactRoot}/DAEMON_REPORT.md`,
         `${daemonArtifactRoot}/LIMITATIONS.md`,
       ],
@@ -2433,6 +2479,15 @@ export class AutonomousDiscoveryDaemonService {
     const graveyard = new CandidateGraveyardService(
       await this.readGraveyardEntries(),
     );
+    const intake = await this.readNextPackageBackedCandidateIntake();
+    if (intake) {
+      return this.cyclePackageBackedCandidateIntake({
+        state,
+        ledger,
+        graveyard,
+        intake,
+      });
+    }
     const cycle = this.loopRunner.runCycle({
       state,
       ledger,
@@ -2488,6 +2543,114 @@ export class AutonomousDiscoveryDaemonService {
       state: nextState,
       cycle,
       graveyardSummary: graveyard.summary(),
+    });
+    await this.notifyFromFundGateIfPassed(fundGate);
+    return cycle;
+  }
+
+  private async cyclePackageBackedCandidateIntake(input: {
+    state: DiscoveryDaemonState;
+    ledger: CandidateIdentityLedger;
+    graveyard: CandidateGraveyardService;
+    intake: PackageBackedCandidateIntake;
+  }): Promise<Record<string, unknown>> {
+    const cycleId = `cycle-${String(input.state.cycleCount + 1).padStart(4, "0")}`;
+    const identity = input.ledger.register({
+      candidateId: input.intake.candidate.candidateId,
+      claim: input.intake.candidate.claim,
+    });
+    const candidate: FundCandidate = identity.accepted
+      ? input.intake.candidate
+      : {
+          ...input.intake.candidate,
+          stableIdentity: false,
+          identityDriftDetected: true,
+        };
+    const fundGate = await this.evaluateFundCandidateWithPackage(candidate);
+    const deathCause = fundGate.passed
+      ? "no_death_cause"
+      : deathCauseFromRejectedFundCandidate(candidate, fundGate);
+    const internalStatus = new DeathCauseClassifier().statusForDeathCause(
+      deathCause,
+    );
+    if (!fundGate.passed) {
+      input.graveyard.add({
+        candidateId: candidate.candidateId,
+        domain: candidate.domain,
+        claim: candidate.claim,
+        status: internalStatus,
+        deathCause,
+        cycleId,
+        recordedAt: nowIso(),
+        noUserNotification: true,
+      });
+    }
+    const cycle = withEvidenceHash({
+      kind: "package_backed_candidate_intake_cycle",
+      cycleId,
+      domain: candidate.domain,
+      candidateId: candidate.candidateId,
+      claim: candidate.claim,
+      packageBackedCandidateIntake: {
+        fileRef: input.intake.fileRef,
+        publicPackagePath: input.intake.publicPackagePath,
+        packagePathRequired: true,
+        packageFilesRequired: [
+          "PAPER.md",
+          "METHOD.md",
+          "CLAIM_EVIDENCE_BINDINGS.json",
+          "REPRODUCE.md",
+          "LIMITATIONS.md",
+        ],
+      },
+      identityLedgerDecision: identity,
+      fundCandidate: candidate,
+      fundGateEvaluation: fundGate,
+      deathCause,
+      internalStatus,
+      fundGatePassed: fundGate.passed,
+      notificationSuppressed: !fundGate.passed,
+      nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
+      cycle,
+    );
+    await this.writeLedgerRecords(input.ledger.entries());
+    await this.writeGraveyardEntries(input.graveyard.all());
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
+      fundGate,
+    );
+    if (fundGate.passed) {
+      await this.writeFundCandidate(candidate);
+    } else {
+      await removeIfExists(
+        join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+      );
+      await removeIfExists(
+        join(this.root, daemonArtifactRoot, fundCandidateFile),
+      );
+    }
+    await removeIfExists(join(this.root, input.intake.fileRef));
+    const nextState: DiscoveryDaemonState = withEvidenceHash({
+      kind: "discovery_daemon_state" as const,
+      status: "continue_searching" as const,
+      fundFound: fundGate.passed,
+      cycleCount: input.state.cycleCount + 1,
+      lastCycleId: cycleId,
+      lastCandidateId: candidate.candidateId,
+      currentDomain: candidate.domain,
+      silentMode: true as const,
+      notifyOnlyOnFund: true as const,
+      updatedAt: nowIso(),
+      artifactRoot: daemonArtifactRoot,
+    });
+    await this.writeState(nextState);
+    await new SearchStateCheckpointService(this.root).writeCheckpoint(cycleId, {
+      state: nextState,
+      cycle,
+      graveyardSummary: input.graveyard.summary(),
     });
     await this.notifyFromFundGateIfPassed(fundGate);
     return cycle;
@@ -2550,6 +2713,17 @@ export class AutonomousDiscoveryDaemonService {
 
   private async refreshFundGateFromCandidate(): Promise<FundGateResult> {
     const candidate = await this.readFundCandidate();
+    const result = await this.evaluateFundCandidateWithPackage(candidate);
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
+      result,
+    );
+    return result;
+  }
+
+  private async evaluateFundCandidateWithPackage(
+    candidate: FundCandidate | null,
+  ): Promise<FundGateResult> {
     const semanticResult = new FundGateEvaluator().evaluate(candidate);
     const packageGates =
       candidate === null
@@ -2570,10 +2744,6 @@ export class AutonomousDiscoveryDaemonService {
         .map((item) => item.code),
       notificationAllowed: passed,
     });
-    await writeJson(
-      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
-      result,
-    );
     return result;
   }
 
@@ -2645,6 +2815,9 @@ export class AutonomousDiscoveryDaemonService {
           ),
         )
       : null;
+    const latestCycleIsPackageBacked =
+      latestCycle !== null &&
+      packageBackedCandidateIntakeCycleComplete(latestCycle);
     const deathCauseCoverage = requiredDeathCauseSignals().every(
       (item) =>
         new DeathCauseClassifier().classify(item.signals) === item.cause &&
@@ -2721,12 +2894,15 @@ export class AutonomousDiscoveryDaemonService {
       gate(
         "search_cycle_pipeline_complete",
         state.cycleCount === 0 ||
-          (latestCycle !== null && searchCyclePipelineComplete(latestCycle)),
+          (latestCycle !== null &&
+            (searchCyclePipelineComplete(latestCycle) ||
+              latestCycleIsPackageBacked)),
         "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
       ),
       gate(
         "corpus_seed_candidate_binding",
         state.cycleCount === 0 ||
+          latestCycleIsPackageBacked ||
           (latestCycle !== null &&
             corpusSeedCandidateBindingValid(latestCycle)),
         "When corpus seeds are available, the latest daemon cycle must bind candidate ideas to a concrete public corpus seed instead of using only generic synthetic claims.",
@@ -2734,6 +2910,7 @@ export class AutonomousDiscoveryDaemonService {
       gate(
         "corpus_seed_graveyard_reuse_blocked",
         state.cycleCount === 0 ||
+          latestCycleIsPackageBacked ||
           (latestCycle !== null &&
             corpusSeedGraveyardReuseBlocked(latestCycle)),
         "After bootstrap rejection coverage, the daemon must not keep reusing a corpus seed whose candidate ID is already in the internal graveyard while untried seeds remain.",
@@ -2741,12 +2918,14 @@ export class AutonomousDiscoveryDaemonService {
       gate(
         "fresh_external_seed_binding",
         state.cycleCount === 0 ||
+          latestCycleIsPackageBacked ||
           (latestCycle !== null && freshExternalSeedBindingValid(latestCycle)),
         "After corpus seeds are exhausted, daemon fallback candidates must bind to concrete safe public fresh external targets before generic fallback.",
       ),
       gate(
         "fresh_targets_public_safe",
         state.cycleCount === 0 ||
+          latestCycleIsPackageBacked ||
           (latestCycle !== null &&
             freshTargetsPublicSafe(latestCycle.freshTargets)),
         "Fresh daemon targets must bind to public corpus references and must not use placeholders, local paths, private data, unsafe scope, or raw public logs.",
@@ -2872,6 +3051,43 @@ export class AutonomousDiscoveryDaemonService {
     if (!candidate) return null;
     if ("candidate" in candidate) return candidate.candidate;
     return candidate;
+  }
+
+  private async readNextPackageBackedCandidateIntake(): Promise<PackageBackedCandidateIntake | null> {
+    const intakeRoot = join(this.root, daemonArtifactRoot, candidateIntakeDir);
+    let files: string[];
+    try {
+      files = await readdir(intakeRoot);
+    } catch {
+      return null;
+    }
+    const jsonFiles = files
+      .filter((file) => file.endsWith(".json"))
+      .sort((left, right) => left.localeCompare(right));
+    for (const fileName of jsonFiles) {
+      const fileRef = `${daemonArtifactRoot}/${candidateIntakeDir}/${fileName}`;
+      const row = await readOptionalJson<
+        FundCandidate | { candidate: FundCandidate }
+      >(join(this.root, fileRef));
+      const candidate =
+        row && "candidate" in row
+          ? row.candidate
+          : isFundCandidate(row)
+            ? row
+            : null;
+      if (!candidate) {
+        await removeIfExists(join(this.root, fileRef));
+        continue;
+      }
+      const publicPackagePath = candidate.publicPackagePath ?? "";
+      return {
+        candidate,
+        fileName,
+        fileRef,
+        publicPackagePath,
+      };
+    }
+    return null;
   }
 
   private async writeFundCandidate(candidate: FundCandidate): Promise<void> {
@@ -3003,6 +3219,24 @@ async function fundPackageArtifactGates(
       ),
     ),
   );
+  const packageTextGates = await Promise.all(
+    requiredFiles
+      .filter((file) => file.endsWith(".md"))
+      .map(async (file) =>
+        gate(
+          `external_review_package_public_safe_${file}`,
+          pathSafe && (await publicSafePackageText(root, packageRef, file)),
+          `${file} must be non-empty and must not contain local absolute paths.`,
+        ),
+      ),
+  );
+  const bindings = pathSafe
+    ? await readOptionalJson<Record<string, unknown>>(
+        join(root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json"),
+      )
+    : null;
+  const bindingsCandidateId = String(bindings?.candidateId ?? "");
+  const bindingsClaim = String(bindings?.claim ?? "");
   return [
     gate(
       "external_review_package_path",
@@ -3010,7 +3244,31 @@ async function fundPackageArtifactGates(
       "Fund notification requires a relative, public-safe external-review package path.",
     ),
     ...fileGates,
+    ...packageTextGates,
+    gate(
+      "external_review_package_candidate_binding",
+      bindingsCandidateId === candidate.candidateId,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind to the exact candidate ID.",
+    ),
+    gate(
+      "external_review_package_claim_binding",
+      bindingsClaim === candidate.claim,
+      "CLAIM_EVIDENCE_BINDINGS.json must bind to the exact candidate claim.",
+    ),
   ];
+}
+
+async function publicSafePackageText(
+  root: string,
+  packageRef: string,
+  file: string,
+): Promise<boolean> {
+  try {
+    const text = await readFile(join(root, packageRef, file), "utf8");
+    return text.trim().length > 0 && !text.includes("/Users/");
+  } catch {
+    return false;
+  }
 }
 
 function nowIso(): string {

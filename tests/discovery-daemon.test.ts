@@ -120,6 +120,7 @@ async function exists(path: string): Promise<boolean> {
 async function writeFundPackage(
   root: string,
   candidateId = "FUND-externally_review_ready_candidate",
+  claim = "A stable bounded computational claim with preregistered predictions, holdout support, replay, and external review package artifacts.",
 ): Promise<string> {
   const packageRef = `${daemonRoot}/fund-packages/${candidateId}`;
   const packageRoot = join(root, packageRef);
@@ -139,6 +140,7 @@ async function writeFundPackage(
     JSON.stringify({
       kind: "claim_evidence_bindings",
       candidateId,
+      claim,
       noOverclaim: true,
     }),
     "utf8",
@@ -1606,6 +1608,41 @@ test("discover-daemon fund-gate rejects package-less otherwise passing candidate
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon fund-gate rejects package with mismatched claim bindings", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const publicPackagePath = await writeFundPackage(
+    root,
+    "DIFFERENT-CANDIDATE",
+    "A different claim that must not bind to this candidate.",
+  );
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+  const result = await service.fundGate();
+  assert.equal(result.passed, false);
+  assert.equal(result.status, "continue_searching");
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_candidate_binding",
+    ),
+    true,
+  );
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_claim_binding",
+    ),
+    true,
+  );
+});
+
 test("discover-daemon audit fails if stale fund candidate file remains without fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1682,6 +1719,79 @@ test("discover-daemon run notifies immediately for a persisted passing fund cand
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
   const status = await service.status();
   assert.equal(status.fundFound, true);
+});
+
+test("discover-daemon cycle promotes package-backed intake only when Fund Gate passes", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const publicPackagePath = await writeFundPackage(
+    root,
+    candidate.candidateId,
+    candidate.claim,
+  );
+  await writeFile(
+    join(root, daemonRoot, "candidate-intake", "001-candidate.json"),
+    JSON.stringify({
+      candidate: {
+        ...candidate,
+        publicPackagePath,
+      },
+    }),
+    "utf8",
+  );
+  const cycle = await service.cycle();
+  assert.equal(cycle.kind, "package_backed_candidate_intake_cycle");
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(cycle.notificationSuppressed, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    true,
+  );
+  const status = await service.status();
+  assert.equal(status.fundFound, true);
+  assert.equal(status.lastCandidateId, candidate.candidateId);
+  const audit = await service.audit();
+  assert.equal(audit.passed, true);
+});
+
+test("discover-daemon cycle tombstones package-backed intake when package gates fail", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  await writeFile(
+    join(root, daemonRoot, "candidate-intake", "001-candidate.json"),
+    JSON.stringify({ candidate }),
+    "utf8",
+  );
+  const cycle = await service.cycle();
+  assert.equal(cycle.kind, "package_backed_candidate_intake_cycle");
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(cycle.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(
+    await exists(
+      join(root, daemonRoot, "candidate-intake", "001-candidate.json"),
+    ),
+    false,
+  );
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  assert.equal(status.lastCandidateId, candidate.candidateId);
+  const graveyard = await service.graveyard();
+  assert.equal(graveyard.entryCount, 1);
+  assert.equal(
+    (graveyard.byCause as Record<string, number>).not_externally_inspectable,
+    1,
+  );
 });
 
 test("discover-daemon cycle persists generated fund candidate only after Fund Gate pass", async () => {

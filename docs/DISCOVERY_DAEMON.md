@@ -62,6 +62,22 @@ If any major gate fails, the daemon must persist the candidate internally and
 continue searching. It must not create or keep `FUND_FOUND.md` or a live
 fund-candidate artifact for a failed candidate.
 
+## Package-Backed Candidate Intake
+
+The daemon can evaluate package-backed candidate intake files from:
+
+- `.sovryn/discovery-daemon/candidate-intake/*.json`
+
+Each intake file must contain a `FundCandidate` or `{ "candidate": ... }`.
+The candidate must point to a relative `publicPackagePath`, and that package
+must contain the required review files. `CLAIM_EVIDENCE_BINDINGS.json` must bind
+to the exact candidate ID and exact claim. A candidate without those bindings is
+tombstoned internally and cannot notify.
+
+This intake path is not a shortcut around discovery validation. It only allows
+the daemon to evaluate already packaged evidence against the same strict Fund
+Gate used by `discover-daemon fund-gate` and `notify-if-fund`.
+
 ## State Artifacts
 
 Daemon state is local and internal by default:
@@ -69,6 +85,7 @@ Daemon state is local and internal by default:
 - `.sovryn/discovery-daemon/state.json`
 - `.sovryn/discovery-daemon/candidate-identity-ledger.json`
 - `.sovryn/discovery-daemon/graveyard.json`
+- `.sovryn/discovery-daemon/candidate-intake/`
 - `.sovryn/discovery-daemon/search-cycles/`
 - `.sovryn/discovery-daemon/checkpoints/`
 - `.sovryn/discovery-daemon/fund-gate-results.json`

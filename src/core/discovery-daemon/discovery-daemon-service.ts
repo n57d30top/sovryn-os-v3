@@ -2534,10 +2534,24 @@ export class AutonomousDiscoveryDaemonService {
     const checkpointRef = await new SearchStateCheckpointService(
       this.root,
     ).latestCheckpointRef();
+    const checkpoint = checkpointRef
+      ? await readOptionalJson<{
+          state?: Partial<DiscoveryDaemonState>;
+          cycle?: { cycleId?: string; candidateId?: string };
+        }>(join(this.root, checkpointRef))
+      : null;
+    const checkpointState = checkpoint?.state ?? null;
     return withEvidenceHash({
       kind: "discovery_daemon_resume",
       status: "continue_searching",
       checkpointRef,
+      checkpointCycleCount: checkpointState?.cycleCount ?? null,
+      checkpointLastCycleId: checkpointState?.lastCycleId ?? null,
+      checkpointLastCandidateId: checkpointState?.lastCandidateId ?? null,
+      checkpointCurrentDomain: checkpointState?.currentDomain ?? null,
+      checkpointFundFound: checkpointState?.fundFound ?? null,
+      checkpointCycleId: checkpoint?.cycle?.cycleId ?? null,
+      checkpointCandidateId: checkpoint?.cycle?.candidateId ?? null,
       notificationSuppressed: true,
       artifactRefs: checkpointRef
         ? [checkpointRef]

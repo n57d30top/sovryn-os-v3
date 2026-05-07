@@ -937,6 +937,11 @@ test("discover-daemon resume points at latest checkpoint", async () => {
     resume.checkpointRef,
     `${daemonRoot}/checkpoints/cycle-0001.json`,
   );
+  assert.equal(resume.checkpointCycleCount, 1);
+  assert.equal(resume.checkpointLastCycleId, "cycle-0001");
+  assert.equal(resume.checkpointCycleId, "cycle-0001");
+  assert.equal(typeof resume.checkpointLastCandidateId, "string");
+  assert.equal(resume.checkpointFundFound, false);
 });
 
 test("discover-daemon audit passes after init", async () => {

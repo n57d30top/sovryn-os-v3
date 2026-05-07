@@ -63,6 +63,18 @@ test("corpus site build creates results api", async () => {
   await access(join(targetRepo, "public-corpus", "api", "results.json"));
 });
 
+test("corpus site build keeps bulky result prose out of aggregate APIs", async () => {
+  const { targetRepo } = await productFixture();
+  const api: any = await readJson(
+    join(targetRepo, "public-corpus", "api", "results.json"),
+  );
+  assert.equal(typeof api.results[0].humanReadableSummary, "string");
+  assert.equal("summary" in api.results[0], false);
+  assert.equal("limitations" in api.results[0], false);
+  assert.equal("badges" in api.results[0], false);
+  assert.equal("scientificQuestion" in api.results[0], false);
+});
+
 test("corpus site build creates sources api", async () => {
   const { targetRepo } = await productFixture();
   await access(join(targetRepo, "public-corpus", "api", "sources.json"));

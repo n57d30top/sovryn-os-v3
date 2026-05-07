@@ -71,6 +71,20 @@ type PublicResultCard = {
   showcaseDocumentation: ShowcaseDocumentation;
 };
 
+type PublicResultExportCard = Omit<
+  PublicResultCard,
+  "summary" | "limitations" | "badges" | "scientificQuestion"
+>;
+
+type PublicCorpusExportModel = Omit<
+  PublicCorpusModel,
+  "results" | "showcaseResults" | "scienceShowcaseResults"
+> & {
+  results: PublicResultExportCard[];
+  showcaseResults: PublicResultExportCard[];
+  scienceShowcaseResults: PublicResultExportCard[];
+};
+
 type ShowcaseDocumentation = {
   readme: boolean;
   showcase: boolean;
@@ -138,12 +152,13 @@ export class CorpusProductService {
     await mkdir(join(siteRoot, "api"), { recursive: true });
     await mkdir(join(siteRoot, "badges"), { recursive: true });
     await mkdir(join(siteRoot, "results"), { recursive: true });
-    await writeJson(join(siteRoot, "corpus.json"), model);
+    const publicExportModel = toPublicCorpusExportModel(model);
+    await writeJson(join(siteRoot, "corpus.json"), publicExportModel);
     await writeJson(join(siteRoot, "results.json"), {
       kind: "public_corpus_results",
       generatedAt: model.generatedAt,
-      results: model.results,
-      evidenceHash: hashEvidence(model.results),
+      results: publicExportModel.results,
+      evidenceHash: hashEvidence(publicExportModel.results),
     });
     await writeJson(join(siteRoot, "quality.json"), {
       kind: "public_corpus_quality",
@@ -197,8 +212,8 @@ export class CorpusProductService {
     );
     await writeJson(join(siteRoot, "api", "results.json"), {
       kind: "public_corpus_api_results",
-      results: model.results,
-      evidenceHash: hashEvidence(model.results),
+      results: publicExportModel.results,
+      evidenceHash: hashEvidence(publicExportModel.results),
     });
     await writeJson(join(siteRoot, "api", "sources.json"), {
       kind: "public_corpus_api_sources",
@@ -847,6 +862,40 @@ async function buildPublicCorpusModel(
     disclaimer: CORPUS_DISCLAIMER,
     evidenceHash: "",
   });
+}
+
+function toPublicCorpusExportModel(
+  model: PublicCorpusModel,
+): PublicCorpusExportModel {
+  return {
+    ...model,
+    results: model.results.map(toPublicResultExportCard),
+    showcaseResults: model.showcaseResults.map(toPublicResultExportCard),
+    scienceShowcaseResults: model.scienceShowcaseResults.map(
+      toPublicResultExportCard,
+    ),
+    evidenceHash: hashEvidence({
+      ...model,
+      results: model.results.map(toPublicResultExportCard),
+      showcaseResults: model.showcaseResults.map(toPublicResultExportCard),
+      scienceShowcaseResults: model.scienceShowcaseResults.map(
+        toPublicResultExportCard,
+      ),
+      evidenceHash: "",
+    }),
+  };
+}
+
+function toPublicResultExportCard(
+  card: PublicResultCard,
+): PublicResultExportCard {
+  const { summary, limitations, badges, scientificQuestion, ...exportCard } =
+    card;
+  void summary;
+  void limitations;
+  void badges;
+  void scientificQuestion;
+  return exportCard;
 }
 
 async function readResultCard(

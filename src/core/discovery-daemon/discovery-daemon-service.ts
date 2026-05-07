@@ -2127,6 +2127,26 @@ function latestCycleFundGateStateConsistent(
   );
 }
 
+function searchCycleFundGateRecordConsistent(
+  cycle: Record<string, unknown>,
+  stateFundFound: boolean,
+  latestCycleId: string | null,
+): boolean {
+  const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
+  const cycleFundGatePassed = cycle.fundGatePassed === true;
+  const effectiveFundGatePassed = fundGate?.passed === true;
+  if (cycleFundGatePassed !== effectiveFundGatePassed) return false;
+  if (!cycleFundGatePassed) return true;
+  const packageGateApplied = cycle.packageGateApplied === true;
+  const packageBacked = packageBackedCandidateIntakeCycleComplete(cycle);
+  return (
+    stateFundFound &&
+    String(cycle.cycleId) === latestCycleId &&
+    (packageGateApplied || packageBacked) &&
+    cycle.notificationSuppressed !== true
+  );
+}
+
 function corpusSeedCandidateBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
@@ -3018,6 +3038,18 @@ export class AutonomousDiscoveryDaemonService {
           ),
         )
       : null;
+    const searchCycleFundGateInconsistencies = (
+      await this.readSearchCycleRecords()
+    )
+      .filter(
+        (cycle) =>
+          !searchCycleFundGateRecordConsistent(
+            cycle,
+            state.fundFound,
+            state.lastCycleId,
+          ),
+      )
+      .map((cycle) => String(cycle.cycleId ?? "unknown"));
     const latestCycleIsPackageBacked =
       latestCycle !== null &&
       packageBackedCandidateIntakeCycleComplete(latestCycle);
@@ -3115,6 +3147,11 @@ export class AutonomousDiscoveryDaemonService {
           (latestCycle !== null &&
             latestCycleFundGateStateConsistent(latestCycle, state.fundFound)),
         "Latest cycle Fund Gate status must match the effective persisted Fund state after package gates; semantic preflight alone must not look like a Fund.",
+      ),
+      gate(
+        "search_cycle_fund_gate_consistency",
+        searchCycleFundGateInconsistencies.length === 0,
+        `Search cycle records must not preserve package-less or stale Fund Gate pass markers. Inconsistent cycles: ${searchCycleFundGateInconsistencies.slice(0, 5).join(", ") || "none"}.`,
       ),
       gate(
         "corpus_seed_candidate_binding",
@@ -3255,6 +3292,26 @@ export class AutonomousDiscoveryDaemonService {
       join(this.root, daemonArtifactRoot, "graveyard.json"),
     );
     return graveyard?.entries ?? [];
+  }
+
+  private async readSearchCycleRecords(): Promise<
+    Array<Record<string, unknown>>
+  > {
+    const cycleRoot = join(this.root, daemonArtifactRoot, "search-cycles");
+    let files: string[];
+    try {
+      files = await readdir(cycleRoot);
+    } catch {
+      return [];
+    }
+    const cycles = await Promise.all(
+      files
+        .filter((file) => file.endsWith(".json"))
+        .map((file) =>
+          readOptionalJson<Record<string, unknown>>(join(cycleRoot, file)),
+        ),
+    );
+    return cycles.filter(isRecord);
   }
 
   private async writeGraveyardEntries(

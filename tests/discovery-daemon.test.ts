@@ -1115,6 +1115,35 @@ test("discover-daemon audit fails if latest cycle claims fund without persisted 
   assert.equal(failed.includes("effective_fund_gate_consistency"), true);
 });
 
+test("discover-daemon audit fails if any historical cycle preserves a package-less Fund pass", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 2,
+  });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0001.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    any
+  >;
+  cycle.fundGatePassed = true;
+  cycle.fundGateEvaluation = {
+    ...cycle.fundGateEvaluation,
+    passed: true,
+    notificationAllowed: true,
+  };
+  delete cycle.packageGateApplied;
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("search_cycle_fund_gate_consistency"), true);
+});
+
 test("discover-daemon audit fails if fresh target references use placeholders", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

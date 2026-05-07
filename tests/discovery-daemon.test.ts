@@ -117,6 +117,45 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+async function writeFundPackage(
+  root: string,
+  candidateId = "FUND-externally_review_ready_candidate",
+): Promise<string> {
+  const packageRef = `${daemonRoot}/fund-packages/${candidateId}`;
+  const packageRoot = join(root, packageRef);
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(
+    join(packageRoot, "PAPER.md"),
+    "# Fund Candidate\n\nBounded candidate package for external expert review.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    "# Method\n\nPreregistered predictions, holdouts, counterexamples, replay, and kill-week review.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    JSON.stringify({
+      kind: "claim_evidence_bindings",
+      candidateId,
+      noOverclaim: true,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "REPRODUCE.md"),
+    "# Reproduce\n\nUse the bounded package commands and public-safe evidence receipts.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "# Limitations\n\nNo external validation, no Nobel claim, no breakthrough claim.\n",
+    "utf8",
+  );
+  return packageRef;
+}
+
 for (const command of commands) {
   test(`CLI help lists discover-daemon ${command}`, async () => {
     const response = await executeCli(["help", "--json"]);
@@ -1438,9 +1477,14 @@ test("discover-daemon fund-gate evaluates persisted fund candidate", async () =>
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
+  const publicPackagePath = await writeFundPackage(root);
   await writeFile(
     join(root, daemonRoot, "fund-candidate.json"),
-    JSON.stringify(fundCandidate()),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
     "utf8",
   );
   const result = await service.fundGate();
@@ -1450,13 +1494,38 @@ test("discover-daemon fund-gate evaluates persisted fund candidate", async () =>
   assert.deepEqual(result.failedGates, []);
 });
 
-test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing candidate", async () => {
+test("discover-daemon fund-gate rejects package-less otherwise passing candidate", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
   await writeFile(
     join(root, daemonRoot, "fund-candidate.json"),
     JSON.stringify(fundCandidate()),
+    "utf8",
+  );
+  const result = await service.fundGate();
+  assert.equal(result.passed, false);
+  assert.equal(result.status, "continue_searching");
+  assert.equal(result.notificationAllowed, false);
+  assert.equal(
+    (result.failedGates as string[]).includes("external_review_package_path"),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon notify-if-fund writes FUND_FOUND for persisted passing candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const publicPackagePath = await writeFundPackage(root);
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
     "utf8",
   );
   const notification = await service.notifyIfFund();
@@ -1475,9 +1544,14 @@ test("discover-daemon run notifies immediately for a persisted passing fund cand
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
+  const publicPackagePath = await writeFundPackage(root);
   await writeFile(
     join(root, daemonRoot, "fund-candidate.json"),
-    JSON.stringify(fundCandidate()),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
     "utf8",
   );
   const run = await service.run({
@@ -1495,7 +1569,10 @@ test("discover-daemon run notifies immediately for a persisted passing fund cand
 
 test("discover-daemon cycle persists generated fund candidate only after Fund Gate pass", async () => {
   const root = await tempRoot();
-  const candidate = fundCandidate();
+  const publicPackagePath = await writeFundPackage(root);
+  const candidate = fundCandidate("externally_review_ready_candidate", {
+    publicPackagePath,
+  });
   const runner = {
     runCycle: () => ({
       kind: "silent_search_cycle",

@@ -2434,7 +2434,26 @@ export class AutonomousDiscoveryDaemonService {
 
   private async refreshFundGateFromCandidate(): Promise<FundGateResult> {
     const candidate = await this.readFundCandidate();
-    const result = new FundGateEvaluator().evaluate(candidate);
+    const semanticResult = new FundGateEvaluator().evaluate(candidate);
+    const packageGates =
+      candidate === null
+        ? []
+        : await fundPackageArtifactGates(this.root, candidate);
+    const gates = [...semanticResult.gates, ...packageGates];
+    const passed =
+      semanticResult.passed && packageGates.every((item) => item.passed);
+    const result: FundGateResult = withEvidenceHash({
+      kind: "fund_gate_result",
+      candidateId: semanticResult.candidateId,
+      passed,
+      status: passed ? "FUND_FOUND" : "continue_searching",
+      fundLabel: passed ? semanticResult.fundLabel : null,
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      notificationAllowed: passed,
+    });
     await writeJson(
       join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
       result,
@@ -2825,6 +2844,44 @@ function gate(code: string, passed: boolean, message: string): FundGate {
   return { code, passed, message };
 }
 
+async function fundPackageArtifactGates(
+  root: string,
+  candidate: FundCandidate,
+): Promise<FundGate[]> {
+  const packageRef = candidate.publicPackagePath ?? "";
+  const pathSafe =
+    packageRef.length > 0 &&
+    !packageRef.startsWith("/") &&
+    !packageRef.includes("..") &&
+    !packageRef.includes("\\") &&
+    !packageRef.includes("/Users/") &&
+    !packageRef.toLowerCase().startsWith("file:");
+  const requiredFiles = [
+    "PAPER.md",
+    "METHOD.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+  ];
+  const fileGates = await Promise.all(
+    requiredFiles.map(async (file) =>
+      gate(
+        `external_review_package_file_${file}`,
+        pathSafe && (await exists(join(root, packageRef, file))),
+        `Fund notification requires ${file} in the candidate external-review package.`,
+      ),
+    ),
+  );
+  return [
+    gate(
+      "external_review_package_path",
+      pathSafe,
+      "Fund notification requires a relative, public-safe external-review package path.",
+    ),
+    ...fileGates,
+  ];
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -2928,6 +2985,9 @@ function deathCauseFromRejectedFundCandidate(
     rivalTheoryStronger: result.failedGates.includes("rival_theory_pressure"),
     notExternallyInspectable:
       result.failedGates.includes("high_impact_domain") ||
+      result.failedGates.some((code) =>
+        code.startsWith("external_review_package_"),
+      ) ||
       !candidate.paperExists ||
       !candidate.methodExists ||
       !candidate.claimEvidenceBindingsExists ||

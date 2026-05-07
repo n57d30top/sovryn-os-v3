@@ -170,7 +170,7 @@ Commands:
   sovryn nobel-readiness audit [--json]
   sovryn discover-daemon status [--json]
   sovryn discover-daemon init [--json]
-  sovryn discover-daemon run --mode silent --until fund [--json]
+  sovryn discover-daemon run --mode silent --until fund [--max-cycles N] [--json]
   sovryn discover-daemon resume [--json]
   sovryn discover-daemon cycle [--json]
   sovryn discover-daemon candidate-status [--json]
@@ -1620,7 +1620,9 @@ async function discoverDaemonCommand(
       return service.run({
         mode: "silent",
         until: "fund",
-        maxCycles: flagInt(parsed.flags, "--max-cycles", 1),
+        maxCycles: parsed.flags.has("--max-cycles")
+          ? flagInt(parsed.flags, "--max-cycles", 1)
+          : undefined,
       });
     }
     case "resume":

@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { writeJson } from "../../shared/fs.js";
@@ -196,6 +196,7 @@ type CorpusSeed = {
 
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
+export const daemonDefaultRunQuantum = 25;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
 const objectiveRejectionCoverageMinimumCycles = 11;
@@ -489,7 +490,8 @@ export class FundGateEvaluator {
         "high_impact_domain",
         candidate.highImpactDomain &&
           candidate.plausibleScientificValue &&
-          candidate.notToolReportProcessOnly,
+          candidate.notToolReportProcessOnly &&
+          !isInternalProcessOrCorpusMetaClaim(candidate),
         "Candidate must be safe, high-impact, and not merely a tool/report/process improvement.",
       ),
       gate(
@@ -859,11 +861,12 @@ function deathCauseForCycle(
     cycleCount >= objectiveRejectionCoverageMinimumCycles && corpusSeed
       ? deathCauseFromCorpusSeed(corpusSeed)
       : null;
+  const baseSignals = corpusSeedCause
+    ? deathCauseSignalsFor(corpusSeedCause)
+    : scheduledSignals[cycleCount % scheduledSignals.length]!;
   return new DeathCauseClassifier().classify({
-    ...(corpusSeedCause
-      ? deathCauseSignalsFor(corpusSeedCause)
-      : scheduledSignals[cycleCount % scheduledSignals.length]),
-    identityDrift: !identity.accepted,
+    ...baseSignals,
+    identityDrift: baseSignals.identityDrift === true || !identity.accepted,
   });
 }
 
@@ -962,6 +965,45 @@ function corpusSeedClaim(seed: CorpusSeed): string {
     return `Corpus-seeded candidate from ${seed.slug}: ${summary}`;
   }
   return `Corpus-seeded candidate from ${seed.slug}: ${seed.title}`;
+}
+
+function isInternalProcessOrCorpusMetaClaim(candidate: FundCandidate): boolean {
+  const combined = [candidate.candidateId, candidate.claim, candidate.domain]
+    .join(" ")
+    .toLowerCase();
+  return [
+    "corpus-seeded candidate from",
+    "candidate identity",
+    "identity conflict",
+    "death-gate",
+    "later promotion",
+    "candidate forensics",
+    "route policy",
+    "package quality",
+    "search index",
+    "readiness pipeline",
+    "roadmap",
+    "stage01",
+    "stage02",
+    "stage03",
+    "stage04",
+    "stage05",
+    "stage06",
+    "stage07",
+    "stage08",
+    "stage09",
+    "stage10",
+    "stage11",
+    "stage12",
+    "stage13",
+    "stage14",
+    "stage15",
+    "stage16",
+    "stage17",
+    "stage18",
+    "stage19",
+    "stage20",
+  ].some((marker) => combined.includes(marker));
 }
 
 function buildAnomalyFamilies(input: {
@@ -1202,7 +1244,7 @@ function fundCandidateFromCycle(input: {
   proofOrMechanismPressure: Record<string, unknown>;
   killWeek: Record<string, unknown>;
 }): FundCandidate {
-  return {
+  const candidate: FundCandidate = {
     candidateId: input.candidateId,
     claim: input.claim,
     domain: input.domain,
@@ -1254,6 +1296,15 @@ function fundCandidateFromCycle(input: {
     limitationsExists: input.deathCause !== "not_externally_inspectable",
     noOverclaim: true,
   };
+  if (isInternalProcessOrCorpusMetaClaim(candidate)) {
+    return {
+      ...candidate,
+      highImpactDomain: false,
+      plausibleScientificValue: false,
+      notToolReportProcessOnly: false,
+    };
+  }
+  return candidate;
 }
 
 function countBy<T extends Record<string, unknown>>(
@@ -1485,7 +1536,7 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     Boolean(killWeek?.complete) &&
     Number(killWeek?.attacks ?? 0) >= 10 &&
     fundGate !== null &&
-    fundGate.notificationAllowed === false
+    (fundGate.notificationAllowed === false || fundGate.passed === true)
   );
 }
 
@@ -1739,7 +1790,7 @@ export class AutonomousDiscoveryDaemonService {
         "",
         "- The daemon persists bounded safe computational search state; it does not claim a fund until every Fund Gate passes.",
         "- Routine failed, partial, or promising-but-unvalidated candidates stay internal.",
-        "- Indefinite search is represented by resumable checkpoints rather than an unbounded blocking CLI process.",
+        `- Indefinite search is represented by resumable ${daemonDefaultRunQuantum}-cycle run quanta and checkpoints rather than an unbounded blocking CLI process.`,
       ].join("\n"),
     );
     return withEvidenceHash({
@@ -1770,9 +1821,16 @@ export class AutonomousDiscoveryDaemonService {
     }
     await this.ensureInitialized();
     let fund = await this.refreshFundGateFromCandidate();
+    if (!fund.passed) {
+      const staleCandidate = await this.readFundCandidate();
+      if (staleCandidate) {
+        await this.tombstoneRejectedFundCandidate(staleCandidate, fund);
+      }
+    }
     await this.notifyFromFundGateIfPassed(fund);
     fund = await this.readFundGate();
-    const maxCycles = options.maxCycles ?? 1;
+    const operatorBoundedQuantum = options.maxCycles !== undefined;
+    const maxCycles = options.maxCycles ?? daemonDefaultRunQuantum;
     const cycles: Record<string, unknown>[] = [];
     for (let index = 0; index < maxCycles; index += 1) {
       if (fund.passed) break;
@@ -1792,6 +1850,11 @@ export class AutonomousDiscoveryDaemonService {
       completionLabel: state.fundFound
         ? "fund_found"
         : "daemon_built_continue_searching",
+      daemonRunQuantum: maxCycles,
+      operatorBoundedQuantum,
+      unboundedSearchIntent: !operatorBoundedQuantum,
+      runtimeBudgetExhaustedWithoutFund: !state.fundFound,
+      resumeRequiredUnlessFundFound: !state.fundFound,
       userNotification: state.fundFound ? "FUND_FOUND" : null,
       notificationSuppressed: !state.fundFound,
       artifactRefs: [
@@ -2276,28 +2339,33 @@ export class AutonomousDiscoveryDaemonService {
     result: FundGateResult,
   ): Promise<void> {
     const existing = await this.readGraveyardEntries();
-    if (existing.some((entry) => entry.candidateId === candidate.candidateId)) {
-      return;
-    }
     const deathCause = deathCauseFromRejectedFundCandidate(candidate, result);
     const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
     const state = await this.readState();
     const cycleId =
       state.lastCycleId ??
       `candidate-review-${String(state.cycleCount).padStart(4, "0")}`;
-    await this.writeGraveyardEntries([
-      ...existing,
-      {
-        candidateId: candidate.candidateId,
-        domain: candidate.domain,
-        claim: candidate.claim,
-        status,
-        deathCause,
-        cycleId,
-        recordedAt: nowIso(),
-        noUserNotification: true,
-      },
-    ]);
+    const alreadyTombstoned = existing.some(
+      (entry) => entry.candidateId === candidate.candidateId,
+    );
+    await this.writeGraveyardEntries(
+      alreadyTombstoned
+        ? existing
+        : [
+            ...existing,
+            {
+              candidateId: candidate.candidateId,
+              domain: candidate.domain,
+              claim: candidate.claim,
+              status,
+              deathCause,
+              cycleId,
+              recordedAt: nowIso(),
+              noUserNotification: true,
+            },
+          ],
+    );
+    await removeIfExists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"));
     await this.writeState(
       withEvidenceHash({
         ...state,
@@ -2343,6 +2411,14 @@ async function exists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function removeIfExists(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch {
+    // Missing stale fund notifications are already in the desired state.
   }
 }
 
@@ -2409,6 +2485,7 @@ function deathCauseFromRejectedFundCandidate(
       result.failedGates.includes("counterexample_pressure"),
     rivalTheoryStronger: result.failedGates.includes("rival_theory_pressure"),
     notExternallyInspectable:
+      result.failedGates.includes("high_impact_domain") ||
       !candidate.paperExists ||
       !candidate.methodExists ||
       !candidate.claimEvidenceBindingsExists ||

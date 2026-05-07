@@ -8,6 +8,7 @@ import {
   AutonomousDiscoveryDaemonService,
   CandidateGraveyardService,
   CandidateIdentityLedger,
+  daemonDefaultRunQuantum,
   DeathCauseClassifier,
   DeepValidationScheduler,
   discoveryDaemonDomains,
@@ -245,6 +246,16 @@ const failureCases: {
     name: "tool-only improvement",
     expectedGate: "high_impact_domain",
     patch: { notToolReportProcessOnly: false },
+  },
+  {
+    name: "internal corpus-seeded process artifact",
+    expectedGate: "high_impact_domain",
+    patch: {
+      candidateId: "DAEMON-SEED-GBE018-STAGE01-CANDIDATE-IDENTITY-FORENSICS",
+      claim:
+        "Corpus-seeded candidate from gbe018-stage01-candidate-identity-forensics: GBE-CAND-018 has a candidate identity conflict across generation, death-gate filtering, and later promotion.",
+      domain: "scientific_public_data_reliability",
+    },
   },
   {
     name: "trivial candidate",
@@ -1071,6 +1082,60 @@ test("discover-daemon binds cycles to real corpus seeds without promoting non-fu
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon blocks corpus identity-forensics seeds from Fund notification", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 2,
+      results: [
+        {
+          slug: "strong-bootstrap-seed",
+          title: "Strong bootstrap candidate seed",
+          resultKind: "nobel_readiness_candidate_decision",
+          candidateStatus: "promising_with_strong_caveats",
+          humanReadableSummary:
+            "A promising candidate seed still needs holdout support before Fund Gate notification.",
+          path: "results/strong-bootstrap-seed",
+        },
+        {
+          slug: "gbe018-stage01-candidate-identity-forensics",
+          title: "GBE-CAND-018 Candidate Identity Forensics",
+          resultKind: "gbe018_candidate_identity_forensics",
+          domain: "GBE-CAND-018 benchmark/protocol evidence-triad triage",
+          candidateStatus: "autopublished",
+          qualityLabel: "good",
+          falsificationStatus: "gbe018_triage_evaluated",
+          humanReadableSummary:
+            "GBE-CAND-018 has a candidate identity conflict across generation, death-gate filtering, and later promotion.",
+          path: "results/gbe018-stage01-candidate-identity-forensics",
+        },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({ mode: "silent", until: "fund", maxCycles: 12 });
+  const cycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0012.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  assert.equal(
+    cycle.corpusSeed.slug,
+    "gbe018-stage01-candidate-identity-forensics",
+  );
+  assert.equal(cycle.deathCause, "identity_drift");
+  assert.equal(cycle.internalStatus, "killed_by_identity_drift");
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(cycle.fundGateEvaluation.notificationAllowed, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("discover-daemon falls back after all corpus seeds are internally tombstoned", async () => {
   const root = await tempRoot();
   const sibling = join(root, "..", "sovryn-open-inventions");
@@ -1395,6 +1460,45 @@ test("discover-daemon notify-if-fund suppresses incomplete persisted candidate",
   assert.equal(graveyard.entries[0]!.noUserNotification, true);
 });
 
+test("discover-daemon removes stale FUND_FOUND when semantic Fund Gate rejects candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        candidateId: "DAEMON-SEED-GBE018-STAGE01-CANDIDATE-IDENTITY-FORENSICS",
+        claim:
+          "Corpus-seeded candidate from gbe018-stage01-candidate-identity-forensics: GBE-CAND-018 has a candidate identity conflict across generation, death-gate filtering, and later promotion.",
+        domain: "scientific_public_data_reliability",
+      }),
+    ),
+    "utf8",
+  );
+  await writeFile(
+    join(root, daemonRoot, "FUND_FOUND.md"),
+    "stale fund",
+    "utf8",
+  );
+  const notification = await service.notifyIfFund();
+  assert.equal(notification.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  const status = await service.status();
+  assert.equal(status.fundFound, false);
+  const result = await service.fundGate();
+  assert.equal(result.passed, false);
+  assert.equal(
+    (result.failedGates as string[]).includes("high_impact_domain"),
+    true,
+  );
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as { entries: Array<Record<string, unknown>> };
+  assert.equal(graveyard.entries.length, 1);
+  assert.equal(graveyard.entries[0]!.deathCause, "not_externally_inspectable");
+});
+
 test("discover-daemon rejected persisted candidate is tombstoned only once", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1436,4 +1540,27 @@ test("discover-daemon run remains continue_searching without fund", async () => 
   assert.equal(run.status, "continue_searching");
   assert.equal(run.notificationSuppressed, true);
   assert.equal(run.userNotification, null);
+  assert.equal(run.daemonRunQuantum, 2);
+  assert.equal(run.operatorBoundedQuantum, true);
+  assert.equal(run.unboundedSearchIntent, false);
+});
+
+test("discover-daemon run uses resumable default quantum without explicit max-cycles", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  const run = await service.run({
+    mode: "silent",
+    until: "fund",
+  });
+  assert.equal(run.status, "continue_searching");
+  assert.equal(run.cyclesExecuted, daemonDefaultRunQuantum);
+  assert.equal(run.daemonRunQuantum, daemonDefaultRunQuantum);
+  assert.equal(run.operatorBoundedQuantum, false);
+  assert.equal(run.unboundedSearchIntent, true);
+  assert.equal(run.runtimeBudgetExhaustedWithoutFund, true);
+  assert.equal(run.resumeRequiredUnlessFundFound, true);
+  assert.equal(run.notificationSuppressed, true);
+  assert.equal(run.userNotification, null);
+  const status = await service.status();
+  assert.equal(status.cycleCount, daemonDefaultRunQuantum);
 });

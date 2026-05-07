@@ -57,6 +57,7 @@ import { FormalDiscoveryService } from "../core/formal/formal-discovery-service.
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { NobelReadinessService } from "../core/nobel/nobel-readiness-service.js";
+import { OSHardeningService } from "../core/os/os-v15-hardening-service.js";
 import { RuntimeReproductionAlignmentService } from "../core/repo/runtime-reproduction-alignment-service.js";
 import { CrossDomainEvidenceRoutingService } from "../core/route/cross-domain-evidence-routing-service.js";
 import { TemporalEvaluationFragilityService } from "../core/temporal/temporal-evaluation-fragility-service.js";
@@ -165,6 +166,11 @@ Commands:
   sovryn nobel-readiness score [--json]
   sovryn nobel-readiness package [--json]
   sovryn nobel-readiness audit [--json]
+  sovryn os status [--json]
+  sovryn os hardening-plan [--json]
+  sovryn os run-scale [--json]
+  sovryn os package-verify [--json]
+  sovryn os final-audit [--json]
   sovryn route status [--json]
   sovryn route intake --target <target> [--json]
   sovryn route classify --target <target> [--json]
@@ -178,6 +184,9 @@ Commands:
   sovryn route class-score [--json]
   sovryn route compare-policy --from v2 --to v3 [--json]
   sovryn route v3-audit [--json]
+  sovryn route policy-v4-audit [--json]
+  sovryn route scale-batch --input <file> [--json]
+  sovryn route class-harden --class <class> [--json]
   sovryn route audit [--json]
   sovryn validate status [--json]
   sovryn validate candidate inspect [--json]
@@ -273,6 +282,10 @@ Commands:
   sovryn worker run <mission-id> --profile container-netoff [--json]
   sovryn corpus index [--json]
   sovryn corpus search "<query>" [--json]
+  sovryn corpus search-index build [--json]
+  sovryn corpus search-index audit [--json]
+  sovryn corpus package-index verify [--json]
+  sovryn corpus faceted-export [--json]
   sovryn corpus dedupe [--json]
   sovryn corpus report [--json]
   sovryn corpus export-public [--json]
@@ -861,6 +874,16 @@ export async function executeCli(
       case "corpus": {
         const result = await corpusCommand(parsed, root);
         return okEnvelope("corpus", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "os": {
+        const result = await osCommand(parsed, root);
+        return okEnvelope("os", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1547,10 +1570,11 @@ async function routeCommand(
   if (!subcommand) {
     throw new AppError(
       "ROUTE_COMMAND_REQUIRED",
-      "Use: sovryn route <status|intake|classify|plan|execute|batch|score|package|errors|calibrate-policy|class-score|compare-policy|v3-audit|audit>.",
+      "Use: sovryn route <status|intake|classify|plan|execute|batch|score|package|errors|calibrate-policy|class-score|compare-policy|v3-audit|policy-v4-audit|scale-batch|class-harden|audit>.",
     );
   }
   const service = new CrossDomainEvidenceRoutingService(root);
+  const os15 = new OSHardeningService(root);
   switch (subcommand) {
     case "status":
       return service.status();
@@ -1581,12 +1605,49 @@ async function routeCommand(
       );
     case "v3-audit":
       return service.v3Audit();
+    case "policy-v4-audit":
+      return os15.routePolicyV4Audit();
+    case "scale-batch":
+      return os15.scaleBatch(requiredRouteInput(parsed));
+    case "class-harden":
+      return os15.classHarden(requiredRouteClass(parsed));
     case "audit":
       return service.audit();
     default:
       throw new AppError(
         "UNKNOWN_ROUTE_COMMAND",
         `Unknown route command: ${subcommand}`,
+      );
+  }
+}
+
+async function osCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "OS_COMMAND_REQUIRED",
+      "Use: sovryn os <status|hardening-plan|run-scale|package-verify|final-audit>.",
+    );
+  }
+  const service = new OSHardeningService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "hardening-plan":
+      return service.hardeningPlan();
+    case "run-scale":
+      return service.runScale();
+    case "package-verify":
+      return service.packageVerify();
+    case "final-audit":
+      return service.finalAudit();
+    default:
+      throw new AppError(
+        "UNKNOWN_OS_COMMAND",
+        `Unknown os command: ${subcommand}`,
       );
   }
 }
@@ -1611,6 +1672,17 @@ function requiredRouteInput(parsed: ParsedArgs): string {
     );
   }
   return input;
+}
+
+function requiredRouteClass(parsed: ParsedArgs): string {
+  const targetClass = flagString(parsed.flags, "--class");
+  if (!targetClass) {
+    throw new AppError(
+      "ROUTE_CLASS_REQUIRED",
+      "route class-harden requires --class <class>.",
+    );
+  }
+  return targetClass;
 }
 
 function requiredRoutePolicyVersion(
@@ -2030,6 +2102,18 @@ async function corpusCommand(
   if (subcommand === "release-notes" && parsed.positionals[1] === "build") {
     return discovery.releaseNotesBuild();
   }
+  if (subcommand === "search-index" && parsed.positionals[1] === "build") {
+    return new OSHardeningService(root).buildSearchIndex();
+  }
+  if (subcommand === "search-index" && parsed.positionals[1] === "audit") {
+    return new OSHardeningService(root).auditSearchIndex();
+  }
+  if (subcommand === "package-index" && parsed.positionals[1] === "verify") {
+    return new OSHardeningService(root).verifyPackageIndex();
+  }
+  if (subcommand === "faceted-export") {
+    return new OSHardeningService(root).facetedExport();
+  }
   if (subcommand === "autopublish") {
     const targetRepo = flagString(parsed.flags, "--target-repo");
     if (!targetRepo) {
@@ -2106,7 +2190,7 @@ async function corpusCommand(
     default:
       throw new AppError(
         "CORPUS_COMMAND_REQUIRED",
-        "Use: sovryn corpus <index|search|dedupe|report|export-public|site|graph|compare|explain|explain-result|serve|api|badges|release-notes|autopublish|publish-status|publish-audit>.",
+        "Use: sovryn corpus <index|search|search-index|package-index|faceted-export|dedupe|report|export-public|site|graph|compare|explain|explain-result|serve|api|badges|release-notes|autopublish|publish-status|publish-audit>.",
       );
   }
 }

@@ -43,6 +43,7 @@ graphify-out/graph.json
 .sovryn/repo/
 .sovryn/formal/
 .sovryn/route/
+.sovryn/os-v1_5/
 .sovryn/falsification/
 .sovryn/reality-trials/
 .sovryn/reality-grade/

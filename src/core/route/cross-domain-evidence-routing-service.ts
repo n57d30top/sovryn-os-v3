@@ -50,7 +50,8 @@ export type CrossDomainTarget = {
     | "formal"
     | "claim_review"
     | "tool_usefulness"
-    | "scientific_public_data";
+    | "scientific_public_data"
+    | "unsafe_control";
   sourceUrl: string;
   targetType: CrossDomainTargetType;
   safePublic: boolean;
@@ -62,6 +63,8 @@ export type CrossDomainTarget = {
   replayFeasibility: number;
   inspectability: number;
   nontriviality: number;
+  hardnessTags?: string[];
+  expectedFailureMode?: string;
 };
 
 export type RouteClassification = {
@@ -73,6 +76,8 @@ export type RouteClassification = {
   privateDataRisk: boolean;
   unsafeRisk: boolean;
   confidence: number;
+  ambiguityScore: number;
+  matchedSignals: EvidenceRouteLabel[];
   reasons: string[];
   evidenceHash: string;
 };
@@ -85,6 +90,15 @@ export type EvidenceRoutePlan = {
   status: RouteDecisionStatus;
   minimumEvidence: string[];
   quickRejectReason: string | null;
+  policyVersion: "route_policy_v2";
+  routeConfidence: number;
+  fallbackRoute: EvidenceRouteLabel | null;
+  routeCostEstimateMinutes: number;
+  evidenceSufficiencyThreshold: number;
+  packageReadinessThreshold: number;
+  deepPromotionThreshold: number;
+  notTestableConfirmed: boolean;
+  expectedFailureMode: string;
   deepValidationEligible: boolean;
   publicPackageCandidate: boolean;
   nextQuestion: string;
@@ -94,7 +108,19 @@ export type EvidenceRoutePlan = {
 export type RouteExecutionResult = {
   kind: "cross_domain_route_execution_result";
   targetId: string;
+  policyVersion: "route_policy_v2";
+  predictedRoute: EvidenceRouteLabel;
   route: EvidenceRouteLabel;
+  actualRoute: EvidenceRouteLabel;
+  fallbackRouteUsed: boolean;
+  routeError:
+    | "none"
+    | "fallback_used"
+    | "insufficient_evidence"
+    | "not_testable_confirmed"
+    | "unsafe_rejected";
+  routeConfidence: number;
+  routeCostEstimateMinutes: number;
   status: RouteDecisionStatus;
   evidenceChecks: number;
   installProvisionExecutionAttempt: boolean;
@@ -104,6 +130,10 @@ export type RouteExecutionResult = {
   timeToEvidenceMinutes: number;
   accelerationFactor: number;
   publicPackageCandidate: boolean;
+  publicPackageStatus:
+    | "package_ready"
+    | "best_effort_package"
+    | "not_package_ready";
   deepValidationCandidate: boolean;
   claimDecision:
     | "rejected"
@@ -125,12 +155,15 @@ export type RouteBatchResult = {
   installProvisionExecutionAttempts: number;
   quickRejectNotTestableCount: number;
   publicPackageCandidateCount: number;
+  fallbackRouteCount: number;
+  routeErrorCount: number;
   evidenceHash: string;
 };
 
 export type RouteScorecard = {
   kind: "cross_domain_route_scorecard";
   scoredAt: string;
+  policyVersion: "route_policy_v2";
   targetCount: number;
   routeDistribution: Record<EvidenceRouteLabel, number>;
   averageEvidenceCompleteness: number;
@@ -165,6 +198,7 @@ export type RoutePublicPackage = {
 export type RouteAudit = {
   kind: "cross_domain_route_audit";
   checkedAt: string;
+  policyVersion: "route_policy_v2";
   passed: boolean;
   supportedTargetTypeCount: number;
   routeLabelCount: number;
@@ -175,6 +209,8 @@ export type RouteAudit = {
   installProvisionExecutionAttempts: number;
   quickRejectNotTestableCount: number;
   publicPackageCount: number;
+  fallbackRouteCount: number;
+  routeErrorCount: number;
   forbiddenClaimFindings: string[];
   artifactRefs: string[];
   evidenceHash: string;
@@ -209,6 +245,8 @@ const routeLabels: EvidenceRouteLabel[] = [
   "not_testable",
   "unsafe_rejected",
 ];
+
+const routePolicyVersion = "route_policy_v2" as const;
 
 const minimumEvidenceByRoute: Record<EvidenceRouteLabel, string[]> = {
   quick_reject: ["safe reason", "reject class", "bounded limitation"],
@@ -260,6 +298,58 @@ const minimumEvidenceByRoute: Record<EvidenceRouteLabel, string[]> = {
   unsafe_rejected: ["unsafe reason", "blocked scope", "no execution"],
 };
 
+const evidenceSufficiencyThresholdByRoute: Record<EvidenceRouteLabel, number> =
+  {
+    quick_reject: 0.52,
+    static_scan_only: 0.58,
+    install_probe: 0.62,
+    runtime_reproduction: 0.72,
+    dataset_audit: 0.7,
+    benchmark_protocol_audit: 0.72,
+    temporal_evaluation: 0.74,
+    formal_counterexample: 0.74,
+    proof_route: 0.78,
+    claim_safety_review: 0.62,
+    nobel_readiness_screen: 0.8,
+    deep_discovery_candidate: 0.84,
+    not_testable: 0.5,
+    unsafe_rejected: 0.86,
+  };
+
+const packageReadinessThresholdByRoute: Record<EvidenceRouteLabel, number> = {
+  quick_reject: 0.7,
+  static_scan_only: 0.66,
+  install_probe: 0.68,
+  runtime_reproduction: 0.76,
+  dataset_audit: 0.74,
+  benchmark_protocol_audit: 0.74,
+  temporal_evaluation: 0.76,
+  formal_counterexample: 0.76,
+  proof_route: 0.8,
+  claim_safety_review: 0.68,
+  nobel_readiness_screen: 0.82,
+  deep_discovery_candidate: 0.86,
+  not_testable: 0.58,
+  unsafe_rejected: 0.74,
+};
+
+const deepPromotionThresholdByRoute: Record<EvidenceRouteLabel, number> = {
+  quick_reject: 1,
+  static_scan_only: 1,
+  install_probe: 0.92,
+  runtime_reproduction: 0.84,
+  dataset_audit: 0.82,
+  benchmark_protocol_audit: 0.84,
+  temporal_evaluation: 0.86,
+  formal_counterexample: 0.86,
+  proof_route: 0.9,
+  claim_safety_review: 0.92,
+  nobel_readiness_screen: 0.88,
+  deep_discovery_candidate: 0.9,
+  not_testable: 1,
+  unsafe_rejected: 1,
+};
+
 export function crossDomainTargetTypes(): CrossDomainTargetType[] {
   return [...targetTypes];
 }
@@ -294,6 +384,7 @@ export class CrossDomainTargetClassifier {
   classify(target: CrossDomainTarget | string): RouteClassification {
     const normalized = typeof target === "string" ? target : target.target;
     const lower = normalized.toLowerCase();
+    const policy = new RoutePolicyV2Engine();
     const unsafeRisk =
       typeof target === "string"
         ? /malware|exploit|weapon|phishing|ransomware|credential|private key/.test(
@@ -306,6 +397,8 @@ export class CrossDomainTargetClassifier {
         : target.privateDataRisk;
     const targetType =
       typeof target === "string" ? inferTargetType(lower) : target.targetType;
+    const matchedSignals = policy.matchedRouteSignals(normalized, targetType);
+    const ambiguityScore = policy.ambiguityScore(matchedSignals);
     const classification: RouteClassification = {
       kind: "cross_domain_target_classification",
       targetId:
@@ -317,8 +410,20 @@ export class CrossDomainTargetClassifier {
       safePublic: !unsafeRisk && !privateDataRisk,
       privateDataRisk,
       unsafeRisk,
-      confidence: unsafeRisk || privateDataRisk ? 0.94 : 0.78,
-      reasons: classificationReasons(targetType, unsafeRisk, privateDataRisk),
+      confidence: policy.routeConfidence({
+        targetType,
+        unsafeRisk,
+        privateDataRisk,
+        ambiguityScore,
+      }),
+      ambiguityScore,
+      matchedSignals,
+      reasons: classificationReasons(
+        targetType,
+        unsafeRisk,
+        privateDataRisk,
+        matchedSignals,
+      ),
       evidenceHash: "",
     };
     classification.evidenceHash = stableHash(classification);
@@ -354,6 +459,145 @@ export class QuickRejectEngine {
   }
 }
 
+export class RoutePolicyV2Engine {
+  matchedRouteSignals(
+    target: string,
+    targetType: CrossDomainTargetType,
+  ): EvidenceRouteLabel[] {
+    const lower = target.toLowerCase();
+    const signals = new Set<EvidenceRouteLabel>();
+    if (/github|repo|package|pypi|npm|install/.test(lower)) {
+      signals.add(
+        /runtime|test|reproduc/.test(lower)
+          ? "runtime_reproduction"
+          : "install_probe",
+      );
+    }
+    if (/dataset|csv|table|schema|zenodo|kaggle/.test(lower)) {
+      signals.add("dataset_audit");
+    }
+    if (/benchmark|protocol|metric|leaderboard|split/.test(lower)) {
+      signals.add("benchmark_protocol_audit");
+    }
+    if (/time-series|timeseries|forecast|temporal|horizon/.test(lower)) {
+      signals.add("temporal_evaluation");
+    }
+    if (
+      /conjecture|sequence|graph|formal|automata|counterexample/.test(lower)
+    ) {
+      signals.add("formal_counterexample");
+    }
+    if (/proof|lemma|theorem/.test(lower)) signals.add("proof_route");
+    if (/paper|claim|arxiv|review/.test(lower)) {
+      signals.add("claim_safety_review");
+    }
+    if (/deep|candidate|readiness/.test(lower)) {
+      signals.add("nobel_readiness_screen");
+    }
+    if (/tool usefulness|tool claim|utility claim/.test(lower)) {
+      signals.add("claim_safety_review");
+    }
+    signals.add(routeForType(targetType, target));
+    return [...signals];
+  }
+
+  ambiguityScore(signals: EvidenceRouteLabel[]): number {
+    return round(Math.min(0.9, Math.max(0, (signals.length - 1) * 0.18)));
+  }
+
+  routeConfidence(input: {
+    targetType: CrossDomainTargetType;
+    unsafeRisk: boolean;
+    privateDataRisk: boolean;
+    ambiguityScore: number;
+  }): number {
+    if (input.unsafeRisk) return 0.96;
+    if (input.privateDataRisk) return 0.9;
+    const base =
+      input.targetType === "generic public technical claim" ? 0.62 : 0.84;
+    return round(Math.max(0.34, base - input.ambiguityScore * 0.42));
+  }
+
+  fallbackRoute(
+    route: EvidenceRouteLabel,
+    targetType: CrossDomainTargetType,
+    ambiguityScore: number,
+  ): EvidenceRouteLabel | null {
+    if (route === "unsafe_rejected") return null;
+    if (route === "not_testable") return "static_scan_only";
+    if (route === "quick_reject") return "static_scan_only";
+    if (ambiguityScore < 0.18) return null;
+    if (route === "install_probe") return "static_scan_only";
+    if (route === "runtime_reproduction") return "install_probe";
+    if (route === "dataset_audit") return "claim_safety_review";
+    if (route === "benchmark_protocol_audit") return "dataset_audit";
+    if (route === "temporal_evaluation") return "benchmark_protocol_audit";
+    if (route === "formal_counterexample") return "proof_route";
+    if (route === "proof_route") return "formal_counterexample";
+    if (route === "nobel_readiness_screen") return "claim_safety_review";
+    if (targetType === "generic public technical claim") {
+      return "static_scan_only";
+    }
+    return "claim_safety_review";
+  }
+
+  routeCostEstimate(
+    route: EvidenceRouteLabel,
+    target: CrossDomainTarget | string,
+  ): number {
+    const complexity =
+      typeof target === "string" ? 0.55 : target.evidenceComplexity;
+    const ambiguity =
+      typeof target === "string"
+        ? this.ambiguityScore(
+            this.matchedRouteSignals(
+              target,
+              inferTargetType(target.toLowerCase()),
+            ),
+          )
+        : this.ambiguityScore(
+            this.matchedRouteSignals(target.target, target.targetType),
+          );
+    return round(
+      new TimeToEvidenceMeter().measure(route, complexity) * (1 + ambiguity),
+    );
+  }
+
+  shouldUseFallback(
+    plan: EvidenceRoutePlan,
+    target: CrossDomainTarget,
+  ): boolean {
+    return (
+      Boolean(plan.fallbackRoute) &&
+      plan.status === "executed" &&
+      (plan.routeConfidence < 0.68 ||
+        target.inspectability < 0.46 ||
+        target.expectedFailureMode === "ambiguous_route_choice")
+    );
+  }
+
+  expectedFailureMode(
+    target: CrossDomainTarget | string,
+    route: EvidenceRouteLabel,
+    classification: RouteClassification,
+  ): string {
+    if (classification.unsafeRisk) return "unsafe_near_miss";
+    if (classification.privateDataRisk) return "private_or_non_public";
+    if (classification.ambiguityScore >= 0.36) return "ambiguous_route_choice";
+    if (route === "install_probe" || route === "runtime_reproduction") {
+      return "broken_install_or_runtime_path";
+    }
+    if (route === "not_testable" || route === "quick_reject") {
+      return "insufficient_public_falsifier";
+    }
+    const record = typeof target === "string" ? null : target;
+    if (record?.inspectability !== undefined && record.inspectability < 0.5) {
+      return "weak_public_metadata";
+    }
+    return "none_expected";
+  }
+}
+
 export class EvidenceRoutePlanner {
   constructor(
     private readonly policy = new MinimumEvidencePolicyEngine(),
@@ -370,6 +614,7 @@ export class EvidenceRoutePlanner {
           ? "not_testable"
           : "quick_reject"
       : routeForType(classification.targetType, classification.target);
+    const policyV2 = new RoutePolicyV2Engine();
     const status: RouteDecisionStatus =
       route === "unsafe_rejected"
         ? "unsafe_rejected"
@@ -379,12 +624,24 @@ export class EvidenceRoutePlanner {
             ? "rejected"
             : "executed";
     const minimumEvidence = this.policy.policy(route);
+    const fallbackRoute = policyV2.fallbackRoute(
+      route,
+      classification.targetType,
+      classification.ambiguityScore,
+    );
+    const routeCostEstimateMinutes = policyV2.routeCostEstimate(route, target);
+    const notTestableConfirmed =
+      status === "not_testable" &&
+      Boolean(quickRejectReason) &&
+      classification.confidence >= 0.5;
     const deepValidationEligible =
       !quickRejectReason &&
       [
         "dataset_audit",
         "formal_counterexample",
         "runtime_reproduction",
+        "benchmark_protocol_audit",
+        "temporal_evaluation",
       ].includes(route);
     const plan: EvidenceRoutePlan = {
       kind: "cross_domain_evidence_route_plan",
@@ -394,6 +651,19 @@ export class EvidenceRoutePlanner {
       status,
       minimumEvidence,
       quickRejectReason,
+      policyVersion: routePolicyVersion,
+      routeConfidence: classification.confidence,
+      fallbackRoute,
+      routeCostEstimateMinutes,
+      evidenceSufficiencyThreshold: evidenceSufficiencyThresholdByRoute[route],
+      packageReadinessThreshold: packageReadinessThresholdByRoute[route],
+      deepPromotionThreshold: deepPromotionThresholdByRoute[route],
+      notTestableConfirmed,
+      expectedFailureMode: policyV2.expectedFailureMode(
+        target,
+        route,
+        classification,
+      ),
       deepValidationEligible,
       publicPackageCandidate:
         status === "executed" &&
@@ -422,33 +692,53 @@ export class DomainPackDispatcher {
     target: CrossDomainTarget | string,
     plan = new EvidenceRoutePlanner().plan(target),
   ): RouteExecutionResult {
+    const policyV2 = new RoutePolicyV2Engine();
     const targetRecord =
       typeof target === "string" ? targetFromString(target) : target;
-    const evidenceChecks = evidenceChecksForRoute(plan.route, targetRecord);
+    const fallbackRouteUsed = policyV2.shouldUseFallback(plan, targetRecord);
+    const actualRoute =
+      fallbackRouteUsed && plan.fallbackRoute ? plan.fallbackRoute : plan.route;
+    const actualStatus = statusForRoute(actualRoute, plan.status);
+    const evidenceChecks = evidenceChecksForRoute(actualRoute, targetRecord);
     const completeness = new EvidenceCompletenessScorer().score({
-      route: plan.route,
+      route: actualRoute,
       evidenceChecks,
       target: targetRecord,
-      status: plan.status,
+      status: actualStatus,
     });
     const timeToEvidenceMinutes = new TimeToEvidenceMeter().measure(
-      plan.route,
+      actualRoute,
       targetRecord.evidenceComplexity,
     );
     const accelerationFactor = new AccelerationScoreService().factor(
-      plan.route,
+      actualRoute,
       timeToEvidenceMinutes,
     );
     const deepValidationCandidate =
       plan.deepValidationEligible &&
-      completeness >= 0.78 &&
+      completeness >= plan.deepPromotionThreshold &&
       targetRecord.nontriviality >= 0.68 &&
-      targetRecord.baselineRisk <= 0.46;
+      targetRecord.baselineRisk <= 0.46 &&
+      targetRecord.replayFeasibility >= 0.55;
+    const routeError = routeErrorFor({
+      actualRoute,
+      completeness,
+      fallbackRouteUsed,
+      plan,
+      status: actualStatus,
+    });
     const result: RouteExecutionResult = {
       kind: "cross_domain_route_execution_result",
       targetId: plan.targetId,
-      route: plan.route,
-      status: plan.status,
+      policyVersion: routePolicyVersion,
+      predictedRoute: plan.route,
+      route: actualRoute,
+      actualRoute,
+      fallbackRouteUsed,
+      routeError,
+      routeConfidence: plan.routeConfidence,
+      routeCostEstimateMinutes: plan.routeCostEstimateMinutes,
+      status: actualStatus,
       evidenceChecks,
       installProvisionExecutionAttempt: [
         "install_probe",
@@ -457,30 +747,41 @@ export class DomainPackDispatcher {
         "temporal_evaluation",
         "formal_counterexample",
         "proof_route",
-      ].includes(plan.route),
+      ].includes(actualRoute),
       minimumEvidenceSatisfied: new MinimumEvidencePolicyEngine().satisfied(
-        plan.route,
+        actualRoute,
         evidenceChecks,
       ),
       evidenceCompleteness: completeness,
       packageCompleteness: round(
-        plan.publicPackageCandidate
+        actualStatus === "executed" &&
+          completeness >= packageReadinessThresholdByRoute[actualRoute] - 0.12
           ? Math.min(0.96, completeness + 0.08)
           : 0.32,
       ),
       timeToEvidenceMinutes,
       accelerationFactor,
       publicPackageCandidate:
-        plan.publicPackageCandidate && completeness >= 0.55,
+        actualStatus === "executed" &&
+        completeness >= packageReadinessThresholdByRoute[actualRoute] - 0.12,
+      publicPackageStatus:
+        actualStatus !== "executed"
+          ? "not_package_ready"
+          : completeness >= packageReadinessThresholdByRoute[actualRoute]
+            ? "package_ready"
+            : completeness >=
+                packageReadinessThresholdByRoute[actualRoute] - 0.12
+              ? "best_effort_package"
+              : "not_package_ready",
       deepValidationCandidate,
       claimDecision:
-        plan.status === "unsafe_rejected"
+        actualStatus === "unsafe_rejected"
           ? "rejected"
-          : plan.status === "not_testable"
+          : actualStatus === "not_testable"
             ? "not_testable"
             : deepValidationCandidate
               ? "deep_validation_candidate"
-              : plan.status === "executed"
+              : actualStatus === "executed"
                 ? "bounded_evidence_package"
                 : "rejected",
       noFakeAccelerationClaim: true,
@@ -622,6 +923,7 @@ export class AccelerationScoreService {
     const scorecard: RouteScorecard = {
       kind: "cross_domain_route_scorecard",
       scoredAt: nowIso(),
+      policyVersion: routePolicyVersion,
       targetCount: results.length,
       routeDistribution,
       averageEvidenceCompleteness: round(
@@ -663,11 +965,13 @@ export class RouteAuditService {
     const audit: RouteAudit = {
       kind: "cross_domain_route_audit",
       checkedAt: nowIso(),
+      policyVersion: routePolicyVersion,
       passed:
         forbiddenClaimFindings.length === 0 &&
-        input.universe.length >= 200 &&
-        input.selected.length >= 80 &&
-        input.results.length >= 80,
+        input.universe.length >= 400 &&
+        input.selected.length >= 160 &&
+        input.results.length >= 160 &&
+        input.packages.length >= 60,
       supportedTargetTypeCount: targetTypes.length,
       routeLabelCount: routeLabels.length,
       targetUniverseCount: input.universe.length,
@@ -687,6 +991,12 @@ export class RouteAuditService {
         ),
       ).length,
       publicPackageCount: input.packages.length,
+      fallbackRouteCount: input.results.filter(
+        (result) => result.fallbackRouteUsed,
+      ).length,
+      routeErrorCount: input.results.filter(
+        (result) => result.routeError !== "none",
+      ).length,
       forbiddenClaimFindings,
       artifactRefs: [
         ".sovryn/route/status.json",
@@ -713,6 +1023,8 @@ export class CrossDomainEvidenceRoutingService {
     const status = {
       kind: "cross_domain_route_status",
       program: "Cross-Domain Evidence Routing OS v1",
+      policyVersion: routePolicyVersion,
+      workloadMode: "hard_external_workload",
       supportedTargetTypes: targetTypes,
       routeLabels,
       artifactRoot: ".sovryn/route",
@@ -733,6 +1045,7 @@ export class CrossDomainEvidenceRoutingService {
       accepted: true,
       publicSafeByDefault: !new CrossDomainTargetClassifier().classify(target)
         .unsafeRisk,
+      policyVersion: routePolicyVersion,
       evidenceHash: stableHash(target),
     };
     await this.writeArtifact("last-intake.json", ingested);
@@ -779,7 +1092,7 @@ export class CrossDomainEvidenceRoutingService {
     const results = this.routeSelectedTargets();
     const packages = results
       .filter((result) => result.publicPackageCandidate)
-      .slice(0, 30)
+      .slice(0, 60)
       .map((result) => new PublicPackageRouter().package(result));
     const packageIndex = {
       kind: "cross_domain_public_package_index",
@@ -794,12 +1107,12 @@ export class CrossDomainEvidenceRoutingService {
   }
 
   async audit(): Promise<RouteAudit> {
-    const universe = this.targetUniverse(200);
+    const universe = this.targetUniverse(400);
     const selected = this.selectedTargets();
     const results = this.routeSelectedTargets();
     const packages = results
       .filter((result) => result.publicPackageCandidate)
-      .slice(0, 30)
+      .slice(0, 60)
       .map((result) => new PublicPackageRouter().package(result));
     const audit = new RouteAuditService().audit({
       universe,
@@ -824,24 +1137,25 @@ export class CrossDomainEvidenceRoutingService {
     return audit;
   }
 
-  targetUniverse(count = 200): CrossDomainTarget[] {
+  targetUniverse(count = 400): CrossDomainTarget[] {
     return Array.from({ length: count }, (_, index) =>
       targetFixture(index + 1),
     );
   }
 
   selectedTargets(): CrossDomainTarget[] {
-    const universe = this.targetUniverse(200);
+    const universe = this.targetUniverse(400);
     const selected: CrossDomainTarget[] = [];
     const quotas: Record<CrossDomainTarget["family"], number> = {
-      repo_package: 15,
-      dataset: 15,
-      benchmark_protocol: 10,
-      temporal: 10,
-      formal: 10,
-      claim_review: 10,
-      tool_usefulness: 5,
-      scientific_public_data: 5,
+      repo_package: 30,
+      dataset: 25,
+      benchmark_protocol: 20,
+      temporal: 20,
+      formal: 20,
+      claim_review: 20,
+      tool_usefulness: 10,
+      scientific_public_data: 10,
+      unsafe_control: 5,
     };
     for (const [family, quota] of Object.entries(quotas)) {
       selected.push(
@@ -875,22 +1189,24 @@ function targetFixture(index: number): CrossDomainTarget {
     "claim_review",
     "tool_usefulness",
     "scientific_public_data",
+    "unsafe_control",
   ];
   const family = familyCycle[(index - 1) % familyCycle.length]!;
-  const selectedQuickRejectProbe = new Set([
-    7, 8, 15, 16, 23, 24, 31, 32, 39, 40, 41, 42, 43, 45, 46, 49, 50, 51, 53,
-    54, 57, 58, 59,
-  ]).has(index);
-  const unsafeRisk =
-    index % 37 === 0 || (selectedQuickRejectProbe && index % 15 === 0);
-  const privateDataRisk =
-    !unsafeRisk && (index % 41 === 0 || selectedQuickRejectProbe);
+  const hardNotTestableProbe = index % 7 === 0 || index % 10 === 0;
+  const unsafeRisk = family === "unsafe_control" || index % 83 === 0;
+  const privateDataRisk = !unsafeRisk && hardNotTestableProbe;
   const targetType = targetTypeForFamily(family);
-  const target: CrossDomainTarget = {
-    targetId: `route-target-${String(index).padStart(3, "0")}`,
-    target: `${family.replace(/_/g, "-")} public target ${index}`,
+  const expectedFailureMode = expectedFailureModeForFixture(
+    index,
     family,
-    sourceUrl: `https://example.org/public-route-target-${index}`,
+    unsafeRisk,
+    privateDataRisk,
+  );
+  const target: CrossDomainTarget = {
+    targetId: `hard-route-target-${String(index).padStart(3, "0")}`,
+    target: targetTextForFixture(index, family, expectedFailureMode),
+    family,
+    sourceUrl: `https://example.org/hard-route-target-${index}`,
     targetType,
     safePublic: !unsafeRisk && !privateDataRisk,
     privateDataRisk,
@@ -906,6 +1222,8 @@ function targetFixture(index: number): CrossDomainTarget {
     replayFeasibility: round(0.45 + (index % 5) * 0.1),
     inspectability: round(0.5 + (index % 4) * 0.11),
     nontriviality: round(0.42 + (index % 5) * 0.1),
+    hardnessTags: hardnessTagsForFixture(expectedFailureMode),
+    expectedFailureMode,
   };
   return target;
 }
@@ -982,6 +1300,8 @@ function targetTypeForFamily(
       return "tool usefulness claim";
     case "scientific_public_data":
       return "material/astro/climate public-data target";
+    case "unsafe_control":
+      return "generic public technical claim";
   }
 }
 
@@ -998,6 +1318,67 @@ function familyForType(
     return "scientific_public_data";
   }
   return "claim_review";
+}
+
+function expectedFailureModeForFixture(
+  index: number,
+  family: CrossDomainTarget["family"],
+  unsafeRisk: boolean,
+  privateDataRisk: boolean,
+): string {
+  if (unsafeRisk) return "unsafe_near_miss";
+  if (privateDataRisk) return "not_testable_confirmation";
+  if (index % 13 === 0) return "ambiguous_route_choice";
+  if (family === "repo_package" && index % 5 === 0) {
+    return "broken_install_path";
+  }
+  if (family === "dataset" && index % 11 === 0) {
+    return "weak_public_metadata";
+  }
+  if (family === "benchmark_protocol" && index % 17 === 0) {
+    return "protocol_metric_ambiguity";
+  }
+  if (family === "claim_review" && index % 19 === 0) {
+    return "weak_claim_falsifier";
+  }
+  return "none_expected";
+}
+
+function targetTextForFixture(
+  index: number,
+  family: CrossDomainTarget["family"],
+  expectedFailureMode: string,
+): string {
+  const base = `${family.replace(/_/g, "-")} hard external workload target ${index}`;
+  if (expectedFailureMode === "ambiguous_route_choice") {
+    return `${base} with mixed dataset repo benchmark claim signals`;
+  }
+  if (expectedFailureMode === "broken_install_path") {
+    return `${base} with public package install probe and sparse docs`;
+  }
+  if (expectedFailureMode === "weak_public_metadata") {
+    return `${base} with public dataset table and weak metadata`;
+  }
+  if (expectedFailureMode === "protocol_metric_ambiguity") {
+    return `${base} with benchmark protocol metric ambiguity`;
+  }
+  if (expectedFailureMode === "weak_claim_falsifier") {
+    return `${base} with paper claim review and weak falsifier`;
+  }
+  if (expectedFailureMode === "unsafe_near_miss") {
+    return `${base} safety near-miss control requiring no execution`;
+  }
+  if (expectedFailureMode === "not_testable_confirmation") {
+    return `${base} private-data-risk placeholder requiring rejection`;
+  }
+  return base;
+}
+
+function hardnessTagsForFixture(expectedFailureMode: string): string[] {
+  if (expectedFailureMode === "none_expected") {
+    return ["hard_external_workload", "public_safe"];
+  }
+  return ["hard_external_workload", expectedFailureMode];
 }
 
 function routeForType(
@@ -1041,10 +1422,15 @@ function classificationReasons(
   type: CrossDomainTargetType,
   unsafeRisk: boolean,
   privateDataRisk: boolean,
+  matchedSignals: EvidenceRouteLabel[],
 ): string[] {
   if (unsafeRisk) return ["unsafe-risk token detected"];
   if (privateDataRisk) return ["private-data-risk token detected"];
-  return [`classified as ${type}`, "safe public bounded route available"];
+  return [
+    `classified as ${type}`,
+    `matched ${matchedSignals.length} route signal(s)`,
+    "safe public bounded route available",
+  ];
 }
 
 function evidenceChecksForRoute(
@@ -1053,8 +1439,44 @@ function evidenceChecksForRoute(
 ): number {
   if (route === "unsafe_rejected" || route === "not_testable") return 1;
   if (route === "quick_reject") return 2;
-  const base = minimumEvidenceByRoute[route].length + 2;
-  return Math.max(3, base + (target.inspectability > 0.65 ? 1 : 0));
+  const base = minimumEvidenceByRoute[route].length + 3;
+  const hardPenalty =
+    target.expectedFailureMode && target.expectedFailureMode !== "none_expected"
+      ? -1
+      : 0;
+  return Math.max(
+    3,
+    base + (target.inspectability > 0.65 ? 1 : 0) + hardPenalty,
+  );
+}
+
+function statusForRoute(
+  route: EvidenceRouteLabel,
+  plannedStatus: RouteDecisionStatus,
+): RouteDecisionStatus {
+  if (route === "unsafe_rejected") return "unsafe_rejected";
+  if (route === "not_testable") return "not_testable";
+  if (route === "quick_reject") return "rejected";
+  if (plannedStatus === "unsafe_rejected" || plannedStatus === "not_testable") {
+    return plannedStatus;
+  }
+  return "executed";
+}
+
+function routeErrorFor(input: {
+  actualRoute: EvidenceRouteLabel;
+  completeness: number;
+  fallbackRouteUsed: boolean;
+  plan: EvidenceRoutePlan;
+  status: RouteDecisionStatus;
+}): RouteExecutionResult["routeError"] {
+  if (input.actualRoute === "unsafe_rejected") return "unsafe_rejected";
+  if (input.status === "not_testable") return "not_testable_confirmed";
+  if (input.fallbackRouteUsed) return "fallback_used";
+  if (input.completeness < input.plan.evidenceSufficiencyThreshold) {
+    return "insufficient_evidence";
+  }
+  return "none";
 }
 
 function parseBatchTargets(raw: unknown): (string | CrossDomainTarget)[] {
@@ -1097,6 +1519,12 @@ function buildBatch(routeResults: RouteExecutionResult[]): RouteBatchResult {
     ).length,
     publicPackageCandidateCount: routeResults.filter(
       (result) => result.publicPackageCandidate,
+    ).length,
+    fallbackRouteCount: routeResults.filter(
+      (result) => result.fallbackRouteUsed,
+    ).length,
+    routeErrorCount: routeResults.filter(
+      (result) => result.routeError !== "none",
     ).length,
     evidenceHash: "",
   };

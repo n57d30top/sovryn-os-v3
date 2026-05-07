@@ -20,6 +20,7 @@ import {
   PublicPackageRouter,
   QuickRejectEngine,
   RouteAuditService,
+  RoutePolicyV2Engine,
   TimeToEvidenceMeter,
   type CrossDomainTargetType,
   type EvidenceRouteLabel,
@@ -98,28 +99,29 @@ for (const targetType of expectedTargetTypes) {
   });
 }
 
-test("target universe contains two hundred safe public candidates before selection", () => {
-  const universe = service.targetUniverse(200);
-  assert.equal(universe.length, 200);
+test("hard target universe contains four hundred public workload descriptors before selection", () => {
+  const universe = service.targetUniverse(400);
+  assert.equal(universe.length, 400);
   assert.equal(
     universe.filter((target) => target.sourceUrl.startsWith("https://")).length,
-    200,
+    400,
   );
 });
 
-test("selected target set contains eighty targets", () => {
-  assert.equal(selectedTargets.length, 80);
+test("selected hard blind target set contains one hundred sixty targets", () => {
+  assert.equal(selectedTargets.length, 160);
 });
 
 for (const family of [
-  ["repo_package", 15],
-  ["dataset", 15],
-  ["benchmark_protocol", 10],
-  ["temporal", 10],
-  ["formal", 10],
-  ["claim_review", 10],
-  ["tool_usefulness", 5],
-  ["scientific_public_data", 5],
+  ["repo_package", 30],
+  ["dataset", 25],
+  ["benchmark_protocol", 20],
+  ["temporal", 20],
+  ["formal", 20],
+  ["claim_review", 20],
+  ["tool_usefulness", 10],
+  ["scientific_public_data", 10],
+  ["unsafe_control", 5],
 ] as const) {
   test(`selected target quota is met for ${family[0]}`, () => {
     assert.equal(
@@ -144,6 +146,13 @@ for (const target of selectedTargets) {
     assert.equal(plan.targetId, target.targetId);
     assert.equal(routeLabels.includes(plan.route), true);
     assert.equal(plan.minimumEvidence.length >= 3, true);
+    assert.equal(plan.policyVersion, "route_policy_v2");
+    assert.equal(plan.routeConfidence > 0, true);
+    assert.equal(plan.routeCostEstimateMinutes > 0, true);
+    assert.equal(plan.evidenceSufficiencyThreshold > 0, true);
+    assert.equal(plan.packageReadinessThreshold > 0, true);
+    assert.equal(plan.deepPromotionThreshold > 0, true);
+    assert.equal(plan.expectedFailureMode.length > 0, true);
     assert.match(plan.evidenceHash, /^[a-f0-9]{64}$/);
   });
 
@@ -164,9 +173,23 @@ for (const target of selectedTargets) {
     const result = dispatcher.execute(target);
     assert.equal(result.kind, "cross_domain_route_execution_result");
     assert.equal(result.targetId, target.targetId);
+    assert.equal(result.policyVersion, "route_policy_v2");
+    assert.equal(routeLabels.includes(result.predictedRoute), true);
+    assert.equal(routeLabels.includes(result.actualRoute), true);
+    assert.equal(result.routeCostEstimateMinutes > 0, true);
     assert.equal(result.evidenceChecks >= 1, true);
     assert.equal(result.evidenceCompleteness >= 0, true);
     assert.equal(result.evidenceCompleteness <= 1, true);
+    assert.equal(
+      [
+        "none",
+        "fallback_used",
+        "insufficient_evidence",
+        "not_testable_confirmed",
+        "unsafe_rejected",
+      ].includes(result.routeError),
+      true,
+    );
     assert.equal(result.noFakeAccelerationClaim, true);
     assert.equal(result.noFakeDiscoveryClaim, true);
     assert.match(result.evidenceHash, /^[a-f0-9]{64}$/);
@@ -244,6 +267,40 @@ test("quick reject engine reports unsafe reason", () => {
   );
 });
 
+test("route policy v2 detects ambiguity from mixed target signals", () => {
+  const policy = new RoutePolicyV2Engine();
+  const signals = policy.matchedRouteSignals(
+    "public dataset repo benchmark claim target",
+    "dataset",
+  );
+  assert.equal(signals.length >= 3, true);
+  assert.equal(policy.ambiguityScore(signals) > 0, true);
+});
+
+test("route policy v2 supplies fallback route for ambiguous dataset target", () => {
+  const policy = new RoutePolicyV2Engine();
+  assert.equal(
+    policy.fallbackRoute("dataset_audit", "dataset", 0.36),
+    "claim_safety_review",
+  );
+});
+
+test("route policy v2 confirms not-testable fallback for private targets", () => {
+  const plan = planner.plan("private target with no public falsifier");
+  assert.equal(plan.policyVersion, "route_policy_v2");
+  assert.equal(plan.route, "not_testable");
+  assert.equal(plan.notTestableConfirmed, true);
+});
+
+test("route policy v2 uses fallback on low-confidence ambiguous target", () => {
+  const target = selectedTargets.find(
+    (item) => item.expectedFailureMode === "ambiguous_route_choice",
+  )!;
+  const result = dispatcher.execute(target);
+  assert.equal(result.fallbackRouteUsed, true);
+  assert.equal(result.routeError, "fallback_used");
+});
+
 test("minimum evidence satisfaction requires enough checks", () => {
   const policy = new MinimumEvidencePolicyEngine();
   assert.equal(policy.satisfied("dataset_audit", 3), true);
@@ -284,15 +341,16 @@ test("public package router creates public-safe package", () => {
 test("acceleration score does not make a global 10x claim", () => {
   const score = new AccelerationScoreService().score(selectedResults);
   assert.equal(score.global10xClaim, false);
-  assert.equal(score.targetCount, 80);
+  assert.equal(score.policyVersion, "route_policy_v2");
+  assert.equal(score.targetCount, 160);
   assert.match(score.evidenceHash, /^[a-f0-9]{64}$/);
 });
 
 test("batch result records all selected targets", () => {
   const result = selectedResults;
-  assert.equal(result.length, 80);
+  assert.equal(result.length, 160);
   assert.equal(
-    result.filter((item) => item.status === "executed").length > 50,
+    result.filter((item) => item.status === "executed").length > 100,
     true,
   );
 });
@@ -300,10 +358,10 @@ test("batch result records all selected targets", () => {
 test("route audit passes for full selected target run", () => {
   const packages = selectedResults
     .filter((result) => result.publicPackageCandidate)
-    .slice(0, 30)
+    .slice(0, 60)
     .map((result) => new PublicPackageRouter().package(result));
   const audit = new RouteAuditService().audit({
-    universe: service.targetUniverse(200),
+    universe: service.targetUniverse(400),
     selected: selectedTargets,
     results: selectedResults,
     packages,
@@ -312,6 +370,7 @@ test("route audit passes for full selected target run", () => {
   assert.equal(audit.supportedTargetTypeCount, 10);
   assert.equal(audit.routeLabelCount, 14);
   assert.equal(audit.publicPackageCount, packages.length);
+  assert.equal(audit.policyVersion, "route_policy_v2");
 });
 
 test("public text auditor blocks forbidden acceleration claims", () => {
@@ -334,6 +393,8 @@ test("service status writes route status artifact shape", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-route-status-"));
   const result = await new CrossDomainEvidenceRoutingService(root).status();
   assert.equal(result.program, "Cross-Domain Evidence Routing OS v1");
+  assert.equal(result.policyVersion, "route_policy_v2");
+  assert.equal(result.workloadMode, "hard_external_workload");
   assert.equal(Array.isArray(result.supportedTargetTypes), true);
 });
 
@@ -364,10 +425,10 @@ test("service batch routes JSON target arrays", async () => {
   assert.equal(batch.routeDistribution.unsafe_rejected, 1);
 });
 
-test("service package creates thirty public package candidates", async () => {
+test("service package creates sixty public package candidates", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-route-package-"));
   const pkg = await new CrossDomainEvidenceRoutingService(root).package();
-  assert.equal(pkg.packageCount, 30);
+  assert.equal(pkg.packageCount, 60);
   assert.equal(pkg.noRawLogs, true);
   assert.equal(pkg.noLocalPaths, true);
 });
@@ -376,9 +437,10 @@ test("service audit passes full route OS fixture", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-route-audit-"));
   const audit = await new CrossDomainEvidenceRoutingService(root).audit();
   assert.equal(audit.passed, true);
-  assert.equal(audit.targetUniverseCount, 200);
-  assert.equal(audit.selectedTargetCount, 80);
-  assert.equal(audit.routedDecisionCount, 80);
+  assert.equal(audit.targetUniverseCount, 400);
+  assert.equal(audit.selectedTargetCount, 160);
+  assert.equal(audit.routedDecisionCount, 160);
+  assert.equal(audit.publicPackageCount, 60);
 });
 
 test("route CLI status returns JSON envelope", async () => {
@@ -447,7 +509,7 @@ test("route CLI package returns public packages", async () => {
   const envelope = await executeCli(["route", "package", "--json"], root);
   const data = envelope.data as Record<string, unknown>;
   assert.equal(envelope.ok, true);
-  assert.equal(data.packageCount, 30);
+  assert.equal(data.packageCount, 60);
 });
 
 test("route CLI audit passes", async () => {

@@ -1,4 +1,5 @@
 import {
+  copyFile,
   mkdir,
   readdir,
   readFile,
@@ -235,9 +236,29 @@ type PackageBackedCandidateIntake = {
   publicPackagePath: string;
 };
 
+type PackageScoutCandidate = {
+  candidate: FundCandidate;
+  sourceSlug: string;
+  sourceRef: string;
+};
+
+type PackageScoutReadResult = {
+  candidates: PackageScoutCandidate[];
+  rejected: Array<Record<string, unknown>>;
+};
+
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 const candidateIntakeDir = "candidate-intake" as const;
+const evidencePackageDir = "evidence-packages" as const;
+const packageScoutFile = "package-scout.json" as const;
+const requiredFundPackageFiles = [
+  "PAPER.md",
+  "METHOD.md",
+  "CLAIM_EVIDENCE_BINDINGS.json",
+  "REPRODUCE.md",
+  "LIMITATIONS.md",
+] as const;
 export const daemonDefaultRunQuantum = 25;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
@@ -726,7 +747,6 @@ export class SilentSearchLoopRunner {
       : input.corpusSnapshot.sampledRefs;
     const targets = new FreshTargetSampler().sample(domain, 12, targetRefs);
     const identityDriftProbe =
-      corpusSeed !== undefined &&
       input.state.lastCandidateId !== null &&
       shouldRunIdentityDriftProbe(input.state.cycleCount);
     const candidateId = identityDriftProbe
@@ -2127,6 +2147,11 @@ function freshExternalSeedBindingValid(
   > | null;
   if (selection === null) return false;
   const freshSeed = cycle.freshExternalSeed as Record<string, unknown> | null;
+  const identity = cycle.identityLedgerDecision as Record<
+    string,
+    unknown
+  > | null;
+  const isIdentityDriftProbe = identity?.cause === "identity_drift";
   const candidateIdeas = Array.isArray(cycle.candidateIdeas)
     ? (cycle.candidateIdeas as Array<Record<string, unknown>>)
     : [];
@@ -2150,7 +2175,7 @@ function freshExternalSeedBindingValid(
     selectedRef.startsWith("https://") &&
     selection.selectedSeedWasInPriorGraveyard === false &&
     freshSeed.candidateId === selectedCandidateId &&
-    cycle.candidateId === selectedCandidateId &&
+    (isIdentityDriftProbe || cycle.candidateId === selectedCandidateId) &&
     sourceSeed.kind === "fresh_external_target" &&
     sourceSeed.publicArtifactRef === freshSeed.publicArtifactRef &&
     sourceSeed.publicArtifactRef === selectedRef
@@ -2351,6 +2376,9 @@ export class AutonomousDiscoveryDaemonService {
     await mkdir(join(this.root, daemonArtifactRoot, candidateIntakeDir), {
       recursive: true,
     });
+    await mkdir(join(this.root, daemonArtifactRoot, evidencePackageDir), {
+      recursive: true,
+    });
     const state = this.initialState();
     await this.writeState(state);
     await writeJson(
@@ -2383,6 +2411,19 @@ export class AutonomousDiscoveryDaemonService {
         `- Indefinite search is represented by resumable ${daemonDefaultRunQuantum}-cycle run quanta and checkpoints rather than an unbounded blocking CLI process.`,
       ].join("\n"),
     );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, packageScoutFile),
+      withEvidenceHash({
+        kind: "discovery_daemon_package_scout",
+        scannedPackageCount: 0,
+        stagedIntakeCount: 0,
+        rejectedCount: 0,
+        staged: [],
+        rejected: [],
+        notificationSuppressed: true,
+        fundFound: false,
+      }),
+    );
     return withEvidenceHash({
       kind: "discovery_daemon_init",
       status: "continue_searching",
@@ -2394,6 +2435,8 @@ export class AutonomousDiscoveryDaemonService {
         `${daemonArtifactRoot}/graveyard.json`,
         `${daemonArtifactRoot}/fund-gate-results.json`,
         `${daemonArtifactRoot}/${candidateIntakeDir}/`,
+        `${daemonArtifactRoot}/${evidencePackageDir}/`,
+        `${daemonArtifactRoot}/${packageScoutFile}`,
         `${daemonArtifactRoot}/DAEMON_REPORT.md`,
         `${daemonArtifactRoot}/LIMITATIONS.md`,
       ],
@@ -2420,6 +2463,9 @@ export class AutonomousDiscoveryDaemonService {
     }
     await this.notifyFromFundGateIfPassed(fund);
     fund = await this.readFundGate();
+    if (!fund.passed) {
+      await this.packageScout();
+    }
     const operatorBoundedQuantum = options.maxCycles !== undefined;
     const maxCycles = options.maxCycles ?? daemonDefaultRunQuantum;
     const cycles: Record<string, unknown>[] = [];
@@ -2470,6 +2516,79 @@ export class AutonomousDiscoveryDaemonService {
         ? [checkpointRef]
         : [`${daemonArtifactRoot}/state.json`],
     });
+  }
+
+  async packageScout(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const graveyardCandidateIds = new Set(
+      (await this.readGraveyardEntries()).map((entry) => entry.candidateId),
+    );
+    const intakeRoot = join(this.root, daemonArtifactRoot, candidateIntakeDir);
+    const scoutFindings = await this.readCorpusPackageScoutCandidates();
+    const scoutCandidates = scoutFindings.candidates;
+    const staged: Array<Record<string, unknown>> = [];
+    const rejected: Array<Record<string, unknown>> = [
+      ...scoutFindings.rejected,
+    ];
+    for (const item of scoutCandidates) {
+      if (graveyardCandidateIds.has(item.candidate.candidateId)) {
+        rejected.push({
+          sourceSlug: item.sourceSlug,
+          candidateId: item.candidate.candidateId,
+          reason: "candidate_already_in_graveyard",
+        });
+        continue;
+      }
+      const packageRef = await this.stageScoutPackage(item);
+      const candidate: FundCandidate = {
+        ...item.candidate,
+        publicPackagePath: packageRef,
+      };
+      const gateResult = await this.evaluateFundCandidateWithPackage(candidate);
+      if (!gateResult.passed) {
+        rejected.push({
+          sourceSlug: item.sourceSlug,
+          candidateId: candidate.candidateId,
+          reason: "fund_gate_failed",
+          failedGates: gateResult.failedGates,
+        });
+        continue;
+      }
+      const intakeRef = `${daemonArtifactRoot}/${candidateIntakeDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+      await writeJson(join(this.root, intakeRef), {
+        kind: "package_scout_intake_candidate",
+        sourceSlug: item.sourceSlug,
+        sourceRef: item.sourceRef,
+        candidate,
+      });
+      staged.push({
+        sourceSlug: item.sourceSlug,
+        candidateId: candidate.candidateId,
+        intakeRef,
+        packageRef,
+      });
+    }
+    const report = withEvidenceHash({
+      kind: "discovery_daemon_package_scout",
+      scannedPackageCount:
+        scoutCandidates.length + scoutFindings.rejected.length,
+      stagedIntakeCount: staged.length,
+      rejectedCount: rejected.length,
+      staged,
+      rejected,
+      notificationSuppressed: true,
+      fundFound: false,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${packageScoutFile}`,
+        `${daemonArtifactRoot}/${candidateIntakeDir}/`,
+        `${daemonArtifactRoot}/${evidencePackageDir}/`,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, packageScoutFile),
+      report,
+    );
+    return report;
   }
 
   async cycle(): Promise<Record<string, unknown>> {
@@ -3090,6 +3209,63 @@ export class AutonomousDiscoveryDaemonService {
     return null;
   }
 
+  private async readCorpusPackageScoutCandidates(): Promise<PackageScoutReadResult> {
+    const resultsRoot = join(
+      this.root,
+      "..",
+      "sovryn-open-inventions",
+      "results",
+    );
+    let slugs: string[];
+    try {
+      slugs = await readdir(resultsRoot);
+    } catch {
+      return { candidates: [], rejected: [] };
+    }
+    const candidates: PackageScoutCandidate[] = [];
+    const rejected: Array<Record<string, unknown>> = [];
+    for (const slug of slugs.sort((left, right) => left.localeCompare(right))) {
+      const packageRoot = join(resultsRoot, slug);
+      const hasRequiredFiles = await Promise.all(
+        requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
+      );
+      if (!hasRequiredFiles.every(Boolean)) continue;
+      const candidate = await readFundCandidateFromPackageRoot(packageRoot);
+      if (!candidate) {
+        rejected.push({
+          sourceSlug: slug,
+          sourceRef: `results/${slug}`,
+          reason: "no_fund_candidate_object",
+        });
+        continue;
+      }
+      candidates.push({
+        candidate,
+        sourceSlug: slug,
+        sourceRef: `results/${slug}`,
+      });
+    }
+    return { candidates, rejected };
+  }
+
+  private async stageScoutPackage(
+    item: PackageScoutCandidate,
+  ): Promise<string> {
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(item.candidate.candidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    await mkdir(packageRoot, { recursive: true });
+    const sourceRoot = join(
+      this.root,
+      "..",
+      "sovryn-open-inventions",
+      item.sourceRef,
+    );
+    for (const file of requiredFundPackageFiles) {
+      await copyFile(join(sourceRoot, file), join(packageRoot, file));
+    }
+    return packageRef;
+  }
+
   private async writeFundCandidate(candidate: FundCandidate): Promise<void> {
     await writeJson(
       join(this.root, daemonArtifactRoot, fundCandidateFile),
@@ -3203,15 +3379,8 @@ async function fundPackageArtifactGates(
     !packageRef.includes("\\") &&
     !packageRef.includes("/Users/") &&
     !packageRef.toLowerCase().startsWith("file:");
-  const requiredFiles = [
-    "PAPER.md",
-    "METHOD.md",
-    "CLAIM_EVIDENCE_BINDINGS.json",
-    "REPRODUCE.md",
-    "LIMITATIONS.md",
-  ];
   const fileGates = await Promise.all(
-    requiredFiles.map(async (file) =>
+    requiredFundPackageFiles.map(async (file) =>
       gate(
         `external_review_package_file_${file}`,
         pathSafe && (await exists(join(root, packageRef, file))),
@@ -3220,7 +3389,7 @@ async function fundPackageArtifactGates(
     ),
   );
   const packageTextGates = await Promise.all(
-    requiredFiles
+    requiredFundPackageFiles
       .filter((file) => file.endsWith(".md"))
       .map(async (file) =>
         gate(
@@ -3316,6 +3485,33 @@ async function readOptionalJson<T>(path: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+async function readFundCandidateFromPackageRoot(
+  packageRoot: string,
+): Promise<FundCandidate | null> {
+  for (const file of ["FUND_CANDIDATE.json", "fund-candidate.json"]) {
+    const row = await readOptionalJson<unknown>(join(packageRoot, file));
+    const candidate = candidateFromUnknown(row);
+    if (candidate) return candidate;
+  }
+  const bindings = await readOptionalJson<Record<string, unknown>>(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+  );
+  return (
+    candidateFromUnknown(bindings?.candidate) ??
+    candidateFromUnknown(bindings?.fundCandidate) ??
+    null
+  );
+}
+
+function candidateFromUnknown(value: unknown): FundCandidate | null {
+  if (!value) return null;
+  if (isFundCandidate(value)) return value;
+  if (isRecord(value) && isFundCandidate(value.candidate)) {
+    return value.candidate;
+  }
+  return null;
 }
 
 function requiredDeathCauseSignals(): Array<{

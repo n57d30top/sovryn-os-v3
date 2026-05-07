@@ -172,6 +172,7 @@ Commands:
   sovryn discover-daemon init [--json]
   sovryn discover-daemon run --mode silent --until fund [--max-cycles N] [--json]
   sovryn discover-daemon resume [--json]
+  sovryn discover-daemon package-scout [--json]
   sovryn discover-daemon cycle [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1599,7 +1600,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1627,6 +1628,8 @@ async function discoverDaemonCommand(
     }
     case "resume":
       return service.resume();
+    case "package-scout":
+      return service.packageScout();
     case "cycle":
       return service.cycle();
     case "candidate-status":

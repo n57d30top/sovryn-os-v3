@@ -209,6 +209,9 @@ and an external-review package with `PAPER.md`, `METHOD.md`,
 Package-backed intake files under `.sovryn/discovery-daemon/candidate-intake/`
 are evaluated by the same gate and must bind `CLAIM_EVIDENCE_BINDINGS.json` to
 the exact candidate ID and exact claim.
+`sovryn discover-daemon package-scout --json` can scan complete corpus packages
+for embedded `FundCandidate` objects and stage only gate-passing packages into
+that intake queue.
 
 No Fund is currently claimed. The default daemon state remains
 `continue_searching` unless `discover-daemon fund-gate` confirms that every

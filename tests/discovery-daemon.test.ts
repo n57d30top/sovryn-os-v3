@@ -30,6 +30,7 @@ const commands = [
   "init",
   "run",
   "resume",
+  "package-scout",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -105,7 +106,10 @@ function fundCandidate(
 }
 
 async function tempRoot(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "sovryn-discovery-daemon-"));
+  const parent = await mkdtemp(join(tmpdir(), "sovryn-discovery-daemon-"));
+  const root = join(parent, "product");
+  await mkdir(root, { recursive: true });
+  return root;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -156,6 +160,53 @@ async function writeFundPackage(
     "utf8",
   );
   return packageRef;
+}
+
+async function writeCorpusFundPackage(
+  root: string,
+  slug: string,
+  candidate: FundCandidate | null,
+): Promise<string> {
+  const packageRoot = join(
+    root,
+    "..",
+    "sovryn-open-inventions",
+    "results",
+    slug,
+  );
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(
+    join(packageRoot, "PAPER.md"),
+    "# Fund Candidate\n\nBounded corpus package for external expert review.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    "# Method\n\nFrozen predictions, holdouts, counterexamples, replay, and kill-week review.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    JSON.stringify({
+      kind: "claim_evidence_bindings",
+      candidateId: candidate?.candidateId ?? "PARTIAL-CANDIDATE",
+      claim: candidate?.claim ?? "A partial package without a FundCandidate.",
+      candidate: candidate ?? undefined,
+      noOverclaim: true,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "REPRODUCE.md"),
+    "# Reproduce\n\nReplay the bounded evidence package using public-safe artifacts.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "# Limitations\n\nNo external validation, no Nobel claim, no breakthrough claim.\n",
+    "utf8",
+  );
+  return `results/${slug}`;
 }
 
 for (const command of commands) {
@@ -727,6 +778,11 @@ const cliScenarios: {
     expectedKind: "discovery_daemon_resume",
   },
   {
+    name: "package-scout",
+    args: ["discover-daemon", "package-scout", "--json"],
+    expectedKind: "discovery_daemon_package_scout",
+  },
+  {
     name: "cycle",
     args: ["discover-daemon", "cycle", "--json"],
     expectedKind: "silent_search_cycle",
@@ -837,7 +893,7 @@ test("discover-daemon cycle records full silent discovery pipeline", async () =>
         target.privateData === false &&
         target.unsafeScope === false &&
         target.rawLogsPublic === false &&
-        String(target.publicArtifactRef).startsWith(publicCorpusBaseRef) &&
+        String(target.publicArtifactRef).startsWith("https://") &&
         !String(target.publicArtifactRef).includes("example.org"),
     ),
     true,
@@ -1791,6 +1847,51 @@ test("discover-daemon cycle tombstones package-backed intake when package gates 
   assert.equal(
     (graveyard.byCause as Record<string, number>).not_externally_inspectable,
     1,
+  );
+});
+
+test("discover-daemon package scout stages only complete corpus FundCandidate packages", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  await writeCorpusFundPackage(root, "fund-ready-package", candidate);
+  const scout = await service.packageScout();
+  assert.equal(scout.scannedPackageCount, 1);
+  assert.equal(scout.stagedIntakeCount, 1);
+  assert.equal(scout.rejectedCount, 0);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "candidate-intake",
+        "FUND-EXTERNALLY-REVIEW-READY-CANDIDATE.json",
+      ),
+    ),
+    true,
+  );
+
+  const cycle = await service.cycle();
+  assert.equal(cycle.kind, "package_backed_candidate_intake_cycle");
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+});
+
+test("discover-daemon package scout rejects paper packages without FundCandidate objects", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeCorpusFundPackage(root, "partial-paper-package", null);
+  const scout = await service.packageScout();
+  assert.equal(scout.scannedPackageCount, 1);
+  assert.equal(scout.stagedIntakeCount, 0);
+  assert.equal(scout.rejectedCount, 1);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "candidate-intake", "PARTIAL.json")),
+    false,
   );
 });
 

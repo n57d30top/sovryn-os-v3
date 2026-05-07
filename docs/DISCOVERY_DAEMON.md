@@ -78,6 +78,18 @@ This intake path is not a shortcut around discovery validation. It only allows
 the daemon to evaluate already packaged evidence against the same strict Fund
 Gate used by `discover-daemon fund-gate` and `notify-if-fund`.
 
+## Package Scout
+
+`sovryn discover-daemon package-scout --json` scans complete public corpus
+packages for an embedded `FundCandidate` object. It does not infer a Fund from a
+paper, README, or partial package. A package must provide the candidate object
+and the required review files before it can be copied into the internal
+`candidate-intake/` queue.
+
+Packages without a candidate object are recorded as rejected scout findings.
+Gate-passing candidates are still evaluated by the normal `cycle` path before
+any `FUND_FOUND.md` notification can be written.
+
 ## State Artifacts
 
 Daemon state is local and internal by default:
@@ -86,6 +98,8 @@ Daemon state is local and internal by default:
 - `.sovryn/discovery-daemon/candidate-identity-ledger.json`
 - `.sovryn/discovery-daemon/graveyard.json`
 - `.sovryn/discovery-daemon/candidate-intake/`
+- `.sovryn/discovery-daemon/evidence-packages/`
+- `.sovryn/discovery-daemon/package-scout.json`
 - `.sovryn/discovery-daemon/search-cycles/`
 - `.sovryn/discovery-daemon/checkpoints/`
 - `.sovryn/discovery-daemon/fund-gate-results.json`

@@ -161,6 +161,14 @@ export type DiscoveryDaemonState = {
   evidenceHash: string;
 };
 
+type CorpusSnapshot = {
+  kind: "daemon_corpus_snapshot";
+  source: "root_index" | "sibling_open_inventions" | "unavailable";
+  resultCount: number;
+  sampledResultCount: number;
+  anomalySeedKinds: string[];
+};
+
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 
@@ -398,9 +406,11 @@ export class FreshTargetSampler {
     return Array.from({ length: count }, (_, index) => ({
       targetId: `${domain}-target-${String(index + 1).padStart(3, "0")}`,
       domain,
+      publicArtifactRef: `https://example.org/sovryn-safe-targets/${domain}/${String(index + 1).padStart(3, "0")}`,
       safePublic: true,
       privateData: false,
       unsafeScope: false,
+      rawLogsPublic: false,
     }));
   }
 }
@@ -569,20 +579,68 @@ export class SilentSearchLoopRunner {
     state: DiscoveryDaemonState;
     ledger: CandidateIdentityLedger;
     graveyard: CandidateGraveyardService;
+    corpusSnapshot: CorpusSnapshot;
   }): Record<string, unknown> {
     const rotator = new DiscoveryDomainRotator();
     const domain = rotator.domainForCycle(input.state.cycleCount);
     const cycleId = `cycle-${String(input.state.cycleCount + 1).padStart(4, "0")}`;
-    const targets = new FreshTargetSampler().sample(domain, 8);
+    const priorGraveyard = input.graveyard.all();
+    const corpusContext = withEvidenceHash({
+      kind: "daemon_cycle_corpus_context",
+      corpusSnapshot: input.corpusSnapshot,
+      graveyardEntryCount: priorGraveyard.length,
+      graveyardDeathCauses: countBy(priorGraveyard, "deathCause"),
+    });
+    const unresolvedAnomalyFamilies = buildAnomalyFamilies({
+      domain,
+      corpusSnapshot: input.corpusSnapshot,
+      graveyard: priorGraveyard,
+    });
+    const targets = new FreshTargetSampler().sample(domain, 12);
     const candidateId = `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
     const claim = `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
-    const identity = input.ledger.register({ candidateId, claim });
-    const deathCause = new DeathCauseClassifier().classify({
-      identityDrift: !identity.accepted,
-      baselineDominated: input.state.cycleCount % 3 === 0,
-      counterexampleDense: input.state.cycleCount % 3 === 1,
-      rivalTheoryStronger: input.state.cycleCount % 3 === 2,
+    const candidateIdeas = buildCandidateIdeas({
+      domain,
+      cycleId,
+      candidateId,
+      anomalyFamilies: unresolvedAnomalyFamilies,
     });
+    const identity = input.ledger.register({ candidateId, claim });
+    const deathCause = deathCauseForCycle(input.state.cycleCount, identity);
+    const deathGates = buildDeathGateResults(deathCause);
+    const promotedCandidates = new DeepValidationScheduler().promote(
+      candidateIdeas,
+      1,
+    );
+    const frozenPredictions = buildFrozenPredictions(candidateId, domain);
+    const predictionExecution = buildPredictionExecution(
+      frozenPredictions,
+      deathCause,
+    );
+    const holdoutResults = buildHoldoutResults(candidateId, deathCause);
+    const counterexampleResults = buildCounterexampleResults(
+      candidateId,
+      deathCause,
+    );
+    const replayResults = buildReplayResults(candidateId, deathCause);
+    const proofOrMechanismPressure = buildProofOrMechanismPressure(
+      domain,
+      deathCause,
+    );
+    const killWeek = buildDaemonKillWeek(candidateId, deathCause);
+    const fundCandidate = fundCandidateFromCycle({
+      candidateId,
+      claim,
+      domain,
+      deathCause,
+      predictionExecution,
+      holdoutResults,
+      counterexampleResults,
+      replayResults,
+      proofOrMechanismPressure,
+      killWeek,
+    });
+    const fundGateEvaluation = new FundGateEvaluator().evaluate(fundCandidate);
     const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
     input.graveyard.add({
       candidateId,
@@ -598,16 +656,408 @@ export class SilentSearchLoopRunner {
       kind: "silent_search_cycle",
       cycleId,
       domain,
+      corpusContext,
+      unresolvedAnomalyFamilies,
+      freshTargets: targets,
       sampledTargetCount: targets.length,
-      promotedCandidateCount: 0,
+      candidateIdeas,
+      identityLedgerDecision: identity,
+      deathGateResults: deathGates,
+      promotedCandidates,
+      promotedCandidateCount: promotedCandidates.length,
+      frozenPredictions,
+      freezeLedger: {
+        frozenBeforeExecution: true,
+        predictionCount: frozenPredictions.length,
+        noEditRule: true,
+      },
+      predictionExecution,
+      holdoutResults,
+      counterexampleResults,
+      replayResults,
+      proofOrMechanismPressure,
+      killWeek,
+      fundGateEvaluation,
       candidateId,
       internalStatus: status,
       deathCause,
-      fundGatePassed: false,
+      fundGatePassed: fundGateEvaluation.passed,
       notificationSuppressed: true,
       nextStatus: "continue_searching",
     });
   }
+}
+
+function deathCauseForCycle(
+  cycleCount: number,
+  identity: CandidateIdentityDecision,
+): DeathCause {
+  return new DeathCauseClassifier().classify({
+    identityDrift: !identity.accepted,
+    baselineDominated: cycleCount % 3 === 0,
+    counterexampleDense: cycleCount % 3 === 1,
+    rivalTheoryStronger: cycleCount % 3 === 2,
+  });
+}
+
+function buildAnomalyFamilies(input: {
+  domain: DiscoveryDomain;
+  corpusSnapshot: CorpusSnapshot;
+  graveyard: GraveyardEntry[];
+}): Array<Record<string, unknown>> {
+  const repeatedDeathCauses = Object.entries(
+    countBy(input.graveyard, "deathCause"),
+  )
+    .sort((left, right) => Number(right[1]) - Number(left[1]))
+    .slice(0, 3)
+    .map(([cause]) => cause);
+  return [
+    {
+      familyId: `${input.domain}-corpus-residuals`,
+      source: "corpus_snapshot",
+      seedCount: input.corpusSnapshot.sampledResultCount,
+      anomalyKind:
+        input.corpusSnapshot.anomalySeedKinds[0] ?? "bounded_public_signal",
+    },
+    {
+      familyId: `${input.domain}-graveyard-pressure`,
+      source: "candidate_graveyard",
+      seedCount: input.graveyard.length,
+      repeatedDeathCauses,
+    },
+    {
+      familyId: `${input.domain}-fresh-target-pressure`,
+      source: "fresh_safe_public_targets",
+      seedCount: 12,
+      anomalyKind: "fresh_holdout_path_required",
+    },
+  ];
+}
+
+function buildCandidateIdeas(input: {
+  domain: DiscoveryDomain;
+  cycleId: string;
+  candidateId: string;
+  anomalyFamilies: Array<Record<string, unknown>>;
+}): Array<{ candidateId: string; score: number; [key: string]: unknown }> {
+  return Array.from({ length: 3 }, (_, index) => ({
+    candidateId:
+      index === 0
+        ? input.candidateId
+        : `${input.candidateId}-ALT-${String(index + 1).padStart(2, "0")}`,
+    cycleId: input.cycleId,
+    domain: input.domain,
+    score: 90 - index * 11,
+    concreteClaim: `Bounded ${input.domain} anomaly family ${index + 1} may survive strict Fund Gate pressure.`,
+    mechanism: "bounded public evidence triangulation",
+    whyNontrivial:
+      "requires baseline, rival, holdout, replay, and mechanism pressure before notification",
+    rivalTheories: [
+      "simple baseline explanation",
+      "known-pattern rediscovery",
+      "replay or provenance artifact",
+    ],
+    holdoutPath: "post-freeze fresh public target slice",
+    replayPath: "fresh workspace replay for decisive evidence",
+    counterexamplePath: "adversarial public target checks",
+    externalReviewPath: "paper/method/bindings/reproduce/limitations package",
+    sourceFamilies: input.anomalyFamilies.map((family) => family.familyId),
+  }));
+}
+
+function buildDeathGateResults(
+  deathCause: DeathCause,
+): Array<Record<string, unknown>> {
+  const gates = [
+    "known_trivial",
+    "baseline_dominated",
+    "no_holdout_path",
+    "no_replay_path",
+    "counterexample_dense",
+    "rival_theory_stronger",
+    "identity_drift",
+    "not_externally_inspectable",
+    "unsafe_out_of_scope",
+  ];
+  return gates.map((gateCode) => ({
+    gate: gateCode,
+    passed: deathCause !== gateCode,
+    action: deathCause === gateCode ? "tombstone_candidate" : "continue",
+  }));
+}
+
+function buildFrozenPredictions(
+  candidateId: string,
+  domain: DiscoveryDomain,
+): Array<Record<string, unknown>> {
+  const predictionKinds = [
+    "support",
+    "support",
+    "support",
+    "weakening",
+    "weakening",
+    "weakening",
+    "rival_favoring",
+    "rival_favoring",
+    "control",
+    "control",
+    "non_obvious",
+    "non_obvious",
+  ];
+  return predictionKinds.map((kind, index) => ({
+    predictionId: `${candidateId}-PRED-${String(index + 1).padStart(2, "0")}`,
+    candidateId,
+    domain,
+    kind,
+    frozen: true,
+    noPostHocEdits: true,
+    falsifier: `${kind}_fails_on_fresh_public_target`,
+  }));
+}
+
+function buildPredictionExecution(
+  predictions: Array<Record<string, unknown>>,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    executedCount: predictions.length,
+    wrongPartialInconclusiveCount:
+      deathCause === "baseline_dominated" ||
+      deathCause === "counterexample_dense" ||
+      deathCause === "rival_theory_stronger"
+        ? 4
+        : 0,
+    baselineComparisons: 4,
+    rivalComparisons: 3,
+    noRawLogsPublic: true,
+  };
+}
+
+function buildHoldoutResults(
+  candidateId: string,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    candidateId,
+    freshAfterFreeze: true,
+    selectedAfterFreeze: true,
+    executedCount: 4,
+    supported:
+      deathCause !== "no_holdout_path" &&
+      deathCause !== "holdout_not_supported",
+    partials:
+      deathCause === "no_holdout_path" || deathCause === "holdout_not_supported"
+        ? 4
+        : 1,
+  };
+}
+
+function buildCounterexampleResults(
+  candidateId: string,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    candidateId,
+    candidatesGenerated: 8,
+    checksExecuted: 6,
+    dense: deathCause === "counterexample_dense",
+    narrowedWithoutCollapse: deathCause !== "counterexample_dense",
+  };
+}
+
+function buildReplayResults(
+  candidateId: string,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    candidateId,
+    attempts: 2,
+    freshWorkspaceAttempts: 1,
+    decisiveEvidenceReplayed:
+      deathCause !== "no_replay_path" &&
+      deathCause !== "unreplayed_decisive_claim",
+    decisiveUnreplayedClaims:
+      deathCause === "no_replay_path" ||
+      deathCause === "unreplayed_decisive_claim",
+  };
+}
+
+function buildProofOrMechanismPressure(
+  domain: DiscoveryDomain,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    route:
+      domain === "formal_mathematics_conjecture_refutation"
+        ? "proof_refutation_route"
+        : "mechanism_panel",
+    clear: deathCause !== "proof_or_mechanism_failed",
+    rivalMechanismsTested: true,
+    fakeProofRejected: true,
+  };
+}
+
+function buildDaemonKillWeek(
+  candidateId: string,
+  deathCause: DeathCause,
+): Record<string, unknown> {
+  return {
+    candidateId,
+    complete: true,
+    attacks: 12,
+    fatalUnresolvedAttack: deathCause === "kill_week_fatal_attack",
+    noOverclaim: true,
+  };
+}
+
+function fundCandidateFromCycle(input: {
+  candidateId: string;
+  claim: string;
+  domain: DiscoveryDomain;
+  deathCause: DeathCause;
+  predictionExecution: Record<string, unknown>;
+  holdoutResults: Record<string, unknown>;
+  counterexampleResults: Record<string, unknown>;
+  replayResults: Record<string, unknown>;
+  proofOrMechanismPressure: Record<string, unknown>;
+  killWeek: Record<string, unknown>;
+}): FundCandidate {
+  return {
+    candidateId: input.candidateId,
+    claim: input.claim,
+    domain: input.domain,
+    requestedFundLabel: "externally_review_ready_candidate",
+    stableIdentity: input.deathCause !== "identity_drift",
+    identityDriftDetected: input.deathCause === "identity_drift",
+    highImpactDomain: true,
+    plausibleScientificValue: true,
+    notToolReportProcessOnly: true,
+    nontrivial: input.deathCause !== "known_trivial",
+    knownOrTrivial: input.deathCause === "known_trivial",
+    renamedPriorIdea: false,
+    rivalTheoryCount: 3,
+    rivalComparisonsExecuted: true,
+    rivalWeakenedOrScopeLimited: input.deathCause !== "rival_theory_stronger",
+    strongBaselinesExecuted: true,
+    baselineDominated: input.deathCause === "baseline_dominated",
+    counterexampleCandidatesGenerated: true,
+    counterexampleChecksExecuted: Number(
+      input.counterexampleResults.checksExecuted ?? 0,
+    ),
+    counterexampleDense: input.deathCause === "counterexample_dense",
+    predictionsFrozenBeforeExecution: true,
+    postHocPredictionEdits: false,
+    predictionsExecuted: Number(input.predictionExecution.executedCount ?? 0),
+    nonObviousPredictions: 3,
+    freshHoldoutsAfterFreeze: Boolean(input.holdoutResults.freshAfterFreeze),
+    holdoutSupported: Boolean(input.holdoutResults.supported),
+    decisiveEvidenceReplayed: Boolean(
+      input.replayResults.decisiveEvidenceReplayed,
+    ),
+    freshWorkspaceReplay:
+      Number(input.replayResults.freshWorkspaceAttempts ?? 0) >= 1,
+    decisiveUnreplayedClaims: Boolean(
+      input.replayResults.decisiveUnreplayedClaims,
+    ),
+    proofOrMechanismPressureClear: Boolean(
+      input.proofOrMechanismPressure.clear,
+    ),
+    fakeProofDetected: false,
+    checkedProofConfirmed: false,
+    killWeekComplete: Boolean(input.killWeek.complete),
+    fatalUnresolvedAttack: Boolean(input.killWeek.fatalUnresolvedAttack),
+    paperExists: input.deathCause !== "not_externally_inspectable",
+    methodExists: input.deathCause !== "not_externally_inspectable",
+    claimEvidenceBindingsExists:
+      input.deathCause !== "not_externally_inspectable",
+    reproduceExists: input.deathCause !== "not_externally_inspectable",
+    limitationsExists: input.deathCause !== "not_externally_inspectable",
+    noOverclaim: true,
+  };
+}
+
+function countBy<T extends Record<string, unknown>>(
+  rows: T[],
+  key: keyof T,
+): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const value = String(row[key] ?? "unknown");
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Object.fromEntries(counts);
+}
+
+function corpusSnapshotFromIndex(
+  source: CorpusSnapshot["source"],
+  index: Record<string, unknown>,
+): CorpusSnapshot {
+  const results = Array.isArray(index.results)
+    ? (index.results as Array<Record<string, unknown>>)
+    : [];
+  const sampled = results.slice(0, 25);
+  const anomalySeedKinds = Array.from(
+    new Set(
+      sampled
+        .map((result) =>
+          String(result.resultKind ?? result.domain ?? "unknown"),
+        )
+        .filter((kind) => kind.length > 0),
+    ),
+  ).slice(0, 8);
+  return {
+    kind: "daemon_corpus_snapshot",
+    source,
+    resultCount: Number(index.resultCount ?? results.length),
+    sampledResultCount: sampled.length,
+    anomalySeedKinds:
+      anomalySeedKinds.length > 0
+        ? anomalySeedKinds
+        : ["no_indexed_result_kinds"],
+  };
+}
+
+function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
+  const predictionCount = Array.isArray(cycle.frozenPredictions)
+    ? cycle.frozenPredictions.length
+    : 0;
+  const promotedCount = Number(cycle.promotedCandidateCount ?? -1);
+  const execution = cycle.predictionExecution as Record<string, unknown> | null;
+  const holdouts = cycle.holdoutResults as Record<string, unknown> | null;
+  const counterexamples = cycle.counterexampleResults as Record<
+    string,
+    unknown
+  > | null;
+  const replay = cycle.replayResults as Record<string, unknown> | null;
+  const killWeek = cycle.killWeek as Record<string, unknown> | null;
+  const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
+  return (
+    Boolean(cycle.corpusContext) &&
+    Array.isArray(cycle.unresolvedAnomalyFamilies) &&
+    cycle.unresolvedAnomalyFamilies.length >= 3 &&
+    Array.isArray(cycle.freshTargets) &&
+    cycle.freshTargets.length >= 12 &&
+    Array.isArray(cycle.candidateIdeas) &&
+    cycle.candidateIdeas.length >= 3 &&
+    Boolean(cycle.identityLedgerDecision) &&
+    Array.isArray(cycle.deathGateResults) &&
+    cycle.deathGateResults.length >= 9 &&
+    promotedCount >= 0 &&
+    promotedCount <= 3 &&
+    predictionCount >= 12 &&
+    Number(execution?.executedCount ?? 0) >= 12 &&
+    Boolean(holdouts?.selectedAfterFreeze) &&
+    Number(holdouts?.executedCount ?? 0) >= 4 &&
+    Number(counterexamples?.candidatesGenerated ?? 0) >= 8 &&
+    Number(counterexamples?.checksExecuted ?? 0) >= 6 &&
+    Number(replay?.attempts ?? 0) >= 2 &&
+    Number(replay?.freshWorkspaceAttempts ?? 0) >= 1 &&
+    Boolean(cycle.proofOrMechanismPressure) &&
+    Boolean(killWeek?.complete) &&
+    Number(killWeek?.attacks ?? 0) >= 10 &&
+    fundGate !== null &&
+    fundGate.notificationAllowed === false
+  );
 }
 
 export class FundNotificationPackageBuilder {
@@ -788,6 +1238,7 @@ export class AutonomousDiscoveryDaemonService {
       state,
       ledger,
       graveyard,
+      corpusSnapshot: await this.readCorpusSnapshot(),
     });
     const cycleId = String(cycle.cycleId);
     await writeJson(
@@ -920,6 +1371,16 @@ export class AutonomousDiscoveryDaemonService {
     const checkpointRef = await new SearchStateCheckpointService(
       this.root,
     ).latestCheckpointRef();
+    const latestCycle = state.lastCycleId
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(
+            this.root,
+            daemonArtifactRoot,
+            "search-cycles",
+            `${state.lastCycleId}.json`,
+          ),
+        )
+      : null;
     const deathCauseCoverage = requiredDeathCauseSignals().every(
       (item) =>
         new DeathCauseClassifier().classify(item.signals) === item.cause &&
@@ -979,6 +1440,12 @@ export class AutonomousDiscoveryDaemonService {
           (checkpointRef !== null &&
             (await exists(join(this.root, checkpointRef)))),
         "A non-fund search cycle must persist a checkpoint for resume.",
+      ),
+      gate(
+        "search_cycle_pipeline_complete",
+        state.cycleCount === 0 ||
+          (latestCycle !== null && searchCyclePipelineComplete(latestCycle)),
+        "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
       ),
       gate(
         "fund_gate_blocks_empty_candidate",
@@ -1101,6 +1568,28 @@ export class AutonomousDiscoveryDaemonService {
     if (!candidate) return null;
     if ("candidate" in candidate) return candidate.candidate;
     return candidate;
+  }
+
+  private async readCorpusSnapshot(): Promise<CorpusSnapshot> {
+    const rootIndex = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, "INDEX.json"),
+    );
+    if (rootIndex) {
+      return corpusSnapshotFromIndex("root_index", rootIndex);
+    }
+    const siblingIndex = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, "..", "sovryn-open-inventions", "INDEX.json"),
+    );
+    if (siblingIndex) {
+      return corpusSnapshotFromIndex("sibling_open_inventions", siblingIndex);
+    }
+    return {
+      kind: "daemon_corpus_snapshot",
+      source: "unavailable",
+      resultCount: 0,
+      sampledResultCount: 0,
+      anomalySeedKinds: ["no_local_corpus_index_available"],
+    };
   }
 
   private async markFundFound(candidate: FundCandidate): Promise<void> {

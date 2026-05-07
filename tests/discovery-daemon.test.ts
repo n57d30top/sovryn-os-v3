@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -706,6 +706,52 @@ test("discover-daemon cycle writes checkpoint and graveyard entry", async () => 
   assert.equal(graveyard.entries.length, 1);
 });
 
+test("discover-daemon cycle records full silent discovery pipeline", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const cycle = await service.cycle();
+  assert.equal(cycle.notificationSuppressed, true);
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(Boolean(cycle.corpusContext), true);
+  assert.equal(
+    Array.isArray(cycle.unresolvedAnomalyFamilies) &&
+      cycle.unresolvedAnomalyFamilies.length >= 3,
+    true,
+  );
+  assert.equal(
+    Array.isArray(cycle.freshTargets) && cycle.freshTargets.length >= 12,
+    true,
+  );
+  assert.equal(
+    Array.isArray(cycle.candidateIdeas) && cycle.candidateIdeas.length >= 3,
+    true,
+  );
+  assert.equal(Boolean(cycle.identityLedgerDecision), true);
+  assert.equal(
+    Array.isArray(cycle.deathGateResults) && cycle.deathGateResults.length >= 9,
+    true,
+  );
+  assert.equal(
+    Array.isArray(cycle.promotedCandidates) &&
+      cycle.promotedCandidates.length <= 3,
+    true,
+  );
+  assert.equal(
+    Array.isArray(cycle.frozenPredictions) &&
+      cycle.frozenPredictions.length >= 12,
+    true,
+  );
+  assert.equal((cycle.freezeLedger as any).frozenBeforeExecution, true);
+  assert.equal((cycle.predictionExecution as any).executedCount >= 12, true);
+  assert.equal((cycle.holdoutResults as any).selectedAfterFreeze, true);
+  assert.equal((cycle.counterexampleResults as any).checksExecuted >= 6, true);
+  assert.equal((cycle.replayResults as any).freshWorkspaceAttempts >= 1, true);
+  assert.equal(Boolean(cycle.proofOrMechanismPressure), true);
+  assert.equal((cycle.killWeek as any).complete, true);
+  assert.equal((cycle.fundGateEvaluation as any).notificationAllowed, false);
+});
+
 test("discover-daemon resume points at latest checkpoint", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -745,6 +791,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "death_gate_rejection_coverage",
     "graveyard_internal_only",
     "checkpoint_resume_available",
+    "search_cycle_pipeline_complete",
     "fund_gate_blocks_empty_candidate",
     "fund_only_notification",
     "no_internal_status_notifies",
@@ -753,6 +800,56 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     assert.equal(gateCodes.includes(code), true, code);
   }
   assert.equal(audit.passed, true);
+});
+
+test("discover-daemon audit fails if latest cycle pipeline evidence is tampered", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0001.json");
+  const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  delete cycle.frozenPredictions;
+  await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
+  const audit = await service.audit();
+  assert.equal(audit.passed, false);
+  const failed = (audit.gates as Array<{ code: string; passed: boolean }>)
+    .filter((gate) => !gate.passed)
+    .map((gate) => gate.code);
+  assert.equal(failed.includes("search_cycle_pipeline_complete"), true);
+});
+
+test("discover-daemon cycle reads sibling corpus index when available", async () => {
+  const root = await tempRoot();
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  await mkdir(sibling, { recursive: true });
+  await writeFile(
+    join(sibling, "INDEX.json"),
+    JSON.stringify({
+      kind: "public_corpus_index",
+      resultCount: 2,
+      results: [
+        { slug: "one", resultKind: "claim_review" },
+        { slug: "two", resultKind: "dataset_audit" },
+      ],
+    }),
+    "utf8",
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  const cycle = await service.cycle();
+  const context = cycle.corpusContext as any;
+  assert.equal(context.corpusSnapshot.source, "sibling_open_inventions");
+  assert.equal(context.corpusSnapshot.resultCount, 2);
+  assert.equal(
+    context.corpusSnapshot.anomalySeedKinds.includes("claim_review"),
+    true,
+  );
 });
 
 test("discover-daemon audit fails if graveyard notification flag is tampered", async () => {

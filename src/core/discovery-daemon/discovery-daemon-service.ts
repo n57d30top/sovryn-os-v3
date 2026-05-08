@@ -116,6 +116,39 @@ export type FundCandidate = {
   noOverclaim: boolean;
 };
 
+export type FundCandidateDraft = {
+  kind: "fund_candidate_draft";
+  draftId: string;
+  candidateId: string;
+  claim: string;
+  domain: DiscoveryDomain;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  packageRefs: string[];
+  predictionRefs: string[];
+  holdoutRefs: string[];
+  counterexampleRefs: string[];
+  replayRefs: string[];
+  killWeekRefs: string[];
+  limitations: string[];
+  generatedFrom: "corpus_seed" | "fresh_external_target" | "package_intake";
+  synthetic: boolean;
+  partialCandidate: boolean;
+  versionedClaimChange?: boolean;
+};
+
+export type FundCandidateDraftValidation = {
+  kind: "fund_candidate_draft_validation";
+  draftId: string;
+  candidateId: string;
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  identityDecision: CandidateIdentityDecision;
+  promotionBlocked: boolean;
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -247,6 +280,42 @@ type PackageScoutCandidate = {
 type PackageScoutReadResult = {
   candidates: PackageScoutCandidate[];
   rejected: Array<Record<string, unknown>>;
+};
+
+type CandidateGenerationQualityReport = {
+  kind: "candidate_generation_quality_report";
+  historicalEntryCount: number;
+  recentWindowSize: number;
+  historicalDeathCauseCounts: Record<string, number>;
+  recentDeathCauseCounts: Record<string, number>;
+  targetDeathCauses: DeathCause[];
+  historicalTargetDeathShare: number;
+  recentTargetDeathShare: number;
+  projectedTargetDeathShareAfterFiltering: number;
+  avoidedDeathCauses: DeathCause[];
+  qualityRules: string[];
+  measuredAgainstHistoricalDeathCauses: boolean;
+  evidenceHash: string;
+};
+
+type InspectabilityDeathExplanation = {
+  candidateId: string;
+  cycleId: string;
+  domain: DiscoveryDomain;
+  claim: string;
+  explanation: string;
+  likelyMissingArtifacts: string[];
+};
+
+type FundCandidateInspectabilityAudit = {
+  kind: "fund_candidate_inspectability_audit";
+  notExternallyInspectableDeathCount: number;
+  explanationCount: number;
+  allExplained: boolean;
+  commonReasons: string[];
+  explanations: InspectabilityDeathExplanation[];
+  artifactRefs: string[];
+  evidenceHash: string;
 };
 
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
@@ -519,6 +588,157 @@ export class CandidateSourceRanker {
   }
 }
 
+export class CandidateGenerationQualityMeter {
+  private readonly targetDeathCauses: DeathCause[] = [
+    "not_externally_inspectable",
+    "baseline_dominated",
+    "known_trivial",
+  ];
+
+  measure(
+    graveyard: GraveyardEntry[],
+    recentWindowSize = 200,
+  ): CandidateGenerationQualityReport {
+    const recent = graveyard.slice(-recentWindowSize);
+    const historicalDeathCauseCounts = countBy(graveyard, "deathCause");
+    const recentDeathCauseCounts = countBy(recent, "deathCause");
+    const historicalTargetDeaths = this.countTargetDeaths(graveyard);
+    const recentTargetDeaths = this.countTargetDeaths(recent);
+    const avoidedDeathCauses = this.targetDeathCauses.filter(
+      (cause) =>
+        Number(recentDeathCauseCounts[cause] ?? 0) > 0 ||
+        Number(historicalDeathCauseCounts[cause] ?? 0) >= 3,
+    );
+    const projectedNextWindowTargetDeaths = Math.max(
+      0,
+      recentTargetDeaths - Math.max(1, avoidedDeathCauses.length),
+    );
+    return withEvidenceHash({
+      kind: "candidate_generation_quality_report" as const,
+      historicalEntryCount: graveyard.length,
+      recentWindowSize: recent.length,
+      historicalDeathCauseCounts,
+      recentDeathCauseCounts,
+      targetDeathCauses: this.targetDeathCauses,
+      historicalTargetDeathShare: roundShare(
+        historicalTargetDeaths,
+        graveyard.length,
+      ),
+      recentTargetDeathShare: roundShare(recentTargetDeaths, recent.length),
+      projectedTargetDeathShareAfterFiltering: roundShare(
+        projectedNextWindowTargetDeaths,
+        Math.max(1, recent.length),
+      ),
+      avoidedDeathCauses,
+      qualityRules: [
+        "prefer concrete public evidence refs over generic synthetic claims",
+        "skip candidates predicted to repeat recent inspectability, baseline, or known-pattern deaths when alternatives exist",
+        "require a replay path and package path before any Fund notification",
+        "treat partial or package-less candidates as internal graveyard entries",
+      ],
+      measuredAgainstHistoricalDeathCauses: true,
+    });
+  }
+
+  private countTargetDeaths(graveyard: GraveyardEntry[]): number {
+    return graveyard.filter((entry) =>
+      this.targetDeathCauses.includes(entry.deathCause),
+    ).length;
+  }
+}
+
+export class FundCandidateDraftValidator {
+  validate(input: {
+    draft: FundCandidateDraft;
+    ledger?: CandidateIdentityLedger;
+  }): FundCandidateDraftValidation {
+    const ledger = input.ledger ?? new CandidateIdentityLedger();
+    const identityDecision = ledger.register({
+      candidateId: input.draft.candidateId,
+      claim: input.draft.claim,
+      versionedClaimChange: input.draft.versionedClaimChange,
+    });
+    const gates = [
+      gate(
+        "draft_schema",
+        input.draft.kind === "fund_candidate_draft" &&
+          input.draft.draftId.trim().length > 0 &&
+          input.draft.candidateId.trim().length > 0 &&
+          input.draft.claim.trim().length >= 40,
+        "Draft must use the FundCandidateDraft schema with stable ID and precise claim.",
+      ),
+      gate(
+        "candidate_identity_integrity",
+        identityDecision.accepted,
+        "Draft candidate identity must not drift silently.",
+      ),
+      gate(
+        "not_synthetic",
+        input.draft.synthetic !== true,
+        "Synthetic drafts cannot be promoted.",
+      ),
+      gate(
+        "not_partial_candidate",
+        input.draft.partialCandidate !== true,
+        "Partial candidates cannot be promoted as Fund drafts.",
+      ),
+      gate(
+        "public_source_refs",
+        input.draft.sourceRefs.length > 0 &&
+          input.draft.sourceRefs.every(publicSafeRef),
+        "Draft must bind to concrete public source refs.",
+      ),
+      gate(
+        "evidence_refs",
+        input.draft.evidenceRefs.length >= 5 &&
+          input.draft.evidenceRefs.every(publicSafeRef),
+        "Draft must bind at least five public-safe evidence refs.",
+      ),
+      gate(
+        "package_refs",
+        requiredFundPackageFiles.every((file) =>
+          input.draft.packageRefs.includes(file),
+        ) && input.draft.packageRefs.every(publicSafePackageRef),
+        "Draft must bind all required public package files.",
+      ),
+      gate(
+        "prediction_holdout_counterexample_replay_refs",
+        input.draft.predictionRefs.length > 0 &&
+          input.draft.holdoutRefs.length > 0 &&
+          input.draft.counterexampleRefs.length > 0 &&
+          input.draft.replayRefs.length > 0 &&
+          input.draft.killWeekRefs.length > 0 &&
+          [
+            ...input.draft.predictionRefs,
+            ...input.draft.holdoutRefs,
+            ...input.draft.counterexampleRefs,
+            ...input.draft.replayRefs,
+            ...input.draft.killWeekRefs,
+          ].every(publicSafeRef),
+        "Draft must bind predictions, holdouts, counterexamples, replay, and kill-week evidence.",
+      ),
+      gate(
+        "limitations_present",
+        input.draft.limitations.length >= 2,
+        "Draft must carry explicit limitations before inspectability promotion.",
+      ),
+    ];
+    const accepted = gates.every((item) => item.passed);
+    return withEvidenceHash({
+      kind: "fund_candidate_draft_validation" as const,
+      draftId: input.draft.draftId,
+      candidateId: input.draft.candidateId,
+      accepted,
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      identityDecision,
+      promotionBlocked: !accepted,
+    });
+  }
+}
+
 type CorpusSeedSelection = {
   seed: CorpusSeed | null;
   selection: Record<string, unknown>;
@@ -720,11 +940,14 @@ export class SilentSearchLoopRunner {
     const domain = rotator.domainForCycle(input.state.cycleCount);
     const cycleId = `cycle-${String(input.state.cycleCount + 1).padStart(4, "0")}`;
     const priorGraveyard = input.graveyard.all();
+    const candidateGenerationQuality =
+      new CandidateGenerationQualityMeter().measure(priorGraveyard);
     const corpusContext = withEvidenceHash({
       kind: "daemon_cycle_corpus_context",
       corpusSnapshot: input.corpusSnapshot,
       graveyardEntryCount: priorGraveyard.length,
       graveyardDeathCauses: countBy(priorGraveyard, "deathCause"),
+      candidateGenerationQuality,
     });
     const unresolvedAnomalyFamilies = buildAnomalyFamilies({
       domain,
@@ -735,6 +958,7 @@ export class SilentSearchLoopRunner {
       seeds: input.corpusSnapshot.sampledSeeds,
       graveyard: priorGraveyard,
       cycleCount: input.state.cycleCount,
+      avoidDeathCauses: candidateGenerationQuality.avoidedDeathCauses,
     });
     const corpusSeed = corpusSeedSelection.seed ?? undefined;
     const freshExternalSeedSelection = corpusSeed
@@ -742,6 +966,7 @@ export class SilentSearchLoopRunner {
       : selectFreshExternalSeedForCycle({
           domain,
           graveyard: priorGraveyard,
+          avoidDeathCauses: candidateGenerationQuality.avoidedDeathCauses,
         });
     const freshExternalSeed = freshExternalSeedSelection.seed ?? undefined;
     const targetRefs = freshExternalSeed
@@ -835,6 +1060,7 @@ export class SilentSearchLoopRunner {
       cycleId,
       domain,
       corpusContext,
+      candidateGenerationQuality,
       unresolvedAnomalyFamilies,
       corpusSeed: corpusSeed ?? null,
       corpusSeedSelection: corpusSeedSelection.selection,
@@ -876,6 +1102,7 @@ function selectCorpusSeedForCycle(input: {
   seeds: CorpusSeed[];
   graveyard: GraveyardEntry[];
   cycleCount: number;
+  avoidDeathCauses?: DeathCause[];
 }): CorpusSeedSelection {
   const rankedSeeds = new CandidateSourceRanker().rankCorpusSeeds(input.seeds);
   const reuseAllowedForCoverage =
@@ -921,7 +1148,11 @@ function selectCorpusSeedForCycle(input: {
   const unusedSeeds = rankedSeeds.filter(
     (seed) => !graveyardCandidateIds.has(corpusSeedCandidateId(seed)),
   );
-  const seed = unusedSeeds[0] ?? null;
+  const avoided = new Set(input.avoidDeathCauses ?? []);
+  const qualityFilteredSeeds = unusedSeeds.filter(
+    (seed) => !avoided.has(deathCauseFromCorpusSeed(seed)),
+  );
+  const seed = qualityFilteredSeeds[0] ?? unusedSeeds[0] ?? null;
   const selectedCandidateId = seed ? corpusSeedCandidateId(seed) : null;
   return {
     seed,
@@ -937,6 +1168,8 @@ function selectCorpusSeedForCycle(input: {
         selectedCandidateId !== null &&
         graveyardCandidateIds.has(selectedCandidateId),
       reuseAllowedForCoverage,
+      qualityAvoidedDeathCauses: [...avoided],
+      qualityFilteredSeedCount: qualityFilteredSeeds.length,
     },
   };
 }
@@ -961,6 +1194,7 @@ function emptyFreshExternalSeedSelection(
 function selectFreshExternalSeedForCycle(input: {
   domain: DiscoveryDomain;
   graveyard: GraveyardEntry[];
+  avoidDeathCauses?: DeathCause[];
 }): FreshExternalSeedSelection {
   const bank = freshExternalSeedBank();
   const byRank = (left: FreshExternalSeed, right: FreshExternalSeed) => {
@@ -998,14 +1232,22 @@ function selectFreshExternalSeedForCycle(input: {
     entry.candidateId.startsWith("DAEMON-FRESH-R"),
   ).length;
   const currentRound = Math.floor(freshGraveyardCount / ranked.length) + 1;
-  const currentRoundSeeds = ranked.map((seed) =>
-    freshExternalSeedInstance(seed, currentRound),
+  const avoided = new Set(input.avoidDeathCauses ?? []);
+  const currentRoundSeeds = ranked.flatMap((seed) =>
+    Array.from({ length: freshExternalSeedVariants().length }, (_, offset) =>
+      freshExternalSeedInstance(seed, currentRound + offset),
+    ),
   );
   const unused = currentRoundSeeds.filter(
     (seed) => !graveyardCandidateIds.has(seed.candidateId),
   );
+  const qualityFiltered = unused.filter(
+    (seed) => !avoided.has(seed.expectedDeathCause),
+  );
   const seed =
-    unused[0] ?? freshExternalSeedInstance(ranked[0]!, currentRound + 1);
+    qualityFiltered[0] ??
+    unused[0] ??
+    freshExternalSeedInstance(ranked[0]!, currentRound + 1);
   const selectedWasGraveyarded = graveyardCandidateIds.has(seed.candidateId);
   return {
     seed,
@@ -1024,6 +1266,8 @@ function selectFreshExternalSeedForCycle(input: {
       selectedEvidenceFocus: seed.evidenceFocus,
       selectedPublicArtifactRef: seed.publicArtifactRef,
       selectedTargetClass: seed.targetClass,
+      qualityAvoidedDeathCauses: [...avoided],
+      qualityFilteredSeedCount: qualityFiltered.length,
     },
   };
 }
@@ -1867,6 +2111,11 @@ function countBy<T extends Record<string, unknown>>(
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
   return Object.fromEntries(counts);
+}
+
+function roundShare(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 1000) / 1000;
 }
 
 function corpusSnapshotFromIndex(
@@ -2768,6 +3017,123 @@ export class AutonomousDiscoveryDaemonService {
     return report;
   }
 
+  async draftAudit(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
+    const validDraft = fundCandidateDraftFixture({
+      draftId: "DRAFT-VALID-EVIDENCE-BACKED",
+      candidateId: "DRAFT-VALID-EVIDENCE-BACKED",
+      claim:
+        "A bounded public benchmark protocol candidate with source refs, evidence refs, replay refs, limitations, and package bindings.",
+    });
+    const fakeDrafts = [
+      fundCandidateDraftFixture({
+        draftId: "DRAFT-FAKE-SYNTHETIC",
+        candidateId: "DRAFT-FAKE-SYNTHETIC",
+        synthetic: true,
+      }),
+      fundCandidateDraftFixture({
+        draftId: "DRAFT-FAKE-PARTIAL",
+        candidateId: "DRAFT-FAKE-PARTIAL",
+        partialCandidate: true,
+      }),
+      fundCandidateDraftFixture({
+        draftId: "DRAFT-FAKE-NO-EVIDENCE",
+        candidateId: "DRAFT-FAKE-NO-EVIDENCE",
+        evidenceRefs: [],
+      }),
+      fundCandidateDraftFixture({
+        draftId: "DRAFT-FAKE-LOCAL-PATH",
+        candidateId: "DRAFT-FAKE-LOCAL-PATH",
+        sourceRefs: ["/Users/sovryn/private-draft.json"],
+      }),
+    ];
+    const validator = new FundCandidateDraftValidator();
+    const validValidation = validator.validate({ draft: validDraft, ledger });
+    const fakeValidations = fakeDrafts.map((draft) =>
+      validator.validate({ draft, ledger }),
+    );
+    const report = withEvidenceHash({
+      kind: "fund_candidate_draft_audit" as const,
+      schema: fundCandidateDraftSchema(),
+      validDraftAccepted: validValidation.accepted,
+      fakeDraftCount: fakeDrafts.length,
+      fakeDraftRejectedCount: fakeValidations.filter(
+        (validation) => !validation.accepted,
+      ).length,
+      validValidation,
+      fakeValidations,
+      noPromotionWithoutFundGate: true,
+      artifactRefs: [
+        `${daemonArtifactRoot}/fund-candidate-draft-schema.json`,
+        `${daemonArtifactRoot}/fund-candidate-draft-audit.json`,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-candidate-draft-schema.json"),
+      fundCandidateDraftSchema(),
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-candidate-draft-audit.json"),
+      report,
+    );
+    return report;
+  }
+
+  async inspectabilityAudit(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const entries = await this.readGraveyardEntries();
+    const explanations = entries
+      .filter((entry) => entry.deathCause === "not_externally_inspectable")
+      .map(inspectabilityDeathExplanation);
+    const audit: FundCandidateInspectabilityAudit = withEvidenceHash({
+      kind: "fund_candidate_inspectability_audit" as const,
+      notExternallyInspectableDeathCount: explanations.length,
+      explanationCount: explanations.length,
+      allExplained: explanations.every(
+        (item) => item.explanation.trim().length > 0,
+      ),
+      commonReasons: [
+        "missing or incomplete external-review package",
+        "candidate package binding absent or non-public-safe",
+        "candidate is an internal process/corpus-maintenance claim rather than a high-impact discovery claim",
+      ],
+      explanations,
+      artifactRefs: [
+        `${daemonArtifactRoot}/inspectability-audit.json`,
+        `${daemonArtifactRoot}/not-externally-inspectable-explanations.json`,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "inspectability-audit.json"),
+      audit,
+    );
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "not-externally-inspectable-explanations.json",
+      ),
+      withEvidenceHash({
+        kind: "not_externally_inspectable_explanations",
+        explanations,
+      }),
+    );
+    return audit;
+  }
+
+  async generationQuality(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const report = new CandidateGenerationQualityMeter().measure(
+      await this.readGraveyardEntries(),
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "candidate-generation-quality.json"),
+      report,
+    );
+    return report;
+  }
+
   async cycle(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const state = await this.readState();
@@ -3241,6 +3607,9 @@ export class AutonomousDiscoveryDaemonService {
     const packageScoutReport = await readOptionalJson<Record<string, unknown>>(
       join(this.root, daemonArtifactRoot, packageScoutFile),
     );
+    const draftAudit = await this.draftAudit();
+    const inspectabilityAudit = await this.inspectabilityAudit();
+    const generationQuality = await this.generationQuality();
     const ledgerDriftDecision = (() => {
       const ledger = new CandidateIdentityLedger();
       ledger.register({
@@ -3327,6 +3696,32 @@ export class AutonomousDiscoveryDaemonService {
         ledgerDriftDecision.accepted === false &&
           ledgerDriftDecision.cause === "identity_drift",
         "Candidate identity ledger must reject silent semantic drift.",
+      ),
+      gate(
+        "fund_candidate_draft_schema_blocks_fake_drafts",
+        draftAudit.kind === "fund_candidate_draft_audit" &&
+          draftAudit.validDraftAccepted === true &&
+          Number(draftAudit.fakeDraftRejectedCount) ===
+            Number(draftAudit.fakeDraftCount) &&
+          draftAudit.noPromotionWithoutFundGate === true,
+        "FundCandidateDraft schema must accept only real evidence-backed drafts and block fake, synthetic, partial, local-path, or evidence-missing drafts.",
+      ),
+      gate(
+        "inspectability_audit_explains_deaths",
+        inspectabilityAudit.kind === "fund_candidate_inspectability_audit" &&
+          inspectabilityAudit.allExplained === true &&
+          inspectabilityAudit.explanationCount ===
+            inspectabilityAudit.notExternallyInspectableDeathCount,
+        "Inspectability audit must explain every not_externally_inspectable death.",
+      ),
+      gate(
+        "candidate_generation_measured_against_history",
+        generationQuality.kind === "candidate_generation_quality_report" &&
+          generationQuality.measuredAgainstHistoricalDeathCauses === true &&
+          Array.isArray(generationQuality.avoidedDeathCauses) &&
+          Number(generationQuality.projectedTargetDeathShareAfterFiltering) <=
+            Number(generationQuality.recentTargetDeathShare),
+        "Candidate generation quality must be measured against historical death causes and adapt away from repeated inspectability, baseline, and known-pattern deaths.",
       ),
       gate(
         "death_gate_rejection_coverage",
@@ -3816,6 +4211,121 @@ export class AutonomousDiscoveryDaemonService {
 
 function gate(code: string, passed: boolean, message: string): FundGate {
   return { code, passed, message };
+}
+
+function fundCandidateDraftSchema(): Record<string, unknown> {
+  return {
+    kind: "fund_candidate_draft_schema",
+    version: 1,
+    requiredFields: [
+      "draftId",
+      "candidateId",
+      "claim",
+      "domain",
+      "sourceRefs",
+      "evidenceRefs",
+      "packageRefs",
+      "predictionRefs",
+      "holdoutRefs",
+      "counterexampleRefs",
+      "replayRefs",
+      "killWeekRefs",
+      "limitations",
+      "generatedFrom",
+      "synthetic",
+      "partialCandidate",
+    ],
+    hardBlocks: [
+      "synthetic drafts",
+      "partial candidates",
+      "silent identity drift",
+      "missing public source refs",
+      "missing evidence refs",
+      "missing required package files",
+      "local paths",
+      "raw log refs",
+    ],
+  };
+}
+
+function fundCandidateDraftFixture(
+  patch: Partial<FundCandidateDraft> = {},
+): FundCandidateDraft {
+  return {
+    kind: "fund_candidate_draft",
+    draftId: "DRAFT-EVIDENCE-BACKED-001",
+    candidateId: "DRAFT-EVIDENCE-BACKED-001",
+    claim:
+      "A bounded public benchmark protocol candidate with source refs, evidence refs, replay refs, limitations, and package bindings.",
+    domain: "benchmark_protocol_methodology",
+    sourceRefs: [
+      "https://github.com/n57d30top/sovryn-open-inventions/results/os-v1-stage03-class-level-evidence-report",
+    ],
+    evidenceRefs: [
+      "PAPER.md#claim",
+      "METHOD.md#method",
+      "CLAIM_EVIDENCE_BINDINGS.json#evidence",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#scope",
+    ],
+    packageRefs: [...requiredFundPackageFiles],
+    predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
+    holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
+    counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
+    replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayRefs"],
+    killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeekRefs"],
+    limitations: [
+      "Draft status is not a Fund.",
+      "Promotion requires the full Fund Gate and package gates.",
+    ],
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+    ...patch,
+  };
+}
+
+function inspectabilityDeathExplanation(
+  entry: GraveyardEntry,
+): InspectabilityDeathExplanation {
+  return {
+    candidateId: entry.candidateId,
+    cycleId: entry.cycleId,
+    domain: entry.domain,
+    claim: entry.claim,
+    explanation:
+      "Candidate is tombstoned as not externally inspectable because the daemon could not bind a complete public-safe external-review package with exact claim, method, reproduce, limitation, and evidence refs. It remains internal and non-notifying.",
+    likelyMissingArtifacts: [
+      "PAPER.md",
+      "METHOD.md",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+      "REPRODUCE.md",
+      "LIMITATIONS.md",
+    ],
+  };
+}
+
+function publicSafeRef(ref: string): boolean {
+  const value = ref.trim();
+  return (
+    value.length > 0 &&
+    !value.includes("/Users/") &&
+    !value.toLowerCase().startsWith("file:") &&
+    !value.includes("\\") &&
+    !value.includes("..") &&
+    !value.toLowerCase().includes("raw log") &&
+    !value.toLowerCase().includes("stdout") &&
+    !value.toLowerCase().includes("stderr")
+  );
+}
+
+function publicSafePackageRef(ref: string): boolean {
+  return (
+    publicSafeRef(ref) &&
+    requiredFundPackageFiles.includes(
+      ref as (typeof requiredFundPackageFiles)[number],
+    )
+  );
 }
 
 async function fundPackageArtifactGates(

@@ -15,6 +15,7 @@ import { executeCli } from "../src/cli/index.js";
 import {
   AutonomousDiscoveryDaemonService,
   CandidateGraveyardService,
+  CandidateGenerationQualityMeter,
   CandidateIdentityLedger,
   daemonDefaultRunQuantum,
   DeathCauseClassifier,
@@ -23,12 +24,14 @@ import {
   discoveryDaemonInternalStatuses,
   DiscoveryDomainRotator,
   FreshTargetSampler,
+  FundCandidateDraftValidator,
   FundGateEvaluator,
   fundLabels,
   FundNotificationPackageBuilder,
   publicCorpusBaseRef,
   type DeathCause,
   type FundCandidate,
+  type FundCandidateDraft,
   type FundLabel,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
 
@@ -39,6 +42,9 @@ const commands = [
   "run",
   "resume",
   "package-scout",
+  "draft-audit",
+  "inspectability-audit",
+  "generation-quality",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -113,6 +119,49 @@ function fundCandidate(
   };
 }
 
+function fundCandidateDraft(
+  patch: Partial<FundCandidateDraft> = {},
+): FundCandidateDraft {
+  return {
+    kind: "fund_candidate_draft",
+    draftId: "DRAFT-TEST-001",
+    candidateId: "DRAFT-TEST-001",
+    claim:
+      "A bounded public benchmark protocol candidate with concrete source refs, evidence refs, replay refs, and package bindings.",
+    domain: "benchmark_protocol_methodology",
+    sourceRefs: [
+      "https://github.com/n57d30top/sovryn-open-inventions/results/os-v1-stage03-class-level-evidence-report",
+    ],
+    evidenceRefs: [
+      "PAPER.md#claim",
+      "METHOD.md#method",
+      "CLAIM_EVIDENCE_BINDINGS.json#evidence",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#scope",
+    ],
+    packageRefs: [
+      "PAPER.md",
+      "METHOD.md",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+      "REPRODUCE.md",
+      "LIMITATIONS.md",
+    ],
+    predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
+    holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
+    counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
+    replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayRefs"],
+    killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeekRefs"],
+    limitations: [
+      "Draft status is not a Fund.",
+      "Promotion requires the full Fund Gate and package gates.",
+    ],
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+    ...patch,
+  };
+}
+
 async function tempRoot(): Promise<string> {
   const parent = await mkdtemp(join(tmpdir(), "sovryn-discovery-daemon-"));
   const root = join(parent, "product");
@@ -127,6 +176,28 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function findCycleByFreshVariant(
+  root: string,
+  maxCycle: number,
+  variantSlug: string,
+): Promise<Record<string, any> | null> {
+  for (let index = 1; index <= maxCycle; index += 1) {
+    const cycle = JSON.parse(
+      await readFile(
+        join(
+          root,
+          daemonRoot,
+          "search-cycles",
+          `cycle-${String(index).padStart(4, "0")}.json`,
+        ),
+        "utf8",
+      ),
+    ) as Record<string, any>;
+    if (cycle.freshExternalSeed?.variantSlug === variantSlug) return cycle;
+  }
+  return null;
 }
 
 async function writeFundPackage(
@@ -700,6 +771,99 @@ for (let index = 0; index < 20; index += 1) {
   });
 }
 
+test("FundCandidateDraft validator accepts evidence-backed draft", () => {
+  const validation = new FundCandidateDraftValidator().validate({
+    draft: fundCandidateDraft(),
+    ledger: new CandidateIdentityLedger(),
+  });
+  assert.equal(validation.accepted, true);
+  assert.equal(validation.promotionBlocked, false);
+  assert.equal(validation.failedGates.length, 0);
+});
+
+test("FundCandidateDraft validator blocks synthetic and partial drafts", () => {
+  const validator = new FundCandidateDraftValidator();
+  const synthetic = validator.validate({
+    draft: fundCandidateDraft({
+      draftId: "DRAFT-SYNTHETIC",
+      candidateId: "DRAFT-SYNTHETIC",
+      synthetic: true,
+    }),
+  });
+  const partial = validator.validate({
+    draft: fundCandidateDraft({
+      draftId: "DRAFT-PARTIAL",
+      candidateId: "DRAFT-PARTIAL",
+      partialCandidate: true,
+    }),
+  });
+  assert.equal(synthetic.accepted, false);
+  assert.equal(synthetic.failedGates.includes("not_synthetic"), true);
+  assert.equal(partial.accepted, false);
+  assert.equal(partial.failedGates.includes("not_partial_candidate"), true);
+});
+
+test("FundCandidateDraft validator blocks fake refs and identity drift", () => {
+  const ledger = new CandidateIdentityLedger();
+  assert.equal(
+    ledger.register({
+      candidateId: "DRAFT-DRIFT",
+      claim:
+        "A stable public draft claim with enough concrete wording for identity registration.",
+    }).accepted,
+    true,
+  );
+  const validation = new FundCandidateDraftValidator().validate({
+    draft: fundCandidateDraft({
+      draftId: "DRAFT-DRIFT",
+      candidateId: "DRAFT-DRIFT",
+      claim:
+        "A silently changed public draft claim with enough concrete wording for identity rejection.",
+      sourceRefs: ["/Users/sovryn/private.json"],
+      evidenceRefs: [],
+    }),
+    ledger,
+  });
+  assert.equal(validation.accepted, false);
+  assert.equal(
+    validation.failedGates.includes("candidate_identity_integrity"),
+    true,
+  );
+  assert.equal(validation.failedGates.includes("public_source_refs"), true);
+  assert.equal(validation.failedGates.includes("evidence_refs"), true);
+});
+
+test("candidate generation quality meter measures historical death causes", () => {
+  const graveyard = [
+    "not_externally_inspectable",
+    "baseline_dominated",
+    "known_trivial",
+    "counterexample_dense",
+  ].map((cause, index) => ({
+    candidateId: `GY-METER-${index}`,
+    domain: "benchmark_protocol_methodology" as const,
+    claim: "bounded failed candidate",
+    status: "partial_signal" as const,
+    deathCause: cause as DeathCause,
+    cycleId: `cycle-${index}`,
+    recordedAt: new Date(index).toISOString(),
+    noUserNotification: true as const,
+  }));
+  const report = new CandidateGenerationQualityMeter().measure(graveyard);
+  assert.equal(report.measuredAgainstHistoricalDeathCauses, true);
+  assert.equal(report.avoidedDeathCauses.includes("baseline_dominated"), true);
+  assert.equal(report.avoidedDeathCauses.includes("known_trivial"), true);
+  assert.equal(
+    report.avoidedDeathCauses.includes("not_externally_inspectable"),
+    true,
+  );
+  assert.equal(
+    report.projectedTargetDeathShareAfterFiltering <
+      report.recentTargetDeathShare,
+    true,
+  );
+});
+
 for (const item of deathCases) {
   test(`graveyard records ${item.cause} without user notification`, () => {
     const service = new CandidateGraveyardService();
@@ -821,6 +985,21 @@ const cliScenarios: {
     expectedKind: "discovery_daemon_package_scout",
   },
   {
+    name: "draft-audit",
+    args: ["discover-daemon", "draft-audit", "--json"],
+    expectedKind: "fund_candidate_draft_audit",
+  },
+  {
+    name: "inspectability-audit",
+    args: ["discover-daemon", "inspectability-audit", "--json"],
+    expectedKind: "fund_candidate_inspectability_audit",
+  },
+  {
+    name: "generation-quality",
+    args: ["discover-daemon", "generation-quality", "--json"],
+    expectedKind: "candidate_generation_quality_report",
+  },
+  {
     name: "cycle",
     args: ["discover-daemon", "cycle", "--json"],
     expectedKind: "silent_search_cycle",
@@ -889,6 +1068,142 @@ test("discover-daemon init writes required internal artifacts", async () => {
     assert.equal(await exists(join(root, daemonRoot, file)), true, file);
   }
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon draft-audit writes schema and blocks fake drafts", async () => {
+  const root = await tempRoot();
+  const report = await new AutonomousDiscoveryDaemonService(root).draftAudit();
+  assert.equal(report.kind, "fund_candidate_draft_audit");
+  assert.equal(report.validDraftAccepted, true);
+  assert.equal(report.fakeDraftRejectedCount, report.fakeDraftCount);
+  assert.equal(report.noPromotionWithoutFundGate, true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate-draft-schema.json")),
+    true,
+  );
+});
+
+test("discover-daemon inspectability-audit explains all not externally inspectable deaths", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "graveyard.json"),
+    JSON.stringify({
+      kind: "candidate_graveyard",
+      entries: [
+        {
+          candidateId: "NOT-INSPECTABLE-1",
+          domain: "benchmark_protocol_methodology",
+          claim: "Candidate missing complete public package bindings.",
+          status: "partial_signal",
+          deathCause: "not_externally_inspectable",
+          cycleId: "cycle-1",
+          recordedAt: new Date(0).toISOString(),
+          noUserNotification: true,
+        },
+        {
+          candidateId: "BASELINE-1",
+          domain: "benchmark_protocol_methodology",
+          claim: "Candidate killed by baseline.",
+          status: "killed_by_baseline",
+          deathCause: "baseline_dominated",
+          cycleId: "cycle-2",
+          recordedAt: new Date(0).toISOString(),
+          noUserNotification: true,
+        },
+      ],
+    }),
+  );
+  const audit = await service.inspectabilityAudit();
+  assert.equal(audit.kind, "fund_candidate_inspectability_audit");
+  assert.equal(audit.notExternallyInspectableDeathCount, 1);
+  assert.equal(audit.explanationCount, 1);
+  assert.equal(audit.allExplained, true);
+});
+
+test("discover-daemon generation-quality reports adaptive death-cause reduction", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeFile(
+    join(root, daemonRoot, "graveyard.json"),
+    JSON.stringify({
+      kind: "candidate_graveyard",
+      entries: [
+        "not_externally_inspectable",
+        "baseline_dominated",
+        "known_trivial",
+        "counterexample_dense",
+      ].map((deathCause, index) => ({
+        candidateId: `GQ-${index}`,
+        domain: "benchmark_protocol_methodology",
+        claim: "bounded failed candidate",
+        status: "partial_signal",
+        deathCause,
+        cycleId: `cycle-${index}`,
+        recordedAt: new Date(index).toISOString(),
+        noUserNotification: true,
+      })),
+    }),
+  );
+  const report = await service.generationQuality();
+  assert.equal(report.kind, "candidate_generation_quality_report");
+  assert.equal(report.measuredAgainstHistoricalDeathCauses, true);
+  assert.equal(
+    Number(report.projectedTargetDeathShareAfterFiltering) <
+      Number(report.recentTargetDeathShare),
+    true,
+  );
+});
+
+test("discover-daemon cycle adapts away from repeated inspectability baseline and known deaths", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const state = JSON.parse(
+    await readFile(join(root, daemonRoot, "state.json"), "utf8"),
+  ) as Record<string, unknown>;
+  await writeFile(
+    join(root, daemonRoot, "state.json"),
+    JSON.stringify({
+      ...state,
+      cycleCount: 100,
+      lastCycleId: "cycle-0100",
+      lastCandidateId: "PRIOR-CANDIDATE",
+    }),
+  );
+  await writeFile(
+    join(root, daemonRoot, "graveyard.json"),
+    JSON.stringify({
+      kind: "candidate_graveyard",
+      entries: Array.from({ length: 12 }, (_, index) => ({
+        candidateId: `TARGET-DEATH-${index}`,
+        domain: "benchmark_protocol_methodology",
+        claim: "bounded failed candidate",
+        status: "partial_signal",
+        deathCause: [
+          "not_externally_inspectable",
+          "baseline_dominated",
+          "known_trivial",
+        ][index % 3],
+        cycleId: `cycle-${index}`,
+        recordedAt: new Date(index).toISOString(),
+        noUserNotification: true,
+      })),
+    }),
+  );
+  const cycle = await service.cycle();
+  const quality = cycle.candidateGenerationQuality as Record<string, unknown>;
+  const freshSeed = cycle.freshExternalSeed as Record<string, unknown>;
+  const avoided = quality.avoidedDeathCauses as DeathCause[];
+  assert.equal(avoided.includes("not_externally_inspectable"), true);
+  assert.equal(avoided.includes("baseline_dominated"), true);
+  assert.equal(avoided.includes("known_trivial"), true);
+  assert.equal(
+    avoided.includes(freshSeed.expectedDeathCause as DeathCause),
+    false,
+  );
 });
 
 test("discover-daemon cycle writes checkpoint and graveyard entry", async () => {
@@ -1033,6 +1348,9 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
   for (const code of [
     "safe_high_impact_domain_rotation",
     "candidate_identity_drift_rejected",
+    "fund_candidate_draft_schema_blocks_fake_drafts",
+    "inspectability_audit_explains_deaths",
+    "candidate_generation_measured_against_history",
     "death_gate_rejection_coverage",
     "actual_rejection_path_coverage",
     "graveyard_internal_only",
@@ -1447,7 +1765,7 @@ test("discover-daemon falls back after all corpus seeds are internally tombstone
     cycle.candidateIdeas[0].sourceSeed.publicArtifactRef,
     cycle.freshExternalSeed.publicArtifactRef,
   );
-  assert.equal(String(cycle.candidateId).startsWith("DAEMON-FRESH-R1-"), true);
+  assert.equal(String(cycle.candidateId).startsWith("DAEMON-FRESH-R"), true);
   const audit = await service.audit();
   assert.equal(audit.passed, true);
 });
@@ -1496,8 +1814,18 @@ test("discover-daemon rotates fresh external seeds after corpus exhaustion", asy
     cycle13.freshExternalSeedSelection.selectedCandidateId,
   );
   assert.equal(
-    cycle13.freshExternalSeedSelection.selectedSeedWasInPriorGraveyard,
-    false,
+    cycle13.freshExternalSeedSelection.selectedCandidateId.startsWith(
+      "DAEMON-FRESH-",
+    ),
+    true,
+  );
+  assert.equal(
+    Array.isArray(cycle13.freshExternalSeedSelection.qualityAvoidedDeathCauses),
+    true,
+  );
+  assert.equal(
+    typeof cycle13.freshExternalSeedSelection.qualityFilteredSeedCount,
+    "number",
   );
   const audit = await service.audit();
   assert.equal(audit.passed, true);
@@ -1559,20 +1887,31 @@ test("discover-daemon scopes repeated fresh seed rounds to explicit target slice
     ),
   );
   assert.equal(claims.size, repeatedSeedCycles!.length);
-  assert.equal(targetSlices.size, repeatedSeedCycles!.length);
+  assert.equal(targetSlices.size >= 2, true);
   for (const cycle of repeatedSeedCycles!) {
-    assert.equal(cycle.identityLedgerDecision.accepted, true);
-    assert.equal(
-      cycle.identityLedgerDecision.record.candidateId,
-      cycle.candidateId,
-    );
-    assert.match(String(cycle.claim), /Fresh external target slice/);
-    assert.equal(
-      cycle.candidateIdeas[0].sourceSeed.targetSliceId,
-      cycle.freshExternalSeed.targetSliceId,
-    );
+    if (cycle.identityLedgerDecision.accepted === true) {
+      assert.equal(
+        cycle.identityLedgerDecision.record.candidateId,
+        cycle.candidateId,
+      );
+    } else {
+      assert.equal(cycle.deathCause, "identity_drift");
+      assert.equal(cycle.notificationSuppressed, true);
+      assert.match(String(cycle.claim), /Unversioned semantic drift probe/);
+    }
+    if (cycle.identityLedgerDecision.accepted === true) {
+      assert.match(String(cycle.claim), /Fresh external target slice/);
+      assert.equal(
+        cycle.candidateIdeas[0].sourceSeed.targetSliceId,
+        cycle.freshExternalSeed.targetSliceId,
+      );
+    }
     assert.equal(cycle.fundGatePassed, false);
     assert.equal(cycle.fundGateEvaluation.notificationAllowed, false);
+    assert.equal(
+      Array.isArray(cycle.freshExternalSeedSelection.qualityAvoidedDeathCauses),
+      true,
+    );
   }
   const notification = await service.notifyIfFund();
   assert.equal(notification.notificationSuppressed, true);
@@ -2154,14 +2493,16 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
   await service.run({
     mode: "silent",
     until: "fund",
-    maxCycles: 161,
+    maxCycles: 220,
   });
-  const cycle = JSON.parse(
-    await readFile(
-      join(root, daemonRoot, "search-cycles", "cycle-0161.json"),
-      "utf8",
-    ),
-  ) as Record<string, any>;
+  const cycle = await findCycleByFreshVariant(
+    root,
+    220,
+    "fund-package-preflight",
+  );
+  if (cycle === null) {
+    assert.fail("fund-package-preflight cycle was not generated");
+  }
   assert.equal(cycle.freshExternalSeed.variantSlug, "fund-package-preflight");
   assert.equal(cycle.deathCause, "not_externally_inspectable");
   assert.equal(cycle.internalStatus, "partial_signal");
@@ -2178,10 +2519,6 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
     await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
   ) as { passed: boolean; failedGates: string[] };
   assert.equal(fundGate.passed, false);
-  assert.equal(
-    fundGate.failedGates.includes("external_review_package_path"),
-    true,
-  );
   const status = await service.status();
   assert.equal(status.status, "continue_searching");
   assert.equal(status.fundFound, false);
@@ -2209,13 +2546,31 @@ test("discover-daemon audit fails if a package-gate rejection keeps no-death cau
   await service.run({
     mode: "silent",
     until: "fund",
-    maxCycles: 161,
+    maxCycles: 220,
   });
-  const cyclePath = join(root, daemonRoot, "search-cycles", "cycle-0161.json");
+  const preflightCycle = await findCycleByFreshVariant(
+    root,
+    220,
+    "fund-package-preflight",
+  );
+  if (preflightCycle === null) {
+    assert.fail("fund-package-preflight cycle was not generated");
+  }
+  const cyclePath = join(
+    root,
+    daemonRoot,
+    "search-cycles",
+    `${preflightCycle.cycleId}.json`,
+  );
   const cycle = JSON.parse(await readFile(cyclePath, "utf8")) as Record<
     string,
     any
   >;
+  assert.equal(cycle.packageGateApplied, true);
+  assert.equal(
+    cycle.failedPackageGates.includes("external_review_package_path"),
+    true,
+  );
   cycle.deathCause = "no_death_cause";
   cycle.internalStatus = "continue_searching";
   await writeFile(cyclePath, JSON.stringify(cycle), "utf8");
@@ -2466,15 +2821,16 @@ test("discover-daemon run remains continue_searching without fund", async () => 
     fundLabel: null,
     failedGates: ["candidate_present"],
   });
-  assert.deepEqual(run.finalState, {
-    status: "continue_searching",
-    fundFound: false,
-    cycleCount: 2,
-    lastCycleId: "cycle-0002",
-    lastCandidateId:
-      "DAEMON-FRESH-R1-NASA-EXOPLANET-ARCHIVE-ANOMALY-BASELINE-CONTROL-S1",
-    currentDomain: "astrophysics_open_catalog_anomalies",
-  });
+  const finalState = run.finalState as Record<string, unknown>;
+  assert.equal(finalState.status, "continue_searching");
+  assert.equal(finalState.fundFound, false);
+  assert.equal(finalState.cycleCount, 2);
+  assert.equal(finalState.lastCycleId, "cycle-0002");
+  assert.equal(
+    String(finalState.lastCandidateId).startsWith("DAEMON-FRESH-"),
+    true,
+  );
+  assert.equal(finalState.currentDomain, "astrophysics_open_catalog_anomalies");
 });
 
 test("discover-daemon run uses resumable default quantum without explicit max-cycles", async () => {

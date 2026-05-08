@@ -28,11 +28,15 @@ import {
   FundGateEvaluator,
   fundLabels,
   FundNotificationPackageBuilder,
+  hardSeedTypes,
+  HardSeedToCandidateBuilder,
+  HardSeedValidator,
   publicCorpusBaseRef,
   type DeathCause,
   type FundCandidate,
   type FundCandidateDraft,
   type FundLabel,
+  type HardSeed,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
@@ -45,6 +49,9 @@ const commands = [
   "draft-audit",
   "inspectability-audit",
   "generation-quality",
+  "hard-seeds",
+  "hard-seed-generate",
+  "hard-seed-audit",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -158,6 +165,47 @@ function fundCandidateDraft(
     generatedFrom: "fresh_external_target",
     synthetic: false,
     partialCandidate: false,
+    ...patch,
+  };
+}
+
+function hardSeedFixture(patch: Partial<HardSeed> = {}): HardSeed {
+  return {
+    kind: "hard_seed",
+    seedId: "HARD-TEST-001",
+    candidateId: "HARD-CAND-TEST-001",
+    type: "fresh_external_anomaly",
+    domain: "benchmark_protocol_methodology",
+    claim:
+      "Hard seed test claim with public evidence refs, holdout path, replay path, rival pressure, and counterexamples.",
+    observation:
+      "The hard seed is derived from concrete public evidence and not from synthetic, partial, preflight, or LLM-only output.",
+    sourceRefs: ["https://mlcommons.org/"],
+    evidenceRefs: [
+      "https://mlcommons.org/",
+      `${publicCorpusBaseRef}/tree/main/results/os-v1-stage03-class-level-evidence-report`,
+    ],
+    baselineRefs: ["https://mlcommons.org/#baseline"],
+    rivalRefs: ["https://mlcommons.org/#rival"],
+    holdoutRefs: ["https://mlcommons.org/#holdout"],
+    replayRefs: ["https://mlcommons.org/#replay"],
+    counterexampleRefs: ["https://mlcommons.org/#counterexample"],
+    sourceSeed: {
+      kind: "fresh_external_target",
+      slug: "mlcommons-benchmark-methodology",
+    },
+    expectedDeathCause: "rival_theory_stronger",
+    avoidsDeathCauses: [
+      "not_externally_inspectable",
+      "baseline_dominated",
+      "known_trivial",
+    ],
+    confidenceScore: 92,
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+    llmOnly: false,
+    preflightOnly: false,
     ...patch,
   };
 }
@@ -864,6 +912,57 @@ test("candidate generation quality meter measures historical death causes", () =
   );
 });
 
+test("HardSeed validator accepts evidence-born seeds and blocks weak sources", () => {
+  const validator = new HardSeedValidator();
+  const accepted = validator.validate(hardSeedFixture());
+  const synthetic = validator.validate(
+    hardSeedFixture({
+      seedId: "HARD-SYNTHETIC",
+      candidateId: "HARD-SYNTHETIC",
+      synthetic: true,
+    }),
+  );
+  const preflight = validator.validate(
+    hardSeedFixture({
+      seedId: "HARD-PREFLIGHT",
+      candidateId: "HARD-PREFLIGHT",
+      preflightOnly: true,
+    }),
+  );
+  const noEvidence = validator.validate(
+    hardSeedFixture({
+      seedId: "HARD-NO-EVIDENCE",
+      candidateId: "HARD-NO-EVIDENCE",
+      evidenceRefs: [],
+    }),
+  );
+
+  assert.equal(accepted.accepted, true);
+  assert.equal(synthetic.accepted, false);
+  assert.equal(synthetic.failedGates.includes("not_synthetic"), true);
+  assert.equal(preflight.accepted, false);
+  assert.equal(preflight.failedGates.includes("not_preflight_only"), true);
+  assert.equal(noEvidence.accepted, false);
+  assert.equal(noEvidence.failedGates.includes("real_evidence_refs"), true);
+});
+
+test("HardSeed to candidate builder creates only hard-seed-derived candidates", () => {
+  const seed = hardSeedFixture();
+  const candidate = new HardSeedToCandidateBuilder().build({
+    seed,
+    cycleId: "cycle-hard-seed",
+    index: 0,
+    anomalyFamilies: [{ familyId: "family-hard" }],
+  });
+  assert.equal(candidate.derivedFromHardSeed, true);
+  assert.equal(candidate.hardSeedId, seed.seedId);
+  assert.deepEqual(candidate.hardSeedEvidenceRefs, seed.evidenceRefs);
+  assert.equal(candidate.synthetic, false);
+  assert.equal(candidate.partialCandidate, false);
+  assert.equal(candidate.llmOnly, false);
+  assert.equal(candidate.preflightOnly, false);
+});
+
 for (const item of deathCases) {
   test(`graveyard records ${item.cause} without user notification`, () => {
     const service = new CandidateGraveyardService();
@@ -998,6 +1097,21 @@ const cliScenarios: {
     name: "generation-quality",
     args: ["discover-daemon", "generation-quality", "--json"],
     expectedKind: "candidate_generation_quality_report",
+  },
+  {
+    name: "hard-seeds",
+    args: ["discover-daemon", "hard-seeds", "--json"],
+    expectedKind: "hard_seed_registry",
+  },
+  {
+    name: "hard-seed-generate",
+    args: ["discover-daemon", "hard-seed-generate", "--json"],
+    expectedKind: "hard_seed_generation_report",
+  },
+  {
+    name: "hard-seed-audit",
+    args: ["discover-daemon", "hard-seed-audit", "--json"],
+    expectedKind: "hard_seed_audit",
   },
   {
     name: "cycle",
@@ -1155,6 +1269,91 @@ test("discover-daemon generation-quality reports adaptive death-cause reduction"
       Number(report.recentTargetDeathShare),
     true,
   );
+});
+
+test("discover-daemon hard-seed-generate returns validated evidence-born seeds", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  const report = await service.hardSeedGenerate();
+  assert.equal(report.kind, "hard_seed_generation_report");
+  assert.equal(Number(report.generatedCount) >= 3, true);
+  assert.equal(Number(report.validCount) >= 3, true);
+  const seeds = report.hardSeeds as HardSeed[];
+  const validations = report.validations as Array<Record<string, unknown>>;
+  assert.equal(
+    seeds.every(
+      (seed) =>
+        seed.kind === "hard_seed" &&
+        hardSeedTypes().includes(seed.type) &&
+        seed.evidenceRefs.length >= 2 &&
+        seed.evidenceRefs.some((ref) => ref.startsWith("https://")) &&
+        seed.synthetic === false &&
+        seed.partialCandidate === false &&
+        seed.llmOnly === false,
+    ),
+    true,
+  );
+  assert.equal(
+    validations.every((item) => item.accepted === true),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "hard-seed-generation.json")),
+    true,
+  );
+});
+
+test("discover-daemon hard-seed-audit blocks synthetic and preflight seeds", async () => {
+  const root = await tempRoot();
+  const audit = await new AutonomousDiscoveryDaemonService(
+    root,
+  ).hardSeedAudit();
+  assert.equal(audit.kind, "hard_seed_audit");
+  assert.equal(audit.invalidFixtureRejected, true);
+  assert.equal(audit.preflightFixtureRejected, true);
+  assert.equal(audit.allValidSeedsHaveRealEvidenceRefs, true);
+  assert.equal(audit.syntheticPreflightCandidatesBlocked, true);
+});
+
+test("discover-daemon hard-seed-only cycle promotes only hard-seed candidates and no fake fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const cycle = await service.cycle({ mode: "hard_seed_only" });
+  assert.equal(cycle.candidateGenerationMode, "hard_seed_only");
+  assert.equal(cycle.hardSeedOnly, true);
+  assert.equal(cycle.fundGatePassed, false);
+  assert.equal(cycle.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  const ideas = cycle.candidateIdeas as Array<Record<string, unknown>>;
+  const promoted = cycle.promotedCandidates as Array<Record<string, unknown>>;
+  assert.equal(ideas.length >= 3, true);
+  assert.equal(
+    ideas.every((idea) => idea.derivedFromHardSeed === true),
+    true,
+  );
+  assert.equal(
+    promoted.every((candidate) => candidate.derivedFromHardSeed === true),
+    true,
+  );
+  const hardSeeds = cycle.hardSeeds as HardSeed[];
+  assert.equal(
+    hardSeeds.every(
+      (seed) =>
+        seed.evidenceRefs.length >= 2 &&
+        seed.evidenceRefs.some((ref) => ref.startsWith("https://")),
+    ),
+    true,
+  );
+  const audit = await service.hardSeedAudit();
+  assert.equal(
+    (audit.deathCauseDistribution as Record<string, unknown>)
+      .improvedOrFailureDocumented,
+    true,
+  );
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
 });
 
 test("discover-daemon cycle adapts away from repeated inspectability baseline and known deaths", async () => {
@@ -1351,6 +1550,8 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "fund_candidate_draft_schema_blocks_fake_drafts",
     "inspectability_audit_explains_deaths",
     "candidate_generation_measured_against_history",
+    "hard_seed_generation_blocks_weak_sources",
+    "hard_seed_death_cause_distribution_measured",
     "death_gate_rejection_coverage",
     "actual_rejection_path_coverage",
     "graveyard_internal_only",

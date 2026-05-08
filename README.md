@@ -130,6 +130,15 @@ node dist/cli.js discover-daemon status --json
 node dist/cli.js discover-daemon audit --json
 ```
 
+Run the hard-seed candidate source path:
+
+```bash
+node dist/cli.js discover-daemon hard-seeds --json
+node dist/cli.js discover-daemon hard-seed-generate --json
+node dist/cli.js discover-daemon hard-seed-audit --json
+node dist/cli.js discover-daemon cycle --mode hard-seed-only --json
+```
+
 If installed globally or linked, use `sovryn` instead of `node dist/cli.js`.
 
 ## What Sovryn Does
@@ -218,6 +227,14 @@ No Fund is currently claimed. The default daemon state remains
 required gate passed. Sovryn does not treat partial signals,
 `promising_but_unvalidated`, `promising_with_strong_caveats`, corpus
 maintenance, or graveyard updates as user-notifiable success.
+
+Hard-seed generation tightens candidate sources before promotion. A promotable
+daemon candidate must derive from a validated hard seed with public-safe source
+and evidence refs, baseline/rival/holdout/replay/counterexample pressure refs,
+and historical death-cause avoidance. Synthetic, LLM-only, partial, and
+preflight-only candidates are blocked from hard-seed promotion. Hard-seed-only
+cycles still use the same strict Fund Gate; if no Fund passes, the daemon stays
+silent in `continue_searching` state.
 
 ## Architecture
 

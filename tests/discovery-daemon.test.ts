@@ -2520,6 +2520,12 @@ test("discover-daemon compacts old cycles while keeping latest full resume evide
     await exists(join(root, daemonRoot, "checkpoints", "cycle-0260.json")),
     true,
   );
+  const retention = JSON.parse(
+    await readFile(join(root, daemonRoot, "history-retention.json"), "utf8"),
+  ) as Record<string, unknown>;
+  assert.equal(retention.kind, "discovery_daemon_history_retention");
+  assert.equal(retention.compactedThroughCycleNumber, 10);
+  assert.equal(retention.pendingCompactionCount, 0);
 
   const resume = await service.resume();
   assert.equal(

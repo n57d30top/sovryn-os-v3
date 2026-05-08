@@ -266,6 +266,7 @@ export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
 const daemonFullCycleRetentionCount = 250;
 const daemonCheckpointRetentionCount = 250;
+const daemonHistoryCompactionBatchSize = 1000;
 const objectiveRejectionCoverageMinimumCycles = 11;
 
 export function discoveryDaemonDomains(): DiscoveryDomain[] {
@@ -2025,6 +2026,12 @@ function cycleFilesByNumber(
     );
 }
 
+function cycleNumberFromCycleId(cycleId: string | null): number | null {
+  if (!cycleId) return null;
+  const match = /^cycle-(\d+)$/.exec(cycleId);
+  return match ? Number(match[1]) : null;
+}
+
 function isFundCandidate(value: unknown): value is FundCandidate {
   if (!isRecord(value)) return false;
   return (
@@ -2992,21 +2999,72 @@ export class AutonomousDiscoveryDaemonService {
     } catch {
       return;
     }
-    const latestFile = `${latestCycleId}.json`;
     const numbered = cycleFilesByNumber(files);
-    const retained = new Set(
-      numbered.slice(-daemonFullCycleRetentionCount).map((item) => item.file),
+    const latestCycleNumber = cycleNumberFromCycleId(latestCycleId);
+    const maxCompactCycleNumber =
+      latestCycleNumber === null
+        ? (numbered.at(-daemonFullCycleRetentionCount - 1)?.cycleNumber ?? 0)
+        : Math.max(0, latestCycleNumber - daemonFullCycleRetentionCount);
+    if (maxCompactCycleNumber <= 0) return;
+    const retentionReportRef = `${daemonArtifactRoot}/history-retention.json`;
+    const retentionReport = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, retentionReportRef),
     );
-    retained.add(latestFile);
-    for (const item of numbered) {
-      if (retained.has(item.file)) continue;
+    const hasRetentionReport = isRecord(retentionReport);
+    const compactedThrough =
+      hasRetentionReport &&
+      typeof retentionReport.compactedThroughCycleNumber === "number"
+        ? retentionReport.compactedThroughCycleNumber
+        : 0;
+    const allCandidates = numbered.filter(
+      (item) =>
+        item.cycleNumber > compactedThrough &&
+        item.cycleNumber <= maxCompactCycleNumber,
+    );
+    const candidates = hasRetentionReport
+      ? allCandidates.slice(0, daemonHistoryCompactionBatchSize)
+      : allCandidates;
+    let compactedCount = 0;
+    let skippedAlreadyCompactedCount = 0;
+    let preservedFundCycleCount = 0;
+    let compactedThroughCycleNumber = compactedThrough;
+    for (const item of candidates) {
       const path = join(cycleRoot, item.file);
       const cycle = await readOptionalJson<Record<string, unknown>>(path);
+      compactedThroughCycleNumber = item.cycleNumber;
       if (!isRecord(cycle)) continue;
-      if (cycle.compacted === true) continue;
-      if (cycle.fundGatePassed === true) continue;
+      if (cycle.compacted === true) {
+        skippedAlreadyCompactedCount += 1;
+        continue;
+      }
+      if (cycle.fundGatePassed === true) {
+        preservedFundCycleCount += 1;
+        continue;
+      }
       await writeJson(path, compactSearchCycleReceipt(cycle));
+      compactedCount += 1;
     }
+    await writeJson(
+      join(this.root, retentionReportRef),
+      withEvidenceHash({
+        kind: "discovery_daemon_history_retention",
+        fullCycleRetentionCount: daemonFullCycleRetentionCount,
+        checkpointRetentionCount: daemonCheckpointRetentionCount,
+        compactionBatchSize: daemonHistoryCompactionBatchSize,
+        latestCycleId,
+        latestCycleNumber,
+        maxCompactCycleNumber,
+        compactedThroughCycleNumber,
+        compactedCount,
+        skippedAlreadyCompactedCount,
+        preservedFundCycleCount,
+        pendingCompactionCount: Math.max(
+          0,
+          maxCompactCycleNumber - compactedThroughCycleNumber,
+        ),
+        updatedAt: nowIso(),
+      }),
+    );
   }
 
   private async pruneOldCheckpoints(latestCycleId: string): Promise<void> {

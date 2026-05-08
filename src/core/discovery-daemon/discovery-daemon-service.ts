@@ -264,6 +264,8 @@ const requiredFundPackageFiles = [
 export const daemonDefaultRunQuantum = 25;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
+const daemonFullCycleRetentionCount = 250;
+const daemonCheckpointRetentionCount = 250;
 const objectiveRejectionCoverageMinimumCycles = 11;
 
 export function discoveryDaemonDomains(): DiscoveryDomain[] {
@@ -2000,6 +2002,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function cycleFilesByNumber(
+  files: string[],
+): Array<{ file: string; cycleNumber: number }> {
+  return files
+    .map((file) => {
+      const match = /^cycle-(\d+)\.json$/.exec(file);
+      return match
+        ? {
+            file,
+            cycleNumber: Number(match[1]),
+          }
+        : null;
+    })
+    .filter(
+      (item): item is { file: string; cycleNumber: number } => item !== null,
+    )
+    .sort(
+      (left, right) =>
+        left.cycleNumber - right.cycleNumber ||
+        left.file.localeCompare(right.file),
+    );
+}
+
 function isFundCandidate(value: unknown): value is FundCandidate {
   if (!isRecord(value)) return false;
   return (
@@ -2112,6 +2137,53 @@ function packageBackedCandidateIntakeCycleComplete(
     fundGate !== null &&
     (fundGate.notificationAllowed === false || fundGate.passed === true)
   );
+}
+
+function compactSearchCycleReceipt(
+  cycle: Record<string, unknown>,
+): Record<string, unknown> {
+  const fundGate = isRecord(cycle.fundGateEvaluation)
+    ? cycle.fundGateEvaluation
+    : null;
+  const failedPackageGates = Array.isArray(cycle.failedPackageGates)
+    ? cycle.failedPackageGates.map((item) => String(item))
+    : [];
+  return withEvidenceHash({
+    kind: "compact_search_cycle_receipt",
+    compacted: true,
+    cycleId: String(cycle.cycleId ?? "unknown"),
+    candidateId:
+      typeof cycle.candidateId === "string" ? cycle.candidateId : null,
+    domain: typeof cycle.domain === "string" ? cycle.domain : null,
+    deathCause:
+      typeof cycle.deathCause === "string"
+        ? cycle.deathCause
+        : "no_death_cause",
+    internalStatus:
+      typeof cycle.internalStatus === "string"
+        ? cycle.internalStatus
+        : "continue_searching",
+    fundGatePassed: cycle.fundGatePassed === true,
+    fundGateEvaluation: fundGate
+      ? {
+          passed: fundGate.passed === true,
+          fundLabel:
+            typeof fundGate.fundLabel === "string" ? fundGate.fundLabel : null,
+          failedGates: Array.isArray(fundGate.failedGates)
+            ? fundGate.failedGates.map((item) => String(item))
+            : [],
+          notificationAllowed: fundGate.notificationAllowed === true,
+        }
+      : null,
+    packageGateApplied: cycle.packageGateApplied === true,
+    failedPackageGates,
+    notificationSuppressed: cycle.notificationSuppressed === true,
+    nextStatus:
+      typeof cycle.nextStatus === "string"
+        ? cycle.nextStatus
+        : "continue_searching",
+    compactedAt: nowIso(),
+  });
 }
 
 function latestCycleFundGateStateConsistent(
@@ -2789,6 +2861,7 @@ export class AutonomousDiscoveryDaemonService {
       cycle: persistedCycle,
       graveyardSummary: checkpointGraveyard.summary(),
     });
+    await this.compactDiscoveryDaemonHistory(cycleId);
     await this.notifyFromFundGateIfPassed(fundGate);
     return persistedCycle;
   }
@@ -2899,8 +2972,61 @@ export class AutonomousDiscoveryDaemonService {
       cycle,
       graveyardSummary: input.graveyard.summary(),
     });
+    await this.compactDiscoveryDaemonHistory(cycleId);
     await this.notifyFromFundGateIfPassed(fundGate);
     return cycle;
+  }
+
+  private async compactDiscoveryDaemonHistory(
+    latestCycleId: string,
+  ): Promise<void> {
+    await this.compactOldSearchCycles(latestCycleId);
+    await this.pruneOldCheckpoints(latestCycleId);
+  }
+
+  private async compactOldSearchCycles(latestCycleId: string): Promise<void> {
+    const cycleRoot = join(this.root, daemonArtifactRoot, "search-cycles");
+    let files: string[];
+    try {
+      files = await readdir(cycleRoot);
+    } catch {
+      return;
+    }
+    const latestFile = `${latestCycleId}.json`;
+    const numbered = cycleFilesByNumber(files);
+    const retained = new Set(
+      numbered.slice(-daemonFullCycleRetentionCount).map((item) => item.file),
+    );
+    retained.add(latestFile);
+    for (const item of numbered) {
+      if (retained.has(item.file)) continue;
+      const path = join(cycleRoot, item.file);
+      const cycle = await readOptionalJson<Record<string, unknown>>(path);
+      if (!isRecord(cycle)) continue;
+      if (cycle.compacted === true) continue;
+      if (cycle.fundGatePassed === true) continue;
+      await writeJson(path, compactSearchCycleReceipt(cycle));
+    }
+  }
+
+  private async pruneOldCheckpoints(latestCycleId: string): Promise<void> {
+    const checkpointRoot = join(this.root, daemonArtifactRoot, "checkpoints");
+    let files: string[];
+    try {
+      files = await readdir(checkpointRoot);
+    } catch {
+      return;
+    }
+    const latestFile = `${latestCycleId}.json`;
+    const numbered = cycleFilesByNumber(files);
+    const retained = new Set(
+      numbered.slice(-daemonCheckpointRetentionCount).map((item) => item.file),
+    );
+    retained.add(latestFile);
+    for (const item of numbered) {
+      if (retained.has(item.file)) continue;
+      await removeIfExists(join(checkpointRoot, item.file));
+    }
   }
 
   async candidateStatus(): Promise<Record<string, unknown>> {

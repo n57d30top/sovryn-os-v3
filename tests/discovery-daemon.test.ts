@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -2465,4 +2472,62 @@ test("discover-daemon run uses resumable default quantum without explicit max-cy
   );
   const status = await service.status();
   assert.equal(status.cycleCount, daemonDefaultRunQuantum);
+});
+
+test("discover-daemon compacts old cycles while keeping latest full resume evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  const run = await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 260,
+  });
+  assert.equal(run.status, "continue_searching");
+  assert.equal(run.lastCycleId, "cycle-0260");
+
+  const firstCycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0001.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(firstCycle.kind, "compact_search_cycle_receipt");
+  assert.equal(firstCycle.compacted, true);
+  assert.equal(firstCycle.cycleId, "cycle-0001");
+  assert.equal(Boolean(firstCycle.fundGateEvaluation), true);
+  assert.equal("candidateIdeas" in firstCycle, false);
+  assert.equal("freshTargets" in firstCycle, false);
+
+  const latestCycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0260.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.notEqual(latestCycle.kind, "compact_search_cycle_receipt");
+  assert.equal(Array.isArray(latestCycle.candidateIdeas), true);
+  assert.equal(Array.isArray(latestCycle.freshTargets), true);
+
+  const checkpointFiles = (
+    await readdir(join(root, daemonRoot, "checkpoints"))
+  ).filter((file) => file.endsWith(".json"));
+  assert.equal(checkpointFiles.length <= 250, true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "checkpoints", "cycle-0001.json")),
+    false,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "checkpoints", "cycle-0260.json")),
+    true,
+  );
+
+  const resume = await service.resume();
+  assert.equal(
+    resume.checkpointRef,
+    `${daemonRoot}/checkpoints/cycle-0260.json`,
+  );
+  assert.equal(resume.checkpointCycleId, "cycle-0260");
+
+  const audit = await service.audit();
+  assert.equal(audit.passed, true);
 });

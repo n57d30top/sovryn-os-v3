@@ -3212,6 +3212,24 @@ export class AutonomousDiscoveryDaemonService {
         );
       }),
     );
+    const requiredDirs = [
+      "search-cycles",
+      "checkpoints",
+      candidateIntakeDir,
+      evidencePackageDir,
+    ];
+    gates.push(
+      ...(await Promise.all(
+        requiredDirs.map(async (dir) => {
+          const ref = `${daemonArtifactRoot}/${dir}/`;
+          return gate(
+            `artifact_${dir}_dir`,
+            await exists(join(this.root, ref)),
+            `${ref} must exist for resumable daemon operation.`,
+          );
+        }),
+      )),
+    );
     const state = await this.readState();
     const fundFoundFile = await exists(
       join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
@@ -3466,7 +3484,24 @@ export class AutonomousDiscoveryDaemonService {
   private async ensureInitialized(): Promise<void> {
     if (!(await exists(join(this.root, daemonArtifactRoot, "state.json")))) {
       await this.init();
+      return;
     }
+    await this.ensureRuntimeDirectories();
+  }
+
+  private async ensureRuntimeDirectories(): Promise<void> {
+    await mkdir(join(this.root, daemonArtifactRoot, "search-cycles"), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, "checkpoints"), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, candidateIntakeDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, evidencePackageDir), {
+      recursive: true,
+    });
   }
 
   private async readState(): Promise<DiscoveryDaemonState> {

@@ -5,6 +5,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -988,6 +989,33 @@ test("discover-daemon audit passes after init", async () => {
   const audit = await service.audit();
   assert.equal(audit.passed, true);
   assert.equal(audit.fundFound, false);
+});
+
+test("discover-daemon recreates runtime directories for existing daemon state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await rm(join(root, daemonRoot, "candidate-intake"), {
+    recursive: true,
+    force: true,
+  });
+  await rm(join(root, daemonRoot, "evidence-packages"), {
+    recursive: true,
+    force: true,
+  });
+
+  const status = await service.status();
+  assert.equal(status.status, "continue_searching");
+  assert.equal(await exists(join(root, daemonRoot, "candidate-intake")), true);
+  assert.equal(await exists(join(root, daemonRoot, "evidence-packages")), true);
+
+  const audit = await service.audit();
+  const gateCodes = (audit.gates as Array<{ code: string }>).map(
+    (gate) => gate.code,
+  );
+  assert.equal(gateCodes.includes("artifact_candidate-intake_dir"), true);
+  assert.equal(gateCodes.includes("artifact_evidence-packages_dir"), true);
+  assert.equal(audit.passed, true);
 });
 
 test("discover-daemon audit covers objective-level daemon gates", async () => {

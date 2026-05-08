@@ -2530,10 +2530,11 @@ export class AutonomousDiscoveryDaemonService {
     }
     const operatorBoundedQuantum = options.maxCycles !== undefined;
     const maxCycles = options.maxCycles ?? daemonDefaultRunQuantum;
-    const cycles: Record<string, unknown>[] = [];
+    let cyclesExecuted = 0;
     for (let index = 0; index < maxCycles; index += 1) {
       if (fund.passed) break;
-      cycles.push(await this.cycle());
+      await this.cycle();
+      cyclesExecuted += 1;
       fund = await this.readFundGate();
       if (fund.passed) break;
     }
@@ -2546,7 +2547,7 @@ export class AutonomousDiscoveryDaemonService {
       kind: "silent_until_fund_run",
       mode: "silent",
       until: "fund",
-      cyclesExecuted: cycles.length,
+      cyclesExecuted,
       status: state.status,
       fundFound: state.fundFound,
       cycleCount: state.cycleCount,

@@ -188,6 +188,7 @@ Commands:
   sovryn os harden-class --class <class> [--json]
   sovryn os replay-coverage [--json]
   sovryn os capability-audit [--json]
+  sovryn os closure-audit [--json]
   sovryn route status [--json]
   sovryn route intake --target <target> [--json]
   sovryn route classify --target <target> [--json]
@@ -1717,7 +1718,7 @@ async function osCommand(
   if (!subcommand) {
     throw new AppError(
       "OS_COMMAND_REQUIRED",
-      "Use: sovryn os <status|hardening-plan|run-scale|package-verify|final-audit|capability-status|harden-class|replay-coverage|capability-audit>.",
+      "Use: sovryn os <status|hardening-plan|run-scale|package-verify|final-audit|capability-status|harden-class|replay-coverage|capability-audit|closure-audit>.",
     );
   }
   const service = new OSHardeningService(root);
@@ -1741,6 +1742,8 @@ async function osCommand(
       return os16.replayCoverage();
     case "capability-audit":
       return os16.capabilityAudit();
+    case "closure-audit":
+      return os16.closureAudit();
     default:
       throw new AppError(
         "UNKNOWN_OS_COMMAND",

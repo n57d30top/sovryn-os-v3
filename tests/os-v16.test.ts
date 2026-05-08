@@ -239,6 +239,71 @@ test("OS v1.6 service capability-audit reaches final candidate status", async ()
   );
 });
 
+test("OS v1.6 closure audit accounts for all core capabilities", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-closure-"));
+  const report = await new OSCapabilityCompletionService(root).closureAudit();
+  assert.equal(report.kind, "core_capability_closure_audit");
+  assert.equal(report.statuses.length, 16);
+  assert.equal(report.counts.release_grade_100, 6);
+  assert.equal(report.counts.release_grade_with_caveats, 8);
+  assert.equal(report.counts.partial, 2);
+  assert.equal(report.counts.failed, 0);
+  assert.equal(
+    report.statuses.some(
+      (status) => status.id === "positive_discovery_candidate_generation",
+    ),
+    true,
+  );
+  assert.equal(
+    report.statuses.some(
+      (status) => status.id === "fund_candidate_inspectability",
+    ),
+    true,
+  );
+});
+
+test("OS v1.6 closure audit keeps discovery-facing gaps partial", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-closure-gaps-"));
+  const report = await new OSCapabilityCompletionService(root).closureAudit();
+  const positiveDiscovery = report.statuses.find(
+    (status) => status.id === "positive_discovery_candidate_generation",
+  );
+  const fundInspectability = report.statuses.find(
+    (status) => status.id === "fund_candidate_inspectability",
+  );
+  const daemon = report.statuses.find(
+    (status) => status.id === "discovery_daemon",
+  );
+  assert.equal(positiveDiscovery?.label, "partial");
+  assert.equal(fundInspectability?.label, "partial");
+  assert.equal(daemon?.label, "release_grade_with_caveats");
+  assert.equal(report.final100Decision.fundFound, false);
+  assert.equal(
+    report.final100Decision.externallyReviewReadyCandidateFound,
+    false,
+  );
+});
+
+test("OS v1.6 closure audit passes no-overclaim and package consistency gates", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-closure-kill-"));
+  const report = await new OSCapabilityCompletionService(root).closureAudit();
+  assert.equal(report.noFake100KillWeek.passed, true);
+  assert.equal(report.noFake100KillWeek.forbiddenClaimFindings.length, 0);
+  assert.equal(
+    report.packageCorpusConsistencyAudit.packageVerificationPassed,
+    true,
+  );
+  assert.equal(report.replayVerificationReport.coveragePassed, true);
+  assert.equal(
+    report.final100Decision.status,
+    "bounded_100_with_caveats_and_exclusions",
+  );
+  assert.equal(
+    report.promptToArtifactChecklist.every((item) => item.covered),
+    true,
+  );
+});
+
 for (const [argv, expectedKind] of [
   [["os", "capability-status", "--json"], "os16_capability_status"],
   [
@@ -250,6 +315,7 @@ for (const [argv, expectedKind] of [
     "os16_evidence_package_replay_coverage",
   ],
   [["os", "capability-audit", "--json"], "os16_capability_audit"],
+  [["os", "closure-audit", "--json"], "core_capability_closure_audit"],
   [
     ["route", "policy-v4-audit", "--json"],
     "os16_route_policy_v4_stability_audit",
@@ -275,6 +341,7 @@ test("CLI help lists OS v1.6 capability commands", async () => {
   const help = String((envelope.data as Record<string, unknown>).help);
   assert.match(help, /sovryn os capability-status/);
   assert.match(help, /sovryn os harden-class/);
+  assert.match(help, /sovryn os closure-audit/);
   assert.match(help, /sovryn temporal v2-audit/);
   assert.match(help, /sovryn repo deep-audit/);
   assert.match(help, /sovryn formal proof-route-audit/);
@@ -302,4 +369,10 @@ test("full OS v1.6 smoke flow reaches capability audit", async () => {
   const audit = await executeCli(["os", "capability-audit", "--json"], root);
   assert.equal(audit.ok, true);
   assert.equal((audit.data as Record<string, unknown>).passed, true);
+  const closure = await executeCli(["os", "closure-audit", "--json"], root);
+  assert.equal(closure.ok, true);
+  assert.equal(
+    (closure.data as Record<string, unknown>).kind,
+    "core_capability_closure_audit",
+  );
 });

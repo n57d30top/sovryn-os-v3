@@ -3065,23 +3065,10 @@ export class AutonomousDiscoveryDaemonService {
           ),
         )
       : null;
-    const searchCycleFundGateInconsistencies = (
-      await this.readSearchCycleRecords()
-    )
-      .filter(
-        (cycle) =>
-          !searchCycleFundGateRecordConsistent(
-            cycle,
-            state.fundFound,
-            state.lastCycleId,
-          ),
-      )
-      .map((cycle) => String(cycle.cycleId ?? "unknown"));
-    const packageRejectionCauseInconsistencies = (
-      await this.readSearchCycleRecords()
-    )
-      .filter((cycle) => !searchCyclePackageRejectionCauseConsistent(cycle))
-      .map((cycle) => String(cycle.cycleId ?? "unknown"));
+    const searchCycleConsistency = await this.auditSearchCycleConsistency(
+      state.fundFound,
+      state.lastCycleId,
+    );
     const latestCycleIsPackageBacked =
       latestCycle !== null &&
       packageBackedCandidateIntakeCycleComplete(latestCycle);
@@ -3182,13 +3169,13 @@ export class AutonomousDiscoveryDaemonService {
       ),
       gate(
         "search_cycle_fund_gate_consistency",
-        searchCycleFundGateInconsistencies.length === 0,
-        `Search cycle records must not preserve package-less or stale Fund Gate pass markers. Inconsistent cycles: ${searchCycleFundGateInconsistencies.slice(0, 5).join(", ") || "none"}.`,
+        searchCycleConsistency.fundGateInconsistencyCount === 0,
+        `Search cycle records must not preserve package-less or stale Fund Gate pass markers. Inconsistent cycles: ${searchCycleConsistency.fundGateInconsistencySamples.join(", ") || "none"}.`,
       ),
       gate(
         "search_cycle_package_rejection_cause_consistency",
-        packageRejectionCauseInconsistencies.length === 0,
-        `Search cycle records rejected by Fund package gates must be classified as not_externally_inspectable partial signals. Inconsistent cycles: ${packageRejectionCauseInconsistencies.slice(0, 5).join(", ") || "none"}.`,
+        searchCycleConsistency.packageRejectionCauseInconsistencyCount === 0,
+        `Search cycle records rejected by Fund package gates must be classified as not_externally_inspectable partial signals. Inconsistent cycles: ${searchCycleConsistency.packageRejectionCauseInconsistencySamples.join(", ") || "none"}.`,
       ),
       gate(
         "corpus_seed_candidate_binding",
@@ -3331,24 +3318,62 @@ export class AutonomousDiscoveryDaemonService {
     return graveyard?.entries ?? [];
   }
 
-  private async readSearchCycleRecords(): Promise<
-    Array<Record<string, unknown>>
-  > {
+  private async auditSearchCycleConsistency(
+    stateFundFound: boolean,
+    latestCycleId: string | null,
+  ): Promise<{
+    fundGateInconsistencyCount: number;
+    fundGateInconsistencySamples: string[];
+    packageRejectionCauseInconsistencyCount: number;
+    packageRejectionCauseInconsistencySamples: string[];
+  }> {
     const cycleRoot = join(this.root, daemonArtifactRoot, "search-cycles");
     let files: string[];
     try {
       files = await readdir(cycleRoot);
     } catch {
-      return [];
+      return {
+        fundGateInconsistencyCount: 0,
+        fundGateInconsistencySamples: [],
+        packageRejectionCauseInconsistencyCount: 0,
+        packageRejectionCauseInconsistencySamples: [],
+      };
     }
-    const cycles = await Promise.all(
-      files
-        .filter((file) => file.endsWith(".json"))
-        .map((file) =>
-          readOptionalJson<Record<string, unknown>>(join(cycleRoot, file)),
-        ),
-    );
-    return cycles.filter(isRecord);
+    let fundGateInconsistencyCount = 0;
+    const fundGateInconsistencySamples: string[] = [];
+    let packageRejectionCauseInconsistencyCount = 0;
+    const packageRejectionCauseInconsistencySamples: string[] = [];
+    for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
+      const cycle = await readOptionalJson<Record<string, unknown>>(
+        join(cycleRoot, file),
+      );
+      if (!isRecord(cycle)) continue;
+      const cycleId = String(cycle.cycleId ?? file.replace(/\.json$/, ""));
+      if (
+        !searchCycleFundGateRecordConsistent(
+          cycle,
+          stateFundFound,
+          latestCycleId,
+        )
+      ) {
+        fundGateInconsistencyCount += 1;
+        if (fundGateInconsistencySamples.length < 5) {
+          fundGateInconsistencySamples.push(cycleId);
+        }
+      }
+      if (!searchCyclePackageRejectionCauseConsistent(cycle)) {
+        packageRejectionCauseInconsistencyCount += 1;
+        if (packageRejectionCauseInconsistencySamples.length < 5) {
+          packageRejectionCauseInconsistencySamples.push(cycleId);
+        }
+      }
+    }
+    return {
+      fundGateInconsistencyCount,
+      fundGateInconsistencySamples,
+      packageRejectionCauseInconsistencyCount,
+      packageRejectionCauseInconsistencySamples,
+    };
   }
 
   private async writeGraveyardEntries(

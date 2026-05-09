@@ -684,6 +684,8 @@ const fundCandidateFile = "fund-candidate.json" as const;
 const candidateIntakeDir = "candidate-intake" as const;
 const evidencePackageDir = "evidence-packages" as const;
 const fundCandidateDraftDir = "fund-candidate-drafts" as const;
+const classifiedNonDiscoveryFundFile =
+  "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
 const candidatePresentPreflightFile =
   "candidate-present-preflight.json" as const;
@@ -2341,13 +2343,15 @@ export class FundGateEvaluator {
       candidate === null
         ? null
         : classifyFundCandidateForGate(candidate, passed);
+    const notificationAllowed = discoveryFundNotificationAllowed(
+      passed,
+      fundClassAssessment,
+    );
     const result = {
       kind: "fund_gate_result" as const,
       candidateId,
       passed,
-      status: passed
-        ? ("FUND_FOUND" as const)
-        : ("continue_searching" as const),
+      status: fundGateStatusForNotification(notificationAllowed),
       fundLabel: passed ? fundLabel : null,
       fundClass: fundClassAssessment?.fundClass ?? null,
       countsForEinsteinNobelDiscoveryScore:
@@ -2357,7 +2361,7 @@ export class FundGateEvaluator {
       failedGates: gates
         .filter((item) => !item.passed)
         .map((item) => item.code),
-      notificationAllowed: passed,
+      notificationAllowed,
     };
     return withEvidenceHash(result);
   }
@@ -2406,6 +2410,19 @@ function classifyFundCandidateForGate(
     domainScientificSignificance: candidate.domainScientificSignificance,
     insightEvidenceRefs: candidate.insightEvidenceRefs,
   });
+}
+
+function discoveryFundNotificationAllowed(
+  passed: boolean,
+  assessment: FundClassAssessment | null,
+): boolean {
+  return passed && assessment?.countsForEinsteinNobelDiscoveryScore === true;
+}
+
+function fundGateStatusForNotification(
+  notificationAllowed: boolean,
+): "FUND_FOUND" | "continue_searching" {
+  return notificationAllowed ? "FUND_FOUND" : "continue_searching";
 }
 
 export class SilentSearchLoopRunner {
@@ -4832,13 +4849,24 @@ function compactSearchCycleReceipt(
 function latestCycleFundGateStateConsistent(
   cycle: Record<string, unknown>,
   stateFundFound: boolean,
+  classifiedNonDiscoveryFundIds: Set<string> = new Set(),
 ): boolean {
   const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
   const cycleFundGatePassed = cycle.fundGatePassed === true;
   const effectiveFundGatePassed = fundGate?.passed === true;
+  const notificationAllowed = fundGate?.notificationAllowed === true;
+  const candidateId = String(cycle.candidateId ?? fundGate?.candidateId ?? "");
+  if (
+    cycleFundGatePassed &&
+    effectiveFundGatePassed &&
+    !stateFundFound &&
+    classifiedNonDiscoveryFundIds.has(candidateId)
+  ) {
+    return true;
+  }
   return (
     cycleFundGatePassed === effectiveFundGatePassed &&
-    effectiveFundGatePassed === stateFundFound
+    notificationAllowed === stateFundFound
   );
 }
 
@@ -4846,19 +4874,33 @@ function searchCycleFundGateRecordConsistent(
   cycle: Record<string, unknown>,
   stateFundFound: boolean,
   latestCycleId: string | null,
+  classifiedNonDiscoveryFundIds: Set<string> = new Set(),
 ): boolean {
   const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
   const cycleFundGatePassed = cycle.fundGatePassed === true;
   const effectiveFundGatePassed = fundGate?.passed === true;
+  const notificationAllowed = fundGate?.notificationAllowed === true;
+  const candidateId = String(cycle.candidateId ?? fundGate?.candidateId ?? "");
   if (cycleFundGatePassed !== effectiveFundGatePassed) return false;
   if (!cycleFundGatePassed) return true;
+  if (!stateFundFound && classifiedNonDiscoveryFundIds.has(candidateId)) {
+    return true;
+  }
   const packageGateApplied = cycle.packageGateApplied === true;
   const packageBacked = packageBackedCandidateIntakeCycleComplete(cycle);
+  if (notificationAllowed) {
+    return (
+      stateFundFound &&
+      String(cycle.cycleId) === latestCycleId &&
+      (packageGateApplied || packageBacked) &&
+      cycle.notificationSuppressed !== true
+    );
+  }
   return (
-    stateFundFound &&
-    String(cycle.cycleId) === latestCycleId &&
+    !stateFundFound &&
     (packageGateApplied || packageBacked) &&
-    cycle.notificationSuppressed !== true
+    cycle.notificationSuppressed === true &&
+    cycle.nextStatus === "continue_searching"
   );
 }
 
@@ -5039,11 +5081,15 @@ export class FundNotificationPackageBuilder {
     result: FundGateResult,
     candidate: FundCandidate | null,
   ): Promise<Record<string, unknown>> {
-    if (!result.passed || candidate === null) {
+    if (!result.passed || !result.notificationAllowed || candidate === null) {
       return withEvidenceHash({
         kind: "fund_notification",
         status: "continue_searching",
         notificationSuppressed: true,
+        fundGatePassed: result.passed,
+        fundClass: result.fundClass,
+        countsForEinsteinNobelDiscoveryScore:
+          result.countsForEinsteinNobelDiscoveryScore,
         fundFoundPath: null,
       });
     }
@@ -5188,7 +5234,7 @@ function renderFundFoundMarkdown(candidate: FundCandidate): string {
     candidate.nextExternalReviewStep ??
       "Send the package to a qualified external domain expert for method, evidence, replay, and limitation review before any stronger public interpretation.",
     "",
-    "This notification is emitted only because every Fund Gate passed.",
+    "This notification is emitted only because every Fund Gate passed and the FundClass is eligible for discovery scoring.",
   ].join("\n");
 }
 
@@ -5313,18 +5359,18 @@ export class AutonomousDiscoveryDaemonService {
     await this.notifyFromFundGateIfPassed(fund);
     fund = await this.readFundGate();
     let packageScoutSummary: Record<string, unknown> | null = null;
-    if (!fund.passed) {
+    if (!fund.notificationAllowed) {
       packageScoutSummary = await this.packageScout();
     }
     const operatorBoundedQuantum = options.maxCycles !== undefined;
     const maxCycles = options.maxCycles ?? daemonDefaultRunQuantum;
     let cyclesExecuted = 0;
     for (let index = 0; index < maxCycles; index += 1) {
-      if (fund.passed) break;
+      if (fund.notificationAllowed) break;
       await this.cycle();
       cyclesExecuted += 1;
       fund = await this.readFundGate();
-      if (fund.passed) break;
+      if (fund.notificationAllowed) break;
     }
     await this.notifyFromFundGateIfPassed(fund);
     const state = await this.readState();
@@ -5345,6 +5391,10 @@ export class AutonomousDiscoveryDaemonService {
       packageScoutSummary,
       fundGateStatus: {
         passed: fund.passed,
+        notificationAllowed: fund.notificationAllowed,
+        fundClass: fund.fundClass,
+        countsForEinsteinNobelDiscoveryScore:
+          fund.countsForEinsteinNobelDiscoveryScore,
         fundLabel: fund.fundLabel,
         failedGates: fund.failedGates,
       },
@@ -5860,38 +5910,51 @@ export class AutonomousDiscoveryDaemonService {
     } = {},
   ): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
-    const state = await this.readState();
+    let state = await this.readState();
     if (state.fundFound) {
       const fundGate = await this.refreshFundGateFromCandidate();
-      const lastCycle = await readOptionalJson<Record<string, unknown>>(
-        join(
-          this.root,
-          daemonArtifactRoot,
-          "search-cycles",
-          `${state.lastCycleId}.json`,
-        ),
-      );
-      if (isRecord(lastCycle)) {
+      if (!fundGate.notificationAllowed) {
+        const nonDiscoveryCandidate = await this.readFundCandidate();
+        if (nonDiscoveryCandidate) {
+          await this.recordNonDiscoveryFundCandidate(
+            nonDiscoveryCandidate,
+            fundGate,
+            "cycle_resume_active_candidate",
+          );
+          await this.refreshFundGateFromCandidate();
+        }
+        state = await this.readState();
+      } else {
+        const lastCycle = await readOptionalJson<Record<string, unknown>>(
+          join(
+            this.root,
+            daemonArtifactRoot,
+            "search-cycles",
+            `${state.lastCycleId}.json`,
+          ),
+        );
+        if (isRecord(lastCycle)) {
+          return withEvidenceHash({
+            ...lastCycle,
+            status: fundGate.status,
+            fundGateEvaluation: fundGate,
+            fundGatePassed: fundGate.passed,
+            notificationSuppressed: !fundGate.notificationAllowed,
+            nextStatus: fundGate.status,
+          });
+        }
         return withEvidenceHash({
-          ...lastCycle,
-          status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+          kind: "discovery_daemon_cycle_already_fund_found",
+          cycleId: state.lastCycleId,
+          candidateId: state.lastCandidateId,
+          domain: state.currentDomain,
+          status: fundGate.status,
           fundGateEvaluation: fundGate,
           fundGatePassed: fundGate.passed,
-          notificationSuppressed: !fundGate.passed,
-          nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+          notificationSuppressed: !fundGate.notificationAllowed,
+          nextStatus: fundGate.status,
         });
       }
-      return withEvidenceHash({
-        kind: "discovery_daemon_cycle_already_fund_found",
-        cycleId: state.lastCycleId,
-        candidateId: state.lastCandidateId,
-        domain: state.currentDomain,
-        status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
-        fundGateEvaluation: fundGate,
-        fundGatePassed: fundGate.passed,
-        notificationSuppressed: !fundGate.passed,
-        nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
-      });
     }
     const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
     const graveyard = new CandidateGraveyardService(
@@ -5957,13 +6020,26 @@ export class AutonomousDiscoveryDaemonService {
         cycleId,
       );
     }
+    if (
+      cycleFundGatePassed &&
+      fundGate.passed &&
+      !fundGate.notificationAllowed &&
+      effectiveCycleFundCandidate
+    ) {
+      await this.recordNonDiscoveryFundCandidate(
+        effectiveCycleFundCandidate,
+        fundGate,
+        "cycle_candidate",
+      );
+    }
     if (cycleFundGatePassed) {
       persistedCycle = withEvidenceHash({
         ...cycle,
-        status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+        status: fundGate.status,
         fundCandidate: effectiveCycleFundCandidate,
         fundGateEvaluation: fundGate,
         fundGatePassed: fundGate.passed,
+        discoveryFundNotificationAllowed: fundGate.notificationAllowed,
         packageGateApplied: true,
         generatedExternalReviewPackage:
           packagedCycleFundCandidate?.publicPackagePath ?? null,
@@ -5974,23 +6050,21 @@ export class AutonomousDiscoveryDaemonService {
         internalStatus: new DeathCauseClassifier().statusForDeathCause(
           effectiveDeathCause as DeathCause,
         ),
-        notificationSuppressed: !fundGate.passed,
-        nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+        notificationSuppressed: !fundGate.notificationAllowed,
+        nextStatus: fundGate.status,
       });
     }
     await writeJson(
       join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
       persistedCycle,
     );
-    const persistedFundCandidate = fundGate.passed
+    const persistedFundCandidate = fundGate.notificationAllowed
       ? await this.readFundCandidate()
       : null;
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
-      status: fundGate.passed
-        ? ("FUND_FOUND" as const)
-        : ("continue_searching" as const),
-      fundFound: fundGate.passed,
+      status: fundGate.status,
+      fundFound: fundGate.notificationAllowed,
       cycleCount: state.cycleCount + 1,
       lastCycleId: cycleId,
       lastCandidateId:
@@ -6229,12 +6303,13 @@ export class AutonomousDiscoveryDaemonService {
       identityLedgerDecision: identity,
       fundCandidate: candidate,
       fundGateEvaluation: fundGate,
-      status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+      status: fundGate.status,
       deathCause,
       internalStatus,
       fundGatePassed: fundGate.passed,
-      notificationSuppressed: !fundGate.passed,
-      nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+      discoveryFundNotificationAllowed: fundGate.notificationAllowed,
+      notificationSuppressed: !fundGate.notificationAllowed,
+      nextStatus: fundGate.status,
     });
     await writeJson(
       join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
@@ -6246,8 +6321,14 @@ export class AutonomousDiscoveryDaemonService {
       join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
       fundGate,
     );
-    if (fundGate.passed) {
+    if (fundGate.notificationAllowed) {
       await this.writeFundCandidate(candidate);
+    } else if (fundGate.passed) {
+      await this.recordNonDiscoveryFundCandidate(
+        candidate,
+        fundGate,
+        "package_backed_candidate_intake",
+      );
     } else {
       await removeIfExists(
         join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
@@ -6259,10 +6340,8 @@ export class AutonomousDiscoveryDaemonService {
     await removeIfExists(join(this.root, input.intake.fileRef));
     const nextState: DiscoveryDaemonState = withEvidenceHash({
       kind: "discovery_daemon_state" as const,
-      status: fundGate.passed
-        ? ("FUND_FOUND" as const)
-        : ("continue_searching" as const),
-      fundFound: fundGate.passed,
+      status: fundGate.status,
+      fundFound: fundGate.notificationAllowed,
       cycleCount: input.state.cycleCount + 1,
       lastCycleId: cycleId,
       lastCandidateId: candidate.candidateId,
@@ -6466,6 +6545,7 @@ export class AutonomousDiscoveryDaemonService {
       draftRef: draftInput?.draftRef ?? null,
       fundGatePassed: fundGate.passed,
       fundGateStatus: fundGate.status,
+      discoveryNotificationAllowed: fundGate.notificationAllowed,
       fundClass: fundGate.fundClass,
       countsForEinsteinNobelDiscoveryScore:
         fundGate.countsForEinsteinNobelDiscoveryScore,
@@ -6528,11 +6608,18 @@ export class AutonomousDiscoveryDaemonService {
     const notification = await new FundNotificationPackageBuilder(
       this.root,
     ).buildIfFund(result, notificationCandidate);
-    if (result.passed && notificationCandidate) {
+    if (result.notificationAllowed && notificationCandidate) {
       if (!candidate) {
         await this.writeFundCandidate(notificationCandidate);
       }
       await this.markFundFound(notificationCandidate);
+    } else if (result.passed && notificationCandidate) {
+      await this.recordNonDiscoveryFundCandidate(
+        notificationCandidate,
+        result,
+        candidate ? "notify_if_fund_active_candidate" : "notify_if_fund_draft",
+      );
+      await this.refreshFundGateFromCandidate();
     } else if (candidate) {
       await this.tombstoneRejectedFundCandidate(candidate, result);
     }
@@ -6554,7 +6641,7 @@ export class AutonomousDiscoveryDaemonService {
       result,
     );
     if (
-      result.passed &&
+      result.notificationAllowed &&
       draftInput &&
       !persistedCandidate &&
       options.persistDraftFallback === true
@@ -6670,11 +6757,15 @@ export class AutonomousDiscoveryDaemonService {
       candidate === null
         ? null
         : classifyFundCandidateForGate(candidate, passed);
+    const notificationAllowed = discoveryFundNotificationAllowed(
+      passed,
+      fundClassAssessment,
+    );
     const result: FundGateResult = withEvidenceHash({
       kind: "fund_gate_result",
       candidateId: semanticResult.candidateId,
       passed,
-      status: passed ? "FUND_FOUND" : "continue_searching",
+      status: fundGateStatusForNotification(notificationAllowed),
       fundLabel: passed ? semanticResult.fundLabel : null,
       fundClass: fundClassAssessment?.fundClass ?? null,
       countsForEinsteinNobelDiscoveryScore:
@@ -6684,7 +6775,7 @@ export class AutonomousDiscoveryDaemonService {
       failedGates: gates
         .filter((item) => !item.passed)
         .map((item) => item.code),
-      notificationAllowed: passed,
+      notificationAllowed,
     });
     return result;
   }
@@ -6695,6 +6786,15 @@ export class AutonomousDiscoveryDaemonService {
     if (!result.passed) return;
     const candidate = await this.readFundCandidate();
     if (!candidate) return;
+    if (!result.notificationAllowed) {
+      await this.recordNonDiscoveryFundCandidate(
+        candidate,
+        result,
+        "active_fund_candidate",
+      );
+      await this.refreshFundGateFromCandidate();
+      return;
+    }
     await new FundNotificationPackageBuilder(this.root).buildIfFund(
       result,
       candidate,
@@ -6791,6 +6891,8 @@ export class AutonomousDiscoveryDaemonService {
           ),
         )
       : null;
+    const classifiedNonDiscoveryFundIds =
+      await this.readClassifiedNonDiscoveryFundIds();
     const searchCycleConsistency = await this.auditSearchCycleConsistency(
       state.fundFound,
       state.lastCycleId,
@@ -6814,15 +6916,15 @@ export class AutonomousDiscoveryDaemonService {
       ),
       gate(
         "no_fake_fund_file",
-        state.fundFound || !fundFoundFile,
-        "FUND_FOUND.md must not exist unless a fund exists.",
+        fundGate.notificationAllowed || !fundFoundFile,
+        "FUND_FOUND.md must not exist unless a discovery-scored FundClass may notify.",
       ),
       gate(
         "no_stale_fund_candidate_file",
         state.fundFound
-          ? fundCandidateFilePresent && fundGate.passed
+          ? fundCandidateFilePresent && fundGate.notificationAllowed
           : !fundCandidateFilePresent,
-        "fund-candidate.json must exist only for an actual passing Fund state; rejected candidates must be tombstoned into the internal graveyard.",
+        "fund-candidate.json must exist only for an active discovery-scored Fund notification state; rejected candidates are tombstoned and non-discovery Funds are classified separately.",
       ),
       gate(
         "continue_searching_without_fund",
@@ -6832,9 +6934,9 @@ export class AutonomousDiscoveryDaemonService {
       gate(
         "fund_state_status_consistency",
         state.fundFound
-          ? state.status === "FUND_FOUND"
+          ? state.status === "FUND_FOUND" && fundGate.notificationAllowed
           : state.status === "continue_searching",
-        "Daemon state status must be FUND_FOUND only when a Fund exists, and continue_searching otherwise.",
+        "Daemon state status must be FUND_FOUND only when a discovery-scored FundClass may notify, and continue_searching otherwise.",
       ),
       gate(
         "safe_high_impact_domain_rotation",
@@ -6994,7 +7096,11 @@ export class AutonomousDiscoveryDaemonService {
         "effective_fund_gate_consistency",
         state.cycleCount === 0 ||
           (latestCycle !== null &&
-            latestCycleFundGateStateConsistent(latestCycle, state.fundFound)),
+            latestCycleFundGateStateConsistent(
+              latestCycle,
+              state.fundFound,
+              classifiedNonDiscoveryFundIds,
+            )),
         "Latest cycle Fund Gate status must match the effective persisted Fund state after package gates; semantic preflight alone must not look like a Fund.",
       ),
       gate(
@@ -7059,7 +7165,7 @@ export class AutonomousDiscoveryDaemonService {
         "fund_only_notification",
         fundGate.notificationAllowed === state.fundFound &&
           (state.fundFound || fundGate.status === "continue_searching"),
-        "Notification must be allowed only when the Fund Gate passes.",
+        "Notification must be allowed only when the Fund Gate passes and FundClass is discovery-scored.",
       ),
       gate(
         "no_internal_status_notifies",
@@ -7083,6 +7189,10 @@ export class AutonomousDiscoveryDaemonService {
       gates,
       status: state.status,
       fundFound: state.fundFound,
+      discoveryNotificationAllowed: fundGate.notificationAllowed,
+      fundClass: fundGate.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundGate.countsForEinsteinNobelDiscoveryScore,
       notificationOnlyOnFund: true,
       artifactRefs: [
         `${daemonArtifactRoot}/state.json`,
@@ -7219,6 +7329,17 @@ export class AutonomousDiscoveryDaemonService {
     return graveyard?.entries ?? [];
   }
 
+  private async readClassifiedNonDiscoveryFundIds(): Promise<Set<string>> {
+    const ledger = await readOptionalJson<{
+      entries: Array<Record<string, unknown>>;
+    }>(join(this.root, daemonArtifactRoot, classifiedNonDiscoveryFundFile));
+    return new Set(
+      (ledger?.entries ?? [])
+        .map((entry) => String(entry.candidateId ?? ""))
+        .filter((candidateId) => candidateId.length > 0),
+    );
+  }
+
   private async auditSearchCycleConsistency(
     stateFundFound: boolean,
     latestCycleId: string | null,
@@ -7244,6 +7365,8 @@ export class AutonomousDiscoveryDaemonService {
     const fundGateInconsistencySamples: string[] = [];
     let packageRejectionCauseInconsistencyCount = 0;
     const packageRejectionCauseInconsistencySamples: string[] = [];
+    const classifiedNonDiscoveryFundIds =
+      await this.readClassifiedNonDiscoveryFundIds();
     for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
       const cycle = await readOptionalJson<Record<string, unknown>>(
         join(cycleRoot, file),
@@ -7255,6 +7378,7 @@ export class AutonomousDiscoveryDaemonService {
           cycle,
           stateFundFound,
           latestCycleId,
+          classifiedNonDiscoveryFundIds,
         )
       ) {
         fundGateInconsistencyCount += 1;
@@ -7936,6 +8060,67 @@ export class AutonomousDiscoveryDaemonService {
         ...state,
         status: "FUND_FOUND",
         fundFound: true,
+        lastCandidateId: candidate.candidateId,
+        currentDomain: candidate.domain,
+        updatedAt: nowIso(),
+      }),
+    );
+  }
+
+  private async recordNonDiscoveryFundCandidate(
+    candidate: FundCandidate,
+    result: FundGateResult,
+    source: string,
+  ): Promise<void> {
+    if (!result.passed || result.notificationAllowed) return;
+    const ledgerPath = join(
+      this.root,
+      daemonArtifactRoot,
+      classifiedNonDiscoveryFundFile,
+    );
+    const existing = await readOptionalJson<{
+      entries: Array<Record<string, unknown>>;
+    }>(ledgerPath);
+    const entry = withEvidenceHash({
+      kind: "classified_non_discovery_fund_candidate",
+      candidateId: candidate.candidateId,
+      claim: candidate.claim,
+      domain: candidate.domain,
+      requestedFundLabel: candidate.requestedFundLabel,
+      fundClass: result.fundClass,
+      validFundCandidate:
+        result.fundClassAssessment?.validFundCandidate === true,
+      countsForEinsteinNobelDiscoveryScore:
+        result.countsForEinsteinNobelDiscoveryScore,
+      notificationAllowed: false,
+      continueSearching: true,
+      publicPackagePath: candidate.publicPackagePath ?? null,
+      source,
+      classifiedAt: nowIso(),
+      fundGateResult: result,
+      noFundFoundCreated: true,
+      noUserNotification: true,
+    });
+    const entries = (existing?.entries ?? []).filter(
+      (item) => String(item.candidateId ?? "") !== candidate.candidateId,
+    );
+    await writeJson(
+      ledgerPath,
+      withEvidenceHash({
+        kind: "classified_non_discovery_fund_ledger",
+        entries: [...entries, entry],
+      }),
+    );
+    await removeIfExists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"));
+    await removeIfExists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
+    const state = await this.readState();
+    await this.writeState(
+      withEvidenceHash({
+        ...state,
+        status: "continue_searching",
+        fundFound: false,
         lastCandidateId: candidate.candidateId,
         currentDomain: candidate.domain,
         updatedAt: nowIso(),

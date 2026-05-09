@@ -126,6 +126,12 @@ function fundCandidate(
     freshWorkspaceReplay: true,
     decisiveUnreplayedClaims: false,
     proofOrMechanismPressureClear: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: [
+      "PAPER.md#nontrivial-new-insight",
+      "CLAIM_EVIDENCE_BINDINGS.json#insightEvidenceRefs",
+    ],
     fakeProofDetected: false,
     checkedProofConfirmed: label === "checked_proof" ? true : false,
     killWeekComplete: true,
@@ -3144,6 +3150,9 @@ test("legacy reproduction Fund package remains valid but not discovery scored", 
         claim,
         domain: "scientific_software_reproduction_mechanisms",
         publicPackagePath,
+        nontrivialNewInsightAcrossRealTargets: false,
+        domainScientificSignificance: false,
+        insightEvidenceRefs: [],
       }),
     ),
     "utf8",
@@ -3155,6 +3164,8 @@ test("legacy reproduction Fund package remains valid but not discovery scored", 
   assert.equal(contract.passed, true);
   assert.equal(contract.legacySchemaAcceptedWithCaveats, true);
   assert.equal(result.passed, true);
+  assert.equal(result.status, "continue_searching");
+  assert.equal(result.notificationAllowed, false);
   assert.equal(result.fundClass, "reproduction_fund_candidate");
   assert.equal(result.countsForEinsteinNobelDiscoveryScore, false);
 });
@@ -3174,6 +3185,9 @@ test("FundClass is persisted and reported by read-only fund reconciliation", asy
         candidateId,
         claim,
         publicPackagePath,
+        nontrivialNewInsightAcrossRealTargets: false,
+        domainScientificSignificance: false,
+        insightEvidenceRefs: [],
       }),
     ),
     "utf8",
@@ -3186,10 +3200,124 @@ test("FundClass is persisted and reported by read-only fund reconciliation", asy
   const reconcile = await service.fundReconcile();
 
   assert.equal(result.fundClass, "pipeline_fund_candidate");
+  assert.equal(result.status, "continue_searching");
+  assert.equal(result.notificationAllowed, false);
   assert.equal(persisted.fundClass, "pipeline_fund_candidate");
   assert.equal(reconcile.fundClass, "pipeline_fund_candidate");
+  assert.equal(reconcile.discoveryNotificationAllowed, false);
   assert.equal(reconcile.countsForEinsteinNobelDiscoveryScore, false);
   assert.equal((reconcile as any).readOnly, true);
+});
+
+test("discover-daemon notify-if-fund classifies reproduction fund and continues searching", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidateId = "REPRODUCTION-FUND-NON-DISCOVERY";
+  const claim =
+    "Runtime reproduction alignment confirms package reproduction and dependency behavior.";
+  const publicPackagePath = await writeFundPackage(root, candidateId, claim);
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        candidateId,
+        claim,
+        domain: "scientific_software_reproduction_mechanisms",
+        publicPackagePath,
+        nontrivialNewInsightAcrossRealTargets: false,
+        domainScientificSignificance: false,
+        insightEvidenceRefs: [],
+      }),
+    ),
+    "utf8",
+  );
+  await writeFile(join(root, daemonRoot, "FUND_FOUND.md"), "# stale\n", "utf8");
+
+  const notification = await service.notifyIfFund();
+  const status = await service.status();
+  const ledger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "classified-non-discovery-funds.json"),
+      "utf8",
+    ),
+  ) as { entries: Array<Record<string, unknown>> };
+
+  assert.equal(notification.status, "continue_searching");
+  assert.equal(notification.notificationSuppressed, true);
+  assert.equal(notification.fundClass, "reproduction_fund_candidate");
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  assert.equal(ledger.entries[0]?.candidateId, candidateId);
+  assert.equal(ledger.entries[0]?.fundClass, "reproduction_fund_candidate");
+  assert.equal(ledger.entries[0]?.countsForEinsteinNobelDiscoveryScore, false);
+});
+
+test("discover-daemon run continues past persisted pipeline fund candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root, {
+    runCycle: () => ({
+      kind: "silent_search_cycle",
+      cycleId: "cycle-0001",
+      candidateId: "NEXT-DISCOVERY-CANDIDATE-DIRECTION",
+      domain: "computational_materials_property_data",
+      claim: "Next discovery candidate direction remains under evaluation.",
+      fundGateEvaluation: new FundGateEvaluator().evaluate(null),
+      fundGatePassed: false,
+      deathCause: "known_trivial",
+      internalStatus: "killed_by_known_pattern",
+    }),
+  });
+  await service.init();
+  const candidateId = "PIPELINE-FUND-NON-DISCOVERY";
+  const claim =
+    "Manifest closure audit contract passed with replay status and external review artifacts.";
+  const publicPackagePath = await writeFundPackage(root, candidateId, claim);
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        candidateId,
+        claim,
+        publicPackagePath,
+        nontrivialNewInsightAcrossRealTargets: false,
+        domainScientificSignificance: false,
+        insightEvidenceRefs: [],
+      }),
+    ),
+    "utf8",
+  );
+  await writeFile(join(root, daemonRoot, "FUND_FOUND.md"), "# stale\n", "utf8");
+
+  const run = await service.run({
+    mode: "silent",
+    until: "fund",
+    maxCycles: 1,
+  });
+  const ledger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "classified-non-discovery-funds.json"),
+      "utf8",
+    ),
+  ) as { entries: Array<Record<string, unknown>> };
+
+  assert.equal(run.cyclesExecuted, 1);
+  assert.equal(run.status, "continue_searching");
+  assert.equal(run.fundFound, false);
+  assert.equal(run.userNotification, null);
+  assert.equal(run.notificationSuppressed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(ledger.entries[0]?.candidateId, candidateId);
+  assert.equal(ledger.entries[0]?.fundClass, "pipeline_fund_candidate");
 });
 
 test("discover-daemon audit fails if stale fund candidate file remains without fund", async () => {
@@ -3981,6 +4109,9 @@ test("discover-daemon run remains continue_searching without fund", async () => 
   );
   assert.deepEqual(run.fundGateStatus, {
     passed: false,
+    notificationAllowed: false,
+    fundClass: null,
+    countsForEinsteinNobelDiscoveryScore: false,
     fundLabel: null,
     failedGates: ["candidate_present"],
   });

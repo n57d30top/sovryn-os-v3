@@ -134,6 +134,8 @@ test("SciPy runtime reproduction remains a valid reproduction fund candidate", (
   );
 
   assert.equal(gate.passed, true);
+  assert.equal(gate.status, "continue_searching");
+  assert.equal(gate.notificationAllowed, false);
   assert.equal(gate.fundClass, "reproduction_fund_candidate");
   assert.equal(gate.fundClassAssessment?.validFundCandidate, true);
   assert.equal(gate.countsForEinsteinNobelDiscoveryScore, false);

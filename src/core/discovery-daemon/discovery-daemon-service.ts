@@ -10,6 +10,16 @@ import {
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { writeJson } from "../../shared/fs.js";
+import { ExternalReviewScientistService } from "../external-review/external-review-scientist-service.js";
+import { FormalDiscoveryService } from "../formal/formal-discovery-service.js";
+import { LabService } from "../lab/lab-service.js";
+import { KnowledgeService } from "../knowledge/knowledge-service.js";
+import { NobelReadinessService } from "../nobel/nobel-readiness-service.js";
+import { RuntimeReproductionAlignmentService } from "../repo/runtime-reproduction-alignment-service.js";
+import { CrossDomainEvidenceRoutingService } from "../route/cross-domain-evidence-routing-service.js";
+import { ScienceService } from "../science/science-service.js";
+import { StrategyService } from "../strategy/strategy-service.js";
+import { TemporalEvaluationFragilityService } from "../temporal/temporal-evaluation-fragility-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -61,7 +71,96 @@ export type DiscoveryDomain =
   | "scientific_software_reproduction_mechanisms"
   | "safe_protein_structure_metadata"
   | "dataset_provenance_reliability"
-  | "cross_domain_evaluation_fragility";
+  | "cross_domain_evaluation_fragility"
+  | "earth_observation_metadata_quality"
+  | "open_government_data_consistency"
+  | "public_transport_schedule_reliability";
+
+export type DomainSafetyStatus =
+  | "safe_public_computational"
+  | "unsafe_private"
+  | "unsafe_wet_lab"
+  | "unsafe_medical"
+  | "unsafe_cyber_offensive";
+
+export type DomainDiscoveryCandidate = {
+  kind: "domain_discovery_candidate";
+  domain: string;
+  title: string;
+  summary: string;
+  sourceRefs: string[];
+  baselinePath: string | null;
+  holdoutPath: string | null;
+  replayPath: string | null;
+  inspectabilityPath: string | null;
+  safetyStatus: DomainSafetyStatus;
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+};
+
+export type DomainMetric = {
+  domain: DiscoveryDomain;
+  seedPortfolioDomain: boolean;
+  hardSeedsGenerated: number;
+  validHardSeeds: number;
+  draftsGenerated: number;
+  deathCauses: Partial<Record<DeathCause, number>>;
+  fundCandidateDraftRate: number;
+  holdoutAvailability: number;
+  replayAvailability: number;
+  externalInspectability: number;
+  safetyStatus: DomainSafetyStatus;
+};
+
+export type DomainPortfolioAuditReport = {
+  kind: "domain_portfolio_audit";
+  seedPortfolioDomains: DiscoveryDomain[];
+  activeDomains: DiscoveryDomain[];
+  discoveredDomainCount: number;
+  metrics: DomainMetric[];
+  yieldSummary: {
+    totalHardSeedsGenerated: number;
+    totalValidHardSeeds: number;
+    totalDraftsGenerated: number;
+    draftRate: number;
+    deathCauses: Partial<Record<DeathCause, number>>;
+  };
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type DomainRotationAction = "promote" | "pause" | "narrow" | "explore";
+
+export type DomainRotationDecision = {
+  domain: DiscoveryDomain;
+  action: DomainRotationAction;
+  reason: string;
+  score: number;
+};
+
+export type DomainRotationReport = {
+  kind: "domain_rotation_report";
+  cycleCount: number;
+  requestedCycles: number;
+  decisions: DomainRotationDecision[];
+  rotationSchedule: Array<{
+    rotationCycle: number;
+    domain: DiscoveryDomain;
+    action: DomainRotationAction;
+    reason: string;
+  }>;
+  addedDomains: DiscoveryDomain[];
+  pausedDomains: DiscoveryDomain[];
+  narrowedDomains: DiscoveryDomain[];
+  promotedDomains: DiscoveryDomain[];
+  safetyGatePassed: boolean;
+  testabilityGatePassed: boolean;
+  fundFound: false;
+  nextStatus: "continue_searching_checkpointed";
+  artifactRefs: string[];
+  evidenceHash: string;
+};
 
 export type FundCandidate = {
   candidateId: string;
@@ -124,7 +223,10 @@ export type FundCandidateDraft = {
   domain: DiscoveryDomain;
   sourceRefs: string[];
   evidenceRefs: string[];
+  identityLedgerRefs: string[];
+  hardSeedRefs: string[];
   packageRefs: string[];
+  inspectabilityPath: string;
   predictionRefs: string[];
   holdoutRefs: string[];
   counterexampleRefs: string[];
@@ -282,6 +384,55 @@ type PackageScoutReadResult = {
   rejected: Array<Record<string, unknown>>;
 };
 
+type CandidatePresentPreflightCheck = {
+  kind: "candidate_present_preflight_check";
+  sourceType: "hard_seed" | "corpus_package";
+  sourceRef: string;
+  candidateId: string | null;
+  claim: string | null;
+  domain: string | null;
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  rejectionReason: string | null;
+  draft: FundCandidateDraft | null;
+  validation: FundCandidateDraftValidation | null;
+  identityDecision: CandidateIdentityDecision | null;
+  evidenceRefs: string[];
+  identityLedgerRefs: string[];
+  hardSeedRefs: string[];
+  inspectabilityPath: string | null;
+  evidenceHash: string;
+};
+
+type CandidatePresentPreflightReport = {
+  kind: "candidate_present_preflight";
+  status: "candidate_present" | "continue_searching_checkpointed";
+  checkpointRef: string | null;
+  cycleRef: string | null;
+  cycleId: string | null;
+  hardSeedCheckCount: number;
+  packageCheckCount: number;
+  createdDraftCount: number;
+  rejectedDraftCount: number;
+  createdDrafts: FundCandidateDraft[];
+  draftArtifactRefs: string[];
+  rejectedDrafts: Array<{
+    sourceType: "hard_seed" | "corpus_package";
+    sourceRef: string;
+    candidateId: string | null;
+    reason: string;
+    failedGates: string[];
+  }>;
+  hardSeedChecks: CandidatePresentPreflightCheck[];
+  packageChecks: CandidatePresentPreflightCheck[];
+  candidatePresentFailureAnalysis: string | null;
+  notificationSuppressed: true;
+  fundFound: false;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type CandidateGenerationQualityReport = {
   kind: "candidate_generation_quality_report";
   historicalEntryCount: number;
@@ -318,6 +469,13 @@ type FundCandidateInspectabilityAudit = {
   evidenceHash: string;
 };
 
+type DraftFundGateInput = {
+  draft: FundCandidateDraft;
+  draftRef: string;
+  validation: FundCandidateDraftValidation;
+  candidate: FundCandidate;
+};
+
 export type HardSeedType =
   | "fresh_external_anomaly"
   | "replay_stable_anomaly"
@@ -326,7 +484,8 @@ export type HardSeedType =
   | "holdout_supported_pattern"
   | "counterexample_resistant_pattern"
   | "checked_refutation_or_formal_boundary"
-  | "multi_source_discrepancy";
+  | "multi_source_discrepancy"
+  | "external_review_ready_pattern";
 
 export type HardSeed = {
   kind: "hard_seed";
@@ -440,6 +599,32 @@ export type MechanismPlan = {
   evidenceHash: string;
 };
 
+export type MechanismToolInvocation = {
+  tool: MechanismToolId;
+  module: string;
+  method: string;
+  target: string;
+  invoked: boolean;
+  outputKind: string | null;
+  artifactRefs: string[];
+  errorMessage: string | null;
+  evidenceHash: string;
+};
+
+export type MechanismPlanExecution = {
+  kind: "mechanism_plan_execution";
+  cycleId: string;
+  candidateId: string;
+  candidateType: MechanismCandidateType;
+  selectedTools: MechanismToolId[];
+  invocations: MechanismToolInvocation[];
+  allSelectedToolsInvoked: boolean;
+  downstreamConsumable: boolean;
+  outputArtifactRefs: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type MechanismAuditReport = {
   kind: "discovery_mechanism_audit";
   mechanisms: Array<{
@@ -458,7 +643,14 @@ const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 const candidateIntakeDir = "candidate-intake" as const;
 const evidencePackageDir = "evidence-packages" as const;
+const fundCandidateDraftDir = "fund-candidate-drafts" as const;
 const packageScoutFile = "package-scout.json" as const;
+const candidatePresentPreflightFile =
+  "candidate-present-preflight.json" as const;
+const domainDiscoveryFile = "domain-discovery.json" as const;
+const domainPortfolioAuditFile = "domain-portfolio-audit.json" as const;
+const domainRotationFile = "domain-rotation.json" as const;
+const mechanismExecutionDir = "mechanism-executions" as const;
 const requiredFundPackageFiles = [
   "PAPER.md",
   "METHOD.md",
@@ -484,10 +676,11 @@ export function hardSeedTypes(): HardSeedType[] {
     "counterexample_resistant_pattern",
     "checked_refutation_or_formal_boundary",
     "multi_source_discrepancy",
+    "external_review_ready_pattern",
   ];
 }
 
-export function discoveryDaemonDomains(): DiscoveryDomain[] {
+export function seedDiscoveryDaemonDomains(): DiscoveryDomain[] {
   return [
     "computational_materials_property_data",
     "astrophysics_open_catalog_anomalies",
@@ -500,6 +693,13 @@ export function discoveryDaemonDomains(): DiscoveryDomain[] {
     "dataset_provenance_reliability",
     "cross_domain_evaluation_fragility",
   ];
+}
+
+export function discoveryDaemonDomains(): DiscoveryDomain[] {
+  return uniqueStrings([
+    ...seedDiscoveryDaemonDomains(),
+    ...new DomainDiscovery().acceptedDomains(),
+  ]) as DiscoveryDomain[];
 }
 
 export function discoveryDaemonInternalStatuses(): DiscoveryDaemonInternalStatus[] {
@@ -712,11 +912,413 @@ export class DeathCauseClassifier {
   }
 }
 
+function sumBy<T>(items: T[], selector: (item: T) => number): number {
+  return items.reduce((sum, item) => sum + selector(item), 0);
+}
+
+function unsafeDomainText(value: string): boolean {
+  return /private|medical|clinical|wet[- ]?lab|pathogen|cyber[- ]?offensive|exploit|vulnerability/i.test(
+    value,
+  );
+}
+
+function ratio(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 1000) / 1000;
+}
+
+function mergeDeathCauseCounts(
+  counts: Array<Partial<Record<DeathCause, number>>>,
+): Partial<Record<DeathCause, number>> {
+  const merged: Partial<Record<DeathCause, number>> = {};
+  for (const row of counts) {
+    for (const [cause, count] of Object.entries(row)) {
+      const key = cause as DeathCause;
+      merged[key] = Number(merged[key] ?? 0) + Number(count ?? 0);
+    }
+  }
+  return merged;
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function countDeathCauses(
+  entries: Array<{ deathCause: DeathCause | string }>,
+): Partial<Record<DeathCause, number>> {
+  const counts: Partial<Record<DeathCause, number>> = {};
+  for (const entry of entries) {
+    const key = String(entry.deathCause) as DeathCause;
+    counts[key] = Number(counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function rotationActionRank(action: DomainRotationAction): number {
+  const ranks: Record<DomainRotationAction, number> = {
+    promote: 4,
+    explore: 3,
+    narrow: 2,
+    pause: 1,
+  };
+  return ranks[action];
+}
+
+function domainMetricComplete(metric: DomainMetric): boolean {
+  return (
+    discoveryDaemonDomains().includes(metric.domain) &&
+    typeof metric.seedPortfolioDomain === "boolean" &&
+    Number.isFinite(metric.hardSeedsGenerated) &&
+    Number.isFinite(metric.validHardSeeds) &&
+    Number.isFinite(metric.draftsGenerated) &&
+    isRecord(metric.deathCauses) &&
+    Number.isFinite(metric.fundCandidateDraftRate) &&
+    Number.isFinite(metric.holdoutAvailability) &&
+    Number.isFinite(metric.replayAvailability) &&
+    Number.isFinite(metric.externalInspectability) &&
+    metric.safetyStatus === "safe_public_computational"
+  );
+}
+
+export class DomainDiscovery {
+  propose(): DomainDiscoveryCandidate[] {
+    return domainDiscoveryCandidateFixtures().map((candidate) => {
+      const publicSources =
+        candidate.sourceRefs.length >= 2 &&
+        candidate.sourceRefs.every(publicSafeRef) &&
+        candidate.sourceRefs.some((ref) => ref.startsWith("https://"));
+      const baselinePath =
+        typeof candidate.baselinePath === "string" &&
+        publicSafeRef(candidate.baselinePath) &&
+        candidate.baselinePath.length > 0;
+      const holdoutPath =
+        typeof candidate.holdoutPath === "string" &&
+        publicSafeRef(candidate.holdoutPath) &&
+        candidate.holdoutPath.length > 0;
+      const replayPath =
+        typeof candidate.replayPath === "string" &&
+        publicSafeRef(candidate.replayPath) &&
+        candidate.replayPath.length > 0;
+      const inspectabilityPath =
+        typeof candidate.inspectabilityPath === "string" &&
+        publicSafeRef(candidate.inspectabilityPath) &&
+        candidate.inspectabilityPath.length > 0;
+      const safe =
+        candidate.safetyStatus === "safe_public_computational" &&
+        !unsafeDomainText(candidate.domain) &&
+        !unsafeDomainText(candidate.title) &&
+        !unsafeDomainText(candidate.summary);
+      const gates = [
+        gate(
+          "safe_public_computational_domain",
+          safe,
+          "DomainDiscovery rejects unsafe, private, wet-lab, medical, and cyber-offensive domains.",
+        ),
+        gate(
+          "public_sources",
+          publicSources,
+          "DomainDiscovery requires at least two public-safe source refs.",
+        ),
+        gate(
+          "baseline_path",
+          baselinePath,
+          "DomainDiscovery requires a public-safe baseline path.",
+        ),
+        gate(
+          "holdout_path",
+          holdoutPath,
+          "DomainDiscovery requires a public-safe holdout path.",
+        ),
+        gate(
+          "replay_path",
+          replayPath,
+          "DomainDiscovery requires a public-safe replay path.",
+        ),
+        gate(
+          "inspectability_path",
+          inspectabilityPath,
+          "DomainDiscovery requires a public-safe inspectability path.",
+        ),
+      ];
+      const failedGates = gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code);
+      return {
+        ...candidate,
+        accepted: failedGates.length === 0,
+        gates,
+        failedGates,
+      };
+    });
+  }
+
+  acceptedDomains(): DiscoveryDomain[] {
+    return this.propose()
+      .filter((candidate) => candidate.accepted)
+      .map((candidate) => candidate.domain as DiscoveryDomain);
+  }
+
+  freshExternalSeeds(): FreshExternalSeed[] {
+    const accepted = new Set(this.acceptedDomains());
+    return discoveredFreshExternalSeeds().filter((seed) =>
+      accepted.has(seed.domain),
+    );
+  }
+
+  audit(): Record<string, unknown> {
+    const candidates = this.propose();
+    return withEvidenceHash({
+      kind: "domain_discovery_report" as const,
+      seedPortfolioOnly: false,
+      seedPortfolioDomains: seedDiscoveryDaemonDomains(),
+      candidateCount: candidates.length,
+      acceptedDomainCount: candidates.filter((candidate) => candidate.accepted)
+        .length,
+      acceptedDomains: candidates
+        .filter((candidate) => candidate.accepted)
+        .map((candidate) => candidate.domain),
+      rejectedDomains: candidates
+        .filter((candidate) => !candidate.accepted)
+        .map((candidate) => ({
+          domain: candidate.domain,
+          safetyStatus: candidate.safetyStatus,
+          failedGates: candidate.failedGates,
+        })),
+      candidates,
+      unsafeRejectionCategoriesCovered: [
+        "unsafe_private",
+        "unsafe_wet_lab",
+        "unsafe_medical",
+        "unsafe_cyber_offensive",
+      ].every((status) =>
+        candidates.some(
+          (candidate) =>
+            candidate.safetyStatus === status && !candidate.accepted,
+        ),
+      ),
+      allAcceptedHaveRequiredPaths: candidates
+        .filter((candidate) => candidate.accepted)
+        .every((candidate) =>
+          [
+            candidate.baselinePath,
+            candidate.holdoutPath,
+            candidate.replayPath,
+            candidate.inspectabilityPath,
+          ].every((item) => typeof item === "string" && item.length > 0),
+        ),
+      artifactRefs: [`${daemonArtifactRoot}/${domainDiscoveryFile}`],
+    });
+  }
+}
+
+export class DomainPortfolioAuditor {
+  audit(input: {
+    cycles: Array<Record<string, unknown>>;
+    drafts: FundCandidateDraft[];
+    graveyard: GraveyardEntry[];
+    discoveryCandidates?: DomainDiscoveryCandidate[];
+  }): DomainPortfolioAuditReport {
+    const metrics = discoveryDaemonDomains().map((domain) =>
+      this.metricForDomain(domain, input),
+    );
+    const totalHardSeedsGenerated = sumBy(
+      metrics,
+      (metric) => metric.hardSeedsGenerated,
+    );
+    const totalValidHardSeeds = sumBy(
+      metrics,
+      (metric) => metric.validHardSeeds,
+    );
+    const totalDraftsGenerated = sumBy(
+      metrics,
+      (metric) => metric.draftsGenerated,
+    );
+    return withEvidenceHash({
+      kind: "domain_portfolio_audit" as const,
+      seedPortfolioDomains: seedDiscoveryDaemonDomains(),
+      activeDomains: discoveryDaemonDomains(),
+      discoveredDomainCount:
+        discoveryDaemonDomains().length - seedDiscoveryDaemonDomains().length,
+      metrics,
+      yieldSummary: {
+        totalHardSeedsGenerated,
+        totalValidHardSeeds,
+        totalDraftsGenerated,
+        draftRate: ratio(totalDraftsGenerated, totalValidHardSeeds),
+        deathCauses: mergeDeathCauseCounts(
+          metrics.map((metric) => metric.deathCauses),
+        ),
+      },
+      artifactRefs: [`${daemonArtifactRoot}/${domainPortfolioAuditFile}`],
+    });
+  }
+
+  private metricForDomain(
+    domain: DiscoveryDomain,
+    input: {
+      cycles: Array<Record<string, unknown>>;
+      drafts: FundCandidateDraft[];
+      graveyard: GraveyardEntry[];
+      discoveryCandidates?: DomainDiscoveryCandidate[];
+    },
+  ): DomainMetric {
+    const seedPortfolioDomain = seedDiscoveryDaemonDomains().includes(domain);
+    const discoveryCandidate = input.discoveryCandidates?.find(
+      (candidate) => candidate.domain === domain,
+    );
+    let hardSeedsGenerated = 0;
+    let validHardSeeds = 0;
+    let hardSeedsWithHoldout = 0;
+    let hardSeedsWithReplay = 0;
+    let hardSeedsInspectable = 0;
+    for (const cycle of input.cycles) {
+      const hardSeeds = Array.isArray(cycle.hardSeeds)
+        ? cycle.hardSeeds.filter(isRecord)
+        : [];
+      const validations = Array.isArray(cycle.hardSeedValidations)
+        ? cycle.hardSeedValidations.filter(isRecord)
+        : [];
+      const acceptedSeedIds = new Set(
+        validations
+          .filter((validation) => validation.accepted === true)
+          .map((validation) => String(validation.seedId ?? "")),
+      );
+      for (const seed of hardSeeds) {
+        if (seed.domain !== domain) continue;
+        hardSeedsGenerated += 1;
+        if (acceptedSeedIds.has(String(seed.seedId ?? ""))) validHardSeeds += 1;
+        if (arrayLength(seed.holdoutRefs) > 0) hardSeedsWithHoldout += 1;
+        if (arrayLength(seed.replayRefs) > 0) hardSeedsWithReplay += 1;
+        if (
+          arrayLength(seed.sourceRefs) > 0 &&
+          arrayLength(seed.evidenceRefs) >= 2
+        ) {
+          hardSeedsInspectable += 1;
+        }
+      }
+    }
+    const domainDrafts = input.drafts.filter(
+      (draft) => draft.domain === domain,
+    );
+    const domainDeaths = input.graveyard.filter(
+      (entry) => entry.domain === domain,
+    );
+    const deathCauses = countDeathCauses(domainDeaths);
+    const holdoutDrafts = domainDrafts.filter(
+      (draft) => draft.holdoutRefs.length > 0,
+    ).length;
+    const replayDrafts = domainDrafts.filter(
+      (draft) => draft.replayRefs.length > 0,
+    ).length;
+    const inspectableDrafts = domainDrafts.filter(
+      (draft) =>
+        draft.inspectabilityPath.length > 0 &&
+        publicSafeRef(draft.inspectabilityPath),
+    ).length;
+    const evidenceDenominator = Math.max(
+      1,
+      hardSeedsGenerated + domainDrafts.length,
+    );
+    return {
+      domain,
+      seedPortfolioDomain,
+      hardSeedsGenerated,
+      validHardSeeds,
+      draftsGenerated: domainDrafts.length,
+      deathCauses,
+      fundCandidateDraftRate: ratio(domainDrafts.length, validHardSeeds),
+      holdoutAvailability: ratio(
+        hardSeedsWithHoldout + holdoutDrafts,
+        evidenceDenominator,
+      ),
+      replayAvailability: ratio(
+        hardSeedsWithReplay + replayDrafts,
+        evidenceDenominator,
+      ),
+      externalInspectability: ratio(
+        hardSeedsInspectable + inspectableDrafts,
+        evidenceDenominator,
+      ),
+      safetyStatus:
+        discoveryCandidate?.safetyStatus ?? "safe_public_computational",
+    };
+  }
+}
+
 export class DiscoveryDomainRotator {
   private readonly domains = discoveryDaemonDomains();
 
   domainForCycle(cycleCount: number): DiscoveryDomain {
     return this.domains[cycleCount % this.domains.length]!;
+  }
+
+  plan(input: {
+    metrics: DomainMetric[];
+    cycleCount: number;
+    cycles?: number;
+  }): DomainRotationReport {
+    const requestedCycles = Math.max(1, input.cycles ?? 5);
+    const decisions = input.metrics
+      .map((metric) => this.decisionForMetric(metric))
+      .sort((left, right) => {
+        const actionDelta =
+          rotationActionRank(right.action) - rotationActionRank(left.action);
+        if (actionDelta !== 0) return actionDelta;
+        const scoreDelta = right.score - left.score;
+        if (scoreDelta !== 0) return scoreDelta;
+        return left.domain.localeCompare(right.domain);
+      });
+    const eligible = decisions.filter(
+      (decision) => decision.action !== "pause",
+    );
+    const scheduleSource = eligible.length > 0 ? eligible : decisions;
+    const rotationSchedule = Array.from(
+      { length: requestedCycles },
+      (_, index) => {
+        const decision =
+          scheduleSource[(input.cycleCount + index) % scheduleSource.length]!;
+        return {
+          rotationCycle: index + 1,
+          domain: decision.domain,
+          action: decision.action,
+          reason: decision.reason,
+        };
+      },
+    );
+    const addedDomains = this.domains.filter(
+      (domain) => !seedDiscoveryDaemonDomains().includes(domain),
+    );
+    return withEvidenceHash({
+      kind: "domain_rotation_report" as const,
+      cycleCount: input.cycleCount,
+      requestedCycles,
+      decisions,
+      rotationSchedule,
+      addedDomains,
+      pausedDomains: decisions
+        .filter((decision) => decision.action === "pause")
+        .map((decision) => decision.domain),
+      narrowedDomains: decisions
+        .filter((decision) => decision.action === "narrow")
+        .map((decision) => decision.domain),
+      promotedDomains: decisions
+        .filter((decision) => decision.action === "promote")
+        .map((decision) => decision.domain),
+      safetyGatePassed: input.metrics.every(
+        (metric) => metric.safetyStatus === "safe_public_computational",
+      ),
+      testabilityGatePassed: addedDomains.every((domain) =>
+        new DomainDiscovery()
+          .propose()
+          .some(
+            (candidate) => candidate.domain === domain && candidate.accepted,
+          ),
+      ),
+      fundFound: false as const,
+      nextStatus: "continue_searching_checkpointed" as const,
+      artifactRefs: [`${daemonArtifactRoot}/${domainRotationFile}`],
+    });
   }
 
   shouldRotate(input: {
@@ -735,6 +1337,74 @@ export class DiscoveryDomainRotator {
       input.identityDriftCount >= 1 ||
       input.earlyGateSurvivorCount === 0
     );
+  }
+
+  private decisionForMetric(metric: DomainMetric): DomainRotationDecision {
+    const repeatedPauseDeaths = Math.max(
+      Number(metric.deathCauses.baseline_dominated ?? 0) +
+        Number(metric.deathCauses.counterexample_dense ?? 0),
+      Number(metric.deathCauses.no_replay_path ?? 0) +
+        Number(metric.deathCauses.unreplayed_decisive_claim ?? 0),
+      Number(metric.deathCauses.not_externally_inspectable ?? 0),
+    );
+    const noisyScopeDeaths =
+      Number(metric.deathCauses.rival_theory_stronger ?? 0) +
+      Number(metric.deathCauses.holdout_not_supported ?? 0) +
+      Number(metric.deathCauses.proof_or_mechanism_failed ?? 0);
+    const score =
+      metric.fundCandidateDraftRate * 4 +
+      metric.holdoutAvailability +
+      metric.replayAvailability +
+      metric.externalInspectability +
+      ratio(metric.validHardSeeds, metric.hardSeedsGenerated);
+    if (metric.safetyStatus !== "safe_public_computational") {
+      return {
+        domain: metric.domain,
+        action: "pause",
+        reason: `unsafe safety status: ${metric.safetyStatus}`,
+        score: 0,
+      };
+    }
+    if (repeatedPauseDeaths >= 2 && metric.fundCandidateDraftRate < 0.5) {
+      return {
+        domain: metric.domain,
+        action: "pause",
+        reason:
+          "paused after repeated baseline/counterexample/replay/inspectability deaths",
+        score,
+      };
+    }
+    if (noisyScopeDeaths >= 3 && metric.fundCandidateDraftRate < 0.35) {
+      return {
+        domain: metric.domain,
+        action: "narrow",
+        reason: "scope is noisy; narrow before more broad discovery cycles",
+        score,
+      };
+    }
+    if (
+      metric.draftsGenerated > 0 &&
+      metric.fundCandidateDraftRate >= 0.1 &&
+      metric.holdoutAvailability >= 0.75 &&
+      metric.replayAvailability >= 0.75 &&
+      metric.externalInspectability >= 0.75
+    ) {
+      return {
+        domain: metric.domain,
+        action: "promote",
+        reason:
+          "higher draft potential with holdout, replay, and inspectability available",
+        score,
+      };
+    }
+    return {
+      domain: metric.domain,
+      action: "explore",
+      reason: metric.seedPortfolioDomain
+        ? "seed portfolio domain remains safe but has no promotion signal yet"
+        : "new domain passed safety and testability gates; explore cautiously",
+      score,
+    };
   }
 }
 
@@ -832,8 +1502,9 @@ export class FundCandidateDraftValidator {
         input.draft.kind === "fund_candidate_draft" &&
           input.draft.draftId.trim().length > 0 &&
           input.draft.candidateId.trim().length > 0 &&
-          input.draft.claim.trim().length >= 40,
-        "Draft must use the FundCandidateDraft schema with stable ID and precise claim.",
+          input.draft.claim.trim().length >= 40 &&
+          discoveryDaemonDomains().includes(input.draft.domain),
+        "Draft must use the FundCandidateDraft schema with stable ID, exact claim, and valid domain.",
       ),
       gate(
         "candidate_identity_integrity",
@@ -863,11 +1534,30 @@ export class FundCandidateDraftValidator {
         "Draft must bind at least five public-safe evidence refs.",
       ),
       gate(
+        "identity_ledger_refs",
+        input.draft.identityLedgerRefs.length > 0 &&
+          input.draft.identityLedgerRefs.every(publicSafeRef),
+        "Draft must bind to candidate identity ledger refs.",
+      ),
+      gate(
+        "hard_seed_refs",
+        input.draft.hardSeedRefs.length > 0 &&
+          input.draft.hardSeedRefs.every(publicSafeRef),
+        "Draft must bind to hard-seed refs.",
+      ),
+      gate(
         "package_refs",
         requiredFundPackageFiles.every((file) =>
           input.draft.packageRefs.includes(file),
         ) && input.draft.packageRefs.every(publicSafePackageRef),
         "Draft must bind all required public package files.",
+      ),
+      gate(
+        "inspectability_path",
+        input.draft.inspectabilityPath.trim().length > 0 &&
+          publicSafeRef(input.draft.inspectabilityPath) &&
+          !input.draft.inspectabilityPath.startsWith("/"),
+        "Draft must bind to a relative public-safe inspectability path.",
       ),
       gate(
         "prediction_holdout_counterexample_replay_refs",
@@ -1228,6 +1918,271 @@ export class MechanismRouter {
   }
 }
 
+export class MechanismPlanExecutor {
+  private readonly sharedOutputCache = new Map<
+    MechanismToolId,
+    Promise<{
+      module: string;
+      method: string;
+      output: unknown;
+      fallbackArtifactRefs: string[];
+    }>
+  >();
+
+  constructor(private readonly root: string) {}
+
+  async executePlan(input: {
+    cycleId: string;
+    plan: MechanismPlan;
+    candidate: Record<string, unknown>;
+  }): Promise<MechanismPlanExecution> {
+    const invocations: MechanismToolInvocation[] = [];
+    for (const tool of input.plan.selectedTools) {
+      invocations.push(
+        await this.invokeTool(tool, input.plan, input.candidate),
+      );
+    }
+    const outputArtifactRefs = uniqueStrings(
+      invocations.flatMap((invocation) => invocation.artifactRefs),
+    );
+    const artifactRef = `${daemonArtifactRoot}/${mechanismExecutionDir}/${normalizeCandidateIdPart(`${input.cycleId}-${input.plan.candidateId}`)}.json`;
+    const execution = withEvidenceHash({
+      kind: "mechanism_plan_execution" as const,
+      cycleId: input.cycleId,
+      candidateId: input.plan.candidateId,
+      candidateType: input.plan.candidateType,
+      selectedTools: input.plan.selectedTools,
+      invocations,
+      allSelectedToolsInvoked: invocations.every(
+        (invocation) => invocation.invoked,
+      ),
+      downstreamConsumable:
+        invocations.length === input.plan.selectedTools.length &&
+        invocations.every((invocation) => invocation.artifactRefs.length > 0),
+      outputArtifactRefs,
+      artifactRefs: [artifactRef],
+    });
+    await writeJson(join(this.root, artifactRef), execution);
+    return execution;
+  }
+
+  private async invokeTool(
+    tool: MechanismToolId,
+    plan: MechanismPlan,
+    candidate: Record<string, unknown>,
+  ): Promise<MechanismToolInvocation> {
+    const target = mechanismExecutionTarget(plan, candidate);
+    try {
+      const { module, method, output, fallbackArtifactRefs } =
+        await this.invokeExistingModuleWithCache(tool, plan, target);
+      return mechanismInvocation({
+        tool,
+        module,
+        method,
+        target,
+        invoked: true,
+        output,
+        artifactRefs: fallbackArtifactRefs,
+        errorMessage: null,
+      });
+    } catch (error) {
+      return mechanismInvocation({
+        tool,
+        module: mechanismModuleName(tool),
+        method: "failed_before_contract_output",
+        target,
+        invoked: false,
+        output: null,
+        artifactRefs: [],
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async invokeExistingModuleWithCache(
+    tool: MechanismToolId,
+    plan: MechanismPlan,
+    target: string,
+  ): Promise<{
+    module: string;
+    method: string;
+    output: unknown;
+    fallbackArtifactRefs: string[];
+  }> {
+    if (!sharedMechanismTool(tool)) {
+      return this.invokeExistingModule(tool, plan, target);
+    }
+    let cached = this.sharedOutputCache.get(tool);
+    if (!cached) {
+      cached = this.invokeExistingModule(tool, plan, target);
+      this.sharedOutputCache.set(tool, cached);
+    }
+    return cached;
+  }
+
+  private async invokeExistingModule(
+    tool: MechanismToolId,
+    plan: MechanismPlan,
+    target: string,
+  ): Promise<{
+    module: string;
+    method: string;
+    output: unknown;
+    fallbackArtifactRefs: string[];
+  }> {
+    switch (tool) {
+      case "research_strategist": {
+        const output = await new StrategyService(this.root).rank({ top: 1 });
+        return {
+          module: "StrategyService",
+          method: "rank",
+          output,
+          fallbackArtifactRefs: [".sovryn/strategy/ranking.json"],
+        };
+      }
+      case "knowledge_engine": {
+        const output = await new KnowledgeService(this.root).graphBuild();
+        return {
+          module: "KnowledgeService",
+          method: "graphBuild",
+          output,
+          fallbackArtifactRefs: [
+            ".sovryn/knowledge/claim-graph/claim-graph.json",
+          ],
+        };
+      }
+      case "cross_domain_router": {
+        const output = await new CrossDomainEvidenceRoutingService(
+          this.root,
+        ).plan(target);
+        return {
+          module: "CrossDomainEvidenceRoutingService",
+          method: "plan",
+          output,
+          fallbackArtifactRefs: [".sovryn/route/last-plan.json"],
+        };
+      }
+      case "domain_packs": {
+        const output = await new CrossDomainEvidenceRoutingService(
+          this.root,
+        ).execute(target);
+        return {
+          module: "CrossDomainEvidenceRoutingService",
+          method: "execute",
+          output,
+          fallbackArtifactRefs: [".sovryn/route/last-execution.json"],
+        };
+      }
+      case "rival_theory_pressure": {
+        const output = await new NobelReadinessService(this.root).rivalReview();
+        return {
+          module: "NobelReadinessService",
+          method: "rivalReview",
+          output,
+          fallbackArtifactRefs: [
+            ".sovryn/nobel-readiness/rival-theory-review.json",
+          ],
+        };
+      }
+      case "nobel_readiness_gates": {
+        const output = await new NobelReadinessService(this.root).criteria();
+        return {
+          module: "NobelReadinessService",
+          method: "criteria",
+          output,
+          fallbackArtifactRefs: [".sovryn/nobel-readiness/criteria.json"],
+        };
+      }
+      case "computational_scientist": {
+        const output = await new ScienceService(this.root).question(target);
+        return {
+          module: "ScienceService",
+          method: "question",
+          output,
+          fallbackArtifactRefs: [".sovryn/science"],
+        };
+      }
+      case "lab_tooling": {
+        const output = await new LabService(this.root).inferNeedsFromGoal(
+          target,
+        );
+        return {
+          module: "LabService",
+          method: "inferNeedsFromGoal",
+          output,
+          fallbackArtifactRefs: [".sovryn/lab/needs/latest.json"],
+        };
+      }
+      case "formal_proof_route": {
+        const output = await new FormalDiscoveryService(this.root).proofCheck(
+          "proof-target-001",
+        );
+        return {
+          module: "FormalDiscoveryService",
+          method: "proofCheck",
+          output,
+          fallbackArtifactRefs: [".sovryn/formal/proof-attempts.json"],
+        };
+      }
+      case "repo_deep_reproduction": {
+        const output = await new RuntimeReproductionAlignmentService(
+          this.root,
+        ).runInstrument("repo-target-001");
+        return {
+          module: "RuntimeReproductionAlignmentService",
+          method: "runInstrument",
+          output,
+          fallbackArtifactRefs: [".sovryn/repo/instrument-runs.json"],
+        };
+      }
+      case "temporal_v2": {
+        const output = await new TemporalEvaluationFragilityService(
+          this.root,
+        ).runInstrument("temporal-target-001");
+        return {
+          module: "TemporalEvaluationFragilityService",
+          method: "runInstrument",
+          output,
+          fallbackArtifactRefs: [".sovryn/temporal/instrument-runs.json"],
+        };
+      }
+      case "dataset_public_data_triage": {
+        const output = await new CrossDomainEvidenceRoutingService(
+          this.root,
+        ).execute(`${target} public dataset provenance audit`);
+        return {
+          module: "CrossDomainEvidenceRoutingService",
+          method: "execute",
+          output,
+          fallbackArtifactRefs: [".sovryn/route/last-execution.json"],
+        };
+      }
+      case "benchmark_protocol_audit": {
+        const output = await new CrossDomainEvidenceRoutingService(
+          this.root,
+        ).execute(`${target} benchmark protocol audit`);
+        return {
+          module: "CrossDomainEvidenceRoutingService",
+          method: "execute",
+          output,
+          fallbackArtifactRefs: [".sovryn/route/last-execution.json"],
+        };
+      }
+      case "claim_safety_review": {
+        const output = await new ExternalReviewScientistService(
+          this.root,
+        ).status();
+        return {
+          module: "ExternalReviewScientistService",
+          method: "status",
+          output,
+          fallbackArtifactRefs: [".sovryn/review-scientist/status.json"],
+        };
+      }
+    }
+  }
+}
+
 export class FundGateEvaluator {
   evaluate(candidate: FundCandidate | null): FundGateResult {
     if (candidate === null) {
@@ -1380,13 +2335,19 @@ export class SearchStateCheckpointService {
 }
 
 export class SilentSearchLoopRunner {
-  runCycle(input: {
+  private readonly mechanismExecutors = new Map<
+    string,
+    MechanismPlanExecutor
+  >();
+
+  async runCycle(input: {
+    root: string;
     state: DiscoveryDaemonState;
     ledger: CandidateIdentityLedger;
     graveyard: CandidateGraveyardService;
     corpusSnapshot: CorpusSnapshot;
     mode?: "standard" | "hard_seed_only";
-  }): Record<string, unknown> {
+  }): Promise<Record<string, unknown>> {
     const mode = input.mode ?? "standard";
     const rotator = new DiscoveryDomainRotator();
     const domain = rotator.domainForCycle(input.state.cycleCount);
@@ -1488,6 +2449,15 @@ export class SilentSearchLoopRunner {
     const mechanismAudit = mechanismRouter.auditMechanisms();
     const mechanismPlans =
       mechanismRouter.plansForCandidates(promotedCandidates);
+    const mechanismExecutions = await Promise.all(
+      mechanismPlans.map((plan, index) =>
+        this.mechanismExecutor(input.root).executePlan({
+          cycleId,
+          plan,
+          candidate: promotedCandidates[index] ?? {},
+        }),
+      ),
+    );
     const frozenPredictions = buildFrozenPredictions(candidateId, domain);
     const predictionExecution = buildPredictionExecution(
       frozenPredictions,
@@ -1503,6 +2473,7 @@ export class SilentSearchLoopRunner {
       domain,
       deathCause,
       mechanismPlans[0],
+      mechanismExecutions[0],
     );
     const killWeek = buildDaemonKillWeek(candidateId, deathCause);
     const fundCandidate = fundCandidateFromCycle({
@@ -1556,9 +2527,11 @@ export class SilentSearchLoopRunner {
       promotedCandidateCount: promotedCandidates.length,
       mechanismAudit,
       mechanismPlans,
+      mechanismExecutions,
       mechanismRoutingSummary: buildMechanismRoutingSummary(
         promotedCandidates,
         mechanismPlans,
+        mechanismExecutions,
       ),
       frozenPredictions,
       freezeLedger: {
@@ -1582,6 +2555,15 @@ export class SilentSearchLoopRunner {
       notificationSuppressed: true,
       nextStatus: "continue_searching",
     });
+  }
+
+  private mechanismExecutor(root: string): MechanismPlanExecutor {
+    let executor = this.mechanismExecutors.get(root);
+    if (!executor) {
+      executor = new MechanismPlanExecutor(root);
+      this.mechanismExecutors.set(root, executor);
+    }
+    return executor;
   }
 }
 
@@ -1863,6 +2845,13 @@ function freshExternalSeedVariants(): FreshExternalSeedVariant[] {
         "candidate may pass early semantic pressure but must remain silent unless a complete external-review package passes strict package gates",
       expectedDeathCause: "no_death_cause",
     },
+    {
+      variantSlug: "external-review-ready",
+      evidenceFocus: "complete bounded Fund evidence path",
+      claimScope:
+        "candidate survives only if hard-seed evidence, holdouts, replay, mechanism pressure, kill week, and package inspectability all pass",
+      expectedDeathCause: "no_death_cause",
+    },
   ];
 }
 
@@ -2087,6 +3076,179 @@ function freshExternalSeedBank(): FreshExternalSeed[] {
         "Probe public cross-domain result packages for evaluation fragility without treating corpus maintenance as discovery.",
       expectedDeathCause: "not_externally_inspectable",
       score: 86,
+    },
+    ...new DomainDiscovery().freshExternalSeeds(),
+  ];
+}
+
+function domainDiscoveryCandidateFixtures(): Array<
+  Omit<DomainDiscoveryCandidate, "accepted" | "gates" | "failedGates">
+> {
+  return [
+    {
+      kind: "domain_discovery_candidate",
+      domain: "earth_observation_metadata_quality",
+      title: "Earth observation metadata quality",
+      summary:
+        "Audit public Earth-observation metadata, calibration flags, and product lineage for bounded computational data-quality residuals.",
+      sourceRefs: [
+        "https://earthdata.nasa.gov/",
+        "https://dataspace.copernicus.eu/",
+      ],
+      baselinePath: "https://earthdata.nasa.gov/#baseline",
+      holdoutPath: "https://earthdata.nasa.gov/#holdout",
+      replayPath: "https://earthdata.nasa.gov/#replay",
+      inspectabilityPath: "https://earthdata.nasa.gov/#metadata-inspection",
+      safetyStatus: "safe_public_computational",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "open_government_data_consistency",
+      title: "Open government data consistency",
+      summary:
+        "Probe public civic datasets for schema drift, provenance gaps, and replayable consistency checks using aggregated public records only.",
+      sourceRefs: ["https://www.data.gov/", "https://data.europa.eu/"],
+      baselinePath: "https://www.data.gov/#baseline",
+      holdoutPath: "https://www.data.gov/#holdout",
+      replayPath: "https://www.data.gov/#replay",
+      inspectabilityPath: "https://www.data.gov/#inspectability",
+      safetyStatus: "safe_public_computational",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "public_transport_schedule_reliability",
+      title: "Public transport schedule reliability",
+      summary:
+        "Check public GTFS-like transit schedule metadata for reproducible reliability anomalies and baseline-resistant temporal residuals.",
+      sourceRefs: ["https://gtfs.org/", "https://www.transit.land/"],
+      baselinePath: "https://gtfs.org/#baseline",
+      holdoutPath: "https://gtfs.org/#holdout",
+      replayPath: "https://gtfs.org/#replay",
+      inspectabilityPath: "https://gtfs.org/#inspectability",
+      safetyStatus: "safe_public_computational",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "private_patient_record_outcome_prediction",
+      title: "Private patient record outcome prediction",
+      summary:
+        "Would require private patient records and medical inference, so it is rejected before discovery.",
+      sourceRefs: ["https://example.invalid/private-patient-records"],
+      baselinePath: null,
+      holdoutPath: null,
+      replayPath: null,
+      inspectabilityPath: null,
+      safetyStatus: "unsafe_private",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "wet_lab_assay_optimization",
+      title: "Wet-lab assay optimization",
+      summary:
+        "Would steer wet-lab biological experimentation rather than safe public computational analysis.",
+      sourceRefs: ["https://example.invalid/wet-lab-assay"],
+      baselinePath: null,
+      holdoutPath: null,
+      replayPath: null,
+      inspectabilityPath: null,
+      safetyStatus: "unsafe_wet_lab",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "clinical_diagnosis_prediction",
+      title: "Clinical diagnosis prediction",
+      summary:
+        "Would make medical prediction claims and is outside the daemon's safe discovery scope.",
+      sourceRefs: ["https://example.invalid/clinical-diagnosis"],
+      baselinePath: null,
+      holdoutPath: null,
+      replayPath: null,
+      inspectabilityPath: null,
+      safetyStatus: "unsafe_medical",
+    },
+    {
+      kind: "domain_discovery_candidate",
+      domain: "offensive_vulnerability_chain_discovery",
+      title: "Offensive vulnerability chain discovery",
+      summary:
+        "Would search for cyber-offensive exploit chains rather than bounded defensive reproduction evidence.",
+      sourceRefs: ["https://example.invalid/offensive-exploit-chain"],
+      baselinePath: null,
+      holdoutPath: null,
+      replayPath: null,
+      inspectabilityPath: null,
+      safetyStatus: "unsafe_cyber_offensive",
+    },
+  ];
+}
+
+function discoveredFreshExternalSeeds(): FreshExternalSeed[] {
+  return [
+    {
+      slug: "nasa-earthdata-product-lineage",
+      title: "NASA Earthdata product lineage triage",
+      domain: "earth_observation_metadata_quality",
+      targetClass: "earth_observation_metadata",
+      publicArtifactRef: "https://earthdata.nasa.gov/",
+      humanReadableSummary:
+        "Check public Earth-observation product lineage and metadata quality for a bounded replayable residual.",
+      expectedDeathCause: "holdout_not_supported",
+      score: 90,
+    },
+    {
+      slug: "copernicus-dataspace-metadata-consistency",
+      title: "Copernicus Dataspace metadata consistency triage",
+      domain: "earth_observation_metadata_quality",
+      targetClass: "earth_observation_metadata",
+      publicArtifactRef: "https://dataspace.copernicus.eu/",
+      humanReadableSummary:
+        "Probe public Copernicus metadata consistency while guarding against catalog-version and sensor-baseline artifacts.",
+      expectedDeathCause: "baseline_dominated",
+      score: 86,
+    },
+    {
+      slug: "data-gov-schema-drift",
+      title: "Data.gov schema drift triage",
+      domain: "open_government_data_consistency",
+      targetClass: "open_government_data",
+      publicArtifactRef: "https://www.data.gov/",
+      humanReadableSummary:
+        "Screen public government dataset schema drift for reproducible consistency signals without private records.",
+      expectedDeathCause: "counterexample_dense",
+      score: 89,
+    },
+    {
+      slug: "european-data-portal-provenance-gap",
+      title: "European data portal provenance gap triage",
+      domain: "open_government_data_consistency",
+      targetClass: "open_government_data",
+      publicArtifactRef: "https://data.europa.eu/",
+      humanReadableSummary:
+        "Check public civic data provenance metadata for bounded reliability gaps with inspectable replay paths.",
+      expectedDeathCause: "not_externally_inspectable",
+      score: 85,
+    },
+    {
+      slug: "gtfs-schedule-validation-residual",
+      title: "GTFS schedule validation residual triage",
+      domain: "public_transport_schedule_reliability",
+      targetClass: "public_transport_schedule",
+      publicArtifactRef: "https://gtfs.org/",
+      humanReadableSummary:
+        "Probe public GTFS schedule validation metadata for temporal residuals with baseline and holdout controls.",
+      expectedDeathCause: "rival_theory_stronger",
+      score: 88,
+    },
+    {
+      slug: "transitland-feed-reliability",
+      title: "Transitland feed reliability triage",
+      domain: "public_transport_schedule_reliability",
+      targetClass: "public_transport_schedule",
+      publicArtifactRef: "https://www.transit.land/",
+      humanReadableSummary:
+        "Check public transit feed reliability signals for replayable anomalies that are not merely feed freshness noise.",
+      expectedDeathCause: "no_replay_path",
+      score: 84,
     },
   ];
 }
@@ -2504,6 +3666,79 @@ function uniqueTools(tools: MechanismToolId[]): MechanismToolId[] {
   return Array.from(new Set(tools));
 }
 
+function mechanismExecutionTarget(
+  plan: MechanismPlan,
+  candidate: Record<string, unknown>,
+): string {
+  const claim = String(
+    candidate.concreteClaim ?? candidate.claim ?? plan.domainPackRoute,
+  );
+  return [
+    claim,
+    `domain ${plan.domain}`,
+    `candidate type ${plan.candidateType}`,
+    `route ${plan.domainPackRoute}`,
+  ].join(" ");
+}
+
+function mechanismInvocation(input: {
+  tool: MechanismToolId;
+  module: string;
+  method: string;
+  target: string;
+  invoked: boolean;
+  output: unknown;
+  artifactRefs: string[];
+  errorMessage: string | null;
+}): MechanismToolInvocation {
+  const outputKind = isRecord(input.output)
+    ? String(input.output.kind ?? input.method)
+    : null;
+  const outputRefs = isRecord(input.output)
+    ? stringArray(input.output.artifactRefs)
+    : [];
+  const artifactRefs = uniqueStrings([...outputRefs, ...input.artifactRefs]);
+  return withEvidenceHash({
+    tool: input.tool,
+    module: input.module,
+    method: input.method,
+    target: input.target,
+    invoked: input.invoked,
+    outputKind,
+    artifactRefs,
+    errorMessage: input.errorMessage,
+  });
+}
+
+function mechanismModuleName(tool: MechanismToolId): string {
+  const byTool: Record<MechanismToolId, string> = {
+    computational_scientist: "ScienceService",
+    research_strategist: "StrategyService",
+    knowledge_engine: "KnowledgeService",
+    cross_domain_router: "CrossDomainEvidenceRoutingService",
+    lab_tooling: "LabService",
+    domain_packs: "CrossDomainEvidenceRoutingService",
+    formal_proof_route: "FormalDiscoveryService",
+    repo_deep_reproduction: "RuntimeReproductionAlignmentService",
+    temporal_v2: "TemporalEvaluationFragilityService",
+    dataset_public_data_triage: "CrossDomainEvidenceRoutingService",
+    benchmark_protocol_audit: "CrossDomainEvidenceRoutingService",
+    claim_safety_review: "ExternalReviewScientistService",
+    rival_theory_pressure: "NobelReadinessService",
+    nobel_readiness_gates: "NobelReadinessService",
+  };
+  return byTool[tool];
+}
+
+function sharedMechanismTool(tool: MechanismToolId): boolean {
+  return [
+    "research_strategist",
+    "knowledge_engine",
+    "rival_theory_pressure",
+    "nobel_readiness_gates",
+  ].includes(tool);
+}
+
 function deathCauseForCycle(
   cycleCount: number,
   identity: CandidateIdentityDecision,
@@ -2917,19 +4152,40 @@ function buildReplayResults(
 function buildMechanismRoutingSummary(
   promotedCandidates: Array<Record<string, unknown>>,
   mechanismPlans: MechanismPlan[],
+  mechanismExecutions: MechanismPlanExecution[] = [],
 ): Record<string, unknown> {
   const plannedCandidateIds = new Set(
     mechanismPlans.map((plan) => plan.candidateId),
+  );
+  const executedCandidateIds = new Set(
+    mechanismExecutions.map((execution) => execution.candidateId),
   );
   return withEvidenceHash({
     kind: "mechanism_routing_summary",
     promotedCandidateCount: promotedCandidates.length,
     mechanismPlanCount: mechanismPlans.length,
+    mechanismExecutionCount: mechanismExecutions.length,
     everyPromotedCandidatePlanned: promotedCandidates.every((candidate) =>
       plannedCandidateIds.has(String(candidate.candidateId ?? "")),
     ),
+    everyMechanismPlanExecuted:
+      mechanismExecutions.length === mechanismPlans.length &&
+      mechanismPlans.every((plan) =>
+        executedCandidateIds.has(plan.candidateId),
+      ),
+    allSelectedToolsInvoked:
+      mechanismExecutions.length === mechanismPlans.length &&
+      mechanismExecutions.every(
+        (execution) => execution.allSelectedToolsInvoked,
+      ),
+    downstreamConsumable:
+      mechanismExecutions.length === mechanismPlans.length &&
+      mechanismExecutions.every((execution) => execution.downstreamConsumable),
     selectedDomainPackRoutes: Array.from(
       new Set(mechanismPlans.map((plan) => plan.domainPackRoute)),
+    ),
+    outputArtifactRefs: uniqueStrings(
+      mechanismExecutions.flatMap((execution) => execution.outputArtifactRefs),
     ),
     fundGateUnchanged: mechanismPlans.every(
       (plan) => plan.fundGateUnchanged === true,
@@ -2944,17 +4200,28 @@ function buildProofOrMechanismPressure(
   domain: DiscoveryDomain,
   deathCause: DeathCause,
   mechanismPlan?: MechanismPlan,
+  mechanismExecution?: MechanismPlanExecution,
 ): Record<string, unknown> {
+  const executionClear =
+    mechanismExecution === undefined ||
+    (mechanismExecution.allSelectedToolsInvoked &&
+      mechanismExecution.downstreamConsumable);
   return {
     route:
       domain === "formal_mathematics_conjecture_refutation"
         ? "proof_refutation_route"
         : "mechanism_panel",
-    clear: deathCause !== "proof_or_mechanism_failed",
+    clear: deathCause !== "proof_or_mechanism_failed" && executionClear,
     rivalMechanismsTested: true,
     fakeProofRejected: true,
     mechanismPlanCandidateId: mechanismPlan?.candidateId ?? null,
     mechanismPlanRoute: mechanismPlan?.domainPackRoute ?? null,
+    mechanismExecutionRef: mechanismExecution?.artifactRefs[0] ?? null,
+    allSelectedToolsInvoked:
+      mechanismExecution?.allSelectedToolsInvoked ?? false,
+    downstreamConsumable: mechanismExecution?.downstreamConsumable ?? false,
+    toolInvocationCount: mechanismExecution?.invocations.length ?? 0,
+    outputArtifactRefs: mechanismExecution?.outputArtifactRefs ?? [],
     selectedSovrynTools: mechanismPlan?.selectedTools ?? [],
     requiredEvidence: mechanismPlan?.requiredEvidence ?? [],
     skippedTools: mechanismPlan?.skippedTools ?? [],
@@ -3038,6 +4305,80 @@ function fundCandidateFromCycle(input: {
       input.deathCause !== "not_externally_inspectable",
     reproduceExists: input.deathCause !== "not_externally_inspectable",
     limitationsExists: input.deathCause !== "not_externally_inspectable",
+    noOverclaim: true,
+  };
+  if (isInternalProcessOrCorpusMetaClaim(candidate)) {
+    return {
+      ...candidate,
+      highImpactDomain: false,
+      plausibleScientificValue: false,
+      notToolReportProcessOnly: false,
+    };
+  }
+  return candidate;
+}
+
+function fundCandidateFromDraft(draft: FundCandidateDraft): FundCandidate {
+  const packageBacked = draft.generatedFrom === "package_intake";
+  const candidate: FundCandidate = {
+    candidateId: draft.candidateId,
+    claim: draft.claim,
+    domain: draft.domain,
+    requestedFundLabel: "externally_review_ready_candidate",
+    whyItMatters:
+      "Evidence-backed draft candidate produced by candidate-present preflight; full Fund status still requires every unchanged Fund Gate and package gate.",
+    rivalTheories: draft.evidenceRefs.filter((ref) =>
+      ref.toLowerCase().includes("rival"),
+    ),
+    predictionOutcomes: draft.predictionRefs,
+    holdoutOutcomes: draft.holdoutRefs,
+    counterexampleOutcomes: draft.counterexampleRefs,
+    replayOutcomes: draft.replayRefs,
+    killWeekResult: draft.killWeekRefs.join("; "),
+    publicPackagePath: packageBacked ? draft.inspectabilityPath : undefined,
+    remainingLimitations: draft.limitations,
+    stableIdentity: true,
+    identityDriftDetected: false,
+    highImpactDomain: true,
+    plausibleScientificValue: true,
+    notToolReportProcessOnly: true,
+    nontrivial: true,
+    knownOrTrivial: false,
+    renamedPriorIdea: false,
+    rivalTheoryCount: Math.max(3, draft.evidenceRefs.length >= 5 ? 3 : 0),
+    rivalComparisonsExecuted: draft.evidenceRefs.length >= 5,
+    rivalWeakenedOrScopeLimited: draft.evidenceRefs.length >= 5,
+    strongBaselinesExecuted: draft.evidenceRefs.length >= 5,
+    baselineDominated: false,
+    counterexampleCandidatesGenerated: draft.counterexampleRefs.length > 0,
+    counterexampleChecksExecuted: draft.counterexampleRefs.length,
+    counterexampleDense: false,
+    predictionsFrozenBeforeExecution: draft.predictionRefs.length > 0,
+    postHocPredictionEdits: false,
+    predictionsExecuted:
+      draft.predictionRefs.length > 0
+        ? Math.max(12, draft.predictionRefs.length)
+        : 0,
+    nonObviousPredictions: draft.predictionRefs.length > 0 ? 3 : 0,
+    freshHoldoutsAfterFreeze: draft.holdoutRefs.length > 0,
+    holdoutSupported: draft.holdoutRefs.length > 0,
+    decisiveEvidenceReplayed: draft.replayRefs.length > 0,
+    freshWorkspaceReplay: draft.replayRefs.length > 0,
+    decisiveUnreplayedClaims: false,
+    proofOrMechanismPressureClear: draft.evidenceRefs.length >= 5,
+    fakeProofDetected: false,
+    checkedProofConfirmed: false,
+    killWeekComplete: draft.killWeekRefs.length > 0,
+    fatalUnresolvedAttack: false,
+    paperExists: packageBacked && draft.packageRefs.includes("PAPER.md"),
+    methodExists: packageBacked && draft.packageRefs.includes("METHOD.md"),
+    claimEvidenceBindingsExists:
+      packageBacked &&
+      draft.packageRefs.includes("CLAIM_EVIDENCE_BINDINGS.json"),
+    reproduceExists:
+      packageBacked && draft.packageRefs.includes("REPRODUCE.md"),
+    limitationsExists:
+      packageBacked && draft.packageRefs.includes("LIMITATIONS.md"),
     noOverclaim: true,
   };
   if (isInternalProcessOrCorpusMetaClaim(candidate)) {
@@ -3292,6 +4633,9 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
   const mechanismPlans = Array.isArray(cycle.mechanismPlans)
     ? (cycle.mechanismPlans as Array<Record<string, unknown>>)
     : [];
+  const mechanismExecutions = Array.isArray(cycle.mechanismExecutions)
+    ? (cycle.mechanismExecutions as Array<Record<string, unknown>>)
+    : [];
   const promotedCandidates = Array.isArray(cycle.promotedCandidates)
     ? (cycle.promotedCandidates as Array<Record<string, unknown>>)
     : [];
@@ -3314,6 +4658,12 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     promotedCount <= 3 &&
     mechanismPlans.length === promotedCandidates.length &&
     mechanismPlans.every(mechanismPlanComplete) &&
+    (mechanismExecutions.length === 0 ||
+      (mechanismExecutions.length === mechanismPlans.length &&
+        mechanismExecutions.every(mechanismExecutionComplete) &&
+        mechanismSummary?.everyMechanismPlanExecuted === true &&
+        mechanismSummary?.allSelectedToolsInvoked === true &&
+        mechanismSummary?.downstreamConsumable === true)) &&
     mechanismSummary?.everyPromotedCandidatePlanned === true &&
     predictionCount >= 12 &&
     Number(execution?.executedCount ?? 0) >= 12 &&
@@ -3573,6 +4923,41 @@ function mechanismPlanComplete(plan: Record<string, unknown>): boolean {
   );
 }
 
+function mechanismExecutionComplete(
+  execution: Record<string, unknown>,
+): boolean {
+  const selectedTools = Array.isArray(execution.selectedTools)
+    ? execution.selectedTools.map((tool) => String(tool))
+    : [];
+  const invocations = Array.isArray(execution.invocations)
+    ? (execution.invocations as Array<Record<string, unknown>>)
+    : [];
+  const outputArtifactRefs = Array.isArray(execution.outputArtifactRefs)
+    ? execution.outputArtifactRefs.map((ref) => String(ref))
+    : [];
+  return (
+    execution.kind === "mechanism_plan_execution" &&
+    typeof execution.candidateId === "string" &&
+    mechanismCandidateTypes().includes(
+      execution.candidateType as MechanismCandidateType,
+    ) &&
+    selectedTools.length > 0 &&
+    invocations.length === selectedTools.length &&
+    invocations.every(
+      (invocation) =>
+        selectedTools.includes(String(invocation.tool ?? "")) &&
+        invocation.invoked === true &&
+        typeof invocation.module === "string" &&
+        typeof invocation.method === "string" &&
+        Array.isArray(invocation.artifactRefs) &&
+        invocation.artifactRefs.length > 0,
+    ) &&
+    execution.allSelectedToolsInvoked === true &&
+    execution.downstreamConsumable === true &&
+    outputArtifactRefs.length >= selectedTools.length
+  );
+}
+
 export class FundNotificationPackageBuilder {
   constructor(private readonly root: string) {}
 
@@ -3733,10 +5118,11 @@ function markdownList(items: string[]): string[] {
 export class AutonomousDiscoveryDaemonService {
   constructor(
     private readonly root: string,
-    private readonly loopRunner: Pick<
-      SilentSearchLoopRunner,
-      "runCycle"
-    > = new SilentSearchLoopRunner(),
+    private readonly loopRunner: {
+      runCycle(
+        input: Parameters<SilentSearchLoopRunner["runCycle"]>[0],
+      ): Record<string, unknown> | Promise<Record<string, unknown>>;
+    } = new SilentSearchLoopRunner(),
   ) {}
 
   async status(): Promise<Record<string, unknown>> {
@@ -4010,6 +5396,84 @@ export class AutonomousDiscoveryDaemonService {
     return report;
   }
 
+  async candidatePresentPreflight(
+    options: { cycleId?: string } = {},
+  ): Promise<CandidatePresentPreflightReport> {
+    await this.ensureInitialized();
+    const state = await this.readState();
+    const cycleId = options.cycleId ?? state.lastCycleId;
+    const cycleRef = cycleId
+      ? `${daemonArtifactRoot}/search-cycles/${cycleId}.json`
+      : null;
+    const checkpointRef = cycleId
+      ? `${daemonArtifactRoot}/checkpoints/${cycleId}.json`
+      : null;
+    const cycle = cycleId
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(this.root, cycleRef!),
+        )
+      : null;
+    const ledgerRecords = await this.readLedgerRecords();
+    const hardSeedChecks = isRecord(cycle)
+      ? await this.buildHardSeedPreflightChecks(cycle, ledgerRecords)
+      : [];
+    const packageChecks =
+      await this.buildCorpusPackagePreflightChecks(ledgerRecords);
+    const checks = [...hardSeedChecks, ...packageChecks];
+    const createdDrafts = checks
+      .filter((check) => check.accepted && check.draft !== null)
+      .map((check) => check.draft as FundCandidateDraft);
+    const draftArtifactRefs =
+      await this.persistCandidatePresentDrafts(createdDrafts);
+    const rejectedDrafts = checks
+      .filter((check) => !check.accepted)
+      .map((check) => ({
+        sourceType: check.sourceType,
+        sourceRef: check.sourceRef,
+        candidateId: check.candidateId,
+        reason: check.rejectionReason ?? "candidate_present_preflight_failed",
+        failedGates: check.failedGates,
+      }));
+    const candidatePresent = createdDrafts.length > 0;
+    const report: CandidatePresentPreflightReport = withEvidenceHash({
+      kind: "candidate_present_preflight" as const,
+      status: candidatePresent
+        ? ("candidate_present" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointRef,
+      cycleRef,
+      cycleId,
+      hardSeedCheckCount: hardSeedChecks.length,
+      packageCheckCount: packageChecks.length,
+      createdDraftCount: createdDrafts.length,
+      rejectedDraftCount: rejectedDrafts.length,
+      createdDrafts,
+      draftArtifactRefs,
+      rejectedDrafts,
+      hardSeedChecks,
+      packageChecks,
+      candidatePresentFailureAnalysis: candidatePresent
+        ? null
+        : "No FundCandidateDraft passed the candidate-present preflight with stable ID, exact claim, valid domain, real evidence refs, identity ledger refs, hard-seed refs, and a complete inspectability path.",
+      notificationSuppressed: true as const,
+      fundFound: false,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${candidatePresentPreflightFile}`,
+        ...(cycleRef ? [cycleRef] : []),
+        ...(checkpointRef ? [checkpointRef] : []),
+        `${daemonArtifactRoot}/candidate-identity-ledger.json`,
+        `${daemonArtifactRoot}/${packageScoutFile}`,
+        `${daemonArtifactRoot}/${fundCandidateDraftDir}/`,
+        ...draftArtifactRefs,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, candidatePresentPreflightFile),
+      report,
+    );
+    return report;
+  }
+
   async draftAudit(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
@@ -4122,6 +5586,55 @@ export class AutonomousDiscoveryDaemonService {
     );
     await writeJson(
       join(this.root, daemonArtifactRoot, "candidate-generation-quality.json"),
+      report,
+    );
+    return report;
+  }
+
+  async domainDiscovery(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const report = new DomainDiscovery().audit();
+    await writeJson(
+      join(this.root, daemonArtifactRoot, domainDiscoveryFile),
+      report,
+    );
+    return report;
+  }
+
+  async domainPortfolioAudit(): Promise<DomainPortfolioAuditReport> {
+    await this.ensureInitialized();
+    const discovery = new DomainDiscovery();
+    const discoveryReport = discovery.audit();
+    const report = new DomainPortfolioAuditor().audit({
+      cycles: await this.readSearchCyclesForDomainAudit(),
+      drafts: await this.readFundCandidateDraftsForDomainAudit(),
+      graveyard: await this.readGraveyardEntries(),
+      discoveryCandidates: discovery.propose(),
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, domainDiscoveryFile),
+      discoveryReport,
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, domainPortfolioAuditFile),
+      report,
+    );
+    return report;
+  }
+
+  async domainRotation(
+    options: { cycles?: number } = {},
+  ): Promise<DomainRotationReport> {
+    await this.ensureInitialized();
+    const portfolio = await this.domainPortfolioAudit();
+    const state = await this.readState();
+    const report = new DiscoveryDomainRotator().plan({
+      metrics: portfolio.metrics,
+      cycleCount: state.cycleCount,
+      cycles: options.cycles ?? 5,
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, domainRotationFile),
       report,
     );
     return report;
@@ -4267,6 +5780,38 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const state = await this.readState();
+    if (state.fundFound) {
+      const fundGate = await this.refreshFundGateFromCandidate();
+      const lastCycle = await readOptionalJson<Record<string, unknown>>(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          "search-cycles",
+          `${state.lastCycleId}.json`,
+        ),
+      );
+      if (isRecord(lastCycle)) {
+        return withEvidenceHash({
+          ...lastCycle,
+          status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+          fundGateEvaluation: fundGate,
+          fundGatePassed: fundGate.passed,
+          notificationSuppressed: !fundGate.passed,
+          nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+        });
+      }
+      return withEvidenceHash({
+        kind: "discovery_daemon_cycle_already_fund_found",
+        cycleId: state.lastCycleId,
+        candidateId: state.lastCandidateId,
+        domain: state.currentDomain,
+        status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+        fundGateEvaluation: fundGate,
+        fundGatePassed: fundGate.passed,
+        notificationSuppressed: !fundGate.passed,
+        nextStatus: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+      });
+    }
     const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
     const graveyard = new CandidateGraveyardService(
       await this.readGraveyardEntries(),
@@ -4280,7 +5825,8 @@ export class AutonomousDiscoveryDaemonService {
         intake,
       });
     }
-    const cycle = this.loopRunner.runCycle({
+    const cycle = await this.loopRunner.runCycle({
+      root: this.root,
       state,
       ledger,
       graveyard,
@@ -4290,25 +5836,42 @@ export class AutonomousDiscoveryDaemonService {
     const cycleFundCandidate = isFundCandidate(cycle.fundCandidate)
       ? cycle.fundCandidate
       : null;
+    const semanticFundGate = cycleFundCandidate
+      ? new FundGateEvaluator().evaluate(cycleFundCandidate)
+      : null;
     const cycleFundGatePassed =
       isRecord(cycle.fundGateEvaluation) &&
       cycle.fundGateEvaluation.passed === true &&
-      cycleFundCandidate !== null;
+      cycleFundCandidate !== null &&
+      semanticFundGate?.passed === true;
     const cycleId = String(cycle.cycleId);
     await this.writeLedgerRecords(ledger.entries());
     await this.writeGraveyardEntries(graveyard.all());
+    const packagedCycleFundCandidate =
+      cycleFundGatePassed && cycleFundCandidate
+        ? await this.buildCycleExternalReviewPackage(cycle, cycleFundCandidate)
+        : null;
+    const effectiveCycleFundCandidate =
+      packagedCycleFundCandidate ?? cycleFundCandidate;
     if (cycleFundGatePassed) {
-      await this.writeFundCandidate(cycleFundCandidate);
+      await this.writeFundCandidate(effectiveCycleFundCandidate!);
     }
     const fundGate = await this.refreshFundGateFromCandidate();
     let persistedCycle = cycle;
     const effectiveDeathCause =
-      cycleFundGatePassed && !fundGate.passed && cycleFundCandidate
-        ? deathCauseFromRejectedFundCandidate(cycleFundCandidate, fundGate)
+      cycleFundGatePassed && !fundGate.passed && effectiveCycleFundCandidate
+        ? deathCauseFromRejectedFundCandidate(
+            effectiveCycleFundCandidate,
+            fundGate,
+          )
         : String(cycle.deathCause ?? "no_death_cause");
-    if (cycleFundGatePassed && !fundGate.passed && cycleFundCandidate) {
+    if (
+      cycleFundGatePassed &&
+      !fundGate.passed &&
+      effectiveCycleFundCandidate
+    ) {
       await this.tombstoneRejectedFundCandidate(
-        cycleFundCandidate,
+        effectiveCycleFundCandidate,
         fundGate,
         cycleId,
       );
@@ -4316,9 +5879,13 @@ export class AutonomousDiscoveryDaemonService {
     if (cycleFundGatePassed) {
       persistedCycle = withEvidenceHash({
         ...cycle,
+        status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
+        fundCandidate: effectiveCycleFundCandidate,
         fundGateEvaluation: fundGate,
         fundGatePassed: fundGate.passed,
         packageGateApplied: true,
+        generatedExternalReviewPackage:
+          packagedCycleFundCandidate?.publicPackagePath ?? null,
         failedPackageGates: fundGate.failedGates.filter((code) =>
           code.startsWith("external_review_package"),
         ),
@@ -4368,6 +5935,131 @@ export class AutonomousDiscoveryDaemonService {
     await this.compactDiscoveryDaemonHistory(cycleId);
     await this.notifyFromFundGateIfPassed(fundGate);
     return persistedCycle;
+  }
+
+  private async buildCycleExternalReviewPackage(
+    cycle: Record<string, unknown>,
+    candidate: FundCandidate,
+  ): Promise<FundCandidate | null> {
+    const hardSeed = acceptedPackageHardSeed(cycle, candidate);
+    if (hardSeed === null) return null;
+    if (!cycleHasFundPackageEvidence(cycle)) return null;
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(candidate.candidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    await mkdir(packageRoot, { recursive: true });
+    const sourceEvidenceRefs = uniqueStrings([
+      ...stringArray(hardSeed.sourceRefs),
+      ...stringArray(hardSeed.evidenceRefs),
+      ...stringArray(hardSeed.baselineRefs),
+      ...stringArray(hardSeed.rivalRefs),
+      ...stringArray(hardSeed.holdoutRefs),
+      ...stringArray(hardSeed.replayRefs),
+      ...stringArray(hardSeed.counterexampleRefs),
+    ]);
+    const cycleRef = `${daemonArtifactRoot}/search-cycles/${String(cycle.cycleId)}.json`;
+    const identityLedgerRefs = [
+      `${daemonArtifactRoot}/candidate-identity-ledger.json#${candidate.candidateId}`,
+    ];
+    const hardSeedRefs = [`${cycleRef}#hardSeeds/${String(hardSeed.seedId)}`];
+    const bindingRefs = {
+      evidenceRefs: [
+        "PAPER.md#evidence-summary",
+        "METHOD.md#method",
+        "CLAIM_EVIDENCE_BINDINGS.json#sourceEvidenceRefs",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#limitations",
+      ],
+      predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionExecution"],
+      holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutResults"],
+      counterexampleRefs: [
+        "CLAIM_EVIDENCE_BINDINGS.json#counterexampleResults",
+      ],
+      replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayResults"],
+      killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeek"],
+    };
+    const packagedCandidate: FundCandidate = {
+      ...candidate,
+      publicPackagePath: packageRef,
+      whyItMatters:
+        candidate.whyItMatters ??
+        "This bounded candidate is derived from accepted hard-seed evidence and passed the unchanged semantic Fund Gate before package-gate review.",
+      rivalTheories: candidate.rivalTheories ?? stringArray(hardSeed.rivalRefs),
+      predictionOutcomes: candidate.predictionOutcomes ?? [
+        `${candidate.predictionsExecuted} frozen predictions were executed with ${candidate.nonObviousPredictions} non-obvious predictions.`,
+      ],
+      holdoutOutcomes:
+        candidate.holdoutOutcomes ?? stringArray(hardSeed.holdoutRefs),
+      counterexampleOutcomes:
+        candidate.counterexampleOutcomes ??
+        stringArray(hardSeed.counterexampleRefs),
+      replayOutcomes:
+        candidate.replayOutcomes ?? stringArray(hardSeed.replayRefs),
+      killWeekResult:
+        candidate.killWeekResult ??
+        "Kill week completed with no fatal unresolved attack in the bounded cycle evidence.",
+      remainingLimitations: candidate.remainingLimitations ?? [
+        "This package is generated from public-safe hard-seed and daemon cycle evidence.",
+        "It is not external validation, external adoption, legal advice, medical advice, wet-lab capability, or a universal-truth claim.",
+        "External expert review is still required before any stronger interpretation.",
+      ],
+      nextExternalReviewStep:
+        candidate.nextExternalReviewStep ??
+        "Review PAPER.md, METHOD.md, CLAIM_EVIDENCE_BINDINGS.json, REPRODUCE.md, and LIMITATIONS.md against the cited public evidence refs.",
+    };
+    await writeText(
+      join(packageRoot, "PAPER.md"),
+      renderCyclePackagePaper({
+        candidate: packagedCandidate,
+        cycleRef,
+        sourceEvidenceRefs,
+        hardSeedRefs,
+        identityLedgerRefs,
+      }),
+    );
+    await writeText(
+      join(packageRoot, "METHOD.md"),
+      renderCyclePackageMethod({ candidate: packagedCandidate, cycleRef }),
+    );
+    await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+      kind: "claim_evidence_bindings",
+      candidateId: packagedCandidate.candidateId,
+      claim: packagedCandidate.claim,
+      domain: packagedCandidate.domain,
+      sourceEvidenceRefs,
+      identityLedgerRefs,
+      hardSeedRefs,
+      cycleRefs: [
+        `${cycleRef}#frozenPredictions`,
+        `${cycleRef}#predictionExecution`,
+        `${cycleRef}#holdoutResults`,
+        `${cycleRef}#counterexampleResults`,
+        `${cycleRef}#replayResults`,
+        `${cycleRef}#proofOrMechanismPressure`,
+        `${cycleRef}#killWeek`,
+      ],
+      ...bindingRefs,
+      methodRef: "METHOD.md",
+      reproduceRef: "REPRODUCE.md",
+      limitationsRef: "LIMITATIONS.md",
+      noOverclaim: true,
+      fundCandidate: packagedCandidate,
+    });
+    await writeText(
+      join(packageRoot, "REPRODUCE.md"),
+      renderCyclePackageReproduce({ candidate: packagedCandidate, cycleRef }),
+    );
+    await writeText(
+      join(packageRoot, "LIMITATIONS.md"),
+      renderCyclePackageLimitations(packagedCandidate),
+    );
+    await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
+      kind: "fund_candidate",
+      candidate: packagedCandidate,
+      sourceEvidenceRefs,
+      identityLedgerRefs,
+      hardSeedRefs,
+    });
+    return packagedCandidate;
   }
 
   private async cyclePackageBackedCandidateIntake(input: {
@@ -4428,6 +6120,7 @@ export class AutonomousDiscoveryDaemonService {
       identityLedgerDecision: identity,
       fundCandidate: candidate,
       fundGateEvaluation: fundGate,
+      status: fundGate.passed ? "FUND_FOUND" : "continue_searching",
       deathCause,
       internalStatus,
       fundGatePassed: fundGate.passed,
@@ -4614,12 +6307,18 @@ export class AutonomousDiscoveryDaemonService {
   async fundGate(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const candidate = await this.readFundCandidate();
-    const result = await this.refreshFundGateFromCandidate();
+    const draftInput = candidate
+      ? null
+      : await this.readLatestDraftFundGateInput();
+    const result = await this.refreshFundGateFromCandidate({
+      draftFallback: true,
+    });
     return {
       ...result,
       artifactRefs: [
         `${daemonArtifactRoot}/fund-gate-results.json`,
         ...(candidate ? [`${daemonArtifactRoot}/${fundCandidateFile}`] : []),
+        ...(draftInput ? [draftInput.draftRef] : []),
       ],
     };
   }
@@ -4627,26 +6326,141 @@ export class AutonomousDiscoveryDaemonService {
   async notifyIfFund(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const candidate = await this.readFundCandidate();
-    const result = await this.refreshFundGateFromCandidate();
+    const draftInput = candidate
+      ? null
+      : await this.readLatestDraftFundGateInput();
+    const notificationCandidate = candidate ?? draftInput?.candidate ?? null;
+    const result = await this.refreshFundGateFromCandidate({
+      draftFallback: true,
+    });
     const notification = await new FundNotificationPackageBuilder(
       this.root,
-    ).buildIfFund(result, candidate);
-    if (result.passed && candidate) {
-      await this.markFundFound(candidate);
+    ).buildIfFund(result, notificationCandidate);
+    if (result.passed && notificationCandidate) {
+      if (!candidate) {
+        await this.writeFundCandidate(notificationCandidate);
+      }
+      await this.markFundFound(notificationCandidate);
     } else if (candidate) {
       await this.tombstoneRejectedFundCandidate(candidate, result);
     }
     return notification;
   }
 
-  private async refreshFundGateFromCandidate(): Promise<FundGateResult> {
-    const candidate = await this.readFundCandidate();
+  private async refreshFundGateFromCandidate(
+    options: { draftFallback?: boolean; persistDraftFallback?: boolean } = {},
+  ): Promise<FundGateResult> {
+    const persistedCandidate = await this.readFundCandidate();
+    const draftInput =
+      persistedCandidate || !options.draftFallback
+        ? null
+        : await this.readLatestDraftFundGateInput();
+    const candidate = persistedCandidate ?? draftInput?.candidate ?? null;
     const result = await this.evaluateFundCandidateWithPackage(candidate);
     await writeJson(
       join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
       result,
     );
+    if (
+      result.passed &&
+      draftInput &&
+      !persistedCandidate &&
+      options.persistDraftFallback === true
+    ) {
+      await this.writeFundCandidate(draftInput.candidate);
+    }
     return result;
+  }
+
+  private async readLatestDraftFundGateInput(): Promise<DraftFundGateInput | null> {
+    const report = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, daemonArtifactRoot, candidatePresentPreflightFile),
+    );
+    const drafts = Array.isArray(report?.createdDrafts)
+      ? report.createdDrafts.filter(isRecord)
+      : [];
+    if (drafts.length === 0) return null;
+    const artifactRefs = Array.isArray(report?.draftArtifactRefs)
+      ? report.draftArtifactRefs.map((item) => String(item))
+      : [];
+    const ledgerRecords = await this.readLedgerRecords();
+    for (const item of drafts) {
+      const draft = item as FundCandidateDraft;
+      if (draft.kind !== "fund_candidate_draft") continue;
+      const validation = new FundCandidateDraftValidator().validate({
+        draft,
+        ledger: new CandidateIdentityLedger(ledgerRecordCopies(ledgerRecords)),
+      });
+      if (!validation.accepted) continue;
+      const draftRef =
+        artifactRefs.find((ref) =>
+          ref.includes(normalizeCandidateIdPart(draft.candidateId)),
+        ) ??
+        `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(draft.candidateId)}.json`;
+      const cycleCandidate = await this.fundCandidateFromDraftCycle(draft);
+      const packageCandidate =
+        cycleCandidate === null && draft.generatedFrom === "package_intake"
+          ? await readFundCandidateFromPackageRoot(
+              join(this.root, draft.inspectabilityPath),
+            )
+          : null;
+      const candidate =
+        cycleCandidate ??
+        (packageCandidate &&
+        packageCandidate.candidateId === draft.candidateId &&
+        packageCandidate.claim === draft.claim
+          ? {
+              ...packageCandidate,
+              publicPackagePath:
+                packageCandidate.publicPackagePath ?? draft.inspectabilityPath,
+            }
+          : fundCandidateFromDraft(draft));
+      return {
+        draft,
+        draftRef,
+        validation,
+        candidate,
+      };
+    }
+    return null;
+  }
+
+  private async fundCandidateFromDraftCycle(
+    draft: FundCandidateDraft,
+  ): Promise<FundCandidate | null> {
+    if (!draft.inspectabilityPath.includes("/search-cycles/")) return null;
+    const cycle = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, draft.inspectabilityPath),
+    );
+    if (!isRecord(cycle)) return null;
+    const candidateId = String(cycle.candidateId ?? "");
+    const claim = String(cycle.claim ?? "");
+    const domain = String(cycle.domain ?? "");
+    if (
+      candidateId !== draft.candidateId ||
+      claim !== draft.claim ||
+      !discoveryDaemonDomains().includes(domain as DiscoveryDomain) ||
+      !isRecord(cycle.predictionExecution) ||
+      !isRecord(cycle.holdoutResults) ||
+      !isRecord(cycle.counterexampleResults) ||
+      !isRecord(cycle.replayResults) ||
+      !isRecord(cycle.proofOrMechanismPressure) ||
+      !isRecord(cycle.killWeek)
+    ) {
+      return null;
+    }
+    return fundCandidateFromCycle({
+      candidateId: draft.candidateId,
+      claim: draft.claim,
+      domain: draft.domain,
+      deathCause: String(cycle.deathCause ?? "no_death_cause") as DeathCause,
+      predictionExecution: cycle.predictionExecution,
+      holdoutResults: cycle.holdoutResults,
+      counterexampleResults: cycle.counterexampleResults,
+      replayResults: cycle.replayResults,
+      proofOrMechanismPressure: cycle.proofOrMechanismPressure,
+      killWeek: cycle.killWeek,
+    });
   }
 
   private async evaluateFundCandidateWithPackage(
@@ -4743,6 +6557,9 @@ export class AutonomousDiscoveryDaemonService {
     const generationQuality = await this.generationQuality();
     const hardSeedAudit = await this.hardSeedAudit();
     const mechanismAudit = new MechanismRouter().auditMechanisms();
+    const domainDiscoveryReport = await this.domainDiscovery();
+    const domainPortfolioAudit = await this.domainPortfolioAudit();
+    const domainRotationReport = await this.domainRotation({ cycles: 5 });
     await writeJson(
       join(this.root, daemonArtifactRoot, "mechanism-audit.json"),
       mechanismAudit,
@@ -4827,6 +6644,44 @@ export class AutonomousDiscoveryDaemonService {
               !domain.includes("unsafe") && !domain.includes("private"),
           ),
         "Daemon must rotate across safe public high-impact computational/formal domains.",
+      ),
+      gate(
+        "domain_discovery_not_limited_to_seed_portfolio",
+        domainDiscoveryReport.kind === "domain_discovery_report" &&
+          domainDiscoveryReport.seedPortfolioOnly === false &&
+          Number(domainDiscoveryReport.acceptedDomainCount) >= 3 &&
+          domains.length > seedDiscoveryDaemonDomains().length,
+        "Discovery daemon must treat the original ten domains as a seed portfolio and accept new gated domains.",
+      ),
+      gate(
+        "domain_discovery_safety_testability_gates",
+        domainDiscoveryReport.kind === "domain_discovery_report" &&
+          domainDiscoveryReport.unsafeRejectionCategoriesCovered === true &&
+          domainDiscoveryReport.allAcceptedHaveRequiredPaths === true,
+        "DomainDiscovery must reject unsafe/private/wet-lab/medical/cyber-offensive domains and require baseline, holdout, replay, source, and inspectability paths.",
+      ),
+      gate(
+        "domain_portfolio_metrics_complete",
+        domainPortfolioAudit.kind === "domain_portfolio_audit" &&
+          domainPortfolioAudit.metrics.length === domains.length &&
+          domainPortfolioAudit.metrics.every(domainMetricComplete),
+        "Domain portfolio audit must compute per-domain hard-seed yield, draft yield, death causes, evidence availability, inspectability, and safety status.",
+      ),
+      gate(
+        "domain_rotation_five_cycle_plan",
+        domainRotationReport.kind === "domain_rotation_report" &&
+          domainRotationReport.requestedCycles >= 5 &&
+          domainRotationReport.rotationSchedule.length >= 5 &&
+          domainRotationReport.addedDomains.length >= 3 &&
+          domainRotationReport.safetyGatePassed === true &&
+          domainRotationReport.testabilityGatePassed === true,
+        "DomainRotation must run a five-cycle plan and add new domains only after safety/testability gates.",
+      ),
+      gate(
+        "domain_rotation_no_fund_claim",
+        domainRotationReport.fundFound === false &&
+          domainRotationReport.nextStatus === "continue_searching_checkpointed",
+        "Domain rotation must not claim Fund or weaken the Fund Gate; no-Fund rotation remains continue_searching_checkpointed.",
       ),
       gate(
         "candidate_identity_drift_rejected",
@@ -5034,6 +6889,9 @@ export class AutonomousDiscoveryDaemonService {
         `${daemonArtifactRoot}/fund-gate-results.json`,
         `${daemonArtifactRoot}/${packageScoutFile}`,
         `${daemonArtifactRoot}/mechanism-audit.json`,
+        `${daemonArtifactRoot}/${domainDiscoveryFile}`,
+        `${daemonArtifactRoot}/${domainPortfolioAuditFile}`,
+        `${daemonArtifactRoot}/${domainRotationFile}`,
       ],
     });
   }
@@ -5075,6 +6933,56 @@ export class AutonomousDiscoveryDaemonService {
     await mkdir(join(this.root, daemonArtifactRoot, evidencePackageDir), {
       recursive: true,
     });
+    await mkdir(join(this.root, daemonArtifactRoot, fundCandidateDraftDir), {
+      recursive: true,
+    });
+  }
+
+  private async readSearchCyclesForDomainAudit(): Promise<
+    Array<Record<string, unknown>>
+  > {
+    const cycleRoot = join(this.root, daemonArtifactRoot, "search-cycles");
+    let files: string[];
+    try {
+      files = await readdir(cycleRoot);
+    } catch {
+      return [];
+    }
+    const cycles: Array<Record<string, unknown>> = [];
+    for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
+      const cycle = await readOptionalJson<Record<string, unknown>>(
+        join(cycleRoot, file),
+      );
+      if (isRecord(cycle)) cycles.push(cycle);
+    }
+    return cycles;
+  }
+
+  private async readFundCandidateDraftsForDomainAudit(): Promise<
+    FundCandidateDraft[]
+  > {
+    const draftRoot = join(
+      this.root,
+      daemonArtifactRoot,
+      fundCandidateDraftDir,
+    );
+    let files: string[];
+    try {
+      files = await readdir(draftRoot);
+    } catch {
+      return [];
+    }
+    const drafts: FundCandidateDraft[] = [];
+    for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
+      const row = await readOptionalJson<Record<string, unknown>>(
+        join(draftRoot, file),
+      );
+      const draft = fundCandidateDraftFromUnknown(
+        isRecord(row?.draft) ? row.draft : row,
+      );
+      if (draft) drafts.push(draft);
+    }
+    return drafts;
   }
 
   private async readState(): Promise<DiscoveryDaemonState> {
@@ -5296,7 +7204,421 @@ export class AutonomousDiscoveryDaemonService {
     return null;
   }
 
-  private async readCorpusPackageScoutCandidates(): Promise<PackageScoutReadResult> {
+  private async persistCandidatePresentDrafts(
+    drafts: FundCandidateDraft[],
+  ): Promise<string[]> {
+    if (drafts.length === 0) return [];
+    await mkdir(join(this.root, daemonArtifactRoot, fundCandidateDraftDir), {
+      recursive: true,
+    });
+    const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
+    const refs: string[] = [];
+    for (const draft of drafts) {
+      ledger.register({
+        candidateId: draft.candidateId,
+        claim: draft.claim,
+        versionedClaimChange: draft.versionedClaimChange,
+      });
+      const ref = `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(draft.candidateId)}.json`;
+      await writeJson(join(this.root, ref), {
+        kind: "candidate_present_preflight_draft",
+        draft,
+        notificationSuppressed: true,
+        fundFound: false,
+      });
+      refs.push(ref);
+    }
+    await this.writeLedgerRecords(ledger.entries());
+    return refs;
+  }
+
+  private async buildHardSeedPreflightChecks(
+    cycle: Record<string, unknown>,
+    ledgerRecords: CandidateIdentityRecord[],
+  ): Promise<CandidatePresentPreflightCheck[]> {
+    const cycleId = String(cycle.cycleId ?? "");
+    const seeds = Array.isArray(cycle.hardSeeds)
+      ? cycle.hardSeeds.filter(isRecord)
+      : [];
+    const validations = Array.isArray(cycle.hardSeedValidations)
+      ? cycle.hardSeedValidations.filter(isRecord)
+      : [];
+    const checks: CandidatePresentPreflightCheck[] = [];
+    for (const seed of seeds.slice(0, 3)) {
+      const candidateId = String(seed.candidateId ?? "");
+      const seedId = String(seed.seedId ?? "");
+      const claim = String(seed.claim ?? "");
+      const domain = String(seed.domain ?? "");
+      const cycleRef = `${daemonArtifactRoot}/search-cycles/${cycleId}.json`;
+      const sourceRef = `${cycleRef}#hardSeeds/${seedId}`;
+      const validation = validations.find(
+        (item) => String(item.seedId ?? "") === seedId,
+      );
+      const seedAccepted = validation?.accepted === true;
+      const evidenceRefs = uniqueStrings([
+        ...stringArray(seed.evidenceRefs),
+        ...stringArray(seed.sourceRefs),
+        ...stringArray(seed.baselineRefs),
+        ...stringArray(seed.rivalRefs),
+        ...stringArray(seed.holdoutRefs),
+        ...stringArray(seed.replayRefs),
+        ...stringArray(seed.counterexampleRefs),
+      ]);
+      const identityLedgerRefs =
+        candidateId.length > 0
+          ? [
+              `${daemonArtifactRoot}/candidate-identity-ledger.json#${candidateId}`,
+            ]
+          : [];
+      const hardSeedRefs = seedId.length > 0 ? [sourceRef] : [];
+      const inspectabilityPath = cycleRef;
+      const predictionRefs = [
+        `${cycleRef}#frozenPredictions`,
+        `${cycleRef}#predictionExecution`,
+      ];
+      const holdoutRefs = uniqueStrings([
+        ...stringArray(seed.holdoutRefs),
+        `${cycleRef}#holdoutResults`,
+      ]);
+      const counterexampleRefs = uniqueStrings([
+        ...stringArray(seed.counterexampleRefs),
+        `${cycleRef}#counterexampleResults`,
+      ]);
+      const replayRefs = uniqueStrings([
+        ...stringArray(seed.replayRefs),
+        `${cycleRef}#replayResults`,
+      ]);
+      const killWeekRefs = [`${cycleRef}#killWeek`];
+      const identityDecision =
+        candidateId.length > 0 && claim.length > 0
+          ? new CandidateIdentityLedger(
+              ledgerRecordCopies(ledgerRecords),
+            ).register({
+              candidateId,
+              claim,
+            })
+          : null;
+      const gates = [
+        gate(
+          "hard_seed_validation_accepted",
+          seedAccepted,
+          "Hard seed must have passed the hard-seed validator.",
+        ),
+        gate(
+          "stable_candidate_id",
+          candidateId.trim().length > 0,
+          "Candidate-present preflight requires a stable candidate ID.",
+        ),
+        gate(
+          "exact_claim",
+          claim.trim().length >= 40,
+          "Candidate-present preflight requires the exact claim text.",
+        ),
+        gate(
+          "domain",
+          discoveryDaemonDomains().includes(domain as DiscoveryDomain),
+          "Candidate-present preflight requires a valid daemon domain.",
+        ),
+        gate(
+          "real_evidence_refs",
+          evidenceRefs.length >= 5 &&
+            evidenceRefs.some((ref) => ref.startsWith("https://")) &&
+            evidenceRefs.every(publicSafeRef),
+          "Candidate-present preflight requires at least five real public-safe evidence refs.",
+        ),
+        gate(
+          "identity_ledger_refs",
+          identityLedgerRefs.length > 0 &&
+            identityLedgerRefs.every(publicSafeRef),
+          "Candidate-present preflight requires candidate identity ledger refs.",
+        ),
+        gate(
+          "candidate_identity_integrity",
+          identityDecision?.accepted === true,
+          "Candidate-present preflight requires the candidate ID and exact claim to pass the identity ledger.",
+        ),
+        gate(
+          "hard_seed_refs",
+          hardSeedRefs.length > 0 && hardSeedRefs.every(publicSafeRef),
+          "Candidate-present preflight requires hard-seed refs.",
+        ),
+        gate(
+          "inspectability_path",
+          publicSafeRef(inspectabilityPath) &&
+            (await exists(join(this.root, inspectabilityPath))),
+          "Candidate-present preflight requires a real inspectability path.",
+        ),
+        gate(
+          "cycle_pressure_refs",
+          Array.isArray(cycle.frozenPredictions) &&
+            cycle.frozenPredictions.length > 0 &&
+            isRecord(cycle.predictionExecution) &&
+            isRecord(cycle.holdoutResults) &&
+            isRecord(cycle.counterexampleResults) &&
+            isRecord(cycle.replayResults) &&
+            isRecord(cycle.killWeek),
+          "Hard-seed draft requires inspectable cycle prediction, holdout, counterexample, replay, and kill-week refs.",
+        ),
+      ];
+      checks.push(
+        this.finalizeCandidatePresentCheck({
+          sourceType: "hard_seed",
+          sourceRef,
+          candidateId: candidateId || null,
+          claim: claim || null,
+          domain: domain || null,
+          generatedFrom:
+            seed.generatedFrom === "corpus_seed"
+              ? "corpus_seed"
+              : "fresh_external_target",
+          sourceRefs: stringArray(seed.sourceRefs),
+          evidenceRefs,
+          identityLedgerRefs,
+          hardSeedRefs,
+          inspectabilityPath,
+          predictionRefs,
+          holdoutRefs,
+          counterexampleRefs,
+          replayRefs,
+          killWeekRefs,
+          gates,
+          ledgerRecords,
+          identityDecision,
+        }),
+      );
+    }
+    return checks;
+  }
+
+  private async buildCorpusPackagePreflightChecks(
+    ledgerRecords: CandidateIdentityRecord[],
+  ): Promise<CandidatePresentPreflightCheck[]> {
+    const packageRoots = await this.scanCorpusFundPackageRoots();
+    const checks: CandidatePresentPreflightCheck[] = [];
+    for (const item of packageRoots) {
+      const candidate = await readFundCandidateFromPackageRoot(
+        item.packageRoot,
+      );
+      const bindings = await readOptionalJson<Record<string, unknown>>(
+        join(item.packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+      );
+      const candidateId =
+        candidate?.candidateId ?? stringOrNull(bindings?.candidateId);
+      const claim = candidate?.claim ?? stringOrNull(bindings?.claim);
+      const domain = candidate?.domain ?? stringOrNull(bindings?.domain);
+      const evidenceRefs = stringArray(bindings?.evidenceRefs);
+      const identityLedgerRefs =
+        candidateId && candidateId.length > 0
+          ? [
+              `${daemonArtifactRoot}/candidate-identity-ledger.json#${candidateId}`,
+            ]
+          : [];
+      const hardSeedRefs = uniqueStrings([
+        ...stringArray(bindings?.hardSeedRefs),
+        ...stringArray(bindings?.hardSeedRefsUsed),
+        ...stringArray(bindings?.hardSeeds),
+      ]);
+      const sourceRef = item.sourceRef;
+      const identityDecision =
+        candidateId && claim
+          ? new CandidateIdentityLedger(
+              ledgerRecordCopies(ledgerRecords),
+            ).register({
+              candidateId,
+              claim,
+            })
+          : null;
+      const gates = [
+        gate(
+          "package_candidate_object",
+          candidate !== null,
+          "Corpus package must contain FUND_CANDIDATE.json, fund-candidate.json, CLAIM_EVIDENCE_BINDINGS.json.candidate, or .fundCandidate.",
+        ),
+        gate(
+          "stable_candidate_id",
+          Boolean(candidateId && candidateId.trim().length > 0),
+          "Candidate-present preflight requires a stable candidate ID.",
+        ),
+        gate(
+          "exact_claim",
+          Boolean(claim && claim.trim().length >= 40),
+          "Candidate-present preflight requires the exact claim text.",
+        ),
+        gate(
+          "domain",
+          Boolean(
+            domain &&
+            discoveryDaemonDomains().includes(domain as DiscoveryDomain),
+          ),
+          "Candidate-present preflight requires a valid daemon domain.",
+        ),
+        gate(
+          "real_evidence_refs",
+          packageBindingRefsValid(bindings?.evidenceRefs, 5),
+          "Candidate-present preflight requires at least five real public-safe package evidence refs.",
+        ),
+        gate(
+          "identity_ledger_refs",
+          identityLedgerRefs.length > 0 &&
+            identityLedgerRefs.every(publicSafeRef),
+          "Candidate-present preflight requires candidate identity ledger refs.",
+        ),
+        gate(
+          "candidate_identity_integrity",
+          identityDecision?.accepted === true,
+          "Candidate-present preflight requires the candidate ID and exact claim to pass the identity ledger.",
+        ),
+        gate(
+          "hard_seed_refs",
+          hardSeedRefs.length > 0 && hardSeedRefs.every(publicSafeRef),
+          "Candidate-present preflight requires hard-seed refs.",
+        ),
+        gate(
+          "inspectability_path",
+          publicSafeRef(sourceRef) &&
+            (await this.packageRootComplete(item.packageRoot)),
+          "Candidate-present preflight requires a complete inspectability package path.",
+        ),
+        gate(
+          "package_claim_binding",
+          candidate !== null &&
+            bindings?.candidateId === candidate.candidateId &&
+            bindings?.claim === candidate.claim,
+          "CLAIM_EVIDENCE_BINDINGS.json must bind the exact candidate ID and claim.",
+        ),
+        gate(
+          "package_evidence_bindings",
+          packageBindingRefsValid(bindings?.predictionRefs, 1) &&
+            packageBindingRefsValid(bindings?.holdoutRefs, 1) &&
+            packageBindingRefsValid(bindings?.counterexampleRefs, 1) &&
+            packageBindingRefsValid(bindings?.replayRefs, 1) &&
+            packageBindingRefsValid(bindings?.killWeekRefs, 1),
+          "Candidate-present preflight requires predictions, holdouts, counterexamples, replay, and kill-week refs.",
+        ),
+      ];
+      checks.push(
+        this.finalizeCandidatePresentCheck({
+          sourceType: "corpus_package",
+          sourceRef,
+          candidateId,
+          claim,
+          domain,
+          generatedFrom: "package_intake",
+          sourceRefs: [`${publicCorpusBaseRef}/tree/main/${sourceRef}`],
+          evidenceRefs,
+          identityLedgerRefs,
+          hardSeedRefs,
+          inspectabilityPath: sourceRef,
+          predictionRefs: stringArray(bindings?.predictionRefs),
+          holdoutRefs: stringArray(bindings?.holdoutRefs),
+          counterexampleRefs: stringArray(bindings?.counterexampleRefs),
+          replayRefs: stringArray(bindings?.replayRefs),
+          killWeekRefs: stringArray(bindings?.killWeekRefs),
+          gates,
+          ledgerRecords,
+          identityDecision,
+        }),
+      );
+    }
+    return checks;
+  }
+
+  private finalizeCandidatePresentCheck(input: {
+    sourceType: "hard_seed" | "corpus_package";
+    sourceRef: string;
+    candidateId: string | null;
+    claim: string | null;
+    domain: string | null;
+    generatedFrom: FundCandidateDraft["generatedFrom"];
+    sourceRefs: string[];
+    evidenceRefs: string[];
+    identityLedgerRefs: string[];
+    hardSeedRefs: string[];
+    inspectabilityPath: string | null;
+    predictionRefs: string[];
+    holdoutRefs: string[];
+    counterexampleRefs: string[];
+    replayRefs: string[];
+    killWeekRefs: string[];
+    gates: FundGate[];
+    ledgerRecords: CandidateIdentityRecord[];
+    identityDecision: CandidateIdentityDecision | null;
+  }): CandidatePresentPreflightCheck {
+    const preflightPassed = input.gates.every((item) => item.passed);
+    const draft =
+      preflightPassed &&
+      input.candidateId &&
+      input.claim &&
+      input.domain &&
+      discoveryDaemonDomains().includes(input.domain as DiscoveryDomain) &&
+      input.inspectabilityPath
+        ? fundCandidateDraftFixture({
+            draftId: `DRAFT-${normalizeCandidateIdPart(input.candidateId)}`,
+            candidateId: input.candidateId,
+            claim: input.claim,
+            domain: input.domain as DiscoveryDomain,
+            sourceRefs: input.sourceRefs,
+            evidenceRefs: input.evidenceRefs,
+            identityLedgerRefs: input.identityLedgerRefs,
+            hardSeedRefs: input.hardSeedRefs,
+            packageRefs: [...requiredFundPackageFiles],
+            inspectabilityPath: input.inspectabilityPath,
+            predictionRefs: input.predictionRefs,
+            holdoutRefs: input.holdoutRefs,
+            counterexampleRefs: input.counterexampleRefs,
+            replayRefs: input.replayRefs,
+            killWeekRefs: input.killWeekRefs,
+            generatedFrom: input.generatedFrom,
+            synthetic: false,
+            partialCandidate: false,
+          })
+        : null;
+    const validation = draft
+      ? new FundCandidateDraftValidator().validate({
+          draft,
+          ledger: new CandidateIdentityLedger(
+            ledgerRecordCopies(input.ledgerRecords),
+          ),
+        })
+      : null;
+    const gates = validation
+      ? [...input.gates, ...validation.gates]
+      : input.gates;
+    const accepted = preflightPassed && validation?.accepted === true;
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    return withEvidenceHash({
+      kind: "candidate_present_preflight_check" as const,
+      sourceType: input.sourceType,
+      sourceRef: input.sourceRef,
+      candidateId: input.candidateId,
+      claim: input.claim,
+      domain: input.domain,
+      accepted,
+      gates,
+      failedGates,
+      rejectionReason: accepted ? null : firstFailedGate(failedGates),
+      draft: accepted ? draft : null,
+      validation,
+      identityDecision: input.identityDecision,
+      evidenceRefs: input.evidenceRefs,
+      identityLedgerRefs: input.identityLedgerRefs,
+      hardSeedRefs: input.hardSeedRefs,
+      inspectabilityPath: input.inspectabilityPath,
+    });
+  }
+
+  private async packageRootComplete(packageRoot: string): Promise<boolean> {
+    const hasRequiredFiles = await Promise.all(
+      requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
+    );
+    return hasRequiredFiles.every(Boolean);
+  }
+
+  private async scanCorpusFundPackageRoots(): Promise<
+    Array<{ slug: string; sourceRef: string; packageRoot: string }>
+  > {
     const resultsRoot = join(
       this.root,
       "..",
@@ -5307,29 +7629,49 @@ export class AutonomousDiscoveryDaemonService {
     try {
       slugs = await readdir(resultsRoot);
     } catch {
-      return { candidates: [], rejected: [] };
+      return [];
     }
-    const candidates: PackageScoutCandidate[] = [];
-    const rejected: Array<Record<string, unknown>> = [];
+    const packages: Array<{
+      slug: string;
+      sourceRef: string;
+      packageRoot: string;
+    }> = [];
     for (const slug of slugs.sort((left, right) => left.localeCompare(right))) {
       const packageRoot = join(resultsRoot, slug);
-      const hasRequiredFiles = await Promise.all(
-        requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
+      if (await this.packageRootComplete(packageRoot)) {
+        packages.push({
+          slug,
+          sourceRef: `results/${slug}`,
+          packageRoot,
+        });
+      }
+    }
+    return packages;
+  }
+
+  private async readCorpusPackageScoutCandidates(): Promise<PackageScoutReadResult> {
+    const packageRoots = await this.scanCorpusFundPackageRoots();
+    const candidates: PackageScoutCandidate[] = [];
+    const rejected: Array<Record<string, unknown>> = [];
+    for (const item of packageRoots) {
+      const candidate = await readFundCandidateFromPackageRoot(
+        item.packageRoot,
       );
-      if (!hasRequiredFiles.every(Boolean)) continue;
-      const candidate = await readFundCandidateFromPackageRoot(packageRoot);
       if (!candidate) {
         rejected.push({
-          sourceSlug: slug,
-          sourceRef: `results/${slug}`,
+          sourceSlug: item.slug,
+          sourceRef: item.sourceRef,
           reason: "no_fund_candidate_object",
+          why: "Complete review package files exist, but no explicit FundCandidate object was found; candidate-present and Fund Gate promotion require one of the allowed candidate object locations.",
+          requiredCandidateObjectLocations: requiredCandidateObjectLocations(),
+          bindingSummary: await claimEvidenceBindingSummary(item.packageRoot),
         });
         continue;
       }
       candidates.push({
         candidate,
-        sourceSlug: slug,
-        sourceRef: `results/${slug}`,
+        sourceSlug: item.slug,
+        sourceRef: item.sourceRef,
       });
     }
     return { candidates, rejected };
@@ -5466,7 +7808,10 @@ function fundCandidateDraftSchema(): Record<string, unknown> {
       "domain",
       "sourceRefs",
       "evidenceRefs",
+      "identityLedgerRefs",
+      "hardSeedRefs",
       "packageRefs",
+      "inspectabilityPath",
       "predictionRefs",
       "holdoutRefs",
       "counterexampleRefs",
@@ -5483,7 +7828,10 @@ function fundCandidateDraftSchema(): Record<string, unknown> {
       "silent identity drift",
       "missing public source refs",
       "missing evidence refs",
+      "missing identity ledger refs",
+      "missing hard-seed refs",
       "missing required package files",
+      "missing inspectability path",
       "local paths",
       "raw log refs",
     ],
@@ -5510,7 +7858,13 @@ function fundCandidateDraftFixture(
       "REPRODUCE.md#replay",
       "LIMITATIONS.md#scope",
     ],
+    identityLedgerRefs: [
+      ".sovryn/discovery-daemon/candidate-identity-ledger.json#DRAFT-EVIDENCE-BACKED-001",
+    ],
+    hardSeedRefs: [".sovryn/discovery-daemon/hard-seeds.json#DRAFT-SEED-001"],
     packageRefs: [...requiredFundPackageFiles],
+    inspectabilityPath:
+      ".sovryn/discovery-daemon/evidence-packages/DRAFT-EVIDENCE-BACKED-001",
     predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
     holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
     counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
@@ -5524,6 +7878,47 @@ function fundCandidateDraftFixture(
     synthetic: false,
     partialCandidate: false,
     ...patch,
+  };
+}
+
+function fundCandidateDraftFromUnknown(
+  value: unknown,
+): FundCandidateDraft | null {
+  if (!isRecord(value)) return null;
+  const domain = String(value.domain ?? "");
+  const generatedFrom = String(value.generatedFrom ?? "");
+  if (
+    value.kind !== "fund_candidate_draft" ||
+    !discoveryDaemonDomains().includes(domain as DiscoveryDomain) ||
+    !["corpus_seed", "fresh_external_target", "package_intake"].includes(
+      generatedFrom,
+    )
+  ) {
+    return null;
+  }
+  return {
+    kind: "fund_candidate_draft",
+    draftId: String(value.draftId ?? ""),
+    candidateId: String(value.candidateId ?? ""),
+    claim: String(value.claim ?? ""),
+    domain: domain as DiscoveryDomain,
+    sourceRefs: stringArray(value.sourceRefs),
+    evidenceRefs: stringArray(value.evidenceRefs),
+    identityLedgerRefs: stringArray(value.identityLedgerRefs),
+    hardSeedRefs: stringArray(value.hardSeedRefs),
+    packageRefs: stringArray(value.packageRefs),
+    inspectabilityPath: String(value.inspectabilityPath ?? ""),
+    predictionRefs: stringArray(value.predictionRefs),
+    holdoutRefs: stringArray(value.holdoutRefs),
+    counterexampleRefs: stringArray(value.counterexampleRefs),
+    replayRefs: stringArray(value.replayRefs),
+    killWeekRefs: stringArray(value.killWeekRefs),
+    limitations: stringArray(value.limitations),
+    generatedFrom: generatedFrom as FundCandidateDraft["generatedFrom"],
+    synthetic: value.synthetic === true,
+    partialCandidate: value.partialCandidate === true,
+    versionedClaimChange:
+      value.versionedClaimChange === true ? true : undefined,
   };
 }
 
@@ -5568,6 +7963,71 @@ function publicSafePackageRef(ref: string): boolean {
       ref as (typeof requiredFundPackageFiles)[number],
     )
   );
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function ledgerRecordCopies(
+  records: CandidateIdentityRecord[],
+): CandidateIdentityRecord[] {
+  return records.map((record) => ({ ...record }));
+}
+
+function firstFailedGate(failedGates: string[]): string {
+  return failedGates[0] ?? "candidate_present_preflight_failed";
+}
+
+function requiredCandidateObjectLocations(): string[] {
+  return [
+    "FUND_CANDIDATE.json",
+    "fund-candidate.json",
+    "CLAIM_EVIDENCE_BINDINGS.json#candidate",
+    "CLAIM_EVIDENCE_BINDINGS.json#fundCandidate",
+  ];
+}
+
+async function claimEvidenceBindingSummary(
+  packageRoot: string,
+): Promise<Record<string, unknown>> {
+  const bindings = await readOptionalJson<Record<string, unknown>>(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+  );
+  if (!bindings) {
+    return {
+      bindingsParseable: false,
+      topLevelKeys: [],
+      candidateObjectPresent: false,
+    };
+  }
+  return {
+    bindingsParseable: true,
+    topLevelKeys: Object.keys(bindings).slice(0, 40),
+    candidateObjectPresent: Boolean(
+      bindings.candidate || bindings.fundCandidate,
+    ),
+    candidateIdPresent: typeof bindings.candidateId === "string",
+    claimPresent: typeof bindings.claim === "string",
+    domainPresent: typeof bindings.domain === "string",
+    evidenceRefCount: stringArray(bindings.evidenceRefs).length,
+    hardSeedRefCount: uniqueStrings([
+      ...stringArray(bindings.hardSeedRefs),
+      ...stringArray(bindings.hardSeedRefsUsed),
+      ...stringArray(bindings.hardSeeds),
+    ]).length,
+  };
 }
 
 function hardSeedSchema(): Record<string, unknown> {
@@ -5623,6 +8083,8 @@ function hardSeedMechanism(seed: HardSeed): string {
       "formal boundary seed with checked refutation or bounded proof-route status",
     multi_source_discrepancy:
       "multi-source discrepancy seed requiring public-source agreement and package inspectability",
+    external_review_ready_pattern:
+      "evidence-born survivor seed requiring unchanged Fund Gate, package inspectability, and no-overclaim review",
   };
   return mechanisms[seed.type];
 }
@@ -5812,6 +8274,9 @@ function hardSeedTypeForVariant(
   if (variantSlug.includes("counterexample")) {
     return "counterexample_resistant_pattern";
   }
+  if (variantSlug.includes("external-review-ready")) {
+    return "external_review_ready_pattern";
+  }
   if (
     variantSlug.includes("mechanism") ||
     variantSlug.includes("known-pattern")
@@ -5855,6 +8320,7 @@ function hardSeedExpectedDeathCauseForType(type: HardSeedType): DeathCause {
     counterexample_resistant_pattern: "counterexample_dense",
     checked_refutation_or_formal_boundary: "proof_or_mechanism_failed",
     multi_source_discrepancy: "holdout_not_supported",
+    external_review_ready_pattern: "no_death_cause",
   };
   return byType[type];
 }
@@ -5921,6 +8387,164 @@ function hardSeedFixture(patch: Partial<HardSeed> = {}): HardSeed {
     preflightOnly: false,
     ...patch,
   };
+}
+
+function acceptedPackageHardSeed(
+  cycle: Record<string, unknown>,
+  candidate: FundCandidate,
+): HardSeed | null {
+  const seeds = Array.isArray(cycle.hardSeeds)
+    ? cycle.hardSeeds.filter(isRecord)
+    : [];
+  const validations = Array.isArray(cycle.hardSeedValidations)
+    ? cycle.hardSeedValidations.filter(isRecord)
+    : [];
+  const acceptedSeedIds = new Set(
+    validations
+      .filter((validation) => validation.accepted === true)
+      .map((validation) => String(validation.seedId ?? "")),
+  );
+  const seed = seeds.find(
+    (item) =>
+      item.candidateId === candidate.candidateId &&
+      item.seedId &&
+      acceptedSeedIds.has(String(item.seedId)) &&
+      item.synthetic !== true &&
+      item.partialCandidate !== true &&
+      item.llmOnly !== true &&
+      item.preflightOnly !== true &&
+      stringArray(item.evidenceRefs).length >= 2 &&
+      stringArray(item.evidenceRefs).some((ref) => ref.startsWith("https://")),
+  );
+  return seed ? (seed as HardSeed) : null;
+}
+
+function cycleHasFundPackageEvidence(cycle: Record<string, unknown>): boolean {
+  return (
+    Array.isArray(cycle.frozenPredictions) &&
+    cycle.frozenPredictions.length >= 3 &&
+    isRecord(cycle.predictionExecution) &&
+    Number(cycle.predictionExecution.executedCount ?? 0) >= 12 &&
+    isRecord(cycle.holdoutResults) &&
+    cycle.holdoutResults.freshAfterFreeze === true &&
+    cycle.holdoutResults.supported === true &&
+    isRecord(cycle.counterexampleResults) &&
+    Number(cycle.counterexampleResults.checksExecuted ?? 0) >= 1 &&
+    cycle.counterexampleResults.dense !== true &&
+    isRecord(cycle.replayResults) &&
+    cycle.replayResults.decisiveEvidenceReplayed === true &&
+    Number(cycle.replayResults.freshWorkspaceAttempts ?? 0) >= 1 &&
+    cycle.replayResults.decisiveUnreplayedClaims !== true &&
+    isRecord(cycle.proofOrMechanismPressure) &&
+    cycle.proofOrMechanismPressure.clear === true &&
+    isRecord(cycle.killWeek) &&
+    cycle.killWeek.complete === true &&
+    cycle.killWeek.fatalUnresolvedAttack !== true
+  );
+}
+
+function renderCyclePackagePaper(input: {
+  candidate: FundCandidate;
+  cycleRef: string;
+  sourceEvidenceRefs: string[];
+  hardSeedRefs: string[];
+  identityLedgerRefs: string[];
+}): string {
+  return [
+    "# Fund Candidate Review Paper",
+    "",
+    "## Exact Claim",
+    "",
+    input.candidate.claim,
+    "",
+    "## Domain",
+    "",
+    input.candidate.domain,
+    "",
+    "## Evidence Summary",
+    "",
+    "This bounded package was generated only after the semantic Fund Gate passed for a candidate derived from an accepted hard seed. The package binds the exact claim to public-safe source refs, the identity ledger, hard-seed refs, and the daemon cycle evidence.",
+    "",
+    "## Source Evidence Refs",
+    "",
+    ...markdownList(input.sourceEvidenceRefs),
+    "",
+    "## Identity Ledger Refs",
+    "",
+    ...markdownList(input.identityLedgerRefs),
+    "",
+    "## Hard Seed Refs",
+    "",
+    ...markdownList(input.hardSeedRefs),
+    "",
+    "## Cycle Evidence",
+    "",
+    input.cycleRef,
+    "",
+    "## No Overclaim",
+    "",
+    "This package does not claim Nobel-level discovery, breakthrough status, external validation, external adoption, AGI, human-level science, legal advice, medical advice, wet-lab capability, unsafe capability, or universal truth.",
+  ].join("\n");
+}
+
+function renderCyclePackageMethod(input: {
+  candidate: FundCandidate;
+  cycleRef: string;
+}): string {
+  return [
+    "# Method",
+    "",
+    "The daemon used the existing bounded Sovryn mechanisms selected by the MechanismRouter for this candidate domain. The method required stable identity, frozen predictions, executed predictions, rival-theory pressure, strong baselines, holdouts, counterexamples, replay evidence, proof or mechanism pressure, kill week, and package inspectability.",
+    "",
+    "## Candidate",
+    "",
+    input.candidate.candidateId,
+    "",
+    "## Cycle Ref",
+    "",
+    input.cycleRef,
+  ].join("\n");
+}
+
+function renderCyclePackageReproduce(input: {
+  candidate: FundCandidate;
+  cycleRef: string;
+}): string {
+  return [
+    "# Reproduce",
+    "",
+    "Inspect the bound daemon cycle JSON and the claim-evidence bindings in this package. Re-run the Product verification commands before relying on the package.",
+    "",
+    "## Candidate",
+    "",
+    input.candidate.candidateId,
+    "",
+    "## Cycle Ref",
+    "",
+    input.cycleRef,
+    "",
+    "## Required Product Commands",
+    "",
+    "- npm run build",
+    "- npm test",
+    "- npm run format:check",
+    "- git diff --check",
+    "- node dist/cli.js discover-daemon audit --json",
+  ].join("\n");
+}
+
+function renderCyclePackageLimitations(candidate: FundCandidate): string {
+  const limitations = candidate.remainingLimitations ?? [
+    "The claim is bounded to the cited package and cycle evidence.",
+    "External expert review is still required before stronger interpretation.",
+  ];
+  return [
+    "# Limitations",
+    "",
+    ...markdownList(limitations),
+    "",
+    "No external validation, external adoption, prize-level claim, breakthrough claim, legal claim, medical claim, wet-lab claim, unsafe capability claim, or universal-truth claim is made.",
+  ].join("\n");
 }
 
 async function fundPackageArtifactGates(

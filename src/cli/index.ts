@@ -173,9 +173,13 @@ Commands:
   sovryn discover-daemon run --mode silent --until fund [--max-cycles N] [--json]
   sovryn discover-daemon resume [--json]
   sovryn discover-daemon package-scout [--json]
+  sovryn discover-daemon candidate-present-preflight [--cycle-id ID] [--json]
   sovryn discover-daemon draft-audit [--json]
   sovryn discover-daemon inspectability-audit [--json]
   sovryn discover-daemon generation-quality [--json]
+  sovryn discover-daemon domain-discovery [--json]
+  sovryn discover-daemon domain-audit [--json]
+  sovryn discover-daemon domain-rotation [--cycles N] [--json]
   sovryn discover-daemon hard-seeds [--json]
   sovryn discover-daemon hard-seed-generate [--json]
   sovryn discover-daemon hard-seed-audit [--json]
@@ -1607,7 +1611,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|draft-audit|inspectability-audit|generation-quality|hard-seeds|hard-seed-generate|hard-seed-audit|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1637,12 +1641,24 @@ async function discoverDaemonCommand(
       return service.resume();
     case "package-scout":
       return service.packageScout();
+    case "candidate-present-preflight":
+      return service.candidatePresentPreflight({
+        cycleId: flagString(parsed.flags, "--cycle-id") ?? undefined,
+      });
     case "draft-audit":
       return service.draftAudit();
     case "inspectability-audit":
       return service.inspectabilityAudit();
     case "generation-quality":
       return service.generationQuality();
+    case "domain-discovery":
+      return service.domainDiscovery();
+    case "domain-audit":
+      return service.domainPortfolioAudit();
+    case "domain-rotation":
+      return service.domainRotation({
+        cycles: flagInt(parsed.flags, "--cycles", 5),
+      });
     case "hard-seeds":
       return service.hardSeeds();
     case "hard-seed-generate":

@@ -282,6 +282,7 @@ test("OS v1.6 closure audit keeps discovery-facing gaps partial", async () => {
     report.final100Decision.externallyReviewReadyCandidateFound,
     false,
   );
+  assert.equal(report.final100Decision.status, "partial_closure");
 });
 
 test("OS v1.6 closure audit passes no-overclaim and package consistency gates", async () => {
@@ -294,10 +295,7 @@ test("OS v1.6 closure audit passes no-overclaim and package consistency gates", 
     true,
   );
   assert.equal(report.replayVerificationReport.coveragePassed, true);
-  assert.equal(
-    report.final100Decision.status,
-    "bounded_100_with_caveats_and_exclusions",
-  );
+  assert.equal(report.final100Decision.status, "partial_closure");
   assert.equal(
     report.promptToArtifactChecklist.every((item) => item.covered),
     true,

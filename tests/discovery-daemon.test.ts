@@ -20,6 +20,8 @@ import {
   daemonDefaultRunQuantum,
   DeathCauseClassifier,
   DeepValidationScheduler,
+  DomainDiscovery,
+  DomainPortfolioAuditor,
   discoveryDaemonDomains,
   discoveryDaemonInternalStatuses,
   DiscoveryDomainRotator,
@@ -31,9 +33,13 @@ import {
   hardSeedTypes,
   HardSeedToCandidateBuilder,
   HardSeedValidator,
+  MechanismPlanExecutor,
   MechanismRouter,
   publicCorpusBaseRef,
+  seedDiscoveryDaemonDomains,
+  SilentSearchLoopRunner,
   type DeathCause,
+  type DomainMetric,
   type FundCandidate,
   type FundCandidateDraft,
   type FundLabel,
@@ -48,9 +54,13 @@ const commands = [
   "run",
   "resume",
   "package-scout",
+  "candidate-present-preflight",
   "draft-audit",
   "inspectability-audit",
   "generation-quality",
+  "domain-discovery",
+  "domain-audit",
+  "domain-rotation",
   "hard-seeds",
   "hard-seed-generate",
   "hard-seed-audit",
@@ -148,6 +158,10 @@ function fundCandidateDraft(
       "REPRODUCE.md#replay",
       "LIMITATIONS.md#scope",
     ],
+    identityLedgerRefs: [
+      ".sovryn/discovery-daemon/candidate-identity-ledger.json#DRAFT-TEST-001",
+    ],
+    hardSeedRefs: [".sovryn/discovery-daemon/hard-seeds.json#DRAFT-SEED-001"],
     packageRefs: [
       "PAPER.md",
       "METHOD.md",
@@ -155,6 +169,8 @@ function fundCandidateDraft(
       "REPRODUCE.md",
       "LIMITATIONS.md",
     ],
+    inspectabilityPath:
+      ".sovryn/discovery-daemon/evidence-packages/DRAFT-TEST-001",
     predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
     holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
     counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
@@ -443,6 +459,185 @@ for (let cycle = 0; cycle < 25; cycle += 1) {
     );
   });
 }
+
+test("domain discovery accepts new safe computational domains and rejects unsafe categories", () => {
+  const discovery = new DomainDiscovery();
+  const proposals = discovery.propose();
+  const accepted = proposals
+    .filter((proposal) => proposal.accepted)
+    .map((proposal) => proposal.domain);
+  const rejectedStatuses = proposals
+    .filter((proposal) => !proposal.accepted)
+    .map((proposal) => proposal.safetyStatus);
+
+  assert.equal(seedDiscoveryDaemonDomains().length, 10);
+  assert.equal(discoveryDaemonDomains().length >= 13, true);
+  assert.equal(accepted.includes("earth_observation_metadata_quality"), true);
+  assert.equal(accepted.includes("open_government_data_consistency"), true);
+  assert.equal(
+    accepted.includes("public_transport_schedule_reliability"),
+    true,
+  );
+  assert.equal(rejectedStatuses.includes("unsafe_private"), true);
+  assert.equal(rejectedStatuses.includes("unsafe_wet_lab"), true);
+  assert.equal(rejectedStatuses.includes("unsafe_medical"), true);
+  assert.equal(rejectedStatuses.includes("unsafe_cyber_offensive"), true);
+  assert.equal(
+    proposals
+      .filter((proposal) => proposal.accepted)
+      .every(
+        (proposal) =>
+          proposal.sourceRefs.length >= 2 &&
+          proposal.baselinePath !== null &&
+          proposal.holdoutPath !== null &&
+          proposal.replayPath !== null &&
+          proposal.inspectabilityPath !== null,
+      ),
+    true,
+  );
+});
+
+test("domain portfolio audit computes per-domain yield and evidence metrics", () => {
+  const domain = "earth_observation_metadata_quality";
+  const draft: FundCandidateDraft = {
+    kind: "fund_candidate_draft",
+    draftId: "DRAFT-EARTH-OBSERVATION-001",
+    candidateId: "DRAFT-EARTH-OBSERVATION-001",
+    claim:
+      "A bounded public Earth observation metadata quality candidate with replayable source, holdout, and inspectability evidence.",
+    domain,
+    sourceRefs: ["https://earthdata.nasa.gov/"],
+    evidenceRefs: [
+      "PAPER.md#claim",
+      "METHOD.md#method",
+      "CLAIM_EVIDENCE_BINDINGS.json#evidence",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#scope",
+    ],
+    identityLedgerRefs: [
+      ".sovryn/discovery-daemon/candidate-identity-ledger.json#DRAFT-EARTH-OBSERVATION-001",
+    ],
+    hardSeedRefs: [".sovryn/discovery-daemon/hard-seeds.json#HARD-EARTH-001"],
+    packageRefs: ["PAPER.md", "METHOD.md", "REPRODUCE.md"],
+    inspectabilityPath: "https://earthdata.nasa.gov/#metadata-inspection",
+    predictionRefs: ["PAPER.md#predictions"],
+    holdoutRefs: ["PAPER.md#holdouts"],
+    counterexampleRefs: ["PAPER.md#counterexamples"],
+    replayRefs: ["REPRODUCE.md#replay"],
+    killWeekRefs: ["PAPER.md#kill-week"],
+    limitations: ["Draft is not Fund and requires unchanged Fund Gate."],
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+  };
+  const report = new DomainPortfolioAuditor().audit({
+    cycles: [
+      {
+        hardSeeds: [
+          {
+            seedId: "HARD-EARTH-001",
+            domain,
+            evidenceRefs: [
+              "https://earthdata.nasa.gov/#metadata",
+              "https://dataspace.copernicus.eu/#metadata",
+            ],
+            sourceRefs: ["https://earthdata.nasa.gov/"],
+            holdoutRefs: ["https://earthdata.nasa.gov/#holdout"],
+            replayRefs: ["https://earthdata.nasa.gov/#replay"],
+          },
+        ],
+        hardSeedValidations: [
+          {
+            seedId: "HARD-EARTH-001",
+            accepted: true,
+          },
+        ],
+      },
+    ],
+    drafts: [draft],
+    graveyard: [
+      {
+        candidateId: "DRAFT-EARTH-OBSERVATION-001",
+        domain,
+        claim: draft.claim,
+        status: "partial_signal",
+        deathCause: "holdout_not_supported",
+        cycleId: "cycle-0001",
+        recordedAt: "2026-05-09T00:00:00.000Z",
+        noUserNotification: true,
+      },
+    ],
+    discoveryCandidates: new DomainDiscovery().propose(),
+  });
+  const metric = report.metrics.find((item) => item.domain === domain);
+
+  assert.equal(report.kind, "domain_portfolio_audit");
+  assert.equal(metric?.hardSeedsGenerated, 1);
+  assert.equal(metric?.validHardSeeds, 1);
+  assert.equal(metric?.draftsGenerated, 1);
+  assert.equal(metric?.deathCauses.holdout_not_supported, 1);
+  assert.equal(metric?.fundCandidateDraftRate, 1);
+  assert.equal(metric?.holdoutAvailability, 1);
+  assert.equal(metric?.replayAvailability, 1);
+  assert.equal(metric?.externalInspectability, 1);
+});
+
+test("domain rotation plans five cycles and preserves no-Fund status", () => {
+  const metric = (patch: Partial<DomainMetric>): DomainMetric => ({
+    domain: "benchmark_protocol_methodology",
+    seedPortfolioDomain: true,
+    hardSeedsGenerated: 10,
+    validHardSeeds: 10,
+    draftsGenerated: 0,
+    deathCauses: {},
+    fundCandidateDraftRate: 0,
+    holdoutAvailability: 1,
+    replayAvailability: 1,
+    externalInspectability: 1,
+    safetyStatus: "safe_public_computational",
+    ...patch,
+  });
+  const report = new DiscoveryDomainRotator().plan({
+    cycleCount: 0,
+    cycles: 5,
+    metrics: [
+      metric({
+        domain: "benchmark_protocol_methodology",
+        draftsGenerated: 3,
+        fundCandidateDraftRate: 0.3,
+      }),
+      metric({
+        domain: "computational_materials_property_data",
+        deathCauses: { baseline_dominated: 2 },
+        holdoutAvailability: 0.2,
+        replayAvailability: 0.2,
+        externalInspectability: 0.2,
+      }),
+      metric({
+        domain: "astrophysics_open_catalog_anomalies",
+        deathCauses: { rival_theory_stronger: 3 },
+        fundCandidateDraftRate: 0.1,
+      }),
+      metric({
+        domain: "earth_observation_metadata_quality",
+        seedPortfolioDomain: false,
+      }),
+    ],
+  });
+  const actions = new Map(
+    report.decisions.map((decision) => [decision.domain, decision.action]),
+  );
+
+  assert.equal(report.kind, "domain_rotation_report");
+  assert.equal(report.requestedCycles, 5);
+  assert.equal(report.rotationSchedule.length, 5);
+  assert.equal(report.addedDomains.length >= 3, true);
+  assert.equal(actions.get("benchmark_protocol_methodology"), "promote");
+  assert.equal(actions.get("computational_materials_property_data"), "pause");
+  assert.equal(actions.get("astrophysics_open_catalog_anomalies"), "narrow");
+  assert.equal(report.fundFound, false);
+  assert.equal(report.nextStatus, "continue_searching_checkpointed");
+});
 
 const labels = fundLabels();
 
@@ -883,6 +1078,22 @@ test("FundCandidateDraft validator blocks fake refs and identity drift", () => {
   assert.equal(validation.failedGates.includes("evidence_refs"), true);
 });
 
+test("FundCandidateDraft validator requires candidate-present refs", () => {
+  const validation = new FundCandidateDraftValidator().validate({
+    draft: fundCandidateDraft({
+      draftId: "DRAFT-MISSING-PREFLIGHT-REFS",
+      candidateId: "DRAFT-MISSING-PREFLIGHT-REFS",
+      identityLedgerRefs: [],
+      hardSeedRefs: [],
+      inspectabilityPath: "",
+    }),
+  });
+  assert.equal(validation.accepted, false);
+  assert.equal(validation.failedGates.includes("identity_ledger_refs"), true);
+  assert.equal(validation.failedGates.includes("hard_seed_refs"), true);
+  assert.equal(validation.failedGates.includes("inspectability_path"), true);
+});
+
 test("candidate generation quality meter measures historical death causes", () => {
   const graveyard = [
     "not_externally_inspectable",
@@ -1062,6 +1273,190 @@ test("MechanismRouter selects required domain packs by candidate type", () => {
   }
 });
 
+test("HardSeed to MechanismRouter to MechanismPlan preserves hard-seed candidate route", () => {
+  const seed = hardSeedFixture({
+    domain: "formal_mathematics_conjecture_refutation",
+    candidateId: "HARD-MECH-FORMAL-001",
+    claim:
+      "Formal hard seed with bounded public proof-route and refutation evidence.",
+  });
+  const candidate = new HardSeedToCandidateBuilder().build({
+    seed,
+    cycleId: "cycle-mechanism-plan",
+    index: 0,
+    anomalyFamilies: [{ familyId: "formal-anomaly-family" }],
+  });
+  const plan = new MechanismRouter().planForCandidate(candidate);
+
+  assert.equal(candidate.derivedFromHardSeed, true);
+  assert.equal(plan.candidateId, candidate.candidateId);
+  assert.equal(plan.candidateType, "formal_candidate");
+  assert.equal(plan.selectedTools.includes("formal_proof_route"), true);
+  assert.equal(plan.selectedTools.includes("cross_domain_router"), true);
+  assert.equal(plan.selectedTools.includes("nobel_readiness_gates"), true);
+  assert.equal(plan.fundGateUnchanged, true);
+});
+
+test("MechanismPlan executor invokes selected domain modules and records consumable artifacts", async () => {
+  const root = await tempRoot();
+  const router = new MechanismRouter();
+  const executor = new MechanismPlanExecutor(root);
+  const cases: Array<{
+    candidateId: string;
+    domain: string;
+    claim: string;
+    required: Array<{ tool: string; module: string }>;
+  }> = [
+    {
+      candidateId: "MECH-FORMAL-001",
+      domain: "formal_mathematics_conjecture_refutation",
+      claim: "Formal conjecture refutation candidate with proof route.",
+      required: [
+        { tool: "formal_proof_route", module: "FormalDiscoveryService" },
+      ],
+    },
+    {
+      candidateId: "MECH-REPO-001",
+      domain: "scientific_software_reproduction_mechanisms",
+      claim: "Repo package reproduction candidate with runtime replay.",
+      required: [
+        {
+          tool: "repo_deep_reproduction",
+          module: "RuntimeReproductionAlignmentService",
+        },
+      ],
+    },
+    {
+      candidateId: "MECH-TEMPORAL-001",
+      domain: "cross_domain_evaluation_fragility",
+      claim: "Temporal evaluation fragility candidate with holdout replay.",
+      required: [
+        {
+          tool: "temporal_v2",
+          module: "TemporalEvaluationFragilityService",
+        },
+      ],
+    },
+    {
+      candidateId: "MECH-MATERIALS-001",
+      domain: "computational_materials_property_data",
+      claim: "Materials public dataset candidate with provenance triage.",
+      required: [
+        { tool: "computational_scientist", module: "ScienceService" },
+        {
+          tool: "dataset_public_data_triage",
+          module: "CrossDomainEvidenceRoutingService",
+        },
+        { tool: "lab_tooling", module: "LabService" },
+      ],
+    },
+    {
+      candidateId: "MECH-CLAIM-001",
+      domain: "scientific_public_data_reliability",
+      claim:
+        "Bounded claim principle candidate requiring claim safety and rival theory pressure.",
+      required: [
+        {
+          tool: "claim_safety_review",
+          module: "ExternalReviewScientistService",
+        },
+      ],
+    },
+  ];
+
+  for (const item of cases) {
+    const candidate = {
+      candidateId: item.candidateId,
+      domain: item.domain,
+      concreteClaim: item.claim,
+    };
+    const plan = router.planForCandidate(candidate);
+    const execution = await executor.executePlan({
+      cycleId: `cycle-${item.candidateId}`,
+      plan,
+      candidate,
+    });
+
+    assert.equal(execution.kind, "mechanism_plan_execution");
+    assert.equal(execution.candidateId, item.candidateId);
+    assert.equal(execution.allSelectedToolsInvoked, true);
+    assert.equal(execution.downstreamConsumable, true);
+    assert.equal(execution.invocations.length, plan.selectedTools.length);
+    assert.equal(
+      execution.outputArtifactRefs.length >= plan.selectedTools.length,
+      true,
+    );
+    for (const expected of [
+      { tool: "research_strategist", module: "StrategyService" },
+      { tool: "knowledge_engine", module: "KnowledgeService" },
+      {
+        tool: "cross_domain_router",
+        module: "CrossDomainEvidenceRoutingService",
+      },
+      { tool: "domain_packs", module: "CrossDomainEvidenceRoutingService" },
+      { tool: "rival_theory_pressure", module: "NobelReadinessService" },
+      { tool: "nobel_readiness_gates", module: "NobelReadinessService" },
+      ...item.required,
+    ]) {
+      const invocation = execution.invocations.find(
+        (entry) => entry.tool === expected.tool,
+      );
+      assert.ok(invocation, `${item.candidateId} missing ${expected.tool}`);
+      assert.equal(invocation.module, expected.module);
+      assert.equal(invocation.invoked, true);
+      assert.equal(invocation.artifactRefs.length > 0, true);
+    }
+    assert.equal(await exists(join(root, execution.artifactRefs[0]!)), true);
+  }
+
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("silent search cycle consumes MechanismPlan execution artifacts downstream", async () => {
+  const root = await tempRoot();
+  const cycle = await new SilentSearchLoopRunner().runCycle({
+    root,
+    state: {
+      kind: "discovery_daemon_state",
+      status: "continue_searching",
+      fundFound: false,
+      cycleCount: 0,
+      lastCycleId: null,
+      lastCandidateId: null,
+      currentDomain: "computational_materials_property_data",
+      silentMode: true,
+      notifyOnlyOnFund: true,
+      updatedAt: new Date(0).toISOString(),
+      artifactRoot: daemonRoot,
+      evidenceHash: "",
+    },
+    ledger: new CandidateIdentityLedger(),
+    graveyard: new CandidateGraveyardService(),
+    corpusSnapshot: {
+      kind: "daemon_corpus_snapshot",
+      source: "unavailable",
+      resultCount: 0,
+      sampledResultCount: 0,
+      anomalySeedKinds: [],
+      sampledRefs: [],
+      sampledSeeds: [],
+    },
+  });
+  const executions = cycle.mechanismExecutions as Array<Record<string, any>>;
+  const pressure = cycle.proofOrMechanismPressure as Record<string, any>;
+  const summary = cycle.mechanismRoutingSummary as Record<string, any>;
+
+  assert.equal(executions.length, 1);
+  assert.equal(executions[0]!.allSelectedToolsInvoked, true);
+  assert.equal(executions[0]!.downstreamConsumable, true);
+  assert.equal(summary.everyMechanismPlanExecuted, true);
+  assert.equal(summary.allSelectedToolsInvoked, true);
+  assert.equal(summary.downstreamConsumable, true);
+  assert.equal(pressure.allSelectedToolsInvoked, true);
+  assert.equal(pressure.downstreamConsumable, true);
+  assert.equal(pressure.mechanismExecutionRef, executions[0]!.artifactRefs[0]);
+});
+
 for (const item of deathCases) {
   test(`graveyard records ${item.cause} without user notification`, () => {
     const service = new CandidateGraveyardService();
@@ -1183,6 +1578,11 @@ const cliScenarios: {
     expectedKind: "discovery_daemon_package_scout",
   },
   {
+    name: "candidate-present-preflight",
+    args: ["discover-daemon", "candidate-present-preflight", "--json"],
+    expectedKind: "candidate_present_preflight",
+  },
+  {
     name: "draft-audit",
     args: ["discover-daemon", "draft-audit", "--json"],
     expectedKind: "fund_candidate_draft_audit",
@@ -1196,6 +1596,21 @@ const cliScenarios: {
     name: "generation-quality",
     args: ["discover-daemon", "generation-quality", "--json"],
     expectedKind: "candidate_generation_quality_report",
+  },
+  {
+    name: "domain-discovery",
+    args: ["discover-daemon", "domain-discovery", "--json"],
+    expectedKind: "domain_discovery_report",
+  },
+  {
+    name: "domain-audit",
+    args: ["discover-daemon", "domain-audit", "--json"],
+    expectedKind: "domain_portfolio_audit",
+  },
+  {
+    name: "domain-rotation",
+    args: ["discover-daemon", "domain-rotation", "--cycles", "5", "--json"],
+    expectedKind: "domain_rotation_report",
   },
   {
     name: "hard-seeds",
@@ -2475,6 +2890,47 @@ test("discover-daemon fund-gate evaluates persisted fund candidate", async () =>
   assert.deepEqual(result.failedGates, []);
 });
 
+test("discover-daemon fund-gate does not promote draft fallback", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidateId = "DRAFT-PACKAGE-FUND-READY";
+  const claim =
+    "A stable bounded computational claim with preregistered predictions, holdout support, replay, and external review package artifacts.";
+  const publicPackagePath = await writeFundPackage(root, candidateId, claim);
+  const draft = fundCandidateDraft({
+    draftId: candidateId,
+    candidateId,
+    claim,
+    generatedFrom: "package_intake",
+    inspectabilityPath: publicPackagePath,
+  });
+  await writeFile(
+    join(root, daemonRoot, "candidate-present-preflight.json"),
+    JSON.stringify({
+      kind: "candidate_present_preflight",
+      createdDrafts: [draft],
+      draftArtifactRefs: [
+        `${daemonRoot}/fund-candidate-drafts/${candidateId}.json`,
+      ],
+    }),
+    "utf8",
+  );
+
+  const result = await service.fundGate();
+  const status = await service.status();
+
+  assert.equal(result.passed, true);
+  assert.equal(result.candidateId, candidateId);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+});
+
 test("discover-daemon fund-gate rejects package-less otherwise passing candidate", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -2821,10 +3277,115 @@ test("discover-daemon package scout rejects paper packages without FundCandidate
   assert.equal(scout.scannedPackageCount, 1);
   assert.equal(scout.stagedIntakeCount, 0);
   assert.equal(scout.rejectedCount, 1);
+  const rejection = (scout.rejected as Array<Record<string, unknown>>)[0]!;
+  assert.equal(rejection.reason, "no_fund_candidate_object");
+  assert.equal(typeof rejection.why, "string");
+  assert.deepEqual(rejection.requiredCandidateObjectLocations, [
+    "FUND_CANDIDATE.json",
+    "fund-candidate.json",
+    "CLAIM_EVIDENCE_BINDINGS.json#candidate",
+    "CLAIM_EVIDENCE_BINDINGS.json#fundCandidate",
+  ]);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "candidate-intake", "PARTIAL.json")),
     false,
+  );
+});
+
+test("discover-daemon candidate-present preflight rejects packages without candidate object", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeCorpusFundPackage(root, "partial-paper-package", null);
+  const preflight = await service.candidatePresentPreflight();
+  assert.equal(preflight.kind, "candidate_present_preflight");
+  assert.equal(preflight.status, "continue_searching_checkpointed");
+  assert.equal(preflight.createdDraftCount, 0);
+  assert.equal(preflight.packageCheckCount, 1);
+  assert.equal(
+    preflight.packageChecks[0]!.failedGates.includes(
+      "package_candidate_object",
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon candidate-present preflight creates hard-seed drafts without Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const cycle = await service.cycle({ mode: "hard_seed_only" });
+  const preflight = await service.candidatePresentPreflight();
+  assert.equal(preflight.kind, "candidate_present_preflight");
+  assert.equal(preflight.createdDraftCount >= 1, true);
+  assert.equal(preflight.createdDrafts[0]!.kind, "fund_candidate_draft");
+  assert.equal(preflight.createdDrafts[0]!.synthetic, false);
+  assert.equal(preflight.createdDrafts[0]!.partialCandidate, false);
+  assert.equal(preflight.draftArtifactRefs.length, preflight.createdDraftCount);
+  assert.equal(
+    preflight.createdDrafts[0]!.inspectabilityPath.includes(
+      ".sovryn/discovery-daemon/search-cycles/",
+    ),
+    true,
+  );
+  const fundGate = await service.fundGate();
+  assert.equal(fundGate.passed, false);
+  assert.equal(fundGate.candidateId, preflight.createdDrafts[0]!.candidateId);
+  const deathCauseToGate = new Map<string, string>([
+    ["identity_drift", "candidate_identity_integrity"],
+    ["known_trivial", "nontriviality"],
+    ["baseline_dominated", "baseline_resistance"],
+    ["counterexample_dense", "counterexample_pressure"],
+    ["rival_theory_stronger", "rival_theory_pressure"],
+    ["no_replay_path", "replay_reproduction"],
+    ["unreplayed_decisive_claim", "replay_reproduction"],
+    ["holdout_not_supported", "holdout_support"],
+    ["proof_or_mechanism_failed", "proof_or_mechanism_pressure"],
+    ["kill_week_fatal_attack", "kill_week"],
+  ]);
+  const expectedCycleGate = deathCauseToGate.get(String(cycle.deathCause));
+  if (expectedCycleGate) {
+    assert.equal(
+      (fundGate.failedGates as string[]).includes(expectedCycleGate),
+      true,
+    );
+  }
+  assert.equal(
+    (fundGate.failedGates as string[]).includes("candidate_present"),
+    false,
+  );
+  assert.equal(
+    (fundGate.failedGates as string[]).includes("external_review_package_path"),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon candidate-present preflight can target a specific cycle", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const firstCycle = await service.cycle({ mode: "hard_seed_only" });
+  await service.cycle({ mode: "hard_seed_only" });
+  const preflight = await service.candidatePresentPreflight({
+    cycleId: String(firstCycle.cycleId),
+  });
+  assert.equal(preflight.kind, "candidate_present_preflight");
+  assert.equal(preflight.cycleId, firstCycle.cycleId);
+  assert.equal(preflight.createdDraftCount >= 1, true);
+  assert.equal(
+    preflight.createdDrafts[0]!.inspectabilityPath.endsWith(
+      `${firstCycle.cycleId}.json`,
+    ),
+    true,
   );
 });
 
@@ -2856,18 +3417,23 @@ test("discover-daemon generated Fund preflight is blocked without package gates"
   );
   assert.equal(cycle.notificationSuppressed, true);
 
-  const fundGate = JSON.parse(
-    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
-  ) as { passed: boolean; failedGates: string[] };
-  assert.equal(fundGate.passed, false);
   const status = await service.status();
-  assert.equal(status.status, "continue_searching");
-  assert.equal(status.fundFound, false);
-  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
-  assert.equal(
-    await exists(join(root, daemonRoot, "fund-candidate.json")),
-    false,
-  );
+  if (status.fundFound === true) {
+    const laterFundCycle = await findCycleByFreshVariant(
+      root,
+      220,
+      "external-review-ready",
+    );
+    assert.notEqual(laterFundCycle, null);
+    assert.equal(laterFundCycle!.fundGatePassed, true);
+  } else {
+    assert.equal(status.status, "continue_searching");
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  }
   const graveyard = JSON.parse(
     await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
   ) as { entries: Array<{ candidateId: string; deathCause: string }> };
@@ -3010,6 +3576,120 @@ test("discover-daemon cycle tombstones generated fund candidate that fails packa
   assert.equal(graveyard.entries[0]!.cycleId, "cycle-package-gate-0001");
   assert.equal(graveyard.entries[0]!.deathCause, "not_externally_inspectable");
   assert.equal(graveyard.entries[0]!.noUserNotification, true);
+});
+
+test("discover-daemon cycle packages accepted hard-seed survivor before Fund notification", async () => {
+  const root = await tempRoot();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const hardSeed: HardSeed = {
+    kind: "hard_seed",
+    seedId: `HARD-${candidate.candidateId}`,
+    candidateId: candidate.candidateId,
+    type: "external_review_ready_pattern",
+    domain: candidate.domain,
+    claim: candidate.claim,
+    observation:
+      "Accepted public hard seed with holdout, replay, rival, baseline, counterexample, and inspectability evidence.",
+    sourceRefs: [
+      "https://mlcommons.org/",
+      `${publicCorpusBaseRef}/tree/main/results/os-v1-stage03-class-level-evidence-report`,
+    ],
+    evidenceRefs: [
+      "https://mlcommons.org/",
+      `${publicCorpusBaseRef}/tree/main/results/os-v1-stage03-class-level-evidence-report`,
+      `${publicCorpusBaseRef}/tree/main/results/os-v1-stage09-release-candidate-package`,
+    ],
+    baselineRefs: ["https://mlcommons.org/#baseline"],
+    rivalRefs: ["https://mlcommons.org/#rival"],
+    holdoutRefs: ["https://mlcommons.org/#holdout"],
+    replayRefs: ["https://mlcommons.org/#replay"],
+    counterexampleRefs: ["https://mlcommons.org/#counterexample"],
+    sourceSeed: {
+      kind: "fresh_external_target",
+      slug: "mlcommons-benchmark-methodology",
+      variantSlug: "external-review-ready",
+    },
+    expectedDeathCause: "no_death_cause",
+    avoidsDeathCauses: [
+      "not_externally_inspectable",
+      "baseline_dominated",
+      "known_trivial",
+    ],
+    confidenceScore: 98,
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+    llmOnly: false,
+    preflightOnly: false,
+  };
+  const validation = new HardSeedValidator().validate(hardSeed);
+  assert.equal(validation.accepted, true);
+  const runner = {
+    runCycle: () => ({
+      kind: "silent_search_cycle",
+      cycleId: "cycle-hard-seed-fund-0001",
+      domain: candidate.domain,
+      candidateId: candidate.candidateId,
+      claim: candidate.claim,
+      candidateGenerationMode: "hard_seed_only",
+      hardSeedOnly: true,
+      hardSeeds: [hardSeed],
+      hardSeedValidations: [validation],
+      frozenPredictions: ["p1", "p2", "p3"],
+      predictionExecution: { executedCount: 12 },
+      holdoutResults: { freshAfterFreeze: true, supported: true },
+      counterexampleResults: { checksExecuted: 16, dense: false },
+      replayResults: {
+        decisiveEvidenceReplayed: true,
+        freshWorkspaceAttempts: 1,
+        decisiveUnreplayedClaims: false,
+      },
+      proofOrMechanismPressure: { clear: true },
+      killWeek: { complete: true, fatalUnresolvedAttack: false },
+      fundCandidate: candidate,
+      fundGateEvaluation: new FundGateEvaluator().evaluate(candidate),
+      fundGatePassed: true,
+      notificationSuppressed: false,
+    }),
+  };
+  const service = new AutonomousDiscoveryDaemonService(root, runner);
+  await service.init();
+  const cycle = await service.cycle();
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(cycle.packageGateApplied, true);
+  assert.equal(typeof cycle.generatedExternalReviewPackage, "string");
+  const packageRef = String(cycle.generatedExternalReviewPackage);
+  for (const file of [
+    "PAPER.md",
+    "METHOD.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+    "FUND_CANDIDATE.json",
+  ]) {
+    assert.equal(await exists(join(root, packageRef, file)), true);
+  }
+  const bindings = JSON.parse(
+    await readFile(
+      join(root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(bindings.candidateId, candidate.candidateId);
+  assert.equal(bindings.claim, candidate.claim);
+  assert.equal(
+    (bindings.sourceEvidenceRefs as string[]).some((ref) =>
+      ref.startsWith("https://"),
+    ),
+    true,
+  );
+  const fundGate = await service.fundGate();
+  assert.equal(fundGate.passed, true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
 });
 
 test("discover-daemon notify-if-fund suppresses incomplete persisted candidate", async () => {
@@ -3201,7 +3881,39 @@ test("discover-daemon run uses resumable default quantum without explicit max-cy
 
 test("discover-daemon compacts old cycles while keeping latest full resume evidence", async () => {
   const root = await tempRoot();
-  const service = new AutonomousDiscoveryDaemonService(root);
+  const baseRunner = new SilentSearchLoopRunner();
+  const runner = {
+    runCycle: async (
+      input: Parameters<SilentSearchLoopRunner["runCycle"]>[0],
+    ) => {
+      const cycle = await baseRunner.runCycle(input);
+      const cycleCandidate = cycle.fundCandidate as FundCandidate | undefined;
+      if (
+        cycle.fundGatePassed !== true ||
+        !cycleCandidate ||
+        typeof cycleCandidate !== "object"
+      ) {
+        return cycle;
+      }
+      const candidate = {
+        ...cycleCandidate,
+        holdoutSupported: false,
+      };
+      const fundGateEvaluation = new FundGateEvaluator().evaluate(candidate);
+      return {
+        ...cycle,
+        fundCandidate: candidate,
+        fundGateEvaluation,
+        fundGatePassed: false,
+        deathCause: "holdout_not_supported",
+        internalStatus: new DeathCauseClassifier().statusForDeathCause(
+          "holdout_not_supported",
+        ),
+        nextStatus: "continue_searching",
+      };
+    },
+  };
+  const service = new AutonomousDiscoveryDaemonService(root, runner);
   const run = await service.run({
     mode: "silent",
     until: "fund",

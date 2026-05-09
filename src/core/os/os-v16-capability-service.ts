@@ -863,13 +863,14 @@ function buildCoreCapabilityClosureReport(input: {
       remainingGaps: input.fundFound
         ? []
         : ["No Fund has been found; daemon remains in continue_searching."],
-      rationale:
-        "The daemon runtime and gates are release-grade, but it has not produced a Fund.",
+      rationale: input.fundFound
+        ? "The daemon runtime and gates are release-grade and produced a Fund only after the unchanged Fund Gate passed."
+        : "The daemon runtime and gates are release-grade, but it has not produced a Fund.",
     }),
     coreCapability({
       id: "fund_candidate_inspectability",
       name: "FundCandidate inspectability",
-      label: "partial",
+      label: input.fundFound ? "release_grade_100" : "partial",
       evidenceRefs: [
         ".sovryn/discovery-daemon/package-scout.json",
         ".sovryn/discovery-daemon/fund-gate-results.json",
@@ -881,17 +882,20 @@ function buildCoreCapabilityClosureReport(input: {
         "claim and candidate bindings match exactly",
         "prediction, holdout, counterexample, replay, and kill-week refs bind",
       ],
-      remainingGaps: [
-        "Current corpus packages do not contain a structured gate-passing FundCandidate object.",
-        "Generated preflight candidates are blocked by package gates instead of being auto-promoted.",
-      ],
-      rationale:
-        "The inspectability gate exists and blocks fake packages, but there is no real inspectable FundCandidate package yet.",
+      remainingGaps: input.fundFound
+        ? []
+        : [
+            "Current corpus packages do not contain a structured gate-passing FundCandidate object.",
+            "Generated preflight candidates are blocked by package gates instead of being auto-promoted.",
+          ],
+      rationale: input.fundFound
+        ? "A real FundCandidate package passed the strict inspectability and package gates."
+        : "The inspectability gate exists and blocks fake packages, but there is no real inspectable FundCandidate package yet.",
     }),
     coreCapability({
       id: "positive_discovery_candidate_generation",
       name: "Positive discovery candidate generation",
-      label: "partial",
+      label: input.fundFound ? "release_grade_100" : "partial",
       evidenceRefs: [
         ".sovryn/discovery-daemon/graveyard.json",
         "results/gbe-stage17-candidate-decision",
@@ -902,12 +906,15 @@ function buildCoreCapabilityClosureReport(input: {
         "nontrivial high-impact candidate generated",
         "candidate survives baselines, rivals, counterexamples, holdouts, replay, mechanism pressure, and inspectability",
       ],
-      remainingGaps: [
-        "No externally_review_ready_candidate or stronger Fund exists.",
-        "Best prior candidates remain partial or promising-but-unvalidated.",
-      ],
-      rationale:
-        "Candidate killing is strong, but positive externally-review-ready generation is not complete.",
+      remainingGaps: input.fundFound
+        ? []
+        : [
+            "No externally_review_ready_candidate or stronger Fund exists.",
+            "Best prior candidates remain partial or promising-but-unvalidated.",
+          ],
+      rationale: input.fundFound
+        ? "At least one evidence-born candidate survived the unchanged Fund Gate as externally_review_ready_candidate or stronger."
+        : "Candidate killing is strong, but positive externally-review-ready generation is not complete.",
     }),
   ];
   const counts = Object.fromEntries(
@@ -916,12 +923,14 @@ function buildCoreCapabilityClosureReport(input: {
       "release_grade_with_caveats",
       "partial",
       "failed",
-      "excluded_from_100_claim",
     ].map((label) => [
       label,
       statuses.filter((status) => status.label === label).length,
     ]),
   ) as Record<CoreCapabilityClosureLabel, number>;
+  counts.excluded_from_100_claim = statuses.filter(
+    (status) => status.excludedFromUnqualified100Claim,
+  ).length;
   const forbiddenClaimFindings = auditOS16PublicText(JSON.stringify(statuses));
   const partialCapabilities = statuses
     .filter((status) => status.label === "partial")
@@ -990,13 +999,21 @@ function buildCoreCapabilityClosureReport(input: {
       passed:
         statuses.length === 16 &&
         forbiddenClaimFindings.length === 0 &&
-        partialCapabilities.includes("fund_candidate_inspectability") &&
-        partialCapabilities.includes("positive_discovery_candidate_generation"),
+        (input.fundFound
+          ? !partialCapabilities.includes("fund_candidate_inspectability") &&
+            !partialCapabilities.includes(
+              "positive_discovery_candidate_generation",
+            )
+          : partialCapabilities.includes("fund_candidate_inspectability") &&
+            partialCapabilities.includes(
+              "positive_discovery_candidate_generation",
+            )),
     },
     final100Decision: {
       status:
         statuses.length === 16 &&
         forbiddenClaimFindings.length === 0 &&
+        input.fundFound === true &&
         input.dataset.finalDecision.status ===
           "open_verifiable_science_os_v1_6_candidate" &&
         input.packageVerification.passed === true
@@ -1008,16 +1025,24 @@ function buildCoreCapabilityClosureReport(input: {
       noFake100Claim: true,
       fundFound: input.fundFound,
       externallyReviewReadyCandidateFound: input.fundFound,
-      limitations: [
-        "The 100% decision is bounded and excludes uncaveated claims for partial capabilities.",
-        "Positive discovery candidate generation is not complete.",
-        "FundCandidate inspectability is implemented as a strict gate but has no gate-passing candidate package.",
-        "No prize-significance, broad autonomous-intelligence, broad acceleration, outside-use, or external validation claim is made.",
-      ],
+      limitations: input.fundFound
+        ? [
+            "The 100% decision is bounded and excludes uncaveated claims for caveated capabilities.",
+            "A real evidence-born candidate passed the unchanged Fund Gate as externally_review_ready_candidate or stronger.",
+            "FundCandidate inspectability is release-grade for the package-backed candidate that passed exact claim/evidence bindings.",
+            "No prize-significance, broad autonomous-intelligence, broad acceleration, outside-use, or external validation claim is made.",
+          ]
+        : [
+            "The 100% decision is not complete without a real FundCandidate passing the unchanged Fund Gate.",
+            "Positive discovery candidate generation remains partial until an externally_review_ready_candidate or stronger exists.",
+            "FundCandidate inspectability remains partial until a real package-backed candidate passes exact claim/evidence bindings.",
+            "No prize-significance, broad autonomous-intelligence, broad acceleration, outside-use, or external validation claim is made.",
+          ],
     },
     nextFrontier: {
-      selected:
-        "positive discovery candidate generation and FundCandidate inspectability",
+      selected: input.fundFound
+        ? "external review package preservation and independent replay of the Fund candidate"
+        : "positive discovery candidate generation and FundCandidate inspectability",
       rejectedAlternatives: [
         "new generic OS layer",
         "dashboard or UI",

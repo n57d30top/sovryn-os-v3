@@ -71,10 +71,7 @@ type PublicResultCard = {
   showcaseDocumentation: ShowcaseDocumentation;
 };
 
-type PublicResultExportCard = Omit<
-  PublicResultCard,
-  "summary" | "limitations" | "badges" | "scientificQuestion"
->;
+type PublicResultExportCard = Record<string, unknown>;
 
 type PublicCorpusExportModel = Omit<
   PublicCorpusModel,
@@ -889,13 +886,43 @@ function toPublicCorpusExportModel(
 function toPublicResultExportCard(
   card: PublicResultCard,
 ): PublicResultExportCard {
-  const { summary, limitations, badges, scientificQuestion, ...exportCard } =
-    card;
-  void summary;
-  void limitations;
-  void badges;
-  void scientificQuestion;
-  return exportCard;
+  return {
+    slug: card.slug,
+    title: card.title,
+    domain: card.domain,
+    resultKind: card.resultKind,
+    path: card.path,
+    qualityLabel: card.qualityLabel,
+    publicationStatus: card.publicationStatus,
+    antiTemplateStatus: card.antiTemplateStatus,
+    lifecycleStatus: card.lifecycleStatus,
+    versionGroup: card.versionGroup,
+    supersedes: card.supersedes,
+    supersededBy: card.supersededBy,
+    showcaseEligible: card.showcaseEligible,
+    showcaseRank: card.showcaseRank,
+    revisionReason: card.revisionReason,
+    humanReadableSummary: compactSummary(card.humanReadableSummary),
+    releaseReadinessScore: card.releaseReadinessScore,
+    evidenceStrengthScore: card.evidenceStrengthScore,
+    reproducibilityScore: card.reproducibilityScore,
+    publicationSafetyScore: card.publicationSafetyScore,
+    replayCriticalPassRate: card.replayCriticalPassRate,
+    specificityScore: card.specificityScore,
+    publicHygienePassed: card.publicHygienePassed,
+    safetyScanPassed: card.safetyScanPassed,
+    reliabilityReplayPassed: card.reliabilityReplayPassed,
+    pushed: card.pushed,
+    customTool: card.customTool,
+    falsificationStatus: card.falsificationStatus,
+    ...((card.showcaseRank ?? 0) > 0 ||
+    card.lifecycleStatus === "showcase_science"
+      ? { showcaseDocumentation: card.showcaseDocumentation }
+      : {}),
+    ...(card.resultKind === "computational_science_study"
+      ? scienceLifecycleFields(card)
+      : {}),
+  };
 }
 
 async function readResultCard(
@@ -1526,8 +1553,13 @@ function publicLifecycleResult(
     ...(result.resultKind === "computational_science_study"
       ? scienceLifecycleFields(result)
       : {}),
-    disclaimer: CORPUS_DISCLAIMER,
   };
+}
+
+function compactSummary(summary: string): string {
+  const normalized = summary.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 220) return normalized;
+  return `${normalized.slice(0, 217).trimEnd()}...`;
 }
 
 function scienceLifecycleFields(

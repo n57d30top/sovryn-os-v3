@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-07T11:05:20.451Z",
+  "scoredAt": "2026-05-09T14:32:57.079Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -21,5 +21,5 @@
     "Counterexample and replay pressure require a caveated classification.",
     "The layer improves readiness discipline without creating a validated discovery claim."
   ],
-  "evidenceHash": "aa01b14cc52f1e0e2cb242bdb8c76d1490506f1d9dda476e3e92a33345a75f7c"
+  "evidenceHash": "fa87549851a7a1e4f4897c902af681a20432bc0703a1d0a4ba160262ea80a932"
 }

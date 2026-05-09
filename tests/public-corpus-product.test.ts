@@ -544,6 +544,13 @@ test("Beta.18 INDEX includes lifecycle fields", async () => {
   }
 });
 
+test("Beta.18 INDEX keeps the corpus disclaimer at root scope", async () => {
+  const { targetRepo } = await lifecycleFixture();
+  const index: any = await readJson(join(targetRepo, "INDEX.json"));
+  assert.equal(typeof index.disclaimer, "string");
+  assert.equal("disclaimer" in index.results[0], false);
+});
+
 test("Beta.18 old chemistry result is superseded", async () => {
   const { targetRepo } = await lifecycleFixture();
   const index: any = await readJson(join(targetRepo, "INDEX.json"));

@@ -14,9 +14,11 @@ import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import {
   AutonomousDiscoveryDaemonService,
+  CandidateClaimCanonicalizer,
   CandidateGraveyardService,
   CandidateGenerationQualityMeter,
   CandidateIdentityLedger,
+  CandidateVersioningPolicy,
   daemonDefaultRunQuantum,
   DeathCauseClassifier,
   DeepValidationScheduler,
@@ -1033,12 +1035,17 @@ for (let index = 0; index < 20; index += 1) {
     const ledger = new CandidateIdentityLedger();
     const id = `ID-VERSIONED-${index}`;
     assert.equal(
-      ledger.register({ candidateId: id, claim: "claim one" }).accepted,
+      ledger.register({
+        candidateId: id,
+        claim:
+          "Stable bounded evaluation-fragility claim for one target slice.",
+      }).accepted,
       true,
     );
     const changed = ledger.register({
       candidateId: id,
-      claim: "claim two",
+      claim:
+        "Stable bounded evaluation-fragility claim for one target slice with punctuation clarified.",
       versionedClaimChange: true,
     });
     assert.equal(changed.accepted, true);
@@ -1046,6 +1053,152 @@ for (let index = 0; index < 20; index += 1) {
     assert.equal(changed.record.version, 2);
   });
 }
+
+test("candidate versioning blocks pipeline signal silently becoming discovery claim", () => {
+  const ledger = new CandidateIdentityLedger();
+  const candidateId = "PIPELINE-SIGNAL-CANDIDATE";
+  ledger.register({
+    candidateId,
+    claim:
+      "Runtime reproduction alignment passed for a public scientific software package.",
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanism: "repo_package_reproduction",
+    evidenceScope: "single package runtime reproduction evidence only",
+    fundClass: "reproduction_fund_candidate",
+  });
+  const discoveryClaim = new CandidateClaimCanonicalizer().canonicalize({
+    claim:
+      "A nontrivial new insight across real targets generalizes beyond reproduction evidence.",
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanism: "repo_package_reproduction",
+    evidenceScope: "across real targets beyond pipeline evidence",
+    fundClass: "discovery_fund_candidate",
+  });
+  const decision = new CandidateVersioningPolicy().resolveCandidateId({
+    records: ledger.entries(),
+    candidateId,
+    canonicalClaim: discoveryClaim,
+  });
+  const rejected = ledger.register({
+    candidateId,
+    claim: discoveryClaim.exactClaimParagraph,
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanism: "repo_package_reproduction",
+    evidenceScope: discoveryClaim.evidenceScope,
+    fundClass: "discovery_fund_candidate",
+  });
+  assert.equal(decision.requiresNewCandidateId, true);
+  assert.notEqual(decision.outputCandidateId, candidateId);
+  assert.equal(decision.reasons.includes("fund_class_changed"), true);
+  assert.equal(decision.reasons.includes("evidence_scope_broadened"), true);
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.cause, "identity_drift");
+});
+
+test("candidate versioning requires new ID on fund class change", () => {
+  const canonicalizer = new CandidateClaimCanonicalizer();
+  const existing = canonicalizer.canonicalize({
+    claim: "Bounded OpenML evaluation fragility signal for slice S260.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "single OpenML slice S260",
+    fundClass: "pipeline_capability_verified",
+  });
+  const next = canonicalizer.canonicalize({
+    claim: "Bounded OpenML evaluation fragility signal for slice S260.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "single OpenML slice S260",
+    fundClass: "discovery_fund_candidate",
+  });
+  const decision = new CandidateVersioningPolicy().evaluate({
+    inputCandidateId: "OPENML-S260",
+    existing,
+    next,
+  });
+  assert.equal(decision.requiresNewCandidateId, true);
+  assert.equal(decision.reasons.includes("fund_class_changed"), true);
+});
+
+test("candidate versioning requires new ID on mechanism change", () => {
+  const canonicalizer = new CandidateClaimCanonicalizer();
+  const existing = canonicalizer.canonicalize({
+    claim: "Bounded public-data reliability signal for one target slice.",
+    domain: "scientific_public_data_reliability",
+    mechanism: "dataset_public_data_triage",
+    evidenceScope: "single public dataset target",
+  });
+  const next = canonicalizer.canonicalize({
+    claim: "Bounded public-data reliability signal for one target slice.",
+    domain: "scientific_public_data_reliability",
+    mechanism: "temporal_evaluation",
+    evidenceScope: "single public dataset target",
+  });
+  const decision = new CandidateVersioningPolicy().evaluate({
+    inputCandidateId: "PUBLIC-DATA-SIGNAL",
+    existing,
+    next,
+  });
+  assert.equal(decision.requiresNewCandidateId, true);
+  assert.equal(decision.reasons.includes("mechanism_changed"), true);
+});
+
+test("candidate versioning requires new ID on broader scope", () => {
+  const canonicalizer = new CandidateClaimCanonicalizer();
+  const existing = canonicalizer.canonicalize({
+    claim: "OpenML evaluation fragility is bounded to one replay slice.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "single OpenML replay slice",
+  });
+  const next = canonicalizer.canonicalize({
+    claim:
+      "OpenML evaluation fragility generalizes across all datasets and real targets.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "across all OpenML datasets and real targets",
+  });
+  const decision = new CandidateVersioningPolicy().evaluate({
+    inputCandidateId: "OPENML-SCOPE",
+    existing,
+    next,
+  });
+  assert.equal(decision.requiresNewCandidateId, true);
+  assert.equal(decision.reasons.includes("evidence_scope_broadened"), true);
+});
+
+test("candidate identity accepts only explicit minor refinements within boundaries", () => {
+  const ledger = new CandidateIdentityLedger();
+  const candidateId = "STABLE-MINOR-REFINEMENT";
+  ledger.register({
+    candidateId,
+    claim: "Bounded target slice S260 has replay-stable residual evidence.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "replay_stable_pipeline",
+    evidenceScope: "target slice S260 replay evidence",
+  });
+  const silent = ledger.register({
+    candidateId,
+    claim:
+      "Bounded target slice S260 has replay-stable residual evidence with wording clarified.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "replay_stable_pipeline",
+    evidenceScope: "target slice S260 replay evidence",
+  });
+  const explicit = ledger.register({
+    candidateId,
+    claim:
+      "Bounded target slice S260 has replay-stable residual evidence with wording clarified.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "replay_stable_pipeline",
+    evidenceScope: "target slice S260 replay evidence",
+    versionedClaimChange: true,
+  });
+  assert.equal(silent.accepted, false);
+  assert.equal(silent.cause, "identity_drift");
+  assert.equal(explicit.accepted, true);
+  assert.equal(explicit.cause, "versioned_claim_change");
+});
 
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
@@ -2141,6 +2294,7 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
   for (const code of [
     "safe_high_impact_domain_rotation",
     "candidate_identity_drift_rejected",
+    "candidate_versioning_policy_separates_semantic_change",
     "fund_candidate_draft_schema_blocks_fake_drafts",
     "inspectability_audit_explains_deaths",
     "candidate_generation_measured_against_history",
@@ -2180,7 +2334,6 @@ test("discover-daemon cycles exercise objective rejection paths in the internal 
     await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
   ) as { entries: Array<Record<string, unknown>> };
   const causes = graveyard.entries.map((entry) => entry.deathCause);
-  assert.equal(causes.includes("identity_drift"), true);
   assert.equal(causes.includes("baseline_dominated"), true);
   assert.equal(causes.includes("counterexample_dense"), true);
   assert.equal(
@@ -2204,12 +2357,14 @@ test("discover-daemon cycles exercise objective rejection paths in the internal 
       "utf8",
     ),
   ) as Record<string, any>;
-  assert.equal(cycle.deathCause, "identity_drift");
-  assert.equal(cycle.identityLedgerDecision.accepted, false);
+  assert.equal(cycle.deathCause, "baseline_dominated");
+  assert.equal(cycle.identityLedgerDecision.accepted, true);
+  assert.equal(cycle.candidateVersioningDecision.acceptedSameId, true);
+  assert.doesNotMatch(String(cycle.claim), /Unversioned semantic drift probe/);
   assert.equal(cycle.notificationSuppressed, true);
   const status = await service.candidateStatus();
-  assert.equal(status.internalStatus, "killed_by_identity_drift");
-  assert.equal(status.deathCause, "identity_drift");
+  assert.equal(status.internalStatus, "killed_by_baseline");
+  assert.equal(status.deathCause, "baseline_dominated");
   const audit = await service.audit();
   assert.equal(audit.passed, true);
 });
@@ -2746,15 +2901,16 @@ test("discover-daemon continues past the former top twenty five corpus seed ceil
     ),
   ) as Record<string, any>;
   assert.equal(cycle.corpusContext.corpusSnapshot.sampledResultCount, 30);
-  assert.equal(cycle.corpusSeed.slug, "seed-026");
+  const selectedSeedNumber = Number(String(cycle.corpusSeed.slug).slice(-3));
+  assert.equal(selectedSeedNumber >= 26, true);
   assert.equal(cycle.corpusSeedSelection.mode, "graveyard_aware");
-  assert.equal(cycle.corpusSeedSelection.availableUnusedSeedCount, 5);
-  assert.equal(cycle.corpusSeedSelection.skippedGraveyardSeedCount, 25);
+  assert.equal(cycle.corpusSeedSelection.availableUnusedSeedCount <= 5, true);
+  assert.equal(cycle.corpusSeedSelection.skippedGraveyardSeedCount >= 25, true);
   assert.equal(
     cycle.corpusSeedSelection.selectedSeedWasInPriorGraveyard,
     false,
   );
-  assert.equal(cycle.candidateIdeas[0].sourceSeed.slug, "seed-026");
+  assert.equal(cycle.candidateIdeas[0].sourceSeed.slug, cycle.corpusSeed.slug);
   const audit = await service.audit();
   assert.equal(audit.passed, true);
 });

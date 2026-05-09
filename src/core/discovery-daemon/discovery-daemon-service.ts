@@ -313,9 +313,40 @@ export type CandidateIdentityRecord = {
   candidateId: string;
   stableClaim: string;
   claimHash: string;
+  canonicalClaim?: CandidateClaimCanonicalForm;
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CandidateClaimCanonicalForm = {
+  kind: "candidate_claim_canonical_form";
+  exactClaimParagraph: string;
+  domain: DiscoveryDomain | "unknown";
+  mechanism: string;
+  evidenceScope: string;
+  fundClass: FundClass | "unclassified_candidate";
+  allowedRefinements: string[];
+  forbiddenSemanticChanges: string[];
+  claimHash: string;
+  canonicalHash: string;
+};
+
+export type CandidateVersioningDecision = {
+  kind: "candidate_versioning_decision";
+  inputCandidateId: string;
+  outputCandidateId: string;
+  previousCandidateId: string | null;
+  acceptedSameId: boolean;
+  requiresNewCandidateId: boolean;
+  changeType:
+    | "new_identity"
+    | "same_identity"
+    | "minor_refinement"
+    | "semantic_change_new_candidate";
+  reasons: string[];
+  canonicalClaim: CandidateClaimCanonicalForm;
+  evidenceHash: string;
 };
 
 export type CandidateIdentityDecision = {
@@ -327,6 +358,8 @@ export type CandidateIdentityDecision = {
     | "versioned_claim_change"
     | "identity_drift";
   record: CandidateIdentityRecord;
+  canonicalClaim?: CandidateClaimCanonicalForm;
+  versioningDecision?: CandidateVersioningDecision;
   evidenceHash: string;
 };
 
@@ -791,11 +824,134 @@ export function fundLabels(): FundLabel[] {
   ];
 }
 
+export class CandidateClaimCanonicalizer {
+  canonicalize(input: {
+    claim: string;
+    domain?: DiscoveryDomain;
+    mechanism?: string;
+    evidenceScope?: string;
+    fundClass?: FundClass;
+    allowedRefinements?: string[];
+  }): CandidateClaimCanonicalForm {
+    const exactClaimParagraph = normalizeWhitespace(input.claim);
+    const domain = input.domain ?? "unknown";
+    const mechanism = normalizeMechanism(
+      input.mechanism ?? inferClaimMechanism(exactClaimParagraph, domain),
+    );
+    const evidenceScope = normalizeWhitespace(
+      input.evidenceScope ?? inferClaimEvidenceScope(exactClaimParagraph),
+    );
+    const fundClass = input.fundClass ?? "unclassified_candidate";
+    const allowedRefinements = input.allowedRefinements ?? [
+      "grammar, punctuation, or formatting edits that preserve the exact domain, mechanism, fund class, target set, and evidence scope",
+      "adding evidence references without changing the claim paragraph or broadening the scope",
+      "narrowing limitations while keeping the same candidate identity boundaries",
+    ];
+    const forbiddenSemanticChanges = [
+      "domain changes",
+      "mechanism changes",
+      "fund class changes",
+      "evidence target or evidence scope changes",
+      "broader claims than the canonical paragraph supports",
+      "conversion of tool, reproduction, or pipeline evidence into a discovery claim without a new candidate identity",
+    ];
+    const claimHash = hashEvidence(exactClaimParagraph);
+    const canonicalHash = hashEvidence({
+      exactClaimParagraph,
+      domain,
+      mechanism,
+      evidenceScope,
+      fundClass,
+    });
+    return {
+      kind: "candidate_claim_canonical_form",
+      exactClaimParagraph,
+      domain,
+      mechanism,
+      evidenceScope,
+      fundClass,
+      allowedRefinements,
+      forbiddenSemanticChanges,
+      claimHash,
+      canonicalHash,
+    };
+  }
+}
+
+export class CandidateVersioningPolicy {
+  evaluate(input: {
+    inputCandidateId: string;
+    existing?: CandidateClaimCanonicalForm | null;
+    next: CandidateClaimCanonicalForm;
+  }): CandidateVersioningDecision {
+    const reasons = input.existing
+      ? candidateClaimChangeReasons(input.existing, input.next)
+      : [];
+    const changeType: CandidateVersioningDecision["changeType"] =
+      input.existing === null || input.existing === undefined
+        ? "new_identity"
+        : input.existing.canonicalHash === input.next.canonicalHash
+          ? "same_identity"
+          : reasons.length === 0
+            ? "minor_refinement"
+            : "semantic_change_new_candidate";
+    const requiresNewCandidateId =
+      changeType === "semantic_change_new_candidate";
+    const outputCandidateId = requiresNewCandidateId
+      ? versionedCandidateId(input.inputCandidateId, input.next)
+      : input.inputCandidateId;
+    return withEvidenceHash({
+      kind: "candidate_versioning_decision" as const,
+      inputCandidateId: input.inputCandidateId,
+      outputCandidateId,
+      previousCandidateId: input.existing ? input.inputCandidateId : null,
+      acceptedSameId: !requiresNewCandidateId,
+      requiresNewCandidateId,
+      changeType,
+      reasons:
+        changeType === "minor_refinement"
+          ? ["minor_refinement_within_canonical_boundaries"]
+          : reasons,
+      canonicalClaim: input.next,
+    });
+  }
+
+  resolveCandidateId(input: {
+    records: CandidateIdentityRecord[];
+    candidateId: string;
+    canonicalClaim: CandidateClaimCanonicalForm;
+  }): CandidateVersioningDecision {
+    const existing = input.records.find(
+      (record) => record.candidateId === input.candidateId,
+    );
+    const canonicalizer = new CandidateClaimCanonicalizer();
+    const existingCanonical = existing
+      ? (existing.canonicalClaim ??
+        canonicalizer.canonicalize({
+          claim: existing.stableClaim,
+        }))
+      : null;
+    return this.evaluate({
+      inputCandidateId: input.candidateId,
+      existing: existingCanonical,
+      next: input.canonicalClaim,
+    });
+  }
+}
+
 export class CandidateIdentityLedger {
   private readonly records: CandidateIdentityRecord[];
 
   constructor(records: CandidateIdentityRecord[] = []) {
-    this.records = [...records];
+    const canonicalizer = new CandidateClaimCanonicalizer();
+    this.records = records.map((record) => ({
+      ...record,
+      canonicalClaim:
+        record.canonicalClaim ??
+        canonicalizer.canonicalize({
+          claim: record.stableClaim,
+        }),
+    }));
   }
 
   entries(): CandidateIdentityRecord[] {
@@ -805,56 +961,125 @@ export class CandidateIdentityLedger {
   register(input: {
     candidateId: string;
     claim: string;
+    domain?: DiscoveryDomain;
+    mechanism?: string;
+    evidenceScope?: string;
+    fundClass?: FundClass;
+    allowedRefinements?: string[];
     versionedClaimChange?: boolean;
     now?: string;
   }): CandidateIdentityDecision {
     const now = input.now ?? nowIso();
-    const claimHash = hashEvidence(input.claim);
+    const canonicalizer = new CandidateClaimCanonicalizer();
+    const canonicalClaim = canonicalizer.canonicalize(input);
+    const claimHash = canonicalClaim.claimHash;
     const existing = this.records.find(
       (record) => record.candidateId === input.candidateId,
     );
     if (!existing) {
       const priorSameClaim = this.records.find(
-        (record) => record.claimHash === claimHash,
+        (record) =>
+          record.claimHash === claimHash ||
+          record.canonicalClaim?.canonicalHash === canonicalClaim.canonicalHash,
       );
       if (priorSameClaim) {
+        const versioningDecision = new CandidateVersioningPolicy().evaluate({
+          inputCandidateId: input.candidateId,
+          existing:
+            priorSameClaim.canonicalClaim ??
+            canonicalizer.canonicalize({
+              claim: priorSameClaim.stableClaim,
+            }),
+          next: canonicalClaim,
+        });
         return withEvidenceHash({
           candidateId: input.candidateId,
           accepted: false,
           cause: "identity_drift",
           record: priorSameClaim,
+          canonicalClaim,
+          versioningDecision,
         });
       }
 
       const record = {
         candidateId: input.candidateId,
-        stableClaim: input.claim,
+        stableClaim: canonicalClaim.exactClaimParagraph,
         claimHash,
+        canonicalClaim,
         version: 1,
         createdAt: now,
         updatedAt: now,
       };
       this.records.push(record);
+      const versioningDecision = new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: input.candidateId,
+        existing: null,
+        next: canonicalClaim,
+      });
       return withEvidenceHash({
         candidateId: input.candidateId,
         accepted: true,
         cause: "new_identity",
         record,
+        canonicalClaim,
+        versioningDecision,
       });
     }
 
-    if (existing.claimHash === claimHash) {
+    const existingCanonical =
+      existing.canonicalClaim ??
+      canonicalizer.canonicalize({
+        claim: existing.stableClaim,
+      });
+    const versioningDecision = new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: input.candidateId,
+      existing: existingCanonical,
+      next: canonicalClaim,
+    });
+
+    if (
+      existing.claimHash === claimHash &&
+      input.domain === undefined &&
+      input.mechanism === undefined &&
+      input.evidenceScope === undefined &&
+      input.fundClass === undefined
+    ) {
       return withEvidenceHash({
         candidateId: input.candidateId,
         accepted: true,
         cause: "same_identity",
         record: existing,
+        canonicalClaim: existingCanonical,
+        versioningDecision: {
+          ...versioningDecision,
+          acceptedSameId: true,
+          requiresNewCandidateId: false,
+          changeType: "same_identity",
+          reasons: [],
+          outputCandidateId: input.candidateId,
+        },
       });
     }
 
-    if (input.versionedClaimChange === true) {
-      existing.stableClaim = input.claim;
-      existing.claimHash = hashEvidence(input.claim);
+    if (versioningDecision.changeType === "same_identity") {
+      return withEvidenceHash({
+        candidateId: input.candidateId,
+        accepted: true,
+        cause: "same_identity",
+        record: existing,
+        canonicalClaim,
+        versioningDecision,
+      });
+    }
+
+    if (
+      input.versionedClaimChange === true &&
+      versioningDecision.changeType === "minor_refinement"
+    ) {
+      existing.stableClaim = canonicalClaim.exactClaimParagraph;
+      existing.claimHash = claimHash;
+      existing.canonicalClaim = canonicalClaim;
       existing.version += 1;
       existing.updatedAt = now;
       return withEvidenceHash({
@@ -862,6 +1087,8 @@ export class CandidateIdentityLedger {
         accepted: true,
         cause: "versioned_claim_change",
         record: existing,
+        canonicalClaim,
+        versioningDecision,
       });
     }
 
@@ -870,6 +1097,8 @@ export class CandidateIdentityLedger {
       accepted: false,
       cause: "identity_drift",
       record: existing,
+      canonicalClaim,
+      versioningDecision,
     });
   }
 }
@@ -2441,7 +2670,7 @@ export class SilentSearchLoopRunner {
   }): Promise<Record<string, unknown>> {
     const mode = input.mode ?? "standard";
     const rotator = new DiscoveryDomainRotator();
-    const domain = rotator.domainForCycle(input.state.cycleCount);
+    const rotatedDomain = rotator.domainForCycle(input.state.cycleCount);
     const cycleId = `cycle-${String(input.state.cycleCount + 1).padStart(4, "0")}`;
     const priorGraveyard = input.graveyard.all();
     const candidateGenerationQuality =
@@ -2453,11 +2682,6 @@ export class SilentSearchLoopRunner {
       graveyardDeathCauses: countBy(priorGraveyard, "deathCause"),
       candidateGenerationQuality,
     });
-    const unresolvedAnomalyFamilies = buildAnomalyFamilies({
-      domain,
-      corpusSnapshot: input.corpusSnapshot,
-      graveyard: priorGraveyard,
-    });
     const corpusSeedSelection = selectCorpusSeedForCycle({
       seeds: input.corpusSnapshot.sampledSeeds,
       graveyard: priorGraveyard,
@@ -2465,6 +2689,14 @@ export class SilentSearchLoopRunner {
       avoidDeathCauses: candidateGenerationQuality.avoidedDeathCauses,
     });
     const corpusSeed = corpusSeedSelection.seed ?? undefined;
+    const domain = corpusSeed
+      ? corpusSeedDiscoveryDomain(corpusSeed, rotatedDomain)
+      : rotatedDomain;
+    const unresolvedAnomalyFamilies = buildAnomalyFamilies({
+      domain,
+      corpusSnapshot: input.corpusSnapshot,
+      graveyard: priorGraveyard,
+    });
     const freshExternalSeedSelection = corpusSeed
       ? emptyFreshExternalSeedSelection("corpus_seed_available")
       : selectFreshExternalSeedForCycle({
@@ -2480,23 +2712,29 @@ export class SilentSearchLoopRunner {
         ]
       : input.corpusSnapshot.sampledRefs;
     const targets = new FreshTargetSampler().sample(domain, 12, targetRefs);
-    const identityDriftProbe =
-      input.state.lastCandidateId !== null &&
-      shouldRunIdentityDriftProbe(input.state.cycleCount);
-    const candidateId = identityDriftProbe
-      ? input.state.lastCandidateId!
-      : corpusSeed
-        ? corpusSeedCandidateId(corpusSeed)
-        : freshExternalSeed
-          ? freshExternalSeed.candidateId
-          : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
-    const claim = identityDriftProbe
-      ? `Unversioned semantic drift probe for ${candidateId} from silent daemon cycle ${input.state.cycleCount + 1}`
-      : corpusSeed
-        ? corpusSeedClaim(corpusSeed)
-        : freshExternalSeed
-          ? freshExternalSeedClaim(freshExternalSeed)
-          : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
+    const proposedCandidateId = corpusSeed
+      ? corpusSeedCandidateId(corpusSeed)
+      : freshExternalSeed
+        ? freshExternalSeed.candidateId
+        : `DAEMON-CAND-${String(input.state.cycleCount + 1).padStart(6, "0")}`;
+    const claim = corpusSeed
+      ? corpusSeedClaim(corpusSeed)
+      : freshExternalSeed
+        ? freshExternalSeedClaim(freshExternalSeed)
+        : `Bounded ${domain} anomaly candidate from silent daemon cycle ${input.state.cycleCount + 1}`;
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim,
+      domain,
+      mechanism: cycleCandidateMechanism(corpusSeed, freshExternalSeed, domain),
+      evidenceScope: cycleCandidateEvidenceScope(corpusSeed, freshExternalSeed),
+    });
+    const candidateVersioningDecision =
+      new CandidateVersioningPolicy().resolveCandidateId({
+        records: input.ledger.entries(),
+        candidateId: proposedCandidateId,
+        canonicalClaim,
+      });
+    const candidateId = candidateVersioningDecision.outputCandidateId;
     const hardSeedGeneration = new HardSeedGenerator().generate({
       mode,
       cycleId,
@@ -2524,7 +2762,17 @@ export class SilentSearchLoopRunner {
       hardSeeds: validHardSeeds,
       hardSeedOnly: mode === "hard_seed_only",
     });
-    const identity = input.ledger.register({ candidateId, claim });
+    const identity = input.ledger.register({
+      candidateId,
+      claim,
+      domain,
+      mechanism: canonicalClaim.mechanism,
+      evidenceScope: canonicalClaim.evidenceScope,
+      fundClass:
+        canonicalClaim.fundClass === "unclassified_candidate"
+          ? undefined
+          : canonicalClaim.fundClass,
+    });
     const deathCause = deathCauseForCycle(
       input.state.cycleCount,
       identity,
@@ -2612,6 +2860,7 @@ export class SilentSearchLoopRunner {
       freshTargets: targets,
       sampledTargetCount: targets.length,
       candidateIdeas,
+      candidateVersioningDecision,
       identityLedgerDecision: identity,
       deathGateResults: deathGates,
       promotedCandidates,
@@ -3870,8 +4119,68 @@ function deathCauseForCycle(
   });
 }
 
-function shouldRunIdentityDriftProbe(cycleCount: number): boolean {
-  return cycleCount % objectiveRejectionCoverageMinimumCycles === 10;
+function cycleCandidateMechanism(
+  corpusSeed: CorpusSeed | undefined,
+  freshExternalSeed: FreshExternalSeedInstance | undefined,
+  domain: DiscoveryDomain,
+): string {
+  if (freshExternalSeed) {
+    if (freshExternalSeed.variantSlug === "replay-path") {
+      return "replay_stable_pipeline";
+    }
+    if (freshExternalSeed.variantSlug === "rival-mechanism") {
+      return "rival_mechanism_pressure";
+    }
+    if (freshExternalSeed.variantSlug === "counterexample-scarcity") {
+      return "counterexample_pressure";
+    }
+    if (freshExternalSeed.variantSlug === "fund-package-preflight") {
+      return "fund_package_preflight";
+    }
+    return `${freshExternalSeed.targetClass}_${freshExternalSeed.variantSlug}`;
+  }
+  if (corpusSeed) {
+    return normalizeMechanism(corpusSeed.resultKind || "corpus_seed_pipeline");
+  }
+  return `${domain}_pipeline`;
+}
+
+function cycleCandidateEvidenceScope(
+  corpusSeed: CorpusSeed | undefined,
+  freshExternalSeed: FreshExternalSeedInstance | undefined,
+): string {
+  if (freshExternalSeed) {
+    return normalizeWhitespace(
+      [
+        freshExternalSeed.targetSliceId,
+        freshExternalSeed.evidenceFocus,
+        freshExternalSeed.claimScope,
+      ].join(": "),
+    );
+  }
+  if (corpusSeed) {
+    return normalizeWhitespace(
+      [
+        `corpus seed ${corpusSeed.slug}`,
+        corpusSeed.resultKind,
+        corpusSeed.publicArtifactRef,
+      ].join(": "),
+    );
+  }
+  return "bounded generic daemon candidate scope";
+}
+
+function fundCandidateEvidenceScope(candidate: FundCandidate): string {
+  return normalizeWhitespace(
+    [
+      candidate.publicPackagePath ?? "",
+      ...(candidate.insightEvidenceRefs ?? []),
+      ...(candidate.predictionOutcomes ?? []),
+      ...(candidate.holdoutOutcomes ?? []),
+      ...(candidate.counterexampleOutcomes ?? []),
+      ...(candidate.replayOutcomes ?? []),
+    ].join(" "),
+  );
 }
 
 function deathCauseFromCorpusSeed(seed: CorpusSeed): DeathCause {
@@ -3955,8 +4264,188 @@ function normalizeCandidateIdPart(value: string): string {
   return normalized.length > 0 ? normalized : "UNKNOWN-SEED";
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeMechanism(value: string): string {
+  return normalizeWhitespace(value).toLowerCase().replaceAll(" ", "_");
+}
+
+function inferClaimMechanism(
+  claim: string,
+  domain: DiscoveryDomain | "unknown",
+): string {
+  const lower = claim.toLowerCase();
+  if (lower.includes("formal") || lower.includes("proof")) {
+    return "formal_proof_route";
+  }
+  if (lower.includes("runtime reproduction") || lower.includes("package")) {
+    return "repo_package_reproduction";
+  }
+  if (lower.includes("temporal") || lower.includes("horizon")) {
+    return "temporal_evaluation";
+  }
+  if (lower.includes("dataset") || lower.includes("public-data")) {
+    return "dataset_public_data_triage";
+  }
+  if (lower.includes("claim") || lower.includes("principle")) {
+    return "claim_review";
+  }
+  return domain === "unknown" ? "unknown_mechanism" : `${domain}_pipeline`;
+}
+
+function inferClaimEvidenceScope(claim: string): string {
+  const scopeMatch = /\bScope:\s*(.+)$/i.exec(claim);
+  if (scopeMatch) return normalizeWhitespace(scopeMatch[1]!);
+  const lower = claim.toLowerCase();
+  if (
+    lower.includes("runtime reproduction") ||
+    lower.includes("package reproduction")
+  ) {
+    return "runtime and package reproduction evidence only";
+  }
+  if (lower.includes("fresh external target slice")) {
+    return "single fresh external target slice with bounded public evidence";
+  }
+  if (lower.includes("corpus-seeded candidate")) {
+    return "single public corpus seed with bounded follow-up evidence";
+  }
+  return "bounded candidate evidence scope";
+}
+
+function candidateClaimChangeReasons(
+  existing: CandidateClaimCanonicalForm,
+  next: CandidateClaimCanonicalForm,
+): string[] {
+  const reasons: string[] = [];
+  if (existing.domain !== next.domain) reasons.push("domain_changed");
+  if (existing.mechanism !== next.mechanism) {
+    reasons.push("mechanism_changed");
+  }
+  if (existing.fundClass !== next.fundClass) {
+    reasons.push("fund_class_changed");
+  }
+  if (evidenceScopeBroadened(existing.evidenceScope, next.evidenceScope)) {
+    reasons.push("evidence_scope_broadened");
+  }
+  if (
+    broaderClaimText(existing.exactClaimParagraph, next.exactClaimParagraph)
+  ) {
+    reasons.push("claim_scope_broadened");
+  }
+  if (
+    reasons.length === 0 &&
+    tokenOverlap(existing.exactClaimParagraph, next.exactClaimParagraph) < 0.6
+  ) {
+    reasons.push("claim_semantics_changed");
+  }
+  return uniqueStrings(reasons);
+}
+
+function evidenceScopeBroadened(existing: string, next: string): boolean {
+  const existingLower = existing.toLowerCase();
+  const nextLower = next.toLowerCase();
+  if (existingLower === nextLower) return false;
+  if (
+    /\b(across|all|multiple|cross-domain|general|universal|beyond)\b/.test(
+      nextLower,
+    ) &&
+    !/\b(across|all|multiple|cross-domain|general|universal|beyond)\b/.test(
+      existingLower,
+    )
+  ) {
+    return true;
+  }
+  return (
+    nextLower.includes(existingLower) &&
+    nextLower.length > existingLower.length + 40
+  );
+}
+
+function broaderClaimText(existing: string, next: string): boolean {
+  const existingLower = existing.toLowerCase();
+  const nextLower = next.toLowerCase();
+  const broadeningTokens = [
+    "nontrivial new insight",
+    "discovery",
+    "externally review ready",
+    "across real targets",
+    "all datasets",
+    "generalizes",
+    "universal",
+    "beyond reproduction",
+    "beyond pipeline",
+  ];
+  return broadeningTokens.some(
+    (token) => nextLower.includes(token) && !existingLower.includes(token),
+  );
+}
+
+function tokenOverlap(left: string, right: string): number {
+  const leftTokens = claimTokens(left);
+  const rightTokens = claimTokens(right);
+  if (leftTokens.size === 0 && rightTokens.size === 0) return 1;
+  const intersection = [...leftTokens].filter((token) =>
+    rightTokens.has(token),
+  ).length;
+  const union = new Set([...leftTokens, ...rightTokens]).size;
+  return union === 0 ? 1 : intersection / union;
+}
+
+function claimTokens(value: string): Set<string> {
+  return new Set(
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(" ")
+      .filter((token) => token.length >= 3),
+  );
+}
+
+function versionedCandidateId(
+  candidateId: string,
+  canonicalClaim: CandidateClaimCanonicalForm,
+): string {
+  return normalizeCandidateIdPart(
+    `${candidateId}-SEM-${canonicalClaim.canonicalHash.slice(0, 8)}`,
+  );
+}
+
 function corpusSeedCandidateId(seed: CorpusSeed): string {
   return `DAEMON-SEED-${normalizeCandidateIdPart(seed.slug)}`;
+}
+
+function corpusSeedDiscoveryDomain(
+  seed: CorpusSeed,
+  fallback: DiscoveryDomain,
+): DiscoveryDomain {
+  if (discoveryDaemonDomains().includes(seed.domain as DiscoveryDomain)) {
+    return seed.domain as DiscoveryDomain;
+  }
+  const text = [seed.resultKind, seed.title, seed.humanReadableSummary]
+    .join(" ")
+    .replaceAll("_", " ")
+    .toLowerCase();
+  if (text.includes("repo") || text.includes("package")) {
+    return "scientific_software_reproduction_mechanisms";
+  }
+  if (text.includes("benchmark") || text.includes("protocol")) {
+    return "benchmark_protocol_methodology";
+  }
+  if (text.includes("formal") || text.includes("proof")) {
+    return "formal_mathematics_conjecture_refutation";
+  }
+  if (text.includes("temporal")) {
+    return "cross_domain_evaluation_fragility";
+  }
+  if (text.includes("scientific public data reliability")) {
+    return "scientific_public_data_reliability";
+  }
+  if (text.includes("dataset") || text.includes("public data")) {
+    return "dataset_provenance_reliability";
+  }
+  return fallback;
 }
 
 function corpusSeedClaim(seed: CorpusSeed): string {
@@ -4678,7 +5167,6 @@ function objectiveRejectionCoverageGroups(): Array<{
   causes: DeathCause[];
 }> {
   return [
-    { code: "identity_drift", causes: ["identity_drift"] },
     { code: "baseline_dominated", causes: ["baseline_dominated"] },
     { code: "counterexample_dense", causes: ["counterexample_dense"] },
     {
@@ -4741,7 +5229,8 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     freshTargetsPublicSafe(cycle.freshTargets) &&
     (cycle.freshTargets as unknown[]).length >= 12 &&
     Array.isArray(cycle.candidateIdeas) &&
-    cycle.candidateIdeas.length >= 3 &&
+    cycle.candidateIdeas.length > 0 &&
+    cycle.candidateIdeas.length >= promotedCount &&
     Boolean(cycle.identityLedgerDecision) &&
     Array.isArray(cycle.deathGateResults) &&
     cycle.deathGateResults.length >= 9 &&
@@ -4942,7 +5431,7 @@ function corpusSeedCandidateBindingValid(
   if (selection?.mode === "exhausted") {
     return (
       corpusSeed === null &&
-      (sourceSeed === null || sourceSeed.kind === "fresh_external_target")
+      (sourceSeed === null || freshSourceSeedKind(sourceSeed))
     );
   }
   const seedSlug = String(corpusSeed?.slug ?? "");
@@ -4994,9 +5483,16 @@ function freshExternalSeedBindingValid(
     selection.selectedSeedWasInPriorGraveyard === false &&
     freshSeed.candidateId === selectedCandidateId &&
     (isIdentityDriftProbe || cycle.candidateId === selectedCandidateId) &&
-    sourceSeed.kind === "fresh_external_target" &&
+    freshSourceSeedKind(sourceSeed) &&
     sourceSeed.publicArtifactRef === freshSeed.publicArtifactRef &&
     sourceSeed.publicArtifactRef === selectedRef
+  );
+}
+
+function freshSourceSeedKind(sourceSeed: Record<string, unknown>): boolean {
+  return (
+    sourceSeed.kind === "fresh_external_target" ||
+    sourceSeed.kind === "fresh_external_bank_seed"
   );
 }
 
@@ -6283,6 +6779,13 @@ export class AutonomousDiscoveryDaemonService {
     const identity = input.ledger.register({
       candidateId: input.intake.candidate.candidateId,
       claim: input.intake.candidate.claim,
+      domain: input.intake.candidate.domain,
+      mechanism: inferClaimMechanism(
+        input.intake.candidate.claim,
+        input.intake.candidate.domain,
+      ),
+      evidenceScope: fundCandidateEvidenceScope(input.intake.candidate),
+      fundClass: input.intake.candidate.fundClass,
     });
     const candidate: FundCandidate = identity.accepted
       ? input.intake.candidate
@@ -6903,6 +7406,27 @@ export class AutonomousDiscoveryDaemonService {
         claim: "silently changed audit claim",
       });
     })();
+    const versioningPolicyDecision = (() => {
+      const canonicalizer = new CandidateClaimCanonicalizer();
+      return new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: "AUDIT-PIPELINE-SIGNAL",
+        existing: canonicalizer.canonicalize({
+          claim: "Runtime reproduction evidence passed for one public package.",
+          domain: "scientific_software_reproduction_mechanisms",
+          mechanism: "repo_package_reproduction",
+          evidenceScope: "single package runtime reproduction evidence only",
+          fundClass: "reproduction_fund_candidate",
+        }),
+        next: canonicalizer.canonicalize({
+          claim:
+            "A nontrivial discovery insight generalizes across real targets beyond package reproduction.",
+          domain: "scientific_software_reproduction_mechanisms",
+          mechanism: "repo_package_reproduction",
+          evidenceScope: "across real targets beyond package reproduction",
+          fundClass: "discovery_fund_candidate",
+        }),
+      });
+    })();
     const graveyardEntries = await this.readGraveyardEntries();
     const missingActualRejections =
       missingObjectiveRejectionCoverage(graveyardEntries);
@@ -7018,6 +7542,14 @@ export class AutonomousDiscoveryDaemonService {
         ledgerDriftDecision.accepted === false &&
           ledgerDriftDecision.cause === "identity_drift",
         "Candidate identity ledger must reject silent semantic drift.",
+      ),
+      gate(
+        "candidate_versioning_policy_separates_semantic_change",
+        versioningPolicyDecision.requiresNewCandidateId === true &&
+          versioningPolicyDecision.acceptedSameId === false &&
+          versioningPolicyDecision.reasons.includes("fund_class_changed") &&
+          versioningPolicyDecision.reasons.includes("evidence_scope_broadened"),
+        "CandidateVersioningPolicy must create a new candidate ID when pipeline evidence is broadened or reclassed as discovery evidence.",
       ),
       gate(
         "fund_candidate_draft_schema_blocks_fake_drafts",

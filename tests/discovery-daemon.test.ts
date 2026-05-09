@@ -659,6 +659,16 @@ test("domain rotation plans five cycles and preserves no-Fund status", () => {
 });
 
 const labels = fundLabels();
+const expectedFundClassByLabel: Partial<Record<FundLabel, string>> = {
+  externally_review_ready_candidate:
+    "externally_review_ready_discovery_candidate",
+  bounded_validated_conjecture_candidate:
+    "bounded_validated_conjecture_candidate",
+  checked_proof: "checked_proof",
+  checked_refutation_with_high_external_value:
+    "checked_refutation_with_high_external_value",
+  new_class_level_10x_candidate: "externally_review_ready_discovery_candidate",
+};
 
 for (const label of labels) {
   test(`fund label is allowed: ${label}`, () => {
@@ -671,6 +681,8 @@ for (const label of labels) {
     assert.equal(result.status, "FUND_FOUND");
     assert.equal(result.fundLabel, label);
     assert.equal(result.notificationAllowed, true);
+    assert.equal(result.countsForEinsteinNobelDiscoveryScore, true);
+    assert.equal(result.fundClass, expectedFundClassByLabel[label]);
   });
 
   for (const gateCode of gateCodes) {

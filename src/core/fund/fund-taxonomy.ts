@@ -9,7 +9,10 @@ export type FundClass =
   | "infrastructure_fund_candidate"
   | "insight_candidate"
   | "discovery_fund_candidate"
-  | "externally_review_ready_discovery_candidate";
+  | "externally_review_ready_discovery_candidate"
+  | "bounded_validated_conjecture_candidate"
+  | "checked_proof"
+  | "checked_refutation_with_high_external_value";
 
 export const FUND_TAXONOMY_CLASSES: FundClass[] = [
   "tool_acquisition_success",
@@ -21,6 +24,9 @@ export const FUND_TAXONOMY_CLASSES: FundClass[] = [
   "insight_candidate",
   "discovery_fund_candidate",
   "externally_review_ready_discovery_candidate",
+  "bounded_validated_conjecture_candidate",
+  "checked_proof",
+  "checked_refutation_with_high_external_value",
 ];
 
 export type FundClassAssessment = {
@@ -63,7 +69,10 @@ export function fundClassCountsForEinsteinNobelDiscoveryScore(
 ): boolean {
   return (
     fundClass === "discovery_fund_candidate" ||
-    fundClass === "externally_review_ready_discovery_candidate"
+    fundClass === "externally_review_ready_discovery_candidate" ||
+    fundClass === "bounded_validated_conjecture_candidate" ||
+    fundClass === "checked_proof" ||
+    fundClass === "checked_refutation_with_high_external_value"
   );
 }
 
@@ -109,6 +118,30 @@ export function classifyFundCandidate(
   let fundClass: FundClass;
   if (
     input.fundGatePassed &&
+    input.requestedFundLabel === "checked_proof" &&
+    explicitInsight &&
+    scientificSignificance &&
+    evidenceBeyondRuntimeReproduction
+  ) {
+    fundClass = "checked_proof";
+  } else if (
+    input.fundGatePassed &&
+    input.requestedFundLabel ===
+      "checked_refutation_with_high_external_value" &&
+    explicitInsight &&
+    scientificSignificance &&
+    evidenceBeyondRuntimeReproduction
+  ) {
+    fundClass = "checked_refutation_with_high_external_value";
+  } else if (
+    input.fundGatePassed &&
+    input.requestedFundLabel === "bounded_validated_conjecture_candidate" &&
+    explicitInsight &&
+    evidenceBeyondRuntimeReproduction
+  ) {
+    fundClass = "bounded_validated_conjecture_candidate";
+  } else if (
+    input.fundGatePassed &&
     explicitInsight &&
     scientificSignificance &&
     evidenceBeyondRuntimeReproduction
@@ -148,6 +181,9 @@ export function classifyFundCandidate(
       "infrastructure_fund_candidate",
       "discovery_fund_candidate",
       "externally_review_ready_discovery_candidate",
+      "bounded_validated_conjecture_candidate",
+      "checked_proof",
+      "checked_refutation_with_high_external_value",
     ].includes(fundClass);
   const rationale = fundClassRationale({
     fundClass,

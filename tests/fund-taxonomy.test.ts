@@ -256,3 +256,61 @@ test("discovery Fund requires insight evidence beyond runtime reproduction succe
     true,
   );
 });
+
+test("formal discovery Fund classes are discovery-scored only with insight evidence", () => {
+  const bounded = classifyFundCandidate({
+    candidateId: "BOUNDED-CONJECTURE-001",
+    claim:
+      "A bounded validated conjecture candidate with a nontrivial new insight across real targets.",
+    domain: "formal_mathematics_conjecture_refutation",
+    requestedFundLabel: "bounded_validated_conjecture_candidate",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    insightEvidenceRefs: ["PAPER.md#bounded-conjecture"],
+  });
+  const proof = classifyFundCandidate({
+    candidateId: "CHECKED-PROOF-001",
+    claim:
+      "A checked proof with a nontrivial new insight across real targets and domain scientific significance.",
+    domain: "formal_mathematics_conjecture_refutation",
+    requestedFundLabel: "checked_proof",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#checked-proof"],
+  });
+  const refutation = classifyFundCandidate({
+    candidateId: "CHECKED-REFUTATION-001",
+    claim:
+      "A checked refutation with high external value and a nontrivial new insight across real targets.",
+    domain: "formal_mathematics_conjecture_refutation",
+    requestedFundLabel: "checked_refutation_with_high_external_value",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#checked-refutation"],
+  });
+  const proofWithoutInsight = classifyFundCandidate({
+    candidateId: "CHECKED-PROOF-NO-INSIGHT",
+    claim: "A checked proof artifact was produced.",
+    domain: "formal_mathematics_conjecture_refutation",
+    requestedFundLabel: "checked_proof",
+    fundGatePassed: true,
+  });
+
+  assert.equal(bounded.fundClass, "bounded_validated_conjecture_candidate");
+  assert.equal(proof.fundClass, "checked_proof");
+  assert.equal(
+    refutation.fundClass,
+    "checked_refutation_with_high_external_value",
+  );
+  for (const assessment of [bounded, proof, refutation]) {
+    assert.equal(assessment.countsForEinsteinNobelDiscoveryScore, true);
+    assert.equal(
+      fundClassCountsForEinsteinNobelDiscoveryScore(assessment.fundClass),
+      true,
+    );
+  }
+  assert.notEqual(proofWithoutInsight.fundClass, "checked_proof");
+  assert.equal(proofWithoutInsight.countsForEinsteinNobelDiscoveryScore, false);
+});

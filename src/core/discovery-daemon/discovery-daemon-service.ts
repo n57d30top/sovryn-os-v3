@@ -397,6 +397,63 @@ type HardSeedAuditReport = {
   evidenceHash: string;
 };
 
+export type MechanismToolId =
+  | "computational_scientist"
+  | "research_strategist"
+  | "knowledge_engine"
+  | "cross_domain_router"
+  | "lab_tooling"
+  | "domain_packs"
+  | "formal_proof_route"
+  | "repo_deep_reproduction"
+  | "temporal_v2"
+  | "dataset_public_data_triage"
+  | "benchmark_protocol_audit"
+  | "claim_safety_review"
+  | "rival_theory_pressure"
+  | "nobel_readiness_gates";
+
+export type MechanismCandidateType =
+  | "formal_candidate"
+  | "repo_candidate"
+  | "temporal_candidate"
+  | "dataset_public_data_candidate"
+  | "materials_public_data_candidate"
+  | "astro_public_data_candidate"
+  | "climate_energy_candidate"
+  | "benchmark_protocol_candidate"
+  | "claim_principle_candidate";
+
+export type MechanismPlan = {
+  kind: "mechanism_plan";
+  candidateId: string;
+  domain: DiscoveryDomain;
+  candidateType: MechanismCandidateType;
+  requiredEvidence: string[];
+  selectedTools: MechanismToolId[];
+  skippedTools: Array<{ tool: MechanismToolId; reason: string }>;
+  domainPackRoute: string;
+  expectedKillPath: string[];
+  expectedValidationPath: string[];
+  fundGateUnchanged: true;
+  partialPublicationBlocked: true;
+  evidenceHash: string;
+};
+
+type MechanismAuditReport = {
+  kind: "discovery_mechanism_audit";
+  mechanisms: Array<{
+    tool: MechanismToolId;
+    exists: boolean;
+    candidateTypes: MechanismCandidateType[];
+    codeRefs: string[];
+    cliRefs: string[];
+  }>;
+  allRequiredMechanismsMapped: boolean;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 const daemonArtifactRoot = ".sovryn/discovery-daemon" as const;
 const fundCandidateFile = "fund-candidate.json" as const;
 const candidateIntakeDir = "candidate-intake" as const;
@@ -460,6 +517,25 @@ export function discoveryDaemonInternalStatuses(): DiscoveryDaemonInternalStatus
     "killed_by_rival_theory",
     "candidate_graveyard_updated",
     "continue_searching",
+  ];
+}
+
+export function discoveryDaemonMechanismTools(): MechanismToolId[] {
+  return [
+    "computational_scientist",
+    "research_strategist",
+    "knowledge_engine",
+    "cross_domain_router",
+    "lab_tooling",
+    "domain_packs",
+    "formal_proof_route",
+    "repo_deep_reproduction",
+    "temporal_v2",
+    "dataset_public_data_triage",
+    "benchmark_protocol_audit",
+    "claim_safety_review",
+    "rival_theory_pressure",
+    "nobel_readiness_gates",
   ];
 }
 
@@ -1099,6 +1175,59 @@ export class DeepValidationScheduler {
   }
 }
 
+export class MechanismRouter {
+  auditMechanisms(): MechanismAuditReport {
+    const mechanisms = discoveryMechanismCatalog();
+    return withEvidenceHash({
+      kind: "discovery_mechanism_audit" as const,
+      mechanisms,
+      allRequiredMechanismsMapped:
+        mechanisms.length === discoveryDaemonMechanismTools().length &&
+        mechanisms.every(
+          (mechanism) =>
+            mechanism.exists &&
+            mechanism.codeRefs.length > 0 &&
+            mechanism.candidateTypes.length > 0,
+        ),
+      artifactRefs: [`${daemonArtifactRoot}/mechanism-audit.json`],
+    });
+  }
+
+  planForCandidate(candidate: Record<string, unknown>): MechanismPlan {
+    const domain = normalizeDiscoveryDomain(candidate.domain);
+    const candidateType = mechanismCandidateTypeFor(candidate, domain);
+    const selectedTools = mechanismToolsForCandidateType(candidateType);
+    const selected = new Set(selectedTools);
+    const skippedTools = discoveryDaemonMechanismTools()
+      .filter((tool) => !selected.has(tool))
+      .map((tool) => ({
+        tool,
+        reason: mechanismSkipReason(tool, candidateType),
+      }));
+    return withEvidenceHash({
+      kind: "mechanism_plan" as const,
+      candidateId: String(candidate.candidateId ?? "unknown-candidate"),
+      domain,
+      candidateType,
+      requiredEvidence: requiredEvidenceForCandidateType(candidateType),
+      selectedTools,
+      skippedTools,
+      domainPackRoute: domainPackRouteForCandidateType(candidateType),
+      expectedKillPath: expectedKillPathForCandidateType(candidateType),
+      expectedValidationPath:
+        expectedValidationPathForCandidateType(candidateType),
+      fundGateUnchanged: true as const,
+      partialPublicationBlocked: true as const,
+    });
+  }
+
+  plansForCandidates(
+    candidates: Array<Record<string, unknown>>,
+  ): MechanismPlan[] {
+    return candidates.map((candidate) => this.planForCandidate(candidate));
+  }
+}
+
 export class FundGateEvaluator {
   evaluate(candidate: FundCandidate | null): FundGateResult {
     if (candidate === null) {
@@ -1355,6 +1484,10 @@ export class SilentSearchLoopRunner {
       candidateIdeas,
       1,
     );
+    const mechanismRouter = new MechanismRouter();
+    const mechanismAudit = mechanismRouter.auditMechanisms();
+    const mechanismPlans =
+      mechanismRouter.plansForCandidates(promotedCandidates);
     const frozenPredictions = buildFrozenPredictions(candidateId, domain);
     const predictionExecution = buildPredictionExecution(
       frozenPredictions,
@@ -1369,6 +1502,7 @@ export class SilentSearchLoopRunner {
     const proofOrMechanismPressure = buildProofOrMechanismPressure(
       domain,
       deathCause,
+      mechanismPlans[0],
     );
     const killWeek = buildDaemonKillWeek(candidateId, deathCause);
     const fundCandidate = fundCandidateFromCycle({
@@ -1420,6 +1554,12 @@ export class SilentSearchLoopRunner {
       deathGateResults: deathGates,
       promotedCandidates,
       promotedCandidateCount: promotedCandidates.length,
+      mechanismAudit,
+      mechanismPlans,
+      mechanismRoutingSummary: buildMechanismRoutingSummary(
+        promotedCandidates,
+        mechanismPlans,
+      ),
       frozenPredictions,
       freezeLedger: {
         frozenBeforeExecution: true,
@@ -1951,6 +2091,419 @@ function freshExternalSeedBank(): FreshExternalSeed[] {
   ];
 }
 
+function discoveryMechanismCatalog(): MechanismAuditReport["mechanisms"] {
+  return [
+    {
+      tool: "computational_scientist",
+      exists: true,
+      candidateTypes: [
+        "dataset_public_data_candidate",
+        "materials_public_data_candidate",
+        "astro_public_data_candidate",
+        "climate_energy_candidate",
+      ],
+      codeRefs: ["src/core/science/science-service.ts"],
+      cliRefs: ["sovryn science ..."],
+    },
+    {
+      tool: "research_strategist",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: ["src/core/strategy/strategy-service.ts"],
+      cliRefs: ["sovryn strategy ..."],
+    },
+    {
+      tool: "knowledge_engine",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: ["src/core/knowledge/knowledge-service.ts"],
+      cliRefs: ["sovryn knowledge ..."],
+    },
+    {
+      tool: "cross_domain_router",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: ["src/core/route/cross-domain-evidence-routing-service.ts"],
+      cliRefs: ["sovryn route ..."],
+    },
+    {
+      tool: "lab_tooling",
+      exists: true,
+      candidateTypes: [
+        "repo_candidate",
+        "dataset_public_data_candidate",
+        "materials_public_data_candidate",
+        "astro_public_data_candidate",
+        "climate_energy_candidate",
+      ],
+      codeRefs: [
+        "src/core/lab/lab-service.ts",
+        "src/core/lab/tool-invention-service.ts",
+      ],
+      cliRefs: ["sovryn lab ..."],
+    },
+    {
+      tool: "domain_packs",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: ["src/core/route/cross-domain-evidence-routing-service.ts"],
+      cliRefs: ["sovryn route plan ..."],
+    },
+    {
+      tool: "formal_proof_route",
+      exists: true,
+      candidateTypes: ["formal_candidate"],
+      codeRefs: ["src/core/formal/formal-discovery-service.ts"],
+      cliRefs: [
+        "sovryn formal proof-route-audit --json",
+        "sovryn formal proof-check --target <target-id> --json",
+      ],
+    },
+    {
+      tool: "repo_deep_reproduction",
+      exists: true,
+      candidateTypes: ["repo_candidate"],
+      codeRefs: ["src/core/repo/runtime-reproduction-alignment-service.ts"],
+      cliRefs: ["sovryn repo deep-audit --json"],
+    },
+    {
+      tool: "temporal_v2",
+      exists: true,
+      candidateTypes: ["temporal_candidate"],
+      codeRefs: ["src/core/temporal/temporal-evaluation-fragility-service.ts"],
+      cliRefs: ["sovryn temporal v2-audit --json"],
+    },
+    {
+      tool: "dataset_public_data_triage",
+      exists: true,
+      candidateTypes: [
+        "dataset_public_data_candidate",
+        "materials_public_data_candidate",
+        "astro_public_data_candidate",
+        "climate_energy_candidate",
+      ],
+      codeRefs: [
+        "src/core/route/cross-domain-evidence-routing-service.ts",
+        "src/core/nobel/nobel-discovery-portfolio-service.ts",
+      ],
+      cliRefs: ["sovryn route execute --target <target> --json"],
+    },
+    {
+      tool: "benchmark_protocol_audit",
+      exists: true,
+      candidateTypes: ["benchmark_protocol_candidate"],
+      codeRefs: ["src/core/route/cross-domain-evidence-routing-service.ts"],
+      cliRefs: ["sovryn route plan --target <target> --json"],
+    },
+    {
+      tool: "claim_safety_review",
+      exists: true,
+      candidateTypes: ["claim_principle_candidate"],
+      codeRefs: [
+        "src/core/review/review.ts",
+        "src/core/external-review/external-review-scientist-service.ts",
+      ],
+      cliRefs: ["sovryn review ..."],
+    },
+    {
+      tool: "rival_theory_pressure",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: [
+        "src/core/theory/theory-engine-service.ts",
+        "src/core/nobel/nobel-readiness-service.ts",
+      ],
+      cliRefs: ["sovryn nobel-readiness rival-review --json"],
+    },
+    {
+      tool: "nobel_readiness_gates",
+      exists: true,
+      candidateTypes: mechanismCandidateTypes(),
+      codeRefs: ["src/core/nobel/nobel-readiness-service.ts"],
+      cliRefs: ["sovryn nobel-readiness audit --json"],
+    },
+  ];
+}
+
+function mechanismCandidateTypes(): MechanismCandidateType[] {
+  return [
+    "formal_candidate",
+    "repo_candidate",
+    "temporal_candidate",
+    "dataset_public_data_candidate",
+    "materials_public_data_candidate",
+    "astro_public_data_candidate",
+    "climate_energy_candidate",
+    "benchmark_protocol_candidate",
+    "claim_principle_candidate",
+  ];
+}
+
+function normalizeDiscoveryDomain(value: unknown): DiscoveryDomain {
+  return discoveryDaemonDomains().includes(value as DiscoveryDomain)
+    ? (value as DiscoveryDomain)
+    : "scientific_public_data_reliability";
+}
+
+function mechanismCandidateTypeFor(
+  candidate: Record<string, unknown>,
+  domain: DiscoveryDomain,
+): MechanismCandidateType {
+  const text = [
+    String(candidate.concreteClaim ?? ""),
+    String(candidate.mechanism ?? ""),
+    String(
+      (candidate.sourceSeed as Record<string, unknown> | null)?.targetClass ??
+        "",
+    ),
+  ]
+    .join(" ")
+    .toLowerCase();
+  if (domain === "formal_mathematics_conjecture_refutation") {
+    return "formal_candidate";
+  }
+  if (domain === "scientific_software_reproduction_mechanisms") {
+    return "repo_candidate";
+  }
+  if (domain === "cross_domain_evaluation_fragility") {
+    return "temporal_candidate";
+  }
+  if (domain === "computational_materials_property_data") {
+    return "materials_public_data_candidate";
+  }
+  if (domain === "astrophysics_open_catalog_anomalies") {
+    return "astro_public_data_candidate";
+  }
+  if (domain === "climate_energy_residuals") {
+    return "climate_energy_candidate";
+  }
+  if (domain === "benchmark_protocol_methodology") {
+    return "benchmark_protocol_candidate";
+  }
+  if (
+    text.includes("claim") ||
+    text.includes("principle") ||
+    text.includes("rival")
+  ) {
+    return "claim_principle_candidate";
+  }
+  if (
+    domain === "scientific_public_data_reliability" ||
+    domain === "safe_protein_structure_metadata" ||
+    domain === "dataset_provenance_reliability"
+  ) {
+    return "dataset_public_data_candidate";
+  }
+  return "dataset_public_data_candidate";
+}
+
+function mechanismToolsForCandidateType(
+  candidateType: MechanismCandidateType,
+): MechanismToolId[] {
+  const core: MechanismToolId[] = [
+    "research_strategist",
+    "knowledge_engine",
+    "cross_domain_router",
+    "domain_packs",
+    "rival_theory_pressure",
+    "nobel_readiness_gates",
+  ];
+  const byType: Record<MechanismCandidateType, MechanismToolId[]> = {
+    formal_candidate: ["formal_proof_route"],
+    repo_candidate: ["repo_deep_reproduction", "lab_tooling"],
+    temporal_candidate: ["temporal_v2"],
+    dataset_public_data_candidate: [
+      "computational_scientist",
+      "dataset_public_data_triage",
+      "lab_tooling",
+    ],
+    materials_public_data_candidate: [
+      "computational_scientist",
+      "dataset_public_data_triage",
+      "lab_tooling",
+    ],
+    astro_public_data_candidate: [
+      "computational_scientist",
+      "dataset_public_data_triage",
+    ],
+    climate_energy_candidate: [
+      "computational_scientist",
+      "dataset_public_data_triage",
+      "temporal_v2",
+    ],
+    benchmark_protocol_candidate: ["benchmark_protocol_audit"],
+    claim_principle_candidate: ["claim_safety_review"],
+  };
+  return uniqueTools([...core, ...byType[candidateType]]);
+}
+
+function requiredEvidenceForCandidateType(
+  candidateType: MechanismCandidateType,
+): string[] {
+  const common = [
+    "stable candidate identity",
+    "public-safe evidence refs",
+    "rival theory comparisons",
+    "baseline or negative-control checks",
+    "counterexample pressure",
+    "fresh holdout path",
+    "replay or reproduction path",
+    "Fund Gate package evidence",
+  ];
+  const byType: Record<MechanismCandidateType, string[]> = {
+    formal_candidate: [
+      "known/trivial filter",
+      "bounded counterexample search",
+      "proof/refutation route status",
+    ],
+    repo_candidate: [
+      "static scan",
+      "install probe",
+      "runtime probe",
+      "fresh workspace replay",
+    ],
+    temporal_candidate: [
+      "temporal/random split",
+      "horizon/window stress",
+      "shuffled-time control",
+      "leakage control",
+    ],
+    dataset_public_data_candidate: [
+      "dataset provenance receipt",
+      "schema/metadata audit",
+      "public-data replay receipt",
+    ],
+    materials_public_data_candidate: [
+      "materials descriptor/provenance receipt",
+      "property baseline comparison",
+      "public holdout property slice",
+    ],
+    astro_public_data_candidate: [
+      "catalog provenance receipt",
+      "selection-effect rival check",
+      "fresh catalog holdout slice",
+    ],
+    climate_energy_candidate: [
+      "horizon/weather baseline",
+      "seasonality control",
+      "public energy/weather replay receipt",
+    ],
+    benchmark_protocol_candidate: [
+      "protocol card audit",
+      "baseline protocol comparison",
+      "negative-control benchmark case",
+    ],
+    claim_principle_candidate: [
+      "claim safety review",
+      "knowledge graph context",
+      "direct rival theory pressure",
+    ],
+  };
+  return [...common, ...byType[candidateType]];
+}
+
+function domainPackRouteForCandidateType(
+  candidateType: MechanismCandidateType,
+): string {
+  const byType: Record<MechanismCandidateType, string> = {
+    formal_candidate: "formal/proof route",
+    repo_candidate: "repo deep reproduction",
+    temporal_candidate: "temporal v2",
+    dataset_public_data_candidate: "dataset/public-data triage",
+    materials_public_data_candidate: "dataset/public-data triage",
+    astro_public_data_candidate: "dataset/public-data triage",
+    climate_energy_candidate: "dataset/public-data triage",
+    benchmark_protocol_candidate: "benchmark protocol audit",
+    claim_principle_candidate:
+      "claim safety + knowledge graph + rival theory pressure",
+  };
+  return byType[candidateType];
+}
+
+function expectedKillPathForCandidateType(
+  candidateType: MechanismCandidateType,
+): string[] {
+  const common = [
+    "known/trivial or prior-candidate distance failure",
+    "baseline dominance",
+    "rival theory explains evidence better",
+    "counterexample density",
+    "holdout or replay failure",
+    "Nobel-readiness/Fund Gate package failure",
+  ];
+  const byType: Partial<Record<MechanismCandidateType, string[]>> = {
+    formal_candidate: ["checked refutation or proof-route blocked"],
+    repo_candidate: ["install/runtime/replay mechanism fails"],
+    temporal_candidate: ["leakage or shuffled-time control explains signal"],
+    claim_principle_candidate: ["claim safety or knowledge-context overclaim"],
+  };
+  return [...common, ...(byType[candidateType] ?? [])];
+}
+
+function expectedValidationPathForCandidateType(
+  candidateType: MechanismCandidateType,
+): string[] {
+  const byType: Record<MechanismCandidateType, string[]> = {
+    formal_candidate: [
+      "formal candidate survives known filter",
+      "counterexample search narrows without collapse",
+      "proof/refutation status is checked or bounded honestly",
+    ],
+    repo_candidate: [
+      "repo candidate passes static/install/runtime tiers",
+      "fresh workspace replay reproduces decisive evidence",
+      "dependency mechanism is recorded",
+    ],
+    temporal_candidate: [
+      "temporal candidate survives temporal/random split comparison",
+      "horizon/window and leakage controls do not explain the effect",
+      "replay sample remains stable",
+    ],
+    dataset_public_data_candidate: [
+      "dataset candidate passes provenance and metadata audit",
+      "baseline and rival explanations are weakened",
+      "public-data holdout and replay receipts are complete",
+    ],
+    materials_public_data_candidate: [
+      "materials candidate survives descriptor/provenance baselines",
+      "property holdout supports the bounded claim",
+      "public replay receipt is package-bound",
+    ],
+    astro_public_data_candidate: [
+      "astro candidate survives catalog-quality and selection-effect rivals",
+      "fresh catalog slice supports the bounded claim",
+      "replay receipt binds public catalog evidence",
+    ],
+    climate_energy_candidate: [
+      "climate/energy candidate survives weather, seasonality, and horizon controls",
+      "holdout residual remains bounded and replayable",
+      "mechanism panel is explicit",
+    ],
+    benchmark_protocol_candidate: [
+      "benchmark candidate survives protocol and negative-control audit",
+      "baseline protocol does not dominate",
+      "public package explains limits and reproduce steps",
+    ],
+    claim_principle_candidate: [
+      "claim passes safety and knowledge graph context",
+      "rival theories are directly compared",
+      "no overclaim remains before Fund Gate",
+    ],
+  };
+  return byType[candidateType];
+}
+
+function mechanismSkipReason(
+  tool: MechanismToolId,
+  candidateType: MechanismCandidateType,
+): string {
+  return `Skipped for ${candidateType} because ${tool} is not on the selected domain-pack route. Fund Gate remains unchanged.`;
+}
+
+function uniqueTools(tools: MechanismToolId[]): MechanismToolId[] {
+  return Array.from(new Set(tools));
+}
+
 function deathCauseForCycle(
   cycleCount: number,
   identity: CandidateIdentityDecision,
@@ -2361,9 +2914,36 @@ function buildReplayResults(
   };
 }
 
+function buildMechanismRoutingSummary(
+  promotedCandidates: Array<Record<string, unknown>>,
+  mechanismPlans: MechanismPlan[],
+): Record<string, unknown> {
+  const plannedCandidateIds = new Set(
+    mechanismPlans.map((plan) => plan.candidateId),
+  );
+  return withEvidenceHash({
+    kind: "mechanism_routing_summary",
+    promotedCandidateCount: promotedCandidates.length,
+    mechanismPlanCount: mechanismPlans.length,
+    everyPromotedCandidatePlanned: promotedCandidates.every((candidate) =>
+      plannedCandidateIds.has(String(candidate.candidateId ?? "")),
+    ),
+    selectedDomainPackRoutes: Array.from(
+      new Set(mechanismPlans.map((plan) => plan.domainPackRoute)),
+    ),
+    fundGateUnchanged: mechanismPlans.every(
+      (plan) => plan.fundGateUnchanged === true,
+    ),
+    partialPublicationBlocked: mechanismPlans.every(
+      (plan) => plan.partialPublicationBlocked === true,
+    ),
+  });
+}
+
 function buildProofOrMechanismPressure(
   domain: DiscoveryDomain,
   deathCause: DeathCause,
+  mechanismPlan?: MechanismPlan,
 ): Record<string, unknown> {
   return {
     route:
@@ -2373,6 +2953,13 @@ function buildProofOrMechanismPressure(
     clear: deathCause !== "proof_or_mechanism_failed",
     rivalMechanismsTested: true,
     fakeProofRejected: true,
+    mechanismPlanCandidateId: mechanismPlan?.candidateId ?? null,
+    mechanismPlanRoute: mechanismPlan?.domainPackRoute ?? null,
+    selectedSovrynTools: mechanismPlan?.selectedTools ?? [],
+    requiredEvidence: mechanismPlan?.requiredEvidence ?? [],
+    skippedTools: mechanismPlan?.skippedTools ?? [],
+    expectedKillPath: mechanismPlan?.expectedKillPath ?? [],
+    expectedValidationPath: mechanismPlan?.expectedValidationPath ?? [],
   };
 }
 
@@ -2702,6 +3289,16 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
   const replay = cycle.replayResults as Record<string, unknown> | null;
   const killWeek = cycle.killWeek as Record<string, unknown> | null;
   const fundGate = cycle.fundGateEvaluation as Record<string, unknown> | null;
+  const mechanismPlans = Array.isArray(cycle.mechanismPlans)
+    ? (cycle.mechanismPlans as Array<Record<string, unknown>>)
+    : [];
+  const promotedCandidates = Array.isArray(cycle.promotedCandidates)
+    ? (cycle.promotedCandidates as Array<Record<string, unknown>>)
+    : [];
+  const mechanismSummary = cycle.mechanismRoutingSummary as Record<
+    string,
+    unknown
+  > | null;
   return (
     Boolean(cycle.corpusContext) &&
     Array.isArray(cycle.unresolvedAnomalyFamilies) &&
@@ -2715,6 +3312,9 @@ function searchCyclePipelineComplete(cycle: Record<string, unknown>): boolean {
     cycle.deathGateResults.length >= 9 &&
     promotedCount >= 0 &&
     promotedCount <= 3 &&
+    mechanismPlans.length === promotedCandidates.length &&
+    mechanismPlans.every(mechanismPlanComplete) &&
+    mechanismSummary?.everyPromotedCandidatePlanned === true &&
     predictionCount >= 12 &&
     Number(execution?.executedCount ?? 0) >= 12 &&
     Boolean(holdouts?.selectedAfterFreeze) &&
@@ -2941,6 +3541,36 @@ function corpusSeedGraveyardReuseBlocked(
   if (selection === null) return false;
   if (selection.reuseAllowedForCoverage === true) return true;
   return selection.selectedSeedWasInPriorGraveyard !== true;
+}
+
+function mechanismPlanComplete(plan: Record<string, unknown>): boolean {
+  const selectedTools = Array.isArray(plan.selectedTools)
+    ? plan.selectedTools.map((tool) => String(tool))
+    : [];
+  const requiredEvidence = Array.isArray(plan.requiredEvidence)
+    ? plan.requiredEvidence.map((item) => String(item))
+    : [];
+  const skippedTools = Array.isArray(plan.skippedTools)
+    ? plan.skippedTools
+    : [];
+  return (
+    plan.kind === "mechanism_plan" &&
+    typeof plan.candidateId === "string" &&
+    discoveryDaemonDomains().includes(plan.domain as DiscoveryDomain) &&
+    mechanismCandidateTypes().includes(
+      plan.candidateType as MechanismCandidateType,
+    ) &&
+    selectedTools.includes("cross_domain_router") &&
+    selectedTools.includes("domain_packs") &&
+    selectedTools.includes("nobel_readiness_gates") &&
+    selectedTools.includes("rival_theory_pressure") &&
+    requiredEvidence.length >= 8 &&
+    typeof plan.domainPackRoute === "string" &&
+    String(plan.domainPackRoute).length > 0 &&
+    skippedTools.length > 0 &&
+    plan.fundGateUnchanged === true &&
+    plan.partialPublicationBlocked === true
+  );
 }
 
 export class FundNotificationPackageBuilder {
@@ -4112,6 +4742,11 @@ export class AutonomousDiscoveryDaemonService {
     const inspectabilityAudit = await this.inspectabilityAudit();
     const generationQuality = await this.generationQuality();
     const hardSeedAudit = await this.hardSeedAudit();
+    const mechanismAudit = new MechanismRouter().auditMechanisms();
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "mechanism-audit.json"),
+      mechanismAudit,
+    );
     const ledgerDriftDecision = (() => {
       const ledger = new CandidateIdentityLedger();
       ledger.register({
@@ -4244,6 +4879,14 @@ export class AutonomousDiscoveryDaemonService {
         "HardSeed audit must compare death-cause distribution before/after or document failure honestly.",
       ),
       gate(
+        "mechanism_router_maps_existing_sovryn_tools",
+        mechanismAudit.kind === "discovery_mechanism_audit" &&
+          mechanismAudit.allRequiredMechanismsMapped === true &&
+          mechanismAudit.mechanisms.length ===
+            discoveryDaemonMechanismTools().length,
+        "MechanismRouter must audit and map existing Computational Scientist, Strategy, Knowledge, Router, Lab, domain-pack, formal, repo, temporal, and Nobel-readiness mechanisms.",
+      ),
+      gate(
         "death_gate_rejection_coverage",
         deathCauseCoverage,
         "Death-cause classifier must cover known/trivial, baseline, holdout, replay, counterexample, rival, identity, inspectability, unsafe, mechanism, and kill-week blockers.",
@@ -4276,7 +4919,21 @@ export class AutonomousDiscoveryDaemonService {
           (latestCycle !== null &&
             (searchCyclePipelineComplete(latestCycle) ||
               latestCycleIsPackageBacked)),
-        "Latest non-fund search cycle must include corpus context, anomaly families, candidates, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
+        "Latest non-fund search cycle must include corpus context, anomaly families, candidates, mechanism plans, freeze, execution, holdout, counterexample, replay, mechanism, kill week, and Fund Gate evidence.",
+      ),
+      gate(
+        "promoted_candidates_have_mechanism_plans",
+        state.cycleCount === 0 ||
+          latestCycleIsPackageBacked ||
+          (latestCycle !== null &&
+            isRecord(latestCycle.mechanismRoutingSummary) &&
+            latestCycle.mechanismRoutingSummary
+              .everyPromotedCandidatePlanned === true &&
+            Array.isArray(latestCycle.mechanismPlans) &&
+            latestCycle.mechanismPlans.every((plan) =>
+              mechanismPlanComplete(plan as Record<string, unknown>),
+            )),
+        "Every promoted daemon candidate must have a Mechanism Plan with required evidence, selected Sovryn tools, skipped tools, kill path, validation path, and unchanged Fund Gate.",
       ),
       gate(
         "effective_fund_gate_consistency",
@@ -4376,6 +5033,7 @@ export class AutonomousDiscoveryDaemonService {
         `${daemonArtifactRoot}/state.json`,
         `${daemonArtifactRoot}/fund-gate-results.json`,
         `${daemonArtifactRoot}/${packageScoutFile}`,
+        `${daemonArtifactRoot}/mechanism-audit.json`,
       ],
     });
   }

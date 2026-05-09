@@ -31,12 +31,14 @@ import {
   hardSeedTypes,
   HardSeedToCandidateBuilder,
   HardSeedValidator,
+  MechanismRouter,
   publicCorpusBaseRef,
   type DeathCause,
   type FundCandidate,
   type FundCandidateDraft,
   type FundLabel,
   type HardSeed,
+  type MechanismCandidateType,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
@@ -963,6 +965,103 @@ test("HardSeed to candidate builder creates only hard-seed-derived candidates", 
   assert.equal(candidate.preflightOnly, false);
 });
 
+test("MechanismRouter audits existing Sovryn mechanisms", () => {
+  const audit = new MechanismRouter().auditMechanisms();
+  const tools = audit.mechanisms.map((mechanism) => mechanism.tool);
+  for (const required of [
+    "computational_scientist",
+    "research_strategist",
+    "knowledge_engine",
+    "cross_domain_router",
+    "lab_tooling",
+    "domain_packs",
+    "formal_proof_route",
+    "repo_deep_reproduction",
+    "temporal_v2",
+    "dataset_public_data_triage",
+    "claim_safety_review",
+    "rival_theory_pressure",
+    "nobel_readiness_gates",
+  ]) {
+    assert.equal(tools.includes(required as any), true, required);
+  }
+  assert.equal(audit.allRequiredMechanismsMapped, true);
+  assert.equal(
+    audit.mechanisms.every(
+      (mechanism) =>
+        mechanism.exists &&
+        mechanism.codeRefs.length > 0 &&
+        mechanism.candidateTypes.length > 0,
+    ),
+    true,
+  );
+});
+
+test("MechanismRouter selects required domain packs by candidate type", () => {
+  const router = new MechanismRouter();
+  const cases: Array<{
+    domain: string;
+    candidateType: MechanismCandidateType;
+    requiredTool: string;
+    route: string;
+  }> = [
+    {
+      domain: "formal_mathematics_conjecture_refutation",
+      candidateType: "formal_candidate",
+      requiredTool: "formal_proof_route",
+      route: "formal/proof route",
+    },
+    {
+      domain: "scientific_software_reproduction_mechanisms",
+      candidateType: "repo_candidate",
+      requiredTool: "repo_deep_reproduction",
+      route: "repo deep reproduction",
+    },
+    {
+      domain: "cross_domain_evaluation_fragility",
+      candidateType: "temporal_candidate",
+      requiredTool: "temporal_v2",
+      route: "temporal v2",
+    },
+    {
+      domain: "astrophysics_open_catalog_anomalies",
+      candidateType: "astro_public_data_candidate",
+      requiredTool: "dataset_public_data_triage",
+      route: "dataset/public-data triage",
+    },
+    {
+      domain: "benchmark_protocol_methodology",
+      candidateType: "benchmark_protocol_candidate",
+      requiredTool: "benchmark_protocol_audit",
+      route: "benchmark protocol audit",
+    },
+    {
+      domain: "scientific_public_data_reliability",
+      candidateType: "claim_principle_candidate",
+      requiredTool: "claim_safety_review",
+      route: "claim safety + knowledge graph + rival theory pressure",
+    },
+  ];
+  for (const item of cases) {
+    const plan = router.planForCandidate({
+      candidateId: `MECH-${item.candidateType}`,
+      domain: item.domain,
+      concreteClaim:
+        item.candidateType === "claim_principle_candidate"
+          ? "Bounded claim principle candidate requiring rival theory pressure"
+          : `Bounded candidate for ${item.candidateType}`,
+    });
+    assert.equal(plan.candidateType, item.candidateType);
+    assert.equal(plan.domainPackRoute, item.route);
+    assert.equal(plan.selectedTools.includes(item.requiredTool as any), true);
+    assert.equal(plan.selectedTools.includes("cross_domain_router"), true);
+    assert.equal(plan.selectedTools.includes("domain_packs"), true);
+    assert.equal(plan.selectedTools.includes("nobel_readiness_gates"), true);
+    assert.equal(plan.fundGateUnchanged, true);
+    assert.equal(plan.partialPublicationBlocked, true);
+  }
+});
+
 for (const item of deathCases) {
   test(`graveyard records ${item.cause} without user notification`, () => {
     const service = new CandidateGraveyardService();
@@ -1336,6 +1435,34 @@ test("discover-daemon hard-seed-only cycle promotes only hard-seed candidates an
     promoted.every((candidate) => candidate.derivedFromHardSeed === true),
     true,
   );
+  const mechanismPlans = cycle.mechanismPlans as Array<Record<string, unknown>>;
+  const mechanismSummary = cycle.mechanismRoutingSummary as Record<
+    string,
+    unknown
+  >;
+  assert.equal(mechanismPlans.length, promoted.length);
+  assert.equal(mechanismSummary.everyPromotedCandidatePlanned, true);
+  assert.equal(
+    mechanismPlans.every(
+      (plan) =>
+        Array.isArray(plan.selectedTools) &&
+        plan.selectedTools.includes("cross_domain_router") &&
+        plan.selectedTools.includes("domain_packs") &&
+        plan.selectedTools.includes("nobel_readiness_gates") &&
+        Array.isArray(plan.requiredEvidence) &&
+        plan.requiredEvidence.length >= 8 &&
+        plan.fundGateUnchanged === true &&
+        plan.partialPublicationBlocked === true,
+    ),
+    true,
+  );
+  assert.equal(
+    (
+      (cycle.proofOrMechanismPressure as Record<string, unknown>)
+        .selectedSovrynTools as string[]
+    ).includes("nobel_readiness_gates"),
+    true,
+  );
   const hardSeeds = cycle.hardSeeds as HardSeed[];
   assert.equal(
     hardSeeds.every(
@@ -1464,6 +1591,17 @@ test("discover-daemon cycle records full silent discovery pipeline", async () =>
       cycle.promotedCandidates.length <= 3,
     true,
   );
+  assert.equal(Boolean(cycle.mechanismAudit), true);
+  assert.equal(
+    Array.isArray(cycle.mechanismPlans) &&
+      cycle.mechanismPlans.length ===
+        (cycle.promotedCandidates as unknown[]).length,
+    true,
+  );
+  assert.equal(
+    (cycle.mechanismRoutingSummary as any).everyPromotedCandidatePlanned,
+    true,
+  );
   assert.equal(
     Array.isArray(cycle.frozenPredictions) &&
       cycle.frozenPredictions.length >= 12,
@@ -1552,11 +1690,13 @@ test("discover-daemon audit covers objective-level daemon gates", async () => {
     "candidate_generation_measured_against_history",
     "hard_seed_generation_blocks_weak_sources",
     "hard_seed_death_cause_distribution_measured",
+    "mechanism_router_maps_existing_sovryn_tools",
     "death_gate_rejection_coverage",
     "actual_rejection_path_coverage",
     "graveyard_internal_only",
     "checkpoint_resume_available",
     "search_cycle_pipeline_complete",
+    "promoted_candidates_have_mechanism_plans",
     "corpus_seed_candidate_binding",
     "corpus_seed_graveyard_reuse_blocked",
     "fresh_external_seed_binding",

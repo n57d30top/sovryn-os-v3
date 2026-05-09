@@ -67,6 +67,7 @@ import { DiscoveryValidationService } from "../core/validation/discovery-validat
 import { TheoryEngineService } from "../core/theory/theory-engine-service.js";
 import { ResearchOpportunityEngine } from "../core/research/opportunity-engine.js";
 import { ScienceService } from "../core/science/science-service.js";
+import { SelfAssemblyService } from "../core/self-assembly/self-assembly-service.js";
 import { StrategyService } from "../core/strategy/strategy-service.js";
 import {
   adapterDoctor,
@@ -189,6 +190,11 @@ Commands:
   sovryn discover-daemon fund-gate [--json]
   sovryn discover-daemon notify-if-fund [--json]
   sovryn discover-daemon audit [--json]
+  sovryn self-assemble status [--json]
+  sovryn self-assemble plan [--json]
+  sovryn self-assemble run [--json]
+  sovryn self-assemble smoke [--json]
+  sovryn self-assemble audit [--json]
   sovryn os status [--json]
   sovryn os hardening-plan [--json]
   sovryn os run-scale [--json]
@@ -746,6 +752,16 @@ export async function executeCli(
       case "discover-daemon": {
         const result = await discoverDaemonCommand(parsed, root);
         return okEnvelope("discover-daemon", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "self-assemble": {
+        const result = await selfAssembleCommand(parsed, root);
+        return okEnvelope("self-assemble", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1686,6 +1702,37 @@ async function discoverDaemonCommand(
       throw new AppError(
         "UNKNOWN_DISCOVER_DAEMON_COMMAND",
         `Unknown discover-daemon command: ${subcommand}`,
+      );
+  }
+}
+
+async function selfAssembleCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "SELF_ASSEMBLE_COMMAND_REQUIRED",
+      "Use: sovryn self-assemble <status|plan|run|smoke|audit>.",
+    );
+  }
+  const service = new SelfAssemblyService(root);
+  switch (subcommand) {
+    case "status":
+      return service.status();
+    case "plan":
+      return service.plan();
+    case "run":
+      return service.run();
+    case "smoke":
+      return service.smoke();
+    case "audit":
+      return service.audit();
+    default:
+      throw new AppError(
+        "UNKNOWN_SELF_ASSEMBLE_COMMAND",
+        `Unknown self-assemble command: ${subcommand}`,
       );
   }
 }

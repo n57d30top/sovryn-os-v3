@@ -1,0 +1,189 @@
+{
+  "kind": "self_assembly_smoke_results",
+  "flowCount": 10,
+  "passedFlowCount": 10,
+  "failedFlowCount": 0,
+  "flows": [
+    {
+      "flowId": "A",
+      "name": "Corpus anomaly -> Research Strategist -> candidate direction",
+      "passed": true,
+      "mechanisms": ["corpus_index_graph_export", "strategy_service"],
+      "consumedInputs": ["MECHANISM_MAP.json", "public/local corpus signals"],
+      "producedArtifacts": [
+        ".sovryn/strategy/ranking/top-opportunities.json",
+        ".sovryn/self-assembly/candidate-domain-priority.json"
+      ],
+      "downstreamConsumption": "candidate-domain-priority consumes Research Strategist output.",
+      "noFundCreated": true,
+      "notes": "Strategy ranking changes the next candidate direction without claiming discovery.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "B",
+      "name": "HardSeed -> MechanismRouter -> Domain Pack execution",
+      "passed": true,
+      "mechanisms": [
+        "daemon_hard_seeds",
+        "daemon_mechanism_router",
+        "domain_packs"
+      ],
+      "consumedInputs": [
+        "HardSeed-shaped candidate",
+        "MechanismRouter catalog"
+      ],
+      "producedArtifacts": [
+        ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json"
+      ],
+      "downstreamConsumption": "MechanismPlanExecution records selected domain-pack output refs.",
+      "noFundCreated": true,
+      "notes": "candidateType=materials_public_data_candidate",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "C",
+      "name": "Tool acquisition -> Computational Scientist pipeline -> evidence package",
+      "passed": true,
+      "mechanisms": ["lab_service", "science_service", "domain_packs"],
+      "consumedInputs": ["bounded tool need", "computational science question"],
+      "producedArtifacts": [
+        ".sovryn/lab/needs/latest.json",
+        ".sovryn/science",
+        ".sovryn/self-assembly/tool-science-evidence-package.json"
+      ],
+      "downstreamConsumption": "Lab and Science outputs are bound into an evidence package contract.",
+      "noFundCreated": true,
+      "notes": "Tool acquisition is explicitly not a discovery Fund.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "D",
+      "name": "Repo target -> repo reproduction -> replay/package/corpus",
+      "passed": true,
+      "mechanisms": [
+        "repo_package_reproduction_domain_pack",
+        "cross_domain_router",
+        "corpus_product_site"
+      ],
+      "consumedInputs": ["repo-target-001", "route public package index"],
+      "producedArtifacts": [
+        ".sovryn/repo/instrument-runs.json",
+        ".sovryn/self-assembly/package-replay-corpus-contract.json"
+      ],
+      "downstreamConsumption": "Repo reproduction output is joined to replay and corpus-audit readiness.",
+      "noFundCreated": true,
+      "notes": "Repo reproduction remains a reproduction path, not a discovery-score path.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "E",
+      "name": "Dataset target -> dataset audit -> insight candidate if evidence warrants",
+      "passed": true,
+      "mechanisms": [
+        "dataset_audit_domain_pack",
+        "scientific_public_data_triage_domain_pack"
+      ],
+      "consumedInputs": ["public dataset target"],
+      "producedArtifacts": [".sovryn/route/last-execution.json"],
+      "downstreamConsumption": "Dataset audit can emit an insight-candidate direction only when evidence warrants.",
+      "noFundCreated": true,
+      "notes": "disposition=insight_candidate",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "F",
+      "name": "Formal target -> proof/refutation route -> counterexample package",
+      "passed": true,
+      "mechanisms": ["formal_counterexample_domain_pack"],
+      "consumedInputs": ["proof-target-001"],
+      "producedArtifacts": [".sovryn/formal/proof-attempts.json"],
+      "downstreamConsumption": "Formal route output is available to package as proof/refutation pressure.",
+      "noFundCreated": true,
+      "notes": "No checked-proof claim is made unless the existing formal route supports it.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "G",
+      "name": "Temporal target -> temporal route -> caveated package",
+      "passed": true,
+      "mechanisms": ["temporal_evaluation_domain_pack"],
+      "consumedInputs": ["temporal-target-001"],
+      "producedArtifacts": [".sovryn/temporal/instrument-runs.json"],
+      "downstreamConsumption": "Temporal route output remains caveated and package-ready.",
+      "noFundCreated": true,
+      "notes": "Long-horizon and replay caveats are preserved.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "H",
+      "name": "Candidate -> Nobel-readiness gates -> FundCandidateDraft or graveyard",
+      "passed": true,
+      "mechanisms": [
+        "nobel_readiness",
+        "daemon_fund_candidate_draft",
+        "daemon_fund_gate"
+      ],
+      "consumedInputs": [
+        "Nobel-readiness criteria",
+        "empty candidate gate guard"
+      ],
+      "producedArtifacts": [
+        ".sovryn/self-assembly/nobel-disposition-contract.json"
+      ],
+      "downstreamConsumption": "Candidate disposition fails closed to graveyard without a real gate-passing candidate.",
+      "noFundCreated": true,
+      "notes": "No FUND_FOUND can be emitted without the unchanged Fund Gate passing.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "I",
+      "name": "Evidence package -> replay -> corpus status",
+      "passed": true,
+      "mechanisms": [
+        "cross_domain_router",
+        "os_v16_capability_closure",
+        "corpus_product_site"
+      ],
+      "consumedInputs": [
+        ".sovryn/route/public-packages.json",
+        ".sovryn/os-v1_6/replay-coverage.json"
+      ],
+      "producedArtifacts": [
+        ".sovryn/self-assembly/package-replay-corpus-contract.json"
+      ],
+      "downstreamConsumption": "Replay coverage and route package manifest are bound to corpus audit status.",
+      "noFundCreated": true,
+      "notes": "No corpus publication is performed by the smoke flow.",
+      "fundGateUnchanged": true
+    },
+    {
+      "flowId": "J",
+      "name": "Knowledge Engine output -> next candidate/domain priority",
+      "passed": true,
+      "mechanisms": [
+        "knowledge_engine",
+        "strategy_service",
+        "daemon_mechanism_router"
+      ],
+      "consumedInputs": [
+        ".sovryn/knowledge/claim-graph/claim-graph.json",
+        ".sovryn/strategy/ranking/top-opportunities.json"
+      ],
+      "producedArtifacts": [
+        ".sovryn/self-assembly/candidate-domain-priority.json"
+      ],
+      "downstreamConsumption": "Knowledge claim graph and strategy ranking choose the next candidate/domain priority.",
+      "noFundCreated": true,
+      "notes": "Priority is a candidate direction, not a discovery claim.",
+      "fundGateUnchanged": true
+    }
+  ],
+  "noFundFoundCreated": true,
+  "noToolInstallOnlyDiscoveryFund": true,
+  "noFake100": true,
+  "artifactRefs": [
+    "SELF_ASSEMBLY_SMOKE_RESULTS.md",
+    "SELF_ASSEMBLY_SMOKE_RESULTS.json"
+  ],
+  "evidenceHash": "8f4db1892abc631c08afaea97c2c36e030ae8571fd3ef983da3c59e5910ef699"
+}

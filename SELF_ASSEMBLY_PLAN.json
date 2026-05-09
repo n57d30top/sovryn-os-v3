@@ -1,0 +1,329 @@
+{
+  "kind": "self_assembly_plan",
+  "mechanismMapPath": "MECHANISM_MAP.json",
+  "mechanismCount": 53,
+  "daemonUsedCount": 24,
+  "underusedMechanisms": [
+    "plugin_api",
+    "general_scientist_service",
+    "tool_usefulness_domain_pack",
+    "discovery_validation",
+    "bounded_discovery_service",
+    "nobel_discovery_portfolio",
+    "frontier_production",
+    "reality_field_operations",
+    "external_production_reproduction",
+    "external_research_trials"
+  ],
+  "manuallyReachableMechanisms": [
+    "plugin_api",
+    "general_scientist_service",
+    "tool_usefulness_domain_pack",
+    "discovery_validation",
+    "bounded_discovery_service",
+    "nobel_discovery_portfolio",
+    "frontier_production",
+    "external_production_reproduction"
+  ],
+  "selectedByDaemonButNotExecuted": [],
+  "artifactsProducedButNotConsumed": [
+    {
+      "mechanismId": "config_storage_fs_hash",
+      "artifact": ".sovryn/**"
+    },
+    {
+      "mechanismId": "mission_kernel",
+      "artifact": ".sovryn/missions/<id>/journal.md"
+    },
+    {
+      "mechanismId": "mission_kernel",
+      "artifact": ".sovryn/missions/<id>/attempts/**"
+    },
+    {
+      "mechanismId": "workspace_manager",
+      "artifact": ".sovryn/worktrees/**"
+    },
+    {
+      "mechanismId": "runner_adapters",
+      "artifact": ".sovryn/node-alpha/**"
+    },
+    {
+      "mechanismId": "runner_adapters",
+      "artifact": ".sovryn/workers/**"
+    },
+    {
+      "mechanismId": "audit_security_reliability_safety",
+      "artifact": ".sovryn/audits/security-audit.json"
+    },
+    {
+      "mechanismId": "audit_security_reliability_safety",
+      "artifact": ".sovryn/audits/reliability-audit.json"
+    },
+    {
+      "mechanismId": "audit_security_reliability_safety",
+      "artifact": ".sovryn/audits/replay-all-report.json"
+    },
+    {
+      "mechanismId": "audit_security_reliability_safety",
+      "artifact": ".sovryn/audits/abuse-risk-report.json"
+    },
+    {
+      "mechanismId": "research_opportunity_cache",
+      "artifact": ".sovryn/adapters/**"
+    },
+    {
+      "mechanismId": "research_opportunity_cache",
+      "artifact": ".sovryn/autonomy/**"
+    },
+    {
+      "mechanismId": "lab_service",
+      "artifact": ".sovryn/lab/**"
+    },
+    {
+      "mechanismId": "knowledge_engine",
+      "artifact": ".sovryn/knowledge/**"
+    },
+    {
+      "mechanismId": "general_scientist_service",
+      "artifact": ".sovryn/scientist/**"
+    },
+    {
+      "mechanismId": "domain_packs",
+      "artifact": ".sovryn/os-v1_6/*-audit.json"
+    },
+    {
+      "mechanismId": "os_v15_hardening",
+      "artifact": ".sovryn/os-v1_5/**"
+    },
+    {
+      "mechanismId": "os_v16_capability_closure",
+      "artifact": ".sovryn/os-v1_6/**"
+    },
+    {
+      "mechanismId": "tool_usefulness_domain_pack",
+      "artifact": ".sovryn/lab/**"
+    },
+    {
+      "mechanismId": "scientific_public_data_triage_domain_pack",
+      "artifact": ".sovryn/lab/**"
+    },
+    {
+      "mechanismId": "repo_package_reproduction_domain_pack",
+      "artifact": ".sovryn/repo/repo-status.json"
+    },
+    {
+      "mechanismId": "repo_package_reproduction_domain_pack",
+      "artifact": ".sovryn/repo/target-registry.json"
+    },
+    {
+      "mechanismId": "repo_package_reproduction_domain_pack",
+      "artifact": ".sovryn/repo/repo-audit.json"
+    },
+    {
+      "mechanismId": "discovery_validation",
+      "artifact": ".sovryn/validation/**"
+    },
+    {
+      "mechanismId": "reality_field_operations",
+      "artifact": ".sovryn/reality/**"
+    },
+    {
+      "mechanismId": "reality_field_operations",
+      "artifact": ".sovryn/field/**"
+    },
+    {
+      "mechanismId": "reality_field_operations",
+      "artifact": ".sovryn/campaigns/**"
+    },
+    {
+      "mechanismId": "launch_public_beta_e2e",
+      "artifact": ".sovryn/beta/**"
+    },
+    {
+      "mechanismId": "launch_public_beta_e2e",
+      "artifact": ".sovryn/launch/**"
+    },
+    {
+      "mechanismId": "launch_public_beta_e2e",
+      "artifact": ".sovryn/v1-rc/**"
+    }
+  ],
+  "artifactsExpectedButNotProduced": [
+    {
+      "mechanismId": "cli_json_envelope",
+      "artifact": ".sovryn/config.json"
+    },
+    {
+      "mechanismId": "config_storage_fs_hash",
+      "artifact": ".sovryn/config.json"
+    },
+    {
+      "mechanismId": "audit_security_reliability_safety",
+      "artifact": ".sovryn/**"
+    },
+    {
+      "mechanismId": "plugin_api",
+      "artifact": ".sovryn/plugins.json"
+    },
+    {
+      "mechanismId": "os_v16_capability_closure",
+      "artifact": ".sovryn/os-v1_5/**"
+    },
+    {
+      "mechanismId": "frontier_production",
+      "artifact": "method candidates"
+    },
+    {
+      "mechanismId": "launch_public_beta_e2e",
+      "artifact": ".sovryn/**"
+    },
+    {
+      "mechanismId": "daemon_fund_gate",
+      "artifact": "FundCandidate"
+    },
+    {
+      "mechanismId": "daemon_fund_gate",
+      "artifact": "FundCandidateDraft fallback"
+    }
+  ],
+  "missingContracts": [
+    {
+      "contractId": "fund_state_os_closure_reconciliation",
+      "priority": "P1",
+      "description": "Existing local Fund state and OS closure accounting require protected read-only reconciliation before mutation.",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P1-002 and REMAINING_ARCHITECTURE_GAPS.md",
+      "protectedState": true
+    },
+    {
+      "contractId": "fund_candidate_identity_path_reconciliation",
+      "priority": "P1",
+      "description": "Existing local Fund candidate ID/path mismatch must not be rewritten by self-assembly.",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P1-003 and REMAINING_ARCHITECTURE_GAPS.md",
+      "protectedState": true
+    },
+    {
+      "contractId": "route_package_replay_corpus_direct_contract",
+      "priority": "P2",
+      "description": "Route package, replay, and corpus status should be validated as one direct contract.",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P2-001 and OS_ROUTE_REALITY_CHECK.md",
+      "protectedState": false
+    },
+    {
+      "contractId": "package_scout_live_intake_quality",
+      "priority": "P2",
+      "description": "Package scout remains a weak live intake channel and should stay non-promotional until inspectability improves.",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P2-002 and UNUSED_OR_UNDERUSED_MECHANISMS.md",
+      "protectedState": false
+    },
+    {
+      "contractId": "strategy_knowledge_priority_bridge",
+      "priority": "P3",
+      "description": "Research Strategist and Knowledge Engine outputs need a consumable candidate/domain priority artifact.",
+      "sourceFinding": "DAEMON_USAGE_REALITY_CHECK.md and ARCHITECTURE_FIX_PLAN.md",
+      "protectedState": false
+    }
+  ],
+  "missingIntegrationTests": [
+    "self-assembly map load contract",
+    "self-assembly planner underuse detection",
+    "self-assembly non-speculative fix guard",
+    "self-assembly daemon router execution smoke",
+    "self-assembly strategy/knowledge priority consumption",
+    "self-assembly package/replay/corpus contract",
+    "self-assembly no fake Fund/no fake 100 guard"
+  ],
+  "proposedFixes": [
+    {
+      "fixId": "SA-FIX-001",
+      "priority": "P1",
+      "title": "Validate MECHANISM_MAP.json as executable source of truth",
+      "sourceFinding": "Primary task requirement 1",
+      "affectedMechanisms": ["all"],
+      "expectedContract": "SelfAssemblyPlanner.loadMechanismMap rejects missing or malformed map entries.",
+      "status": "applied",
+      "artifactRefs": ["SELF_ASSEMBLY_PLAN.json"],
+      "testRefs": ["tests/self-assembly.test.ts"],
+      "risk": "Low: read-only map validation.",
+      "affectsFundGate": false,
+      "speculative": false
+    },
+    {
+      "fixId": "SA-FIX-002",
+      "priority": "P1",
+      "title": "Verify daemon-selected mechanisms execute through existing modules",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P1-001",
+      "affectedMechanisms": ["daemon_mechanism_router", "domain_packs"],
+      "expectedContract": "MechanismRouter selections are executed by MechanismPlanExecutor and produce artifact refs.",
+      "status": "verified_existing",
+      "artifactRefs": [".sovryn/discovery-daemon/mechanism-executions/*.json"],
+      "testRefs": [
+        "tests/discovery-daemon.test.ts",
+        "tests/self-assembly.test.ts"
+      ],
+      "risk": "Low: uses existing executor; no discovery cycle is run.",
+      "affectsFundGate": false,
+      "speculative": false
+    },
+    {
+      "fixId": "SA-FIX-003",
+      "priority": "P2",
+      "title": "Connect Strategy and Knowledge outputs to candidate/domain priority",
+      "sourceFinding": "DAEMON_USAGE_REALITY_CHECK.md knowledge/strategy caveats",
+      "affectedMechanisms": ["strategy_service", "knowledge_engine"],
+      "expectedContract": "candidate-domain-priority consumes strategy top opportunity and knowledge claim graph.",
+      "status": "applied",
+      "artifactRefs": [".sovryn/self-assembly/candidate-domain-priority.json"],
+      "testRefs": ["tests/self-assembly.test.ts"],
+      "risk": "Low: creates priority input, not a candidate or Fund.",
+      "affectsFundGate": false,
+      "speculative": false
+    },
+    {
+      "fixId": "SA-FIX-004",
+      "priority": "P2",
+      "title": "Bind route package, replay coverage, and corpus audit status",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P2-001",
+      "affectedMechanisms": [
+        "cross_domain_router",
+        "os_v16_capability_closure",
+        "corpus_product_site"
+      ],
+      "expectedContract": "package-replay-corpus-contract links route public packages to replay coverage and corpus audit readiness.",
+      "status": "applied",
+      "artifactRefs": [
+        ".sovryn/self-assembly/package-replay-corpus-contract.json"
+      ],
+      "testRefs": ["tests/self-assembly.test.ts"],
+      "risk": "Medium: cross-subsystem contract, but no publication is performed.",
+      "affectsFundGate": false,
+      "speculative": false
+    },
+    {
+      "fixId": "SA-FIX-005",
+      "priority": "P1",
+      "title": "Defer protected Fund state reconciliation",
+      "sourceFinding": "MECHANISM_WIRING_FINDINGS.md P1-002/P1-003",
+      "affectedMechanisms": ["daemon_fund_gate", "os_v16_capability_closure"],
+      "expectedContract": "Self-assembly refuses to mutate existing Fund state or candidate identity paths.",
+      "status": "deferred_protected_state",
+      "artifactRefs": ["UNWIRED_MECHANISMS_AFTER.md"],
+      "testRefs": ["tests/self-assembly.test.ts"],
+      "risk": "High if mutated; safe only as explicit protected deferral.",
+      "affectsFundGate": false,
+      "speculative": false
+    }
+  ],
+  "p0UnwiredMechanisms": [],
+  "p1UnwiredMechanisms": [],
+  "protectedP1Deferrals": [
+    "fund_state_os_closure_reconciliation",
+    "fund_candidate_identity_path_reconciliation"
+  ],
+  "noSpeculativeFixes": true,
+  "noNewGenericLayer": true,
+  "fundGateUnchanged": true,
+  "noFakeFund": true,
+  "noFake100": true,
+  "artifactRefs": ["SELF_ASSEMBLY_PLAN.json", "SELF_ASSEMBLY_PLAN.md"],
+  "evidenceHash": "f58d94d72c8793ec2d7a6bd9aba9d2eac88c0a25efb42c77197ffd08d64e375f"
+}

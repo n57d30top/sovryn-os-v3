@@ -34,6 +34,7 @@ graphify-out/graph.json
 .sovryn/launch/
 .sovryn/e2e/
 .sovryn/science/
+.sovryn/self-assembly/
 .sovryn/lab/
 .sovryn/discovery/
 .sovryn/discovery-daemon/
@@ -43,6 +44,7 @@ graphify-out/graph.json
 .sovryn/reproduction/
 .sovryn/repo/
 .sovryn/formal/
+.sovryn/temporal/
 .sovryn/route/
 .sovryn/os-v1_5/
 .sovryn/os-v1_6/

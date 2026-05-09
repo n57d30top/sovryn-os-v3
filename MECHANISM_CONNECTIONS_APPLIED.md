@@ -11,5 +11,5 @@
 
 - public package count: 50
 - replay coverage passed: true
-- corpus status: ready_for_publish_and_site_audit
+- corpus status: site_audit_passed
 - no publication performed: true

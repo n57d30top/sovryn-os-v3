@@ -77,6 +77,9 @@ test("self-assembly smoke proves daemon-selected mechanisms are executable", asy
   const root = await selfAssemblyRoot();
   const smoke = await new SelfAssemblyService(root).smoke();
   const hardSeedFlow = smoke.flows.find((flow) => flow.flowId === "B");
+  const domainPackProof = hardSeedFlow?.wiringProofs.find(
+    (proof) => proof.mechanismId === "domain_packs",
+  );
 
   assert.equal(smoke.failedFlowCount, 0);
   assert.equal(hardSeedFlow?.passed, true);
@@ -85,6 +88,8 @@ test("self-assembly smoke proves daemon-selected mechanisms are executable", asy
     true,
   );
   assert.equal(hardSeedFlow?.mechanisms.includes("domain_packs"), true);
+  assert.equal(domainPackProof?.selectedBy, "MechanismRouter.planForCandidate");
+  assert.equal(domainPackProof?.countsAsWired, true);
 });
 
 test("computational scientist pipeline is invoked from candidate flow", async () => {
@@ -118,6 +123,9 @@ test("knowledge engine output is consumed downstream", async () => {
   const root = await selfAssemblyRoot();
   const smoke = await new SelfAssemblyService(root).smoke();
   const knowledgeFlow = smoke.flows.find((flow) => flow.flowId === "J");
+  const knowledgeProof = knowledgeFlow?.wiringProofs.find(
+    (proof) => proof.mechanismId === "knowledge_engine",
+  );
 
   assert.equal(knowledgeFlow?.passed, true);
   assert.equal(knowledgeFlow?.mechanisms.includes("knowledge_engine"), true);
@@ -127,12 +135,17 @@ test("knowledge engine output is consumed downstream", async () => {
     ),
     true,
   );
+  assert.equal(knowledgeProof?.countsAsWired, true);
+  assert.equal(knowledgeProof?.downstreamConsumed, true);
 });
 
 test("package replay corpus flow is connected", async () => {
   const root = await selfAssemblyRoot();
   const smoke = await new SelfAssemblyService(root).smoke();
   const packageFlow = smoke.flows.find((flow) => flow.flowId === "I");
+  const replayProof = packageFlow?.wiringProofs.find(
+    (proof) => proof.mechanismId === "os_v16_capability_closure",
+  );
 
   assert.equal(packageFlow?.passed, true);
   assert.equal(packageFlow?.mechanisms.includes("corpus_product_site"), true);
@@ -140,6 +153,65 @@ test("package replay corpus flow is connected", async () => {
     packageFlow?.mechanisms.includes("os_v16_capability_closure"),
     true,
   );
+  assert.equal(replayProof?.countsAsWired, true);
+});
+
+test("domain-specific flows are selected by router before invocation", async () => {
+  const root = await selfAssemblyRoot();
+  const smoke = await new SelfAssemblyService(root).smoke();
+  const expected = [
+    ["D", "repo_package_reproduction_domain_pack"],
+    ["E", "dataset_audit_domain_pack"],
+    ["F", "formal_counterexample_domain_pack"],
+    ["G", "temporal_evaluation_domain_pack"],
+  ];
+
+  for (const [flowId, mechanismId] of expected) {
+    const flow = smoke.flows.find((item) => item.flowId === flowId);
+    const proof = flow?.wiringProofs.find(
+      (item) => item.mechanismId === mechanismId,
+    );
+    assert.equal(proof?.selectedBy, "MechanismRouter.planForCandidate");
+    assert.equal(proof?.countsAsWired, true);
+  }
+});
+
+test("wired mechanisms satisfy anti-cheat proof criteria", async () => {
+  const root = await selfAssemblyRoot();
+  const service = new SelfAssemblyService(root);
+
+  await service.smoke();
+  const audit = (await service.audit()) as any;
+  const wired = audit.mechanismsWired as string[];
+  const proofs = audit.mechanismWiringProofs as Array<Record<string, unknown>>;
+
+  assert.equal(audit.antiCheatWiringPassed, true);
+  assert.equal(wired.includes("corpus_index_graph_export"), false);
+  assert.equal(wired.includes("daemon_hard_seeds"), false);
+  for (const mechanismId of wired) {
+    const proof = proofs.find(
+      (item) => item.mechanismId === mechanismId && item.countsAsWired === true,
+    );
+    assert.ok(proof, `missing anti-cheat proof for ${mechanismId}`);
+    assert.equal(proof.selected, true);
+    assert.equal(proof.invoked, true);
+    assert.equal(proof.artifactProduced, true);
+    assert.equal(proof.downstreamConsumed, true);
+    assert.equal(proof.contractTested, true);
+  }
+});
+
+test("nominal or unavailable mechanisms are not counted as wired", async () => {
+  const root = await selfAssemblyRoot();
+  const smoke = await new SelfAssemblyService(root).smoke();
+  const failedCorpusProof = smoke.wiringProofs.find(
+    (proof) =>
+      proof.mechanismId === "corpus_product_site" &&
+      proof.countsAsWired === false,
+  );
+
+  assert.ok(failedCorpusProof);
+  assert.equal(smoke.mechanismsWired.includes("corpus_product_site"), false);
 });
 
 test("self-assembly does not create fake Fund or fake 100", async () => {

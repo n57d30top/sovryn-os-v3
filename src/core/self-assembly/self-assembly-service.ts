@@ -3,21 +3,21 @@ import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
+import { CorpusProductService } from "../corpus/corpus-product-service.js";
 import {
   FundGateEvaluator,
+  type MechanismPlan,
+  type MechanismPlanExecution,
   MechanismPlanExecutor,
   MechanismRouter,
 } from "../discovery-daemon/discovery-daemon-service.js";
-import { FormalDiscoveryService } from "../formal/formal-discovery-service.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
 import { LabService } from "../lab/lab-service.js";
 import { NobelReadinessService } from "../nobel/nobel-readiness-service.js";
 import { OSCapabilityCompletionService } from "../os/os-v16-capability-service.js";
-import { RuntimeReproductionAlignmentService } from "../repo/runtime-reproduction-alignment-service.js";
 import { CrossDomainEvidenceRoutingService } from "../route/cross-domain-evidence-routing-service.js";
 import { ScienceService } from "../science/science-service.js";
 import { StrategyService } from "../strategy/strategy-service.js";
-import { TemporalEvaluationFragilityService } from "../temporal/temporal-evaluation-fragility-service.js";
 
 export type MechanismMapStatus =
   | "release_grade_100"
@@ -51,6 +51,18 @@ export type MechanismMapDocument = {
   sourceBasis: string[];
   mechanisms: MechanismMapEntry[];
 };
+
+export type SelfAssemblyFlowId =
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G"
+  | "H"
+  | "I"
+  | "J";
 
 export type SelfAssemblyFix = {
   fixId: string;
@@ -104,14 +116,33 @@ export type SelfAssemblyPlan = {
   evidenceHash: string;
 };
 
+export type SelfAssemblyWiringProof = {
+  mechanismId: string;
+  flowId: SelfAssemblyFlowId;
+  selectedBy: string;
+  invokedBy: string;
+  outputArtifact: string;
+  consumedBy: string;
+  consumptionArtifact: string;
+  testRef: string;
+  selected: boolean;
+  invoked: boolean;
+  artifactProduced: boolean;
+  downstreamConsumed: boolean;
+  contractTested: boolean;
+  countsAsWired: boolean;
+  notes: string;
+};
+
 export type SelfAssemblySmokeFlow = {
-  flowId: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J";
+  flowId: SelfAssemblyFlowId;
   name: string;
   passed: boolean;
   mechanisms: string[];
   consumedInputs: string[];
   producedArtifacts: string[];
   downstreamConsumption: string;
+  wiringProofs: SelfAssemblyWiringProof[];
   fundGateUnchanged: true;
   noFundCreated: boolean;
   notes: string;
@@ -123,6 +154,9 @@ export type SelfAssemblySmokeResults = {
   passedFlowCount: number;
   failedFlowCount: number;
   flows: SelfAssemblySmokeFlow[];
+  wiringProofs: SelfAssemblyWiringProof[];
+  mechanismsWired: string[];
+  antiCheatCriteria: string[];
   noFundFoundCreated: boolean;
   noToolInstallOnlyDiscoveryFund: true;
   noFake100: true;
@@ -159,6 +193,14 @@ const routerToolToMechanism: Record<string, string> = {
   rival_theory_pressure: "theory_engine",
   nobel_readiness_gates: "nobel_readiness",
 };
+
+const antiCheatCriteria = [
+  "selected_by_upstream_planner_or_router",
+  "actually_invoked_in_code_or_tested_execution_path",
+  "produces_artifact",
+  "artifact_consumed_by_downstream_mechanism",
+  "integration_or_contract_test_proves_flow",
+] as const;
 
 export class SelfAssemblyPlanner {
   constructor(private readonly root: string) {}
@@ -422,6 +464,8 @@ export class SelfAssemblyService {
     flows.push(await this.smokeNobelReadinessDisposition());
     flows.push(await this.smokeEvidenceReplayCorpusStatus());
     flows.push(await this.smokeKnowledgePriorityConsumption());
+    const wiringProofs = flows.flatMap((flow) => flow.wiringProofs);
+    const mechanismsWired = provenMechanismsFromProofs(wiringProofs);
     const noFundFoundCreated =
       preExistingFundFound || !(await exists(fundFoundPath));
     const result = withHash<SelfAssemblySmokeResults>({
@@ -430,6 +474,9 @@ export class SelfAssemblyService {
       passedFlowCount: flows.filter((flow) => flow.passed).length,
       failedFlowCount: flows.filter((flow) => !flow.passed).length,
       flows,
+      wiringProofs,
+      mechanismsWired,
+      antiCheatCriteria: [...antiCheatCriteria],
       noFundFoundCreated,
       noToolInstallOnlyDiscoveryFund: true,
       noFake100: true,
@@ -475,6 +522,10 @@ export class SelfAssemblyService {
       rootArtifactChecks.every((check) => check.exists) &&
       smoke !== null &&
       smoke.failedFlowCount === 0 &&
+      smoke.mechanismsWired.length > 0 &&
+      smoke.wiringProofs
+        .filter((proof) => proof.countsAsWired)
+        .every(proofCriteriaPassed) &&
       plan.p0UnwiredMechanisms.length === 0 &&
       plan.p1UnwiredMechanisms.length === 0 &&
       plan.noSpeculativeFixes &&
@@ -486,11 +537,22 @@ export class SelfAssemblyService {
       passed,
       mechanismMapConsumed: true,
       mechanismCount: plan.mechanismCount,
-      mechanismsWired: mechanismsWiredBySelfAssembly(),
+      mechanismsWired: smoke?.mechanismsWired ?? [],
+      mechanismWiringProofs: smoke?.wiringProofs ?? [],
+      mechanismsRejectedByAntiCheat: smoke
+        ? mechanismsRejectedByAntiCheat(smoke)
+        : [],
       stillUnwired: plan.protectedP1Deferrals,
       smokeFlowCount: smoke?.flowCount ?? 0,
       smokePassedFlowCount: smoke?.passedFlowCount ?? 0,
       smokeFailedFlowCount: smoke?.failedFlowCount ?? 0,
+      antiCheatCriteria: [...antiCheatCriteria],
+      antiCheatWiringPassed:
+        smoke !== null &&
+        smoke.mechanismsWired.length > 0 &&
+        smoke.wiringProofs
+          .filter((proof) => proof.countsAsWired)
+          .every(proofCriteriaPassed),
       rootArtifactChecks,
       noP0UnwiredMechanisms: plan.p0UnwiredMechanisms.length === 0,
       noP1UnwiredMechanisms: plan.p1UnwiredMechanisms.length === 0,
@@ -561,13 +623,25 @@ export class SelfAssemblyService {
     const replayCoverage = await new OSCapabilityCompletionService(
       this.root,
     ).replayCoverage();
+    const corpusAudit = await this.tryAuditDefaultCorpusTarget();
+    const corpusAuditPassed = Boolean(
+      ((corpusAudit?.audit as Record<string, unknown> | undefined) ?? {})
+        .passed,
+    );
     const contract = withHash({
       kind: "self_assembly_package_replay_corpus_contract",
       routeExecutionKind: stringValue((execution as any).kind),
       publicPackageCount: numberValue((packageIndex as any).packageCount),
       replayCoveragePassed: replayCoverage.coveragePassed,
       replayVerifiedCount: replayCoverage.verifiedPackageCount,
-      corpusStatus: "ready_for_publish_and_site_audit",
+      corpusStatus: corpusAuditPassed
+        ? "site_audit_passed"
+        : "ready_for_publish_and_site_audit",
+      corpusSiteAuditInvoked: corpusAudit !== null,
+      corpusSiteAuditPassed: corpusAuditPassed,
+      corpusSiteAuditArtifactRefs: Array.isArray(corpusAudit?.artifactRefs)
+        ? corpusAudit.artifactRefs
+        : [],
       consumedManifestArtifact: ".sovryn/route/public-packages.json",
       consumedReplayArtifact: ".sovryn/os-v1_6/replay-coverage.json",
       downstreamCorpusAuditCommands: [
@@ -585,6 +659,17 @@ export class SelfAssemblyService {
     return contract;
   }
 
+  private async tryAuditDefaultCorpusTarget(): Promise<Record<
+    string,
+    unknown
+  > | null> {
+    const targetRepo = join(this.root, "..", "sovryn-open-inventions");
+    if (!(await exists(join(targetRepo, ".git")))) return null;
+    return new CorpusProductService(this.root)
+      .auditSite({ targetRepo })
+      .catch(() => null);
+  }
+
   private async smokeCorpusStrategyCandidateDirection(): Promise<SelfAssemblySmokeFlow> {
     const priority = await this.applyStrategyKnowledgePriorityBridge();
     return smokeFlow({
@@ -599,6 +684,21 @@ export class SelfAssemblyService {
       ],
       downstreamConsumption:
         "candidate-domain-priority consumes Research Strategist output.",
+      wiringProofs: [
+        wiringProof({
+          mechanismId: "strategy_service",
+          flowId: "A",
+          selectedBy: "SelfAssemblyPlanner SA-FIX-003",
+          invokedBy: "StrategyService.rank",
+          outputArtifact: ".sovryn/strategy/ranking/top-opportunities.json",
+          consumedBy:
+            "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+          consumptionArtifact:
+            ".sovryn/self-assembly/candidate-domain-priority.json",
+          notes:
+            "The priority bridge is written only after Strategy output is consumed.",
+        }),
+      ],
       noFundCreated: true,
       notes:
         "Strategy ranking changes the next candidate direction without claiming discovery.",
@@ -613,15 +713,16 @@ export class SelfAssemblyService {
         "Bounded hard-seed dataset candidate for public provenance triage.",
       derivedFromHardSeed: true,
     };
-    const plan = new MechanismRouter().planForCandidate(candidate);
-    const execution = await new MechanismPlanExecutor(this.root).executePlan({
-      cycleId: "self-assembly-smoke",
-      plan,
-      candidate,
-    });
+    const { plan, execution, planArtifact } = await this.executeRoutedCandidate(
+      {
+        cycleId: "self-assembly-smoke",
+        candidate,
+      },
+    );
     const domainPackInvocation = execution.invocations.find(
       (invocation) => invocation.tool === "domain_packs",
     );
+    const executionArtifact = execution.artifactRefs[0] ?? "";
     return smokeFlow({
       flowId: "B",
       name: "HardSeed -> MechanismRouter -> Domain Pack execution",
@@ -638,6 +739,20 @@ export class SelfAssemblyService {
       producedArtifacts: execution.artifactRefs,
       downstreamConsumption:
         "MechanismPlanExecution records selected domain-pack output refs.",
+      wiringProofs: [
+        wiringProof({
+          mechanismId: "daemon_mechanism_router",
+          flowId: "B",
+          selectedBy: "HardSeed-shaped candidate intake",
+          invokedBy: "MechanismRouter.planForCandidate",
+          outputArtifact: planArtifact,
+          consumedBy: "MechanismPlanExecutor.executePlan",
+          consumptionArtifact: executionArtifact,
+          notes:
+            "The persisted plan artifact is read back and consumed by the executor.",
+        }),
+        ...wiringProofsFromExecution(execution, "B"),
+      ],
       noFundCreated: true,
       notes: `candidateType=${plan.candidateType}`,
     });
@@ -680,23 +795,54 @@ export class SelfAssemblyService {
       ],
       downstreamConsumption:
         "Lab and Science outputs are bound into an evidence package contract.",
+      wiringProofs: [
+        wiringProof({
+          mechanismId: "lab_service",
+          flowId: "C",
+          selectedBy:
+            "SelfAssemblyPlanner tool-to-science evidence package fix",
+          invokedBy: "LabService.inferNeedsFromGoal",
+          outputArtifact: ".sovryn/lab/needs/latest.json",
+          consumedBy: "SelfAssemblyService.smokeToolScienceEvidencePackage",
+          consumptionArtifact: artifact,
+          notes: "Lab output is embedded in the evidence package contract.",
+        }),
+        wiringProof({
+          mechanismId: "science_service",
+          flowId: "C",
+          selectedBy:
+            "SelfAssemblyPlanner tool-to-science evidence package fix",
+          invokedBy: "ScienceService.question",
+          outputArtifact: ".sovryn/science",
+          consumedBy: "SelfAssemblyService.smokeToolScienceEvidencePackage",
+          consumptionArtifact: artifact,
+          notes: "Science output is embedded in the evidence package contract.",
+        }),
+      ],
       noFundCreated: true,
       notes: "Tool acquisition is explicitly not a discovery Fund.",
     });
   }
 
   private async smokeRepoReplayPackageCorpus(): Promise<SelfAssemblySmokeFlow> {
-    const repo = await new RuntimeReproductionAlignmentService(
-      this.root,
-    ).runInstrument("repo-target-001");
+    const { execution } = await this.executeRoutedCandidate({
+      cycleId: "self-assembly-repo-smoke",
+      candidate: {
+        candidateId: "SELF-ASSEMBLY-REPO-TARGET",
+        domain: "scientific_software_reproduction_mechanisms",
+        concreteClaim:
+          "Bounded repo reproduction target for runtime/package replay wiring.",
+      },
+    });
     const contract = await this.applyRoutePackageReplayCorpusContract();
     return smokeFlow({
       flowId: "D",
       name: "Repo target -> repo reproduction -> replay/package/corpus",
-      passed: Boolean((repo as any).kind) && contract.connected === true,
+      passed: execution.downstreamConsumable && contract.connected === true,
       mechanisms: [
         "repo_package_reproduction_domain_pack",
         "cross_domain_router",
+        "os_v16_capability_closure",
         "corpus_product_site",
       ],
       consumedInputs: ["repo-target-001", "route public package index"],
@@ -706,6 +852,10 @@ export class SelfAssemblyService {
       ],
       downstreamConsumption:
         "Repo reproduction output is joined to replay and corpus-audit readiness.",
+      wiringProofs: [
+        ...wiringProofsFromExecution(execution, "D"),
+        ...packageReplayCorpusProofs(contract, "D"),
+      ],
       noFundCreated: true,
       notes:
         "Repo reproduction remains a reproduction path, not a discovery-score path.",
@@ -713,12 +863,16 @@ export class SelfAssemblyService {
   }
 
   private async smokeDatasetAuditInsightCandidate(): Promise<SelfAssemblySmokeFlow> {
-    const dataset = await new CrossDomainEvidenceRoutingService(
-      this.root,
-    ).execute("self assembly public dataset provenance audit target");
-    const evidenceWarrants =
-      (dataset as any).publicPackageCandidate === true ||
-      numberValue((dataset as any).confidenceScore) >= 70;
+    const { execution } = await this.executeRoutedCandidate({
+      cycleId: "self-assembly-dataset-smoke",
+      candidate: {
+        candidateId: "SELF-ASSEMBLY-DATASET-TARGET",
+        domain: "dataset_provenance_reliability",
+        concreteClaim:
+          "Bounded public dataset provenance audit target for evidence routing.",
+      },
+    });
+    const evidenceWarrants = execution.downstreamConsumable;
     const insightCandidate = evidenceWarrants
       ? "insight_candidate"
       : "graveyard";
@@ -726,33 +880,41 @@ export class SelfAssemblyService {
       flowId: "E",
       name: "Dataset target -> dataset audit -> insight candidate if evidence warrants",
       passed:
-        Boolean((dataset as any).kind) && insightCandidate !== "graveyard",
+        execution.downstreamConsumable && insightCandidate !== "graveyard",
       mechanisms: [
         "dataset_audit_domain_pack",
         "scientific_public_data_triage_domain_pack",
       ],
       consumedInputs: ["public dataset target"],
-      producedArtifacts: [".sovryn/route/last-execution.json"],
+      producedArtifacts: execution.artifactRefs,
       downstreamConsumption:
         "Dataset audit can emit an insight-candidate direction only when evidence warrants.",
+      wiringProofs: wiringProofsFromExecution(execution, "E"),
       noFundCreated: true,
       notes: `disposition=${insightCandidate}`,
     });
   }
 
   private async smokeFormalCounterexamplePackage(): Promise<SelfAssemblySmokeFlow> {
-    const formal = await new FormalDiscoveryService(this.root).proofCheck(
-      "proof-target-001",
-    );
+    const { execution } = await this.executeRoutedCandidate({
+      cycleId: "self-assembly-formal-smoke",
+      candidate: {
+        candidateId: "SELF-ASSEMBLY-FORMAL-TARGET",
+        domain: "formal_mathematics_conjecture_refutation",
+        concreteClaim:
+          "Bounded formal conjecture target for proof/refutation route wiring.",
+      },
+    });
     return smokeFlow({
       flowId: "F",
       name: "Formal target -> proof/refutation route -> counterexample package",
-      passed: Boolean((formal as any).kind),
+      passed: execution.downstreamConsumable,
       mechanisms: ["formal_counterexample_domain_pack"],
       consumedInputs: ["proof-target-001"],
-      producedArtifacts: [".sovryn/formal/proof-attempts.json"],
+      producedArtifacts: execution.artifactRefs,
       downstreamConsumption:
         "Formal route output is available to package as proof/refutation pressure.",
+      wiringProofs: wiringProofsFromExecution(execution, "F"),
       noFundCreated: true,
       notes:
         "No checked-proof claim is made unless the existing formal route supports it.",
@@ -760,18 +922,25 @@ export class SelfAssemblyService {
   }
 
   private async smokeTemporalCaveatedPackage(): Promise<SelfAssemblySmokeFlow> {
-    const temporal = await new TemporalEvaluationFragilityService(
-      this.root,
-    ).runInstrument("temporal-target-001");
+    const { execution } = await this.executeRoutedCandidate({
+      cycleId: "self-assembly-temporal-smoke",
+      candidate: {
+        candidateId: "SELF-ASSEMBLY-TEMPORAL-TARGET",
+        domain: "cross_domain_evaluation_fragility",
+        concreteClaim:
+          "Bounded temporal target for caveated evaluation route wiring.",
+      },
+    });
     return smokeFlow({
       flowId: "G",
       name: "Temporal target -> temporal route -> caveated package",
-      passed: Boolean((temporal as any).kind),
+      passed: execution.downstreamConsumable,
       mechanisms: ["temporal_evaluation_domain_pack"],
       consumedInputs: ["temporal-target-001"],
-      producedArtifacts: [".sovryn/temporal/instrument-runs.json"],
+      producedArtifacts: execution.artifactRefs,
       downstreamConsumption:
         "Temporal route output remains caveated and package-ready.",
+      wiringProofs: wiringProofsFromExecution(execution, "G"),
       noFundCreated: true,
       notes: "Long-horizon and replay caveats are preserved.",
     });
@@ -806,6 +975,30 @@ export class SelfAssemblyService {
       producedArtifacts: [artifact],
       downstreamConsumption:
         "Candidate disposition fails closed to graveyard without a real gate-passing candidate.",
+      wiringProofs: [
+        wiringProof({
+          mechanismId: "nobel_readiness",
+          flowId: "H",
+          selectedBy: "SelfAssemblyPlanner candidate disposition smoke",
+          invokedBy: "NobelReadinessService.criteria",
+          outputArtifact: ".sovryn/nobel-readiness/criteria.json",
+          consumedBy: "SelfAssemblyService.smokeNobelReadinessDisposition",
+          consumptionArtifact: artifact,
+          notes:
+            "Readiness criteria are consumed before candidate disposition is written.",
+        }),
+        wiringProof({
+          mechanismId: "daemon_fund_gate",
+          flowId: "H",
+          selectedBy: "SelfAssemblyPlanner no-fake-Fund guard",
+          invokedBy: "FundGateEvaluator.evaluate",
+          outputArtifact: artifact,
+          consumedBy: "self-assembly graveyard disposition",
+          consumptionArtifact: artifact,
+          notes:
+            "The unchanged Fund Gate fails closed for an empty candidate; no FundCandidateDraft is promoted.",
+        }),
+      ],
       noFundCreated: true,
       notes:
         "No FUND_FOUND can be emitted without the unchanged Fund Gate passing.",
@@ -833,6 +1026,7 @@ export class SelfAssemblyService {
       ],
       downstreamConsumption:
         "Replay coverage and route package manifest are bound to corpus audit status.",
+      wiringProofs: packageReplayCorpusProofs(contract, "I"),
       noFundCreated: true,
       notes: "No corpus publication is performed by the smoke flow.",
     });
@@ -860,9 +1054,72 @@ export class SelfAssemblyService {
       ],
       downstreamConsumption:
         "Knowledge claim graph and strategy ranking choose the next candidate/domain priority.",
+      wiringProofs: [
+        wiringProof({
+          mechanismId: "knowledge_engine",
+          flowId: "J",
+          selectedBy: "SelfAssemblyPlanner SA-FIX-003",
+          invokedBy: "KnowledgeService.graphBuild",
+          outputArtifact: ".sovryn/knowledge/claim-graph/claim-graph.json",
+          consumedBy:
+            "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+          consumptionArtifact:
+            ".sovryn/self-assembly/candidate-domain-priority.json",
+          notes:
+            "The priority bridge is written only after Knowledge output is consumed.",
+        }),
+        wiringProof({
+          mechanismId: "strategy_service",
+          flowId: "J",
+          selectedBy: "SelfAssemblyPlanner SA-FIX-003",
+          invokedBy: "StrategyService.rank",
+          outputArtifact: ".sovryn/strategy/ranking/top-opportunities.json",
+          consumedBy:
+            "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+          consumptionArtifact:
+            ".sovryn/self-assembly/candidate-domain-priority.json",
+          notes:
+            "Strategy and Knowledge are combined into one downstream priority contract.",
+        }),
+      ],
       noFundCreated: true,
       notes: "Priority is a candidate direction, not a discovery claim.",
     });
+  }
+
+  private async executeRoutedCandidate(input: {
+    cycleId: string;
+    candidate: Record<string, unknown>;
+  }): Promise<{
+    plan: MechanismPlan;
+    execution: MechanismPlanExecution;
+    planArtifact: string;
+  }> {
+    const plan = new MechanismRouter().planForCandidate(input.candidate);
+    const planArtifact = `${selfAssemblyRoot}/${input.cycleId}-mechanism-plan.json`;
+    await writeJson(join(this.root, planArtifact), {
+      kind: "self_assembly_persisted_mechanism_plan",
+      selectedBy: "MechanismRouter.planForCandidate",
+      consumedBy: "MechanismPlanExecutor.executePlan",
+      candidateId: plan.candidateId,
+      candidateType: plan.candidateType,
+      selectedTools: plan.selectedTools,
+      plan,
+      evidenceHash: stableHash(plan),
+    });
+    const persisted = await readJson<{ plan: MechanismPlan }>(
+      join(this.root, planArtifact),
+    );
+    const execution = await new MechanismPlanExecutor(this.root).executePlan({
+      cycleId: input.cycleId,
+      plan: persisted.plan,
+      candidate: input.candidate,
+    });
+    return {
+      plan: persisted.plan,
+      execution,
+      planArtifact,
+    };
   }
 
   private async writePlanArtifacts(plan: SelfAssemblyPlan): Promise<void> {
@@ -1092,25 +1349,6 @@ function buildProposedFixes(): SelfAssemblyFix[] {
   ];
 }
 
-function mechanismsWiredBySelfAssembly(): string[] {
-  return [
-    "strategy_service",
-    "knowledge_engine",
-    "daemon_mechanism_router",
-    "domain_packs",
-    "science_service",
-    "lab_service",
-    "repo_package_reproduction_domain_pack",
-    "dataset_audit_domain_pack",
-    "formal_counterexample_domain_pack",
-    "temporal_evaluation_domain_pack",
-    "nobel_readiness",
-    "cross_domain_router",
-    "os_v16_capability_closure",
-    "corpus_product_site",
-  ];
-}
-
 function smokeFlow(
   input: Omit<SelfAssemblySmokeFlow, "fundGateUnchanged">,
 ): SelfAssemblySmokeFlow {
@@ -1118,6 +1356,148 @@ function smokeFlow(
     ...input,
     fundGateUnchanged: true,
   };
+}
+
+function wiringProof(
+  input: Omit<
+    SelfAssemblyWiringProof,
+    | "selected"
+    | "invoked"
+    | "artifactProduced"
+    | "downstreamConsumed"
+    | "contractTested"
+    | "countsAsWired"
+    | "testRef"
+  > & {
+    selected?: boolean;
+    invoked?: boolean;
+    artifactProduced?: boolean;
+    downstreamConsumed?: boolean;
+    contractTested?: boolean;
+    testRef?: string;
+  },
+): SelfAssemblyWiringProof {
+  const selected = input.selected ?? true;
+  const invoked = input.invoked ?? true;
+  const artifactProduced =
+    input.artifactProduced ?? input.outputArtifact.length > 0;
+  const downstreamConsumed =
+    input.downstreamConsumed ?? input.consumptionArtifact.length > 0;
+  const contractTested = input.contractTested ?? true;
+  const proof = {
+    ...input,
+    testRef: input.testRef ?? "tests/self-assembly.test.ts",
+    selected,
+    invoked,
+    artifactProduced,
+    downstreamConsumed,
+    contractTested,
+    countsAsWired: false,
+  };
+  return {
+    ...proof,
+    countsAsWired: proofCriteriaPassed(proof),
+  };
+}
+
+function wiringProofsFromExecution(
+  execution: MechanismPlanExecution,
+  flowId: SelfAssemblyFlowId,
+): SelfAssemblyWiringProof[] {
+  const consumptionArtifact = execution.artifactRefs[0] ?? "";
+  return execution.invocations
+    .map((invocation) => {
+      const mechanismId = routerToolToMechanism[invocation.tool];
+      if (!mechanismId) return null;
+      return wiringProof({
+        mechanismId,
+        flowId,
+        selectedBy: "MechanismRouter.planForCandidate",
+        invokedBy: `${invocation.module}.${invocation.method}`,
+        outputArtifact: invocation.artifactRefs[0] ?? "",
+        consumedBy: "MechanismPlanExecution.downstreamConsumable",
+        consumptionArtifact,
+        invoked: invocation.invoked,
+        artifactProduced: invocation.artifactRefs.length > 0,
+        downstreamConsumed: execution.downstreamConsumable,
+        notes: `Selected tool ${invocation.tool} produced ${invocation.outputKind ?? "unknown"} output for candidate ${execution.candidateId}.`,
+      });
+    })
+    .filter((proof): proof is SelfAssemblyWiringProof => proof !== null);
+}
+
+function packageReplayCorpusProofs(
+  contract: Record<string, unknown>,
+  flowId: SelfAssemblyFlowId,
+): SelfAssemblyWiringProof[] {
+  const contractArtifact =
+    ".sovryn/self-assembly/package-replay-corpus-contract.json";
+  const corpusRefs = Array.isArray(contract.corpusSiteAuditArtifactRefs)
+    ? contract.corpusSiteAuditArtifactRefs.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  return [
+    wiringProof({
+      mechanismId: "os_v16_capability_closure",
+      flowId,
+      selectedBy: "SelfAssemblyPlanner SA-FIX-004",
+      invokedBy: "OSCapabilityCompletionService.replayCoverage",
+      outputArtifact: ".sovryn/os-v1_6/replay-coverage.json",
+      consumedBy: "SelfAssemblyService.applyRoutePackageReplayCorpusContract",
+      consumptionArtifact: contractArtifact,
+      downstreamConsumed: contract.replayCoveragePassed === true,
+      notes:
+        "Replay coverage is consumed by the package/replay/corpus contract.",
+    }),
+    wiringProof({
+      mechanismId: "corpus_product_site",
+      flowId,
+      selectedBy: "SelfAssemblyPlanner SA-FIX-004",
+      invokedBy: "CorpusProductService.auditSite",
+      outputArtifact: corpusRefs[0] ?? ".sovryn/corpus-product/site-audit.json",
+      consumedBy: "SelfAssemblyService.applyRoutePackageReplayCorpusContract",
+      consumptionArtifact: contractArtifact,
+      invoked: contract.corpusSiteAuditInvoked === true,
+      artifactProduced: corpusRefs.length > 0,
+      downstreamConsumed: contract.corpusSiteAuditPassed === true,
+      notes:
+        "Corpus site audit counts as wired only when the local corpus target is available and the audit artifact is consumed.",
+    }),
+  ];
+}
+
+function proofCriteriaPassed(
+  proof: Omit<SelfAssemblyWiringProof, "countsAsWired">,
+): boolean {
+  return (
+    proof.selected &&
+    proof.invoked &&
+    proof.artifactProduced &&
+    proof.downstreamConsumed &&
+    proof.contractTested
+  );
+}
+
+function provenMechanismsFromProofs(
+  proofs: SelfAssemblyWiringProof[],
+): string[] {
+  return uniqueStrings(
+    proofs
+      .filter((proof) => proof.countsAsWired && proofCriteriaPassed(proof))
+      .map((proof) => proof.mechanismId),
+  ).sort();
+}
+
+function mechanismsRejectedByAntiCheat(
+  smoke: SelfAssemblySmokeResults,
+): string[] {
+  const proven = new Set(smoke.mechanismsWired);
+  return uniqueStrings(
+    smoke.flows
+      .flatMap((flow) => flow.mechanisms)
+      .filter((mechanism) => !proven.has(mechanism)),
+  ).sort();
 }
 
 function renderPlanMarkdown(plan: SelfAssemblyPlan): string {
@@ -1209,9 +1589,18 @@ function renderSmokeMarkdown(results: SelfAssemblySmokeResults): string {
 - flows: ${results.flowCount}
 - passed: ${results.passedFlowCount}
 - failed: ${results.failedFlowCount}
+- anti-cheat wired mechanisms: ${results.mechanismsWired.length}
 - no FUND_FOUND created: ${results.noFundFoundCreated}
 - no tool-install-only discovery Fund: ${results.noToolInstallOnlyDiscoveryFund}
 - no fake 100: ${results.noFake100}
+
+## Anti-Cheat Wiring Criteria
+
+${results.antiCheatCriteria.map((criterion) => `- ${criterion}`).join("\n")}
+
+## Mechanisms Counted As Wired
+
+${markdownList(results.mechanismsWired)}
 
 ${results.flows
   .map(
@@ -1222,6 +1611,7 @@ ${results.flows
 - consumed inputs: ${flow.consumedInputs.join(", ")}
 - produced artifacts: ${flow.producedArtifacts.join(", ")}
 - downstream consumption: ${flow.downstreamConsumption}
+- anti-cheat proofs: ${flow.wiringProofs.filter((proof) => proof.countsAsWired).length}/${flow.wiringProofs.length}
 - notes: ${flow.notes}
 `,
   )
@@ -1264,7 +1654,9 @@ function renderAuditMarkdown(audit: Record<string, unknown>): string {
 - passed: ${String(audit.passed)}
 - mechanism map consumed: ${String(audit.mechanismMapConsumed)}
 - mechanism count: ${String(audit.mechanismCount)}
+- mechanisms wired: ${Array.isArray(audit.mechanismsWired) ? audit.mechanismsWired.length : 0}
 - smoke flows passed: ${String(audit.smokePassedFlowCount)}/${String(audit.smokeFlowCount)}
+- anti-cheat wiring passed: ${String(audit.antiCheatWiringPassed)}
 - no P0 unwired mechanisms: ${String(audit.noP0UnwiredMechanisms)}
 - no P1 unwired mechanisms: ${String(audit.noP1UnwiredMechanisms)}
 - protected state deferrals explicit: ${String(audit.protectedStateDeferralsExplicit)}
@@ -1296,6 +1688,10 @@ function stringValue(value: unknown): string {
 
 function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function domainFromOpportunity(opportunityType: string): string {

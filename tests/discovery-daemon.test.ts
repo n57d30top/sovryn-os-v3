@@ -3550,6 +3550,88 @@ test("discover-daemon package scout stages only complete corpus FundCandidate pa
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
 });
 
+test("discover-daemon package scout treats reproduction packages as instruments", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate", {
+    candidateId: "SCOUT-REPRODUCTION-INSTRUMENT",
+    claim:
+      "Runtime reproduction and package reproduction passed for a scientific software package.",
+    domain: "scientific_software_reproduction_mechanisms",
+    nontrivialNewInsightAcrossRealTargets: false,
+    domainScientificSignificance: false,
+    insightEvidenceRefs: [],
+  });
+  await writeCorpusFundPackage(
+    root,
+    "reproduction-instrument-package",
+    candidate,
+  );
+
+  const scout = await service.packageScout();
+  const ledger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "classified-non-discovery-funds.json"),
+      "utf8",
+    ),
+  ) as { entries: Array<Record<string, unknown>> };
+  const rejection = (scout.rejected as Array<Record<string, unknown>>)[0]!;
+
+  assert.equal(scout.scannedPackageCount, 1);
+  assert.equal(scout.stagedIntakeCount, 0);
+  assert.equal(rejection.reason, "non_discovery_fund_class_instrument_only");
+  assert.equal(rejection.fundClass, "reproduction_fund_candidate");
+  assert.equal(rejection.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(ledger.entries[0]?.candidateId, candidate.candidateId);
+  assert.equal(ledger.entries[0]?.fundClass, "reproduction_fund_candidate");
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "candidate-intake",
+        `${candidate.candidateId}.json`,
+      ),
+    ),
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon package scout skips already classified non-discovery packages", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate", {
+    candidateId: "SCOUT-REPRODUCTION-ALREADY-CLASSIFIED",
+    claim: "Runtime reproduction alignment confirms package reproduction only.",
+    domain: "scientific_software_reproduction_mechanisms",
+    nontrivialNewInsightAcrossRealTargets: false,
+    domainScientificSignificance: false,
+    insightEvidenceRefs: [],
+  });
+  await writeCorpusFundPackage(
+    root,
+    "already-classified-repro-package",
+    candidate,
+  );
+
+  const firstScout = await service.packageScout();
+  const secondScout = await service.packageScout();
+  const secondRejection = (
+    secondScout.rejected as Array<Record<string, unknown>>
+  )[0]!;
+
+  assert.equal(firstScout.stagedIntakeCount, 0);
+  assert.equal(secondScout.stagedIntakeCount, 0);
+  assert.equal(
+    secondRejection.reason,
+    "candidate_already_classified_non_discovery",
+  );
+  assert.equal(secondRejection.candidateId, candidate.candidateId);
+});
+
 test("discover-daemon package scout rejects paper packages without FundCandidate objects", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

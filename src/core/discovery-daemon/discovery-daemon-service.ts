@@ -5459,6 +5459,8 @@ export class AutonomousDiscoveryDaemonService {
     const graveyardCandidateIds = new Set(
       (await this.readGraveyardEntries()).map((entry) => entry.candidateId),
     );
+    const classifiedNonDiscoveryFundIds =
+      await this.readClassifiedNonDiscoveryFundIds();
     const intakeRoot = join(this.root, daemonArtifactRoot, candidateIntakeDir);
     const scoutFindings = await this.readCorpusPackageScoutCandidates();
     const scoutCandidates = scoutFindings.candidates;
@@ -5475,6 +5477,15 @@ export class AutonomousDiscoveryDaemonService {
         });
         continue;
       }
+      if (classifiedNonDiscoveryFundIds.has(item.candidate.candidateId)) {
+        rejected.push({
+          sourceSlug: item.sourceSlug,
+          candidateId: item.candidate.candidateId,
+          reason: "candidate_already_classified_non_discovery",
+          why: "Package was already classified as a non-discovery FundClass and remains available only as tool/reproduction/pipeline instrument evidence.",
+        });
+        continue;
+      }
       const packageRef = await this.stageScoutPackage(item);
       const candidate: FundCandidate = {
         ...item.candidate,
@@ -5487,6 +5498,23 @@ export class AutonomousDiscoveryDaemonService {
           candidateId: candidate.candidateId,
           reason: "fund_gate_failed",
           failedGates: gateResult.failedGates,
+        });
+        continue;
+      }
+      if (!gateResult.notificationAllowed) {
+        await this.recordNonDiscoveryFundCandidate(
+          candidate,
+          gateResult,
+          "package_scout",
+        );
+        rejected.push({
+          sourceSlug: item.sourceSlug,
+          candidateId: candidate.candidateId,
+          reason: "non_discovery_fund_class_instrument_only",
+          why: "Package passed the bounded Fund Gate but its FundClass is not discovery-scored, so it is retained as instrument evidence and not staged for notification.",
+          fundClass: gateResult.fundClass,
+          countsForEinsteinNobelDiscoveryScore:
+            gateResult.countsForEinsteinNobelDiscoveryScore,
         });
         continue;
       }
@@ -7493,6 +7521,8 @@ export class AutonomousDiscoveryDaemonService {
 
   private async readNextPackageBackedCandidateIntake(): Promise<PackageBackedCandidateIntake | null> {
     const intakeRoot = join(this.root, daemonArtifactRoot, candidateIntakeDir);
+    const classifiedNonDiscoveryFundIds =
+      await this.readClassifiedNonDiscoveryFundIds();
     let files: string[];
     try {
       files = await readdir(intakeRoot);
@@ -7514,6 +7544,10 @@ export class AutonomousDiscoveryDaemonService {
             ? row
             : null;
       if (!candidate) {
+        await removeIfExists(join(this.root, fileRef));
+        continue;
+      }
+      if (classifiedNonDiscoveryFundIds.has(candidate.candidateId)) {
         await removeIfExists(join(this.root, fileRef));
         continue;
       }

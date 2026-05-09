@@ -4,10 +4,13 @@ import { join } from "node:path";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
 import { CorpusProductService } from "../corpus/corpus-product-service.js";
+import { CorpusService } from "../corpus/corpus-service.js";
 import {
   FundGateEvaluator,
+  FundCandidateDraftValidator,
   type MechanismPlan,
   type MechanismPlanExecution,
+  type FundCandidateDraft,
   MechanismPlanExecutor,
   MechanismRouter,
 } from "../discovery-daemon/discovery-daemon-service.js";
@@ -192,6 +195,10 @@ const routerToolToMechanism: Record<string, string> = {
   claim_safety_review: "claim_review_domain_pack",
   rival_theory_pressure: "theory_engine",
   nobel_readiness_gates: "nobel_readiness",
+};
+
+const routerToolToMechanismAliases: Record<string, string[]> = {
+  dataset_public_data_triage: ["scientific_public_data_triage_domain_pack"],
 };
 
 const antiCheatCriteria = [
@@ -580,6 +587,7 @@ export class SelfAssemblyService {
   private async applyStrategyKnowledgePriorityBridge(): Promise<
     Record<string, unknown>
   > {
+    const corpusGraph = await new CorpusService(this.root).graph();
     const strategy = await new StrategyService(this.root).rank({ top: 1 });
     const knowledge = await new KnowledgeService(this.root).graphBuild();
     const topOpportunity = firstRecord(
@@ -588,10 +596,12 @@ export class SelfAssemblyService {
     const topClaim = firstRecord((knowledge as any).claims as unknown[]);
     const priority = withHash({
       kind: "self_assembly_candidate_domain_priority",
+      consumedCorpusGraphArtifact: ".sovryn/corpus/public/corpus-graph.json",
       consumedStrategyArtifact:
         ".sovryn/strategy/ranking/top-opportunities.json",
       consumedKnowledgeArtifact:
         ".sovryn/knowledge/claim-graph/claim-graph.json",
+      corpusGraphArtifactRefs: corpusGraph.artifactRefs,
       strategyOpportunityId: stringValue(topOpportunity?.opportunityId),
       strategyRecommendedLabel: stringValue(topOpportunity?.recommendedLabel),
       knowledgeClaimId: stringValue(topClaim?.claimId),
@@ -679,12 +689,26 @@ export class SelfAssemblyService {
       mechanisms: ["corpus_index_graph_export", "strategy_service"],
       consumedInputs: ["MECHANISM_MAP.json", "public/local corpus signals"],
       producedArtifacts: [
+        ".sovryn/corpus/public/corpus-graph.json",
         ".sovryn/strategy/ranking/top-opportunities.json",
         ".sovryn/self-assembly/candidate-domain-priority.json",
       ],
       downstreamConsumption:
-        "candidate-domain-priority consumes Research Strategist output.",
+        "candidate-domain-priority consumes Corpus graph export and Research Strategist output.",
       wiringProofs: [
+        wiringProof({
+          mechanismId: "corpus_index_graph_export",
+          flowId: "A",
+          selectedBy: "SelfAssemblyPlanner corpus anomaly priority bridge",
+          invokedBy: "CorpusService.graph",
+          outputArtifact: ".sovryn/corpus/public/corpus-graph.json",
+          consumedBy:
+            "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+          consumptionArtifact:
+            ".sovryn/self-assembly/candidate-domain-priority.json",
+          notes:
+            "The priority bridge records the corpus graph export before selecting a candidate direction.",
+        }),
         wiringProof({
           mechanismId: "strategy_service",
           flowId: "A",
@@ -723,6 +747,21 @@ export class SelfAssemblyService {
       (invocation) => invocation.tool === "domain_packs",
     );
     const executionArtifact = execution.artifactRefs[0] ?? "";
+    const hardSeedContractArtifact = `${selfAssemblyRoot}/hard-seed-intake-contract.json`;
+    await writeJson(join(this.root, hardSeedContractArtifact), {
+      kind: "self_assembly_hard_seed_intake_contract",
+      selectedBy: "HardSeed-shaped candidate intake",
+      invokedBy: "MechanismRouter.planForCandidate",
+      candidateId: candidate.candidateId,
+      derivedFromHardSeed: candidate.derivedFromHardSeed,
+      consumedPlanArtifact: planArtifact,
+      downstreamExecutionArtifact: executionArtifact,
+      evidenceHash: stableHash({
+        candidate,
+        planArtifact,
+        executionArtifact,
+      }),
+    });
     return smokeFlow({
       flowId: "B",
       name: "HardSeed -> MechanismRouter -> Domain Pack execution",
@@ -736,10 +775,21 @@ export class SelfAssemblyService {
         "domain_packs",
       ],
       consumedInputs: ["HardSeed-shaped candidate", "MechanismRouter catalog"],
-      producedArtifacts: execution.artifactRefs,
+      producedArtifacts: [hardSeedContractArtifact, ...execution.artifactRefs],
       downstreamConsumption:
         "MechanismPlanExecution records selected domain-pack output refs.",
       wiringProofs: [
+        wiringProof({
+          mechanismId: "daemon_hard_seeds",
+          flowId: "B",
+          selectedBy: "HardSeed-shaped candidate intake",
+          invokedBy: "SelfAssemblyService.smokeHardSeedRouterDomainPack",
+          outputArtifact: hardSeedContractArtifact,
+          consumedBy: "MechanismRouter.planForCandidate",
+          consumptionArtifact: planArtifact,
+          notes:
+            "The smoke contract preserves the hard-seed proof shape before router execution.",
+        }),
         wiringProof({
           mechanismId: "daemon_mechanism_router",
           flowId: "B",
@@ -948,11 +998,18 @@ export class SelfAssemblyService {
 
   private async smokeNobelReadinessDisposition(): Promise<SelfAssemblySmokeFlow> {
     const criteria = await new NobelReadinessService(this.root).criteria();
+    const draftContract = selfAssemblyDraftContractFixture();
+    const draftValidation = new FundCandidateDraftValidator().validate({
+      draft: draftContract,
+    });
     const fundGate = new FundGateEvaluator().evaluate(null);
     const artifact = ".sovryn/self-assembly/nobel-disposition-contract.json";
     const disposition = withHash({
       kind: "self_assembly_nobel_disposition_contract",
       criteriaKind: stringValue((criteria as any).kind),
+      draftContractValidated: draftValidation.accepted,
+      draftContractCandidateId: draftContract.candidateId,
+      draftContractFailedGates: draftValidation.failedGates,
       fundGatePassed: fundGate.passed,
       disposition: fundGate.passed ? "FundCandidateDraft" : "graveyard",
       noFundFoundCreated: !fundGate.passed,
@@ -986,6 +1043,17 @@ export class SelfAssemblyService {
           consumptionArtifact: artifact,
           notes:
             "Readiness criteria are consumed before candidate disposition is written.",
+        }),
+        wiringProof({
+          mechanismId: "daemon_fund_candidate_draft",
+          flowId: "H",
+          selectedBy: "SelfAssemblyPlanner candidate disposition smoke",
+          invokedBy: "FundCandidateDraftValidator.validate",
+          outputArtifact: artifact,
+          consumedBy: "SelfAssemblyService.smokeNobelReadinessDisposition",
+          consumptionArtifact: artifact,
+          notes:
+            "The current FundCandidateDraft contract is validated in-memory and consumed by the disposition guard without promotion.",
         }),
         wiringProof({
           mechanismId: "daemon_fund_gate",
@@ -1155,6 +1223,52 @@ export class SelfAssemblyService {
       evidenceHash: stableHash("self-assembly-memory-seed"),
     });
   }
+}
+
+function selfAssemblyDraftContractFixture(): FundCandidateDraft {
+  return {
+    kind: "fund_candidate_draft",
+    draftId: "SELF-ASSEMBLY-DRAFT-CONTRACT",
+    candidateId: "SELF-ASSEMBLY-DRAFT-CONTRACT",
+    claim:
+      "A bounded self-assembly draft contract validates identity, evidence, replay, and package refs without promotion.",
+    domain: "benchmark_protocol_methodology",
+    sourceRefs: ["https://example.org/self-assembly/source"],
+    evidenceRefs: [
+      "PAPER.md#claim",
+      "METHOD.md#method",
+      "CLAIM_EVIDENCE_BINDINGS.json#evidence",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#scope",
+    ],
+    identityLedgerRefs: [
+      ".sovryn/discovery-daemon/candidate-identity-ledger.json#SELF-ASSEMBLY-DRAFT-CONTRACT",
+    ],
+    hardSeedRefs: [
+      ".sovryn/discovery-daemon/hard-seeds.json#SELF-ASSEMBLY-DRAFT-CONTRACT",
+    ],
+    packageRefs: [
+      "PAPER.md",
+      "METHOD.md",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+      "REPRODUCE.md",
+      "LIMITATIONS.md",
+    ],
+    inspectabilityPath:
+      ".sovryn/discovery-daemon/evidence-packages/SELF-ASSEMBLY-DRAFT-CONTRACT",
+    predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
+    holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
+    counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
+    replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayRefs"],
+    killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeekRefs"],
+    limitations: [
+      "Draft contract validation is not a Fund.",
+      "Promotion remains blocked unless the unchanged Fund Gate passes.",
+    ],
+    generatedFrom: "fresh_external_target",
+    synthetic: false,
+    partialCandidate: false,
+  };
 }
 
 function isUnderusedMechanism(mechanism: MechanismMapEntry): boolean {
@@ -1405,12 +1519,15 @@ function wiringProofsFromExecution(
   flowId: SelfAssemblyFlowId,
 ): SelfAssemblyWiringProof[] {
   const consumptionArtifact = execution.artifactRefs[0] ?? "";
-  return execution.invocations
-    .map((invocation) => {
-      const mechanismId = routerToolToMechanism[invocation.tool];
-      if (!mechanismId) return null;
-      return wiringProof({
-        mechanismId,
+  return execution.invocations.flatMap((invocation) => {
+    const mechanismId = routerToolToMechanism[invocation.tool];
+    const mechanismIds = [
+      ...(mechanismId ? [mechanismId] : []),
+      ...(routerToolToMechanismAliases[invocation.tool] ?? []),
+    ];
+    return mechanismIds.map((id) =>
+      wiringProof({
+        mechanismId: id,
         flowId,
         selectedBy: "MechanismRouter.planForCandidate",
         invokedBy: `${invocation.module}.${invocation.method}`,
@@ -1421,9 +1538,9 @@ function wiringProofsFromExecution(
         artifactProduced: invocation.artifactRefs.length > 0,
         downstreamConsumed: execution.downstreamConsumable,
         notes: `Selected tool ${invocation.tool} produced ${invocation.outputKind ?? "unknown"} output for candidate ${execution.candidateId}.`,
-      });
-    })
-    .filter((proof): proof is SelfAssemblyWiringProof => proof !== null);
+      }),
+    );
+  });
 }
 
 function packageReplayCorpusProofs(

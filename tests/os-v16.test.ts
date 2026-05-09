@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { access, mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -325,6 +325,18 @@ test("OS v1.6 closure audit does not count reproduction Fund as discovery closur
   assert.equal(report.final100Decision.status, "partial_closure");
 });
 
+test("OS v1.6 closure audit read-only mode does not write closure artifacts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-readonly-"));
+  const report = await new OSCapabilityCompletionService(root).closureAudit({
+    readOnly: true,
+  });
+
+  assert.equal(report.kind, "core_capability_closure_audit");
+  await assert.rejects(
+    access(join(root, ".sovryn", "os-v1_6", "capability-closure-ledger.json")),
+  );
+});
+
 test("OS v1.6 closure audit passes no-overclaim and package consistency gates", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-os16-closure-kill-"));
   const report = await new OSCapabilityCompletionService(root).closureAudit();
@@ -372,6 +384,23 @@ for (const [argv, expectedKind] of [
     assert.equal((envelope.data as Record<string, unknown>).kind, expectedKind);
   });
 }
+
+test("OS v1.6 CLI closure-audit read-only mode does not write artifacts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-cli-readonly-"));
+  const envelope = await executeCli(
+    ["os", "closure-audit", "--read-only", "--json"],
+    root,
+  );
+
+  assert.equal(envelope.ok, true);
+  assert.equal(
+    (envelope.data as Record<string, unknown>).kind,
+    "core_capability_closure_audit",
+  );
+  await assert.rejects(
+    access(join(root, ".sovryn", "os-v1_6", "capability-closure-ledger.json")),
+  );
+});
 
 test("CLI help lists OS v1.6 capability commands", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-os16-help-"));

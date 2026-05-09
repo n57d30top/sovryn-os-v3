@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
+import { initConfig } from "../src/core/config.js";
 import {
   SelfAssemblyPlanner,
   SelfAssemblyService,
@@ -15,6 +16,7 @@ async function selfAssemblyRoot(): Promise<string> {
     join(process.cwd(), "MECHANISM_MAP.json"),
     join(root, "MECHANISM_MAP.json"),
   );
+  await initConfig(root);
   return root;
 }
 
@@ -186,8 +188,13 @@ test("wired mechanisms satisfy anti-cheat proof criteria", async () => {
   const proofs = audit.mechanismWiringProofs as Array<Record<string, unknown>>;
 
   assert.equal(audit.antiCheatWiringPassed, true);
-  assert.equal(wired.includes("corpus_index_graph_export"), false);
-  assert.equal(wired.includes("daemon_hard_seeds"), false);
+  assert.equal(wired.includes("corpus_index_graph_export"), true);
+  assert.equal(wired.includes("daemon_hard_seeds"), true);
+  assert.equal(wired.includes("daemon_fund_candidate_draft"), true);
+  assert.equal(
+    wired.includes("scientific_public_data_triage_domain_pack"),
+    true,
+  );
   for (const mechanismId of wired) {
     const proof = proofs.find(
       (item) => item.mechanismId === mechanismId && item.countsAsWired === true,
@@ -199,6 +206,39 @@ test("wired mechanisms satisfy anti-cheat proof criteria", async () => {
     assert.equal(proof.downstreamConsumed, true);
     assert.equal(proof.contractTested, true);
   }
+});
+
+test("self-assembly anti-cheat recognizes hard-seed proof shape", async () => {
+  const root = await selfAssemblyRoot();
+  const smoke = await new SelfAssemblyService(root).smoke();
+  const hardSeedProof = smoke.wiringProofs.find(
+    (proof) => proof.mechanismId === "daemon_hard_seeds",
+  );
+
+  assert.equal(hardSeedProof?.selected, true);
+  assert.equal(hardSeedProof?.invoked, true);
+  assert.equal(hardSeedProof?.artifactProduced, true);
+  assert.equal(hardSeedProof?.downstreamConsumed, true);
+  assert.equal(hardSeedProof?.countsAsWired, true);
+});
+
+test("corpus index graph export proves selected export source chain", async () => {
+  const root = await selfAssemblyRoot();
+  const smoke = await new SelfAssemblyService(root).smoke();
+  const corpusProof = smoke.wiringProofs.find(
+    (proof) => proof.mechanismId === "corpus_index_graph_export",
+  );
+
+  assert.equal(
+    corpusProof?.selectedBy,
+    "SelfAssemblyPlanner corpus anomaly priority bridge",
+  );
+  assert.equal(corpusProof?.invokedBy, "CorpusService.graph");
+  assert.equal(
+    corpusProof?.outputArtifact,
+    ".sovryn/corpus/public/corpus-graph.json",
+  );
+  assert.equal(corpusProof?.countsAsWired, true);
 });
 
 test("nominal or unavailable mechanisms are not counted as wired", async () => {

@@ -281,6 +281,34 @@ export type FundGateResult = {
   evidenceHash: string;
 };
 
+export type FundPackageContractStatus = {
+  kind: "fund_package_contract_status";
+  packageRef: string | null;
+  candidateId: string | null;
+  claim: string | null;
+  contractVersion: number | null;
+  forwardContractRequired: boolean;
+  hasValidFundCandidateDraftRef: boolean;
+  hasValidLegacyBypassReason: boolean;
+  legacySchemaAcceptedWithCaveats: boolean;
+  passed: boolean;
+  status:
+    | "forward_contract_satisfied"
+    | "forward_contract_missing_required_binding"
+    | "legacy_schema_accepted_with_caveats"
+    | "package_missing";
+  fundCandidateDraftRefs: string[];
+  draftValidations: Array<{
+    ref: string;
+    found: boolean;
+    accepted: boolean;
+    failedGates: string[];
+  }>;
+  legacyBypassReason: Record<string, unknown> | null;
+  gates: FundGate[];
+  artifactRefs: string[];
+};
+
 export type CandidateIdentityRecord = {
   candidateId: string;
   stableClaim: string;
@@ -6059,6 +6087,24 @@ export class AutonomousDiscoveryDaemonService {
         candidate.nextExternalReviewStep ??
         "Review PAPER.md, METHOD.md, CLAIM_EVIDENCE_BINDINGS.json, REPRODUCE.md, and LIMITATIONS.md against the cited public evidence refs.",
     };
+    const fundClassAssessment = classifyFundCandidateForGate(
+      packagedCandidate,
+      true,
+    );
+    const legacyBypassReason = {
+      kind: "fund_package_legacy_bypass_reason",
+      candidateId: packagedCandidate.candidateId,
+      claim: packagedCandidate.claim,
+      evidenceRefs: uniqueStrings([
+        ...sourceEvidenceRefs,
+        ...identityLedgerRefs,
+        ...hardSeedRefs,
+        ...bindingRefs.evidenceRefs,
+      ]),
+      auditStatus: "explicit_legacy_bypass_recorded",
+      reason:
+        "This package was generated from accepted hard-seed and identity-ledger evidence without a separately persisted FundCandidateDraft artifact.",
+    };
     await writeText(
       join(packageRoot, "PAPER.md"),
       renderCyclePackagePaper({
@@ -6075,6 +6121,7 @@ export class AutonomousDiscoveryDaemonService {
     );
     await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
       kind: "claim_evidence_bindings",
+      fundPackageContractVersion: 2,
       candidateId: packagedCandidate.candidateId,
       claim: packagedCandidate.claim,
       domain: packagedCandidate.domain,
@@ -6094,7 +6141,12 @@ export class AutonomousDiscoveryDaemonService {
       methodRef: "METHOD.md",
       reproduceRef: "REPRODUCE.md",
       limitationsRef: "LIMITATIONS.md",
+      legacyBypassReason,
       noOverclaim: true,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
       fundCandidate: packagedCandidate,
     });
     await writeText(
@@ -6108,6 +6160,10 @@ export class AutonomousDiscoveryDaemonService {
     await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
       kind: "fund_candidate",
       candidate: packagedCandidate,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
       sourceEvidenceRefs,
       identityLedgerRefs,
       hardSeedRefs,
@@ -6374,6 +6430,89 @@ export class AutonomousDiscoveryDaemonService {
         ...(draftInput ? [draftInput.draftRef] : []),
       ],
     };
+  }
+
+  async fundReconcile(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const state = await this.readState();
+    const candidate = await this.readFundCandidate();
+    const draftInput = candidate
+      ? null
+      : await this.readLatestDraftFundGateInput();
+    const reconciliationCandidate = candidate ?? draftInput?.candidate ?? null;
+    const fundGate = await this.evaluateFundCandidateWithPackage(
+      reconciliationCandidate,
+    );
+    const fundFoundFilePresent = await exists(
+      join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+    );
+    const fundCandidateFilePresent = await exists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
+    const packageContract = await this.fundPackageContract();
+    return withEvidenceHash({
+      kind: "fund_state_reconciliation",
+      readOnly: true,
+      stateStatus: state.status,
+      stateFundFound: state.fundFound,
+      fundFoundFilePresent,
+      fundCandidateFilePresent,
+      candidateSource: candidate
+        ? "fund-candidate.json"
+        : draftInput
+          ? "FundCandidateDraft"
+          : "none",
+      candidateId: reconciliationCandidate?.candidateId ?? null,
+      draftRef: draftInput?.draftRef ?? null,
+      fundGatePassed: fundGate.passed,
+      fundGateStatus: fundGate.status,
+      fundClass: fundGate.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundGate.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment: fundGate.fundClassAssessment,
+      failedGates: fundGate.failedGates,
+      packageContractStatus: packageContract,
+      noFundStatusMutation: true,
+      noCandidatePromotion: true,
+      noFundFoundCreated: true,
+      artifactRefs: [
+        `${daemonArtifactRoot}/state.json`,
+        `${daemonArtifactRoot}/fund-gate-results.json`,
+        ...(fundCandidateFilePresent
+          ? [`${daemonArtifactRoot}/${fundCandidateFile}`]
+          : []),
+        ...(draftInput ? [draftInput.draftRef] : []),
+      ],
+    });
+  }
+
+  async fundPackageContract(): Promise<FundPackageContractStatus> {
+    await this.ensureInitialized();
+    const candidate = await this.readFundCandidate();
+    const draftInput = candidate
+      ? null
+      : await this.readLatestDraftFundGateInput();
+    const contractCandidate = candidate ?? draftInput?.candidate ?? null;
+    const packageRef =
+      contractCandidate?.publicPackagePath ??
+      draftInput?.draft.inspectabilityPath;
+    if (
+      !packageRef ||
+      !fundPackageRefSafe(packageRef) ||
+      packageRef.includes("/search-cycles/") ||
+      packageRef.endsWith(".json")
+    ) {
+      return fundPackageContractMissing(contractCandidate, packageRef ?? null);
+    }
+    const bindings = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json"),
+    );
+    return evaluateFundPackageContract({
+      root: this.root,
+      packageRef,
+      candidate: contractCandidate,
+      bindings,
+    });
   }
 
   async notifyIfFund(): Promise<Record<string, unknown>> {
@@ -8659,6 +8798,12 @@ async function fundPackageArtifactGates(
   );
   const replayRefsBound = packageBindingRefsValid(bindings?.replayRefs, 1);
   const killWeekRefsBound = packageBindingRefsValid(bindings?.killWeekRefs, 1);
+  const packageContract = await evaluateFundPackageContract({
+    root,
+    packageRef,
+    candidate,
+    bindings,
+  });
   return [
     gate(
       "external_review_package_path",
@@ -8722,7 +8867,223 @@ async function fundPackageArtifactGates(
       bindings?.limitationsRef === "LIMITATIONS.md",
       "CLAIM_EVIDENCE_BINDINGS.json must bind LIMITATIONS.md.",
     ),
+    gate(
+      "external_review_package_forward_contract",
+      packageContract.passed,
+      "Future Fund packages must bind a valid FundCandidateDraft ref or an explicit legacyBypassReason with candidate ID, claim, evidence refs, and audit status.",
+    ),
   ];
+}
+
+function fundPackageContractMissing(
+  candidate: FundCandidate | null,
+  packageRef: string | null,
+): FundPackageContractStatus {
+  return {
+    kind: "fund_package_contract_status",
+    packageRef,
+    candidateId: candidate?.candidateId ?? null,
+    claim: candidate?.claim ?? null,
+    contractVersion: null,
+    forwardContractRequired: true,
+    hasValidFundCandidateDraftRef: false,
+    hasValidLegacyBypassReason: false,
+    legacySchemaAcceptedWithCaveats: false,
+    passed: false,
+    status: "package_missing",
+    fundCandidateDraftRefs: [],
+    draftValidations: [],
+    legacyBypassReason: null,
+    gates: [
+      gate(
+        "fund_package_present",
+        false,
+        "Fund package contract requires a package ref with CLAIM_EVIDENCE_BINDINGS.json.",
+      ),
+    ],
+    artifactRefs: [],
+  };
+}
+
+function fundPackageRefSafe(packageRef: string): boolean {
+  return (
+    packageRef.trim().length > 0 &&
+    !packageRef.startsWith("/") &&
+    !packageRef.includes("..") &&
+    !packageRef.includes("\\") &&
+    !packageRef.includes("/Users/") &&
+    !packageRef.toLowerCase().startsWith("file:")
+  );
+}
+
+async function evaluateFundPackageContract(input: {
+  root: string;
+  packageRef: string;
+  candidate: FundCandidate | null;
+  bindings: Record<string, unknown> | null;
+}): Promise<FundPackageContractStatus> {
+  if (!input.bindings) {
+    return fundPackageContractMissing(input.candidate, input.packageRef);
+  }
+  const contractVersion = numberOrNull(
+    input.bindings.fundPackageContractVersion,
+  );
+  const forwardContractRequired = (contractVersion ?? 1) >= 2;
+  const fundCandidateDraftRefs = uniqueStrings([
+    ...stringArray(input.bindings.fundCandidateDraftRefs),
+    ...stringArray(input.bindings.candidateDraftRefs),
+    ...singleStringArray(input.bindings.fundCandidateDraftRef),
+    ...singleStringArray(input.bindings.candidateDraftRef),
+  ]);
+  const draftValidations = await Promise.all(
+    fundCandidateDraftRefs.map((ref) =>
+      validateFundCandidateDraftRef(input.root, ref),
+    ),
+  );
+  const hasValidFundCandidateDraftRef = draftValidations.some(
+    (validation) => validation.found && validation.accepted,
+  );
+  const legacyBypassReason = isRecord(input.bindings.legacyBypassReason)
+    ? input.bindings.legacyBypassReason
+    : null;
+  const hasValidLegacyBypassReason = legacyBypassReason
+    ? legacyBypassReasonValid(legacyBypassReason, input.candidate)
+    : false;
+  const legacySchemaAcceptedWithCaveats = !forwardContractRequired;
+  const passed = forwardContractRequired
+    ? hasValidFundCandidateDraftRef || hasValidLegacyBypassReason
+    : true;
+  const status = passed
+    ? forwardContractRequired
+      ? "forward_contract_satisfied"
+      : "legacy_schema_accepted_with_caveats"
+    : "forward_contract_missing_required_binding";
+  const gates = [
+    gate(
+      "fund_package_contract_version",
+      contractVersion === null || contractVersion >= 2,
+      "Legacy packages may omit a version; new packages must use fundPackageContractVersion >= 2.",
+    ),
+    gate(
+      "fund_candidate_draft_ref_or_legacy_bypass_reason",
+      passed,
+      "Contract-v2 Fund packages must include a valid FundCandidateDraft ref or explicit legacyBypassReason.",
+    ),
+  ];
+  return {
+    kind: "fund_package_contract_status",
+    packageRef: input.packageRef,
+    candidateId:
+      input.candidate?.candidateId ?? String(input.bindings.candidateId ?? ""),
+    claim: input.candidate?.claim ?? String(input.bindings.claim ?? ""),
+    contractVersion,
+    forwardContractRequired,
+    hasValidFundCandidateDraftRef,
+    hasValidLegacyBypassReason,
+    legacySchemaAcceptedWithCaveats,
+    passed,
+    status,
+    fundCandidateDraftRefs,
+    draftValidations,
+    legacyBypassReason,
+    gates,
+    artifactRefs: [
+      join(input.packageRef, "CLAIM_EVIDENCE_BINDINGS.json"),
+      ...fundCandidateDraftRefs,
+    ],
+  };
+}
+
+async function validateFundCandidateDraftRef(
+  root: string,
+  ref: string,
+): Promise<{
+  ref: string;
+  found: boolean;
+  accepted: boolean;
+  failedGates: string[];
+}> {
+  const pathRef = ref.split("#", 1)[0] ?? "";
+  if (
+    !publicSafeRef(pathRef) ||
+    pathRef.startsWith("/") ||
+    !pathRef.includes(`${daemonArtifactRoot}/${fundCandidateDraftDir}/`)
+  ) {
+    return {
+      ref,
+      found: false,
+      accepted: false,
+      failedGates: ["draft_ref_public_safe_path"],
+    };
+  }
+  const draft = fundCandidateDraftFromUnknown(
+    await readOptionalJson<unknown>(join(root, pathRef)),
+  );
+  if (!draft) {
+    return {
+      ref,
+      found: false,
+      accepted: false,
+      failedGates: ["draft_ref_found"],
+    };
+  }
+  const ledgerRecords = await readCandidateIdentityRecordsForRoot(root);
+  const validation = new FundCandidateDraftValidator().validate({
+    draft,
+    ledger: new CandidateIdentityLedger(ledgerRecordCopies(ledgerRecords)),
+  });
+  return {
+    ref,
+    found: true,
+    accepted: validation.accepted,
+    failedGates: validation.failedGates,
+  };
+}
+
+async function readCandidateIdentityRecordsForRoot(
+  root: string,
+): Promise<CandidateIdentityRecord[]> {
+  const ledger = await readOptionalJson<{
+    records: CandidateIdentityRecord[];
+  }>(join(root, daemonArtifactRoot, "candidate-identity-ledger.json"));
+  return Array.isArray(ledger?.records) ? ledger.records : [];
+}
+
+function legacyBypassReasonValid(
+  value: Record<string, unknown>,
+  candidate: FundCandidate | null,
+): boolean {
+  const candidateId = String(value.candidateId ?? "");
+  const claim = String(value.claim ?? "");
+  const auditStatus = String(value.auditStatus ?? "");
+  const evidenceRefs = stringArray(value.evidenceRefs);
+  const candidateMatches =
+    candidate === null ||
+    (candidate.candidateId === candidateId && candidate.claim === claim);
+  return (
+    candidateId.trim().length > 0 &&
+    claim.trim().length >= 40 &&
+    candidateMatches &&
+    evidenceRefs.length > 0 &&
+    evidenceRefs.every(publicSafeRef) &&
+    auditStatus.trim().length > 0 &&
+    !/^failed|rejected|invalid$/i.test(auditStatus.trim())
+  );
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function singleStringArray(value: unknown): string[] {
+  return typeof value === "string" && value.trim().length > 0
+    ? [value.trim()]
+    : [];
 }
 
 function packageBindingRefsValid(value: unknown, minimum: number): boolean {

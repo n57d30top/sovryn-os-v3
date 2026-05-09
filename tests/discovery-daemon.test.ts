@@ -68,6 +68,8 @@ const commands = [
   "candidate-status",
   "graveyard",
   "fund-gate",
+  "fund-reconcile",
+  "fund-package-contract",
   "notify-if-fund",
   "audit",
 ];
@@ -288,6 +290,7 @@ async function writeFundPackage(
     join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
     JSON.stringify({
       kind: "claim_evidence_bindings",
+      fundPackageContractVersion: 2,
       candidateId,
       claim,
       evidenceRefs: [
@@ -305,6 +308,16 @@ async function writeFundPackage(
       methodRef: "METHOD.md",
       reproduceRef: "REPRODUCE.md",
       limitationsRef: "LIMITATIONS.md",
+      legacyBypassReason: {
+        candidateId,
+        claim,
+        evidenceRefs: [
+          "PAPER.md#claim",
+          "METHOD.md#method",
+          "CLAIM_EVIDENCE_BINDINGS.json#bindings",
+        ],
+        auditStatus: "explicit_legacy_bypass_recorded",
+      },
       noOverclaim: true,
     }),
     "utf8",
@@ -1646,6 +1659,16 @@ const cliScenarios: {
     name: "fund-gate",
     args: ["discover-daemon", "fund-gate", "--json"],
     expectedKind: "fund_gate_result",
+  },
+  {
+    name: "fund-reconcile",
+    args: ["discover-daemon", "fund-reconcile", "--json"],
+    expectedKind: "fund_state_reconciliation",
+  },
+  {
+    name: "fund-package-contract",
+    args: ["discover-daemon", "fund-package-contract", "--json"],
+    expectedKind: "fund_package_contract_status",
   },
   {
     name: "notify-if-fund",
@@ -3048,6 +3071,125 @@ test("discover-daemon fund-gate rejects package without concrete evidence refs",
     ),
     true,
   );
+});
+
+test("future Fund package without Draft ref or legacyBypassReason is rejected", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const publicPackagePath = await writeFundPackage(root);
+  const bindingsPath = join(
+    root,
+    publicPackagePath,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  delete bindings.legacyBypassReason;
+  delete bindings.fundCandidateDraftRefs;
+  delete bindings.fundCandidateDraftRef;
+  await writeFile(bindingsPath, JSON.stringify(bindings), "utf8");
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+
+  const contract = await service.fundPackageContract();
+  const result = await service.fundGate();
+
+  assert.equal(contract.passed, false);
+  assert.equal(contract.status, "forward_contract_missing_required_binding");
+  assert.equal(result.passed, false);
+  assert.equal(
+    (result.failedGates as string[]).includes(
+      "external_review_package_forward_contract",
+    ),
+    true,
+  );
+});
+
+test("legacy reproduction Fund package remains valid but not discovery scored", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidateId =
+    "DAEMON-FRESH-R2600-SCIPY-RUNTIME-REPRODUCTION-EXTERNAL-REVIEW-READY-S260";
+  const claim =
+    "SciPy runtime reproduction alignment confirms package reproduction and dependency behavior in a fresh workspace replay.";
+  const publicPackagePath = await writeFundPackage(root, candidateId, claim);
+  const bindingsPath = join(
+    root,
+    publicPackagePath,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  delete bindings.fundPackageContractVersion;
+  delete bindings.legacyBypassReason;
+  await writeFile(bindingsPath, JSON.stringify(bindings), "utf8");
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        candidateId,
+        claim,
+        domain: "scientific_software_reproduction_mechanisms",
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+
+  const contract = await service.fundPackageContract();
+  const result = await service.fundGate();
+
+  assert.equal(contract.passed, true);
+  assert.equal(contract.legacySchemaAcceptedWithCaveats, true);
+  assert.equal(result.passed, true);
+  assert.equal(result.fundClass, "reproduction_fund_candidate");
+  assert.equal(result.countsForEinsteinNobelDiscoveryScore, false);
+});
+
+test("FundClass is persisted and reported by read-only fund reconciliation", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidateId = "PIPELINE-FUND-CANDIDATE";
+  const claim =
+    "Manifest closure audit contract passed with replay status and external review artifacts.";
+  const publicPackagePath = await writeFundPackage(root, candidateId, claim);
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(
+      fundCandidate("externally_review_ready_candidate", {
+        candidateId,
+        claim,
+        publicPackagePath,
+      }),
+    ),
+    "utf8",
+  );
+
+  const result = await service.fundGate();
+  const persisted = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as Record<string, unknown>;
+  const reconcile = await service.fundReconcile();
+
+  assert.equal(result.fundClass, "pipeline_fund_candidate");
+  assert.equal(persisted.fundClass, "pipeline_fund_candidate");
+  assert.equal(reconcile.fundClass, "pipeline_fund_candidate");
+  assert.equal(reconcile.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal((reconcile as any).readOnly, true);
 });
 
 test("discover-daemon audit fails if stale fund candidate file remains without fund", async () => {

@@ -4,6 +4,7 @@ export type FundClass =
   | "tool_acquisition_success"
   | "tool_capability_verified"
   | "pipeline_capability_verified"
+  | "pipeline_fund_candidate"
   | "reproduction_fund_candidate"
   | "infrastructure_fund_candidate"
   | "insight_candidate"
@@ -14,6 +15,7 @@ export const FUND_TAXONOMY_CLASSES: FundClass[] = [
   "tool_acquisition_success",
   "tool_capability_verified",
   "pipeline_capability_verified",
+  "pipeline_fund_candidate",
   "reproduction_fund_candidate",
   "infrastructure_fund_candidate",
   "insight_candidate",
@@ -125,7 +127,7 @@ export function classifyFundCandidate(
   } else if (input.fundGatePassed && toolOnly) {
     fundClass = "tool_capability_verified";
   } else if (input.fundGatePassed && pipelineOnly) {
-    fundClass = "pipeline_capability_verified";
+    fundClass = "pipeline_fund_candidate";
   } else if (explicitInsight) {
     fundClass = "insight_candidate";
   } else if (toolOnly) {
@@ -142,6 +144,7 @@ export function classifyFundCandidate(
     input.fundGatePassed &&
     [
       "reproduction_fund_candidate",
+      "pipeline_fund_candidate",
       "infrastructure_fund_candidate",
       "discovery_fund_candidate",
       "externally_review_ready_discovery_candidate",

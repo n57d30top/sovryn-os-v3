@@ -17,6 +17,7 @@ and interpretation.
 | `tool_acquisition_success`                    | A tool, dependency, package, or runtime was acquired or installed.                                  | no                      | no                                         |
 | `tool_capability_verified`                    | A tool capability was exercised and verified.                                                       | no by itself            | no                                         |
 | `pipeline_capability_verified`                | A pipeline, gate, manifest, package, replay, or publication path worked.                            | no by itself            | no                                         |
+| `pipeline_fund_candidate`                     | The existing Fund Gate passed for a bounded pipeline/package/replay capability package.             | yes                     | no                                         |
 | `reproduction_fund_candidate`                 | The existing Fund Gate passed for a bounded reproduction package.                                   | yes                     | no                                         |
 | `infrastructure_fund_candidate`               | The existing Fund Gate passed for infrastructure capability evidence.                               | yes when package-backed | no                                         |
 | `insight_candidate`                           | There is candidate insight evidence, but it has not passed Fund/discovery class requirements.       | no                      | no                                         |
@@ -30,6 +31,6 @@ Only these classes can increase Einstein/Nobel discovery score:
 - `discovery_fund_candidate`
 - `externally_review_ready_discovery_candidate`
 
-Everything else can prove operating capability, reproduction capability, package
-quality, or infrastructure maturity, but it cannot be counted as a discovery
-Fund.
+Everything else can prove operating capability, reproduction capability,
+pipeline/package/replay capability, or infrastructure maturity, but it cannot be
+counted as a discovery Fund.

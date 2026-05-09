@@ -1411,6 +1411,7 @@ export class NobelReadinessService {
     const replayResults = await this.replayResultsOrCreate();
     const rivalReview = await this.rivalReviewOrCreate();
     const killWeek = new NobelReadinessKillWeekRunner().attack(search.promoted);
+    const fundClassifications = await this.daemonFundClassifications();
     await writeJson(join(this.rootDir, "kill-week-results.json"), killWeek);
     const score = new NobelReadinessScorer().score({
       promoted: search.promoted,
@@ -1420,6 +1421,7 @@ export class NobelReadinessService {
       replays: replayResults.results,
       rivals: rivalReview.results,
       killWeek,
+      fundClassifications,
     });
     await writeJson(join(this.rootDir, "readiness-score.json"), score);
     return {
@@ -1591,6 +1593,34 @@ export class NobelReadinessService {
     await this.score();
     return readJson<NobelReadinessScore>(path);
   }
+
+  private async daemonFundClassifications(): Promise<FundClassAssessment[]> {
+    const gate = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, ".sovryn", "discovery-daemon", "fund-gate-results.json"),
+    );
+    const assessment = gate?.fundClassAssessment;
+    if (!isFundClassAssessment(assessment)) return [];
+    return [assessment];
+  }
+}
+
+function isFundClassAssessment(value: unknown): value is FundClassAssessment {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const discoveryGate = record.discoveryGate as Record<string, unknown>;
+  return (
+    record.kind === "fund_class_assessment" &&
+    typeof record.fundClass === "string" &&
+    typeof record.validFundCandidate === "boolean" &&
+    typeof record.countsForEinsteinNobelDiscoveryScore === "boolean" &&
+    discoveryGate !== null &&
+    typeof discoveryGate === "object" &&
+    typeof discoveryGate.nontrivialNewInsightAcrossRealTargets === "boolean" &&
+    typeof discoveryGate.domainScientificSignificance === "boolean" &&
+    typeof discoveryGate.evidenceBeyondRuntimeReproduction === "boolean" &&
+    typeof discoveryGate.notOnlyToolPipelineOrReproduction === "boolean" &&
+    Array.isArray(record.rationale)
+  );
 }
 
 export async function hasNobelReadinessArtifacts(

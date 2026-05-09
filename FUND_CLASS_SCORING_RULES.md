@@ -15,6 +15,7 @@ score:
 - `tool_acquisition_success`
 - `tool_capability_verified`
 - `pipeline_capability_verified`
+- `pipeline_fund_candidate`
 - `reproduction_fund_candidate`
 - `infrastructure_fund_candidate`
 - `insight_candidate`

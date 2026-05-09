@@ -3,7 +3,7 @@
 - passed: true
 - mechanism map consumed: true
 - mechanism count: 53
-- mechanisms wired: 16
+- mechanisms wired: 20
 - smoke flows passed: 10/10
 - anti-cheat wiring passed: true
 - no P0 unwired mechanisms: true

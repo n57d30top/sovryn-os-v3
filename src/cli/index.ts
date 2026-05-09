@@ -188,6 +188,8 @@ Commands:
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
   sovryn discover-daemon fund-gate [--json]
+  sovryn discover-daemon fund-reconcile [--json]
+  sovryn discover-daemon fund-package-contract [--json]
   sovryn discover-daemon notify-if-fund [--json]
   sovryn discover-daemon audit [--json]
   sovryn self-assemble status [--json]
@@ -204,7 +206,7 @@ Commands:
   sovryn os harden-class --class <class> [--json]
   sovryn os replay-coverage [--json]
   sovryn os capability-audit [--json]
-  sovryn os closure-audit [--json]
+  sovryn os closure-audit [--read-only] [--json]
   sovryn route status [--json]
   sovryn route intake --target <target> [--json]
   sovryn route classify --target <target> [--json]
@@ -1627,7 +1629,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|cycle|candidate-status|graveyard|fund-gate|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1694,6 +1696,10 @@ async function discoverDaemonCommand(
       return service.graveyard();
     case "fund-gate":
       return service.fundGate();
+    case "fund-reconcile":
+      return service.fundReconcile();
+    case "fund-package-contract":
+      return service.fundPackageContract();
     case "notify-if-fund":
       return service.notifyIfFund();
     case "audit":
@@ -1829,7 +1835,9 @@ async function osCommand(
     case "capability-audit":
       return os16.capabilityAudit();
     case "closure-audit":
-      return os16.closureAudit();
+      return os16.closureAudit({
+        readOnly: flagBool(parsed.flags, "--read-only"),
+      });
     default:
       throw new AppError(
         "UNKNOWN_OS_COMMAND",

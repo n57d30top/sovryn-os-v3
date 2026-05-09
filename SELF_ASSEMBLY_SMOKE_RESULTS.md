@@ -3,7 +3,7 @@
 - flows: 10
 - passed: 10
 - failed: 0
-- anti-cheat wired mechanisms: 16
+- anti-cheat wired mechanisms: 20
 - no FUND_FOUND created: true
 - no tool-install-only discovery Fund: true
 - no fake 100: true
@@ -18,9 +18,12 @@
 
 ## Mechanisms Counted As Wired
 
+- corpus_index_graph_export
 - corpus_product_site
 - cross_domain_router
+- daemon_fund_candidate_draft
 - daemon_fund_gate
+- daemon_hard_seeds
 - daemon_mechanism_router
 - dataset_audit_domain_pack
 - domain_packs
@@ -31,6 +34,7 @@
 - os_v16_capability_closure
 - repo_package_reproduction_domain_pack
 - science_service
+- scientific_public_data_triage_domain_pack
 - strategy_service
 - temporal_evaluation_domain_pack
 - theory_engine
@@ -40,9 +44,9 @@
 - passed: true
 - mechanisms: corpus_index_graph_export, strategy_service
 - consumed inputs: MECHANISM_MAP.json, public/local corpus signals
-- produced artifacts: .sovryn/strategy/ranking/top-opportunities.json, .sovryn/self-assembly/candidate-domain-priority.json
-- downstream consumption: candidate-domain-priority consumes Research Strategist output.
-- anti-cheat proofs: 1/1
+- produced artifacts: .sovryn/corpus/public/corpus-graph.json, .sovryn/strategy/ranking/top-opportunities.json, .sovryn/self-assembly/candidate-domain-priority.json
+- downstream consumption: candidate-domain-priority consumes Corpus graph export and Research Strategist output.
+- anti-cheat proofs: 2/2
 - notes: Strategy ranking changes the next candidate direction without claiming discovery.
 
 ## B. HardSeed -> MechanismRouter -> Domain Pack execution
@@ -50,9 +54,9 @@
 - passed: true
 - mechanisms: daemon_hard_seeds, daemon_mechanism_router, domain_packs
 - consumed inputs: HardSeed-shaped candidate, MechanismRouter catalog
-- produced artifacts: .sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json
+- produced artifacts: .sovryn/self-assembly/hard-seed-intake-contract.json, .sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json
 - downstream consumption: MechanismPlanExecution records selected domain-pack output refs.
-- anti-cheat proofs: 10/10
+- anti-cheat proofs: 12/12
 - notes: candidateType=materials_public_data_candidate
 
 ## C. Tool acquisition -> Computational Scientist pipeline -> evidence package
@@ -82,7 +86,7 @@
 - consumed inputs: public dataset target
 - produced artifacts: .sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-DATASET-SMOKE-SELF-ASSEMBLY-DATASET-TARGET.json
 - downstream consumption: Dataset audit can emit an insight-candidate direction only when evidence warrants.
-- anti-cheat proofs: 9/9
+- anti-cheat proofs: 10/10
 - notes: disposition=insight_candidate
 
 ## F. Formal target -> proof/refutation route -> counterexample package
@@ -112,7 +116,7 @@
 - consumed inputs: Nobel-readiness criteria, empty candidate gate guard
 - produced artifacts: .sovryn/self-assembly/nobel-disposition-contract.json
 - downstream consumption: Candidate disposition fails closed to graveyard without a real gate-passing candidate.
-- anti-cheat proofs: 2/2
+- anti-cheat proofs: 3/3
 - notes: No FUND_FOUND can be emitted without the unchanged Fund Gate passing.
 
 ## I. Evidence package -> replay -> corpus status

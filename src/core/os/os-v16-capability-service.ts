@@ -503,7 +503,9 @@ export class OSCapabilityCompletionService {
     return audit;
   }
 
-  async closureAudit(): Promise<CoreCapabilityClosureReport> {
+  async closureAudit(
+    options: { readOnly?: boolean } = {},
+  ): Promise<CoreCapabilityClosureReport> {
     const dataset = buildOS16CapabilityDataset();
     const packageVerification = new PublicPackageVerifier().verify({
       manifests: buildOS15ScaleRun().packageManifests,
@@ -527,6 +529,9 @@ export class OSCapabilityCompletionService {
       discoveryFundFound,
       fundClass,
     });
+    if (options.readOnly === true) {
+      return report;
+    }
     await this.writeArtifact("capability-closure-ledger.json", report);
     await this.writeArtifact(
       "CAPABILITY_CLOSURE_LEDGER.md",

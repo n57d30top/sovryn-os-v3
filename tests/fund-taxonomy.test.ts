@@ -191,6 +191,29 @@ test("package reproduction alone cannot become Nobel or Einstein counted Fund", 
   assert.equal(score.externallyReviewReadyCandidateCount, 0);
 });
 
+test("pipeline Fund candidate persists separately from capability verification and discovery scoring", () => {
+  const assessment = classifyFundCandidate({
+    candidateId: "PIPELINE-FUND-CANDIDATE",
+    claim:
+      "Manifest closure audit contract passed with replay status and external review artifacts.",
+    domain: "benchmark_protocol_methodology",
+    fundGatePassed: true,
+  });
+  const notPassed = classifyFundCandidate({
+    candidateId: "PIPELINE-CAPABILITY-ONLY",
+    claim:
+      "Manifest closure audit contract reached a pipeline capability checkpoint.",
+    domain: "benchmark_protocol_methodology",
+    fundGatePassed: false,
+  });
+
+  assert.equal(assessment.fundClass, "pipeline_fund_candidate");
+  assert.equal(assessment.validFundCandidate, true);
+  assert.equal(assessment.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(notPassed.fundClass, "pipeline_capability_verified");
+  assert.equal(notPassed.validFundCandidate, false);
+});
+
 test("discovery Fund requires insight evidence beyond runtime reproduction success", () => {
   const reproductionOnly = classifyFundCandidate({
     candidateId: "REPRODUCTION-ONLY",

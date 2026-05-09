@@ -11,11 +11,29 @@
       "mechanisms": ["corpus_index_graph_export", "strategy_service"],
       "consumedInputs": ["MECHANISM_MAP.json", "public/local corpus signals"],
       "producedArtifacts": [
+        ".sovryn/corpus/public/corpus-graph.json",
         ".sovryn/strategy/ranking/top-opportunities.json",
         ".sovryn/self-assembly/candidate-domain-priority.json"
       ],
-      "downstreamConsumption": "candidate-domain-priority consumes Research Strategist output.",
+      "downstreamConsumption": "candidate-domain-priority consumes Corpus graph export and Research Strategist output.",
       "wiringProofs": [
+        {
+          "mechanismId": "corpus_index_graph_export",
+          "flowId": "A",
+          "selectedBy": "SelfAssemblyPlanner corpus anomaly priority bridge",
+          "invokedBy": "CorpusService.graph",
+          "outputArtifact": ".sovryn/corpus/public/corpus-graph.json",
+          "consumedBy": "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+          "consumptionArtifact": ".sovryn/self-assembly/candidate-domain-priority.json",
+          "notes": "The priority bridge records the corpus graph export before selecting a candidate direction.",
+          "testRef": "tests/self-assembly.test.ts",
+          "selected": true,
+          "invoked": true,
+          "artifactProduced": true,
+          "downstreamConsumed": true,
+          "contractTested": true,
+          "countsAsWired": true
+        },
         {
           "mechanismId": "strategy_service",
           "flowId": "A",
@@ -52,10 +70,28 @@
         "MechanismRouter catalog"
       ],
       "producedArtifacts": [
+        ".sovryn/self-assembly/hard-seed-intake-contract.json",
         ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json"
       ],
       "downstreamConsumption": "MechanismPlanExecution records selected domain-pack output refs.",
       "wiringProofs": [
+        {
+          "mechanismId": "daemon_hard_seeds",
+          "flowId": "B",
+          "selectedBy": "HardSeed-shaped candidate intake",
+          "invokedBy": "SelfAssemblyService.smokeHardSeedRouterDomainPack",
+          "outputArtifact": ".sovryn/self-assembly/hard-seed-intake-contract.json",
+          "consumedBy": "MechanismRouter.planForCandidate",
+          "consumptionArtifact": ".sovryn/self-assembly/self-assembly-smoke-mechanism-plan.json",
+          "notes": "The smoke contract preserves the hard-seed proof shape before router execution.",
+          "testRef": "tests/self-assembly.test.ts",
+          "selected": true,
+          "invoked": true,
+          "artifactProduced": true,
+          "downstreamConsumed": true,
+          "contractTested": true,
+          "countsAsWired": true
+        },
         {
           "mechanismId": "daemon_mechanism_router",
           "flowId": "B",
@@ -194,6 +230,23 @@
         },
         {
           "mechanismId": "dataset_audit_domain_pack",
+          "flowId": "B",
+          "selectedBy": "MechanismRouter.planForCandidate",
+          "invokedBy": "CrossDomainEvidenceRoutingService.execute",
+          "outputArtifact": ".sovryn/route/last-execution.json",
+          "consumedBy": "MechanismPlanExecution.downstreamConsumable",
+          "consumptionArtifact": ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json",
+          "invoked": true,
+          "artifactProduced": true,
+          "downstreamConsumed": true,
+          "notes": "Selected tool dataset_public_data_triage produced cross_domain_route_execution_result output for candidate SELF-ASSEMBLY-HARD-SEED-DATASET.",
+          "testRef": "tests/self-assembly.test.ts",
+          "selected": true,
+          "contractTested": true,
+          "countsAsWired": true
+        },
+        {
+          "mechanismId": "scientific_public_data_triage_domain_pack",
           "flowId": "B",
           "selectedBy": "MechanismRouter.planForCandidate",
           "invokedBy": "CrossDomainEvidenceRoutingService.execute",
@@ -626,6 +679,23 @@
           "countsAsWired": true
         },
         {
+          "mechanismId": "scientific_public_data_triage_domain_pack",
+          "flowId": "E",
+          "selectedBy": "MechanismRouter.planForCandidate",
+          "invokedBy": "CrossDomainEvidenceRoutingService.execute",
+          "outputArtifact": ".sovryn/route/last-execution.json",
+          "consumedBy": "MechanismPlanExecution.downstreamConsumable",
+          "consumptionArtifact": ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-DATASET-SMOKE-SELF-ASSEMBLY-DATASET-TARGET.json",
+          "invoked": true,
+          "artifactProduced": true,
+          "downstreamConsumed": true,
+          "notes": "Selected tool dataset_public_data_triage produced cross_domain_route_execution_result output for candidate SELF-ASSEMBLY-DATASET-TARGET.",
+          "testRef": "tests/self-assembly.test.ts",
+          "selected": true,
+          "contractTested": true,
+          "countsAsWired": true
+        },
+        {
           "mechanismId": "lab_service",
           "flowId": "E",
           "selectedBy": "MechanismRouter.planForCandidate",
@@ -953,6 +1023,23 @@
           "countsAsWired": true
         },
         {
+          "mechanismId": "daemon_fund_candidate_draft",
+          "flowId": "H",
+          "selectedBy": "SelfAssemblyPlanner candidate disposition smoke",
+          "invokedBy": "FundCandidateDraftValidator.validate",
+          "outputArtifact": ".sovryn/self-assembly/nobel-disposition-contract.json",
+          "consumedBy": "SelfAssemblyService.smokeNobelReadinessDisposition",
+          "consumptionArtifact": ".sovryn/self-assembly/nobel-disposition-contract.json",
+          "notes": "The current FundCandidateDraft contract is validated in-memory and consumed by the disposition guard without promotion.",
+          "testRef": "tests/self-assembly.test.ts",
+          "selected": true,
+          "invoked": true,
+          "artifactProduced": true,
+          "downstreamConsumed": true,
+          "contractTested": true,
+          "countsAsWired": true
+        },
+        {
           "mechanismId": "daemon_fund_gate",
           "flowId": "H",
           "selectedBy": "SelfAssemblyPlanner no-fake-Fund guard",
@@ -1091,6 +1178,23 @@
   ],
   "wiringProofs": [
     {
+      "mechanismId": "corpus_index_graph_export",
+      "flowId": "A",
+      "selectedBy": "SelfAssemblyPlanner corpus anomaly priority bridge",
+      "invokedBy": "CorpusService.graph",
+      "outputArtifact": ".sovryn/corpus/public/corpus-graph.json",
+      "consumedBy": "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
+      "consumptionArtifact": ".sovryn/self-assembly/candidate-domain-priority.json",
+      "notes": "The priority bridge records the corpus graph export before selecting a candidate direction.",
+      "testRef": "tests/self-assembly.test.ts",
+      "selected": true,
+      "invoked": true,
+      "artifactProduced": true,
+      "downstreamConsumed": true,
+      "contractTested": true,
+      "countsAsWired": true
+    },
+    {
       "mechanismId": "strategy_service",
       "flowId": "A",
       "selectedBy": "SelfAssemblyPlanner SA-FIX-003",
@@ -1099,6 +1203,23 @@
       "consumedBy": "SelfAssemblyService.applyStrategyKnowledgePriorityBridge",
       "consumptionArtifact": ".sovryn/self-assembly/candidate-domain-priority.json",
       "notes": "The priority bridge is written only after Strategy output is consumed.",
+      "testRef": "tests/self-assembly.test.ts",
+      "selected": true,
+      "invoked": true,
+      "artifactProduced": true,
+      "downstreamConsumed": true,
+      "contractTested": true,
+      "countsAsWired": true
+    },
+    {
+      "mechanismId": "daemon_hard_seeds",
+      "flowId": "B",
+      "selectedBy": "HardSeed-shaped candidate intake",
+      "invokedBy": "SelfAssemblyService.smokeHardSeedRouterDomainPack",
+      "outputArtifact": ".sovryn/self-assembly/hard-seed-intake-contract.json",
+      "consumedBy": "MechanismRouter.planForCandidate",
+      "consumptionArtifact": ".sovryn/self-assembly/self-assembly-smoke-mechanism-plan.json",
+      "notes": "The smoke contract preserves the hard-seed proof shape before router execution.",
       "testRef": "tests/self-assembly.test.ts",
       "selected": true,
       "invoked": true,
@@ -1245,6 +1366,23 @@
     },
     {
       "mechanismId": "dataset_audit_domain_pack",
+      "flowId": "B",
+      "selectedBy": "MechanismRouter.planForCandidate",
+      "invokedBy": "CrossDomainEvidenceRoutingService.execute",
+      "outputArtifact": ".sovryn/route/last-execution.json",
+      "consumedBy": "MechanismPlanExecution.downstreamConsumable",
+      "consumptionArtifact": ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-SMOKE-SELF-ASSEMBLY-HARD-SEED-DATASET.json",
+      "invoked": true,
+      "artifactProduced": true,
+      "downstreamConsumed": true,
+      "notes": "Selected tool dataset_public_data_triage produced cross_domain_route_execution_result output for candidate SELF-ASSEMBLY-HARD-SEED-DATASET.",
+      "testRef": "tests/self-assembly.test.ts",
+      "selected": true,
+      "contractTested": true,
+      "countsAsWired": true
+    },
+    {
+      "mechanismId": "scientific_public_data_triage_domain_pack",
       "flowId": "B",
       "selectedBy": "MechanismRouter.planForCandidate",
       "invokedBy": "CrossDomainEvidenceRoutingService.execute",
@@ -1618,6 +1756,23 @@
       "countsAsWired": true
     },
     {
+      "mechanismId": "scientific_public_data_triage_domain_pack",
+      "flowId": "E",
+      "selectedBy": "MechanismRouter.planForCandidate",
+      "invokedBy": "CrossDomainEvidenceRoutingService.execute",
+      "outputArtifact": ".sovryn/route/last-execution.json",
+      "consumedBy": "MechanismPlanExecution.downstreamConsumable",
+      "consumptionArtifact": ".sovryn/discovery-daemon/mechanism-executions/SELF-ASSEMBLY-DATASET-SMOKE-SELF-ASSEMBLY-DATASET-TARGET.json",
+      "invoked": true,
+      "artifactProduced": true,
+      "downstreamConsumed": true,
+      "notes": "Selected tool dataset_public_data_triage produced cross_domain_route_execution_result output for candidate SELF-ASSEMBLY-DATASET-TARGET.",
+      "testRef": "tests/self-assembly.test.ts",
+      "selected": true,
+      "contractTested": true,
+      "countsAsWired": true
+    },
+    {
       "mechanismId": "lab_service",
       "flowId": "E",
       "selectedBy": "MechanismRouter.planForCandidate",
@@ -1890,6 +2045,23 @@
       "countsAsWired": true
     },
     {
+      "mechanismId": "daemon_fund_candidate_draft",
+      "flowId": "H",
+      "selectedBy": "SelfAssemblyPlanner candidate disposition smoke",
+      "invokedBy": "FundCandidateDraftValidator.validate",
+      "outputArtifact": ".sovryn/self-assembly/nobel-disposition-contract.json",
+      "consumedBy": "SelfAssemblyService.smokeNobelReadinessDisposition",
+      "consumptionArtifact": ".sovryn/self-assembly/nobel-disposition-contract.json",
+      "notes": "The current FundCandidateDraft contract is validated in-memory and consumed by the disposition guard without promotion.",
+      "testRef": "tests/self-assembly.test.ts",
+      "selected": true,
+      "invoked": true,
+      "artifactProduced": true,
+      "downstreamConsumed": true,
+      "contractTested": true,
+      "countsAsWired": true
+    },
+    {
       "mechanismId": "daemon_fund_gate",
       "flowId": "H",
       "selectedBy": "SelfAssemblyPlanner no-fake-Fund guard",
@@ -1976,9 +2148,12 @@
     }
   ],
   "mechanismsWired": [
+    "corpus_index_graph_export",
     "corpus_product_site",
     "cross_domain_router",
+    "daemon_fund_candidate_draft",
     "daemon_fund_gate",
+    "daemon_hard_seeds",
     "daemon_mechanism_router",
     "dataset_audit_domain_pack",
     "domain_packs",
@@ -1989,6 +2164,7 @@
     "os_v16_capability_closure",
     "repo_package_reproduction_domain_pack",
     "science_service",
+    "scientific_public_data_triage_domain_pack",
     "strategy_service",
     "temporal_evaluation_domain_pack",
     "theory_engine"
@@ -2007,5 +2183,5 @@
     "SELF_ASSEMBLY_SMOKE_RESULTS.md",
     "SELF_ASSEMBLY_SMOKE_RESULTS.json"
   ],
-  "evidenceHash": "2c488eaa87d150b77b697753b6eadbc889d74c4478f57b01c8fddbf157f7f187"
+  "evidenceHash": "91d55f48ac509960e2c5c3bce2f34ff4deaf21d28fc8ae7b8c9bada6911bd624"
 }

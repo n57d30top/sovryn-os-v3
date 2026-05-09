@@ -28,6 +28,10 @@ The existing gate still checks:
 
 ## Post-Gate Discovery Semantics
 
+`pipeline_fund_candidate` may remain a valid bounded Fund when the unchanged
+Fund Gate passes for a pipeline/package/replay capability package, but it is not
+discovery-scored.
+
 `discovery_fund_candidate` additionally requires:
 
 - nontrivial new insight across real targets
@@ -50,3 +54,10 @@ insight across real targets.
 This semantic layer does not create candidates, run discovery cycles, create
 `FUND_FOUND`, delete the SciPy Fund, or change the existing Fund Gate pass/fail
 rules.
+
+## Forward-Only Package Contract
+
+New contract-v2 Fund packages must bind either a valid `FundCandidateDraft` ref
+or an explicit `legacyBypassReason` carrying candidate ID, claim, evidence refs,
+and audit status. Legacy packages without this field are accepted only with a
+legacy schema caveat.

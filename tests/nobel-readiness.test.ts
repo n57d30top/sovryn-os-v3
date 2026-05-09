@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
+import { classifyFundCandidate } from "../src/core/fund/fund-taxonomy.js";
 import {
   auditNobelReadinessPublicText,
   NobelReadinessCandidateSearchService,
@@ -21,7 +22,7 @@ import {
   type NobelReadinessDeathCause,
   type NobelReadinessPredictionCategory,
 } from "../src/core/nobel/nobel-readiness-service.js";
-import { readJson } from "../src/shared/fs.js";
+import { readJson, writeJson } from "../src/shared/fs.js";
 
 const criteria = new NobelReadinessCriteriaService().criteria();
 const domainSelection = new NobelReadinessDomainSelector().select();
@@ -420,6 +421,35 @@ test("nobel readiness score is conservative", () => {
   assert.equal(readinessScore.label, "promising_with_strong_caveats");
   assert.equal(readinessScore.externallyReviewReadyCandidateCount, 0);
   assert.equal(readinessScore.totalScore, 46);
+});
+
+test("nobel-readiness audit excludes reproduction FundCandidate from discovery score", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-repro-score-"));
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  const assessment = classifyFundCandidate({
+    candidateId:
+      "DAEMON-FRESH-R2600-SCIPY-RUNTIME-REPRODUCTION-EXTERNAL-REVIEW-READY-S260",
+    claim:
+      "SciPy runtime reproduction alignment confirms package reproduction and dependency behavior in a fresh workspace replay.",
+    domain: "scientific_software_reproduction_mechanisms",
+    fundGatePassed: true,
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    fundClassAssessment: assessment,
+  });
+
+  const score = await new NobelReadinessService(root).score();
+
+  assert.equal(score.discoveryFundCandidateCount, 0);
+  assert.equal(score.nonDiscoveryFundCandidateCount, 1);
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, false);
+  assert.equal(score.externallyReviewReadyCandidateCount, 0);
 });
 
 for (const field of scoreFields) {

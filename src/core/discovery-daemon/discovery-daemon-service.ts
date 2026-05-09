@@ -10,6 +10,11 @@ import {
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { writeJson } from "../../shared/fs.js";
+import {
+  classifyFundCandidate,
+  type FundClass,
+  type FundClassAssessment,
+} from "../fund/fund-taxonomy.js";
 import { ExternalReviewScientistService } from "../external-review/external-review-scientist-service.js";
 import { FormalDiscoveryService } from "../formal/formal-discovery-service.js";
 import { LabService } from "../lab/lab-service.js";
@@ -167,6 +172,10 @@ export type FundCandidate = {
   claim: string;
   domain: DiscoveryDomain;
   requestedFundLabel: FundLabel;
+  fundClass?: FundClass;
+  nontrivialNewInsightAcrossRealTargets?: boolean;
+  domainScientificSignificance?: boolean;
+  insightEvidenceRefs?: string[];
   whyItMatters?: string;
   rivalTheories?: string[];
   predictionOutcomes?: string[];
@@ -263,6 +272,9 @@ export type FundGateResult = {
   passed: boolean;
   status: "FUND_FOUND" | "continue_searching";
   fundLabel: FundLabel | null;
+  fundClass: FundClass | null;
+  countsForEinsteinNobelDiscoveryScore: boolean;
+  fundClassAssessment: FundClassAssessment | null;
   gates: FundGate[];
   failedGates: string[];
   notificationAllowed: boolean;
@@ -2186,7 +2198,7 @@ export class MechanismPlanExecutor {
 export class FundGateEvaluator {
   evaluate(candidate: FundCandidate | null): FundGateResult {
     if (candidate === null) {
-      return this.result(null, null, [
+      return this.result(null, null, null, [
         gate("candidate_present", false, "No candidate is available."),
       ]);
     }
@@ -2285,6 +2297,7 @@ export class FundGateEvaluator {
     return this.result(
       candidate.candidateId,
       candidate.requestedFundLabel,
+      candidate,
       gates,
     );
   }
@@ -2292,9 +2305,14 @@ export class FundGateEvaluator {
   private result(
     candidateId: string | null,
     fundLabel: FundLabel | null,
+    candidate: FundCandidate | null,
     gates: FundGate[],
   ): FundGateResult {
     const passed = gates.every((item) => item.passed);
+    const fundClassAssessment =
+      candidate === null
+        ? null
+        : classifyFundCandidateForGate(candidate, passed);
     const result = {
       kind: "fund_gate_result" as const,
       candidateId,
@@ -2303,6 +2321,10 @@ export class FundGateEvaluator {
         ? ("FUND_FOUND" as const)
         : ("continue_searching" as const),
       fundLabel: passed ? fundLabel : null,
+      fundClass: fundClassAssessment?.fundClass ?? null,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment?.countsForEinsteinNobelDiscoveryScore ?? false,
+      fundClassAssessment,
       gates,
       failedGates: gates
         .filter((item) => !item.passed)
@@ -2332,6 +2354,30 @@ export class SearchStateCheckpointService {
     if (!state?.lastCycleId) return null;
     return `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`;
   }
+}
+
+function classifyFundCandidateForGate(
+  candidate: FundCandidate,
+  fundGatePassed: boolean,
+): FundClassAssessment {
+  return classifyFundCandidate({
+    candidateId: candidate.candidateId,
+    claim: candidate.claim,
+    domain: candidate.domain,
+    requestedFundLabel: candidate.requestedFundLabel,
+    fundGatePassed,
+    highImpactDomain: candidate.highImpactDomain,
+    plausibleScientificValue: candidate.plausibleScientificValue,
+    notToolReportProcessOnly: candidate.notToolReportProcessOnly,
+    nontrivial: candidate.nontrivial,
+    decisiveEvidenceReplayed: candidate.decisiveEvidenceReplayed,
+    freshWorkspaceReplay: candidate.freshWorkspaceReplay,
+    proofOrMechanismPressureClear: candidate.proofOrMechanismPressureClear,
+    nontrivialNewInsightAcrossRealTargets:
+      candidate.nontrivialNewInsightAcrossRealTargets,
+    domainScientificSignificance: candidate.domainScientificSignificance,
+    insightEvidenceRefs: candidate.insightEvidenceRefs,
+  });
 }
 
 export class SilentSearchLoopRunner {
@@ -4986,6 +5032,7 @@ export class FundNotificationPackageBuilder {
 }
 
 function renderFundFoundMarkdown(candidate: FundCandidate): string {
+  const fundClassAssessment = classifyFundCandidateForGate(candidate, true);
   const publicPackagePath =
     candidate.publicPackagePath ?? `${daemonArtifactRoot}/${fundCandidateFile}`;
   const whyItMatters =
@@ -5041,6 +5088,10 @@ function renderFundFoundMarkdown(candidate: FundCandidate): string {
     "",
     `Fund label: ${candidate.requestedFundLabel}`,
     "",
+    `Fund class: ${fundClassAssessment.fundClass}`,
+    "",
+    `Counts for Einstein/Nobel discovery score: ${fundClassAssessment.countsForEinsteinNobelDiscoveryScore}`,
+    "",
     `Domain: ${candidate.domain}`,
     "",
     "## Exact Claim",
@@ -5066,6 +5117,8 @@ function renderFundFoundMarkdown(candidate: FundCandidate): string {
     `- Nontriviality gate: ${candidate.nontrivial && candidate.knownOrTrivial !== true && candidate.renamedPriorIdea !== true}.`,
     `- Baseline resistance: ${candidate.strongBaselinesExecuted && candidate.baselineDominated !== true}.`,
     `- External review package artifacts present: ${candidate.paperExists && candidate.methodExists && candidate.claimEvidenceBindingsExists && candidate.reproduceExists && candidate.limitationsExists}.`,
+    `- Nontrivial new insight across real targets: ${fundClassAssessment.discoveryGate.nontrivialNewInsightAcrossRealTargets}.`,
+    `- Domain scientific significance: ${fundClassAssessment.discoveryGate.domainScientificSignificance}.`,
     "",
     "## Rival Theories",
     "",
@@ -6474,12 +6527,20 @@ export class AutonomousDiscoveryDaemonService {
     const gates = [...semanticResult.gates, ...packageGates];
     const passed =
       semanticResult.passed && packageGates.every((item) => item.passed);
+    const fundClassAssessment =
+      candidate === null
+        ? null
+        : classifyFundCandidateForGate(candidate, passed);
     const result: FundGateResult = withEvidenceHash({
       kind: "fund_gate_result",
       candidateId: semanticResult.candidateId,
       passed,
       status: passed ? "FUND_FOUND" : "continue_searching",
       fundLabel: passed ? semanticResult.fundLabel : null,
+      fundClass: fundClassAssessment?.fundClass ?? null,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment?.countsForEinsteinNobelDiscoveryScore ?? false,
+      fundClassAssessment,
       gates,
       failedGates: gates
         .filter((item) => !item.passed)

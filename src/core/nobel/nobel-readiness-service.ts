@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
 import { nowIso } from "../../shared/time.js";
+import {
+  fundClassCountsForEinsteinNobelDiscoveryScore,
+  type FundClassAssessment,
+} from "../fund/fund-taxonomy.js";
 
 export type NobelReadinessLabel =
   | "failed_candidate"
@@ -199,6 +203,10 @@ export type NobelReadinessScore = {
   label: NobelReadinessLabel;
   survivingCandidateId: string | null;
   externallyReviewReadyCandidateCount: number;
+  discoveryFundCandidateCount: number;
+  nonDiscoveryFundCandidateCount: number;
+  einsteinNobelDiscoveryScoreEligible: boolean;
+  scoringSeparationApplied: true;
   rationale: string[];
   evidenceHash: string;
 };
@@ -1087,6 +1095,7 @@ export class NobelReadinessScorer {
     replays: NobelReadinessReplayResult[];
     rivals: NobelReadinessRivalReview[];
     killWeek: KillWeekResult;
+    fundClassifications?: FundClassAssessment[];
   }): NobelReadinessScore {
     const successfulHoldouts = input.holdouts.filter(
       (holdout) =>
@@ -1101,17 +1110,40 @@ export class NobelReadinessScorer {
     const wrongPartialInconclusive = input.executions.filter(
       (execution) => execution.predictionAssessment !== "correct",
     ).length;
+    const discoveryFundClassifications = (
+      input.fundClassifications ?? []
+    ).filter((assessment) =>
+      fundClassCountsForEinsteinNobelDiscoveryScore(assessment.fundClass),
+    );
+    const nonDiscoveryFundCandidateCount = (
+      input.fundClassifications ?? []
+    ).filter(
+      (assessment) =>
+        assessment.validFundCandidate &&
+        !fundClassCountsForEinsteinNobelDiscoveryScore(assessment.fundClass),
+    ).length;
+    const discoveryFundCandidateCount = discoveryFundClassifications.length;
+    const discoveryScoringAllowed =
+      discoveryFundCandidateCount > 0 &&
+      discoveryFundClassifications.some(
+        (assessment) =>
+          assessment.discoveryGate.nontrivialNewInsightAcrossRealTargets,
+      );
     const hardGatesPass =
       successfulHoldouts >= 10 &&
       replayCaveats === 0 &&
       counterexamplePressure <= 1 &&
-      input.killWeek.downgradedOrRejectedCount < 5;
+      input.killWeek.downgradedOrRejectedCount < 5 &&
+      discoveryScoringAllowed;
     const label: NobelReadinessLabel = hardGatesPass
       ? "externally_review_ready_candidate"
       : successfulHoldouts >= 6 && counterexamplePressure <= 6
         ? "promising_with_strong_caveats"
         : "promising_but_unvalidated";
-    const survivingCandidateId = input.promoted[1]?.candidateId ?? null;
+    const survivingCandidateId =
+      discoveryFundClassifications[0]?.candidateId ??
+      input.promoted[1]?.candidateId ??
+      null;
     const result: NobelReadinessScore = {
       kind: "nobel_readiness_score",
       scoredAt: nowIso(),
@@ -1132,11 +1164,18 @@ export class NobelReadinessScorer {
       totalScore: hardGatesPass ? 72 : 46,
       label,
       survivingCandidateId,
-      externallyReviewReadyCandidateCount: hardGatesPass ? 1 : 0,
+      externallyReviewReadyCandidateCount: hardGatesPass
+        ? discoveryFundCandidateCount
+        : 0,
+      discoveryFundCandidateCount,
+      nonDiscoveryFundCandidateCount,
+      einsteinNobelDiscoveryScoreEligible: hardGatesPass,
+      scoringSeparationApplied: true,
       rationale: [
         "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
         "Counterexample and replay pressure require a caveated classification.",
         "The layer improves readiness discipline without creating a validated discovery claim.",
+        "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
       ],
       evidenceHash: "",
     };

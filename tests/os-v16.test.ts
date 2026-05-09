@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,6 +10,7 @@ import {
   OSCapabilityCompletionService,
   os16CapabilityClasses,
 } from "../src/core/os/os-v16-capability-service.js";
+import { writeJson } from "../src/shared/fs.js";
 
 const dataset = buildOS16CapabilityDataset();
 const classes = os16CapabilityClasses();
@@ -278,6 +279,45 @@ test("OS v1.6 closure audit keeps discovery-facing gaps partial", async () => {
   assert.equal(fundInspectability?.label, "partial");
   assert.equal(daemon?.label, "release_grade_with_caveats");
   assert.equal(report.final100Decision.fundFound, false);
+  assert.equal(
+    report.final100Decision.externallyReviewReadyCandidateFound,
+    false,
+  );
+  assert.equal(report.final100Decision.status, "partial_closure");
+});
+
+test("OS v1.6 closure audit does not count reproduction Fund as discovery closure", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-os16-repro-fund-"));
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  await writeJson(join(daemonRoot, "state.json"), {
+    kind: "discovery_daemon_state",
+    status: "FUND_FOUND",
+    fundFound: true,
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: "reproduction_fund_candidate",
+    countsForEinsteinNobelDiscoveryScore: false,
+  });
+
+  const report = await new OSCapabilityCompletionService(root).closureAudit();
+  const positiveDiscovery = report.statuses.find(
+    (status) => status.id === "positive_discovery_candidate_generation",
+  );
+  const fundInspectability = report.statuses.find(
+    (status) => status.id === "fund_candidate_inspectability",
+  );
+
+  assert.equal(fundInspectability?.label, "release_grade_100");
+  assert.equal(positiveDiscovery?.label, "partial");
+  assert.equal(report.final100Decision.fundFound, true);
+  assert.equal(report.final100Decision.discoveryFundFound, false);
+  assert.equal(
+    report.final100Decision.einsteinNobelDiscoveryScoreEligible,
+    false,
+  );
   assert.equal(
     report.final100Decision.externallyReviewReadyCandidateFound,
     false,

@@ -817,6 +817,33 @@ export type RivalDiscriminationHardModeReport = {
   evidenceHash: string;
 };
 
+export type RemainingStrictCandidateClosureReport = {
+  kind: "remaining_strict_candidate_closure";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidatesLoaded: number;
+  candidateIdsTested: string[];
+  candidatesTested: number;
+  holdoutCandidates: number;
+  inspectabilityCandidates: number;
+  holdoutSupported: number;
+  holdoutWeak: number;
+  holdoutFailed: number;
+  holdoutNotAvailable: number;
+  inspectabilityComplete: number;
+  inspectabilityIncomplete: number;
+  inspectabilityBlockedMissingEvidence: number;
+  candidatesKilled: number;
+  candidatesPromoted: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3513,6 +3540,91 @@ type RivalHardModeDecision = {
   reason: string;
 };
 
+type RemainingStrictCandidateEvidence = {
+  candidateId: string;
+  shortId: string;
+  seedId: string;
+  exactClaim: string;
+  domain: DiscoveryDomain;
+  measuredOutcome: number | null;
+  measuredTargetOutcome: string;
+  currentEvidenceRefs: string[];
+  missingGate: "holdout_support" | "inspectability_package";
+  baselineStatus: StrictInsightGateStatus;
+  rivalStatus: StrictInsightGateStatus;
+  counterexampleStatus: StrictInsightGateStatus;
+  replayStatus: StrictInsightGateStatus;
+  mechanismProofStatus: StrictInsightGateStatus;
+  sourceKind: OutcomeBearingSourceKind;
+  parentSeedRef: string;
+  seed: RealityMeasuredSeed;
+  row: StrictInsightGateMatrixRow;
+};
+
+type HoldoutClosureClassification =
+  | "holdout_supported"
+  | "holdout_weak"
+  | "holdout_failed"
+  | "holdout_not_available";
+
+type HoldoutClosureResult = {
+  candidateId: string;
+  shortId: string;
+  requirement: string;
+  holdoutSliceIds: string[];
+  priorEvidenceRef: string;
+  priorResidualMagnitude: number;
+  holdoutResidualMedian: number | null;
+  independentSliceCount: number;
+  comparedAgainstPriorEvidence: true;
+  classification: HoldoutClosureClassification;
+  closed: boolean;
+  deathCause: MeasurementDepthDeathCause;
+  summary: string;
+  evidenceRefs: string[];
+};
+
+type EvidenceRefCheck = {
+  ref: string;
+  exists: boolean;
+  reason: string;
+};
+
+type InspectabilityClosureClassification =
+  | "inspectability_complete"
+  | "inspectability_incomplete"
+  | "inspectability_blocked_missing_evidence";
+
+type InspectabilityPackageResult = {
+  candidateId: string;
+  shortId: string;
+  packageRef: string;
+  requiredFiles: string[];
+  requiredFilesPresent: boolean;
+  evidenceRefChecks: EvidenceRefCheck[];
+  allRefsExist: boolean;
+  hasCurrentEvidenceMinimum: boolean;
+  hasExternalOrFormalSource: boolean;
+  classification: InspectabilityClosureClassification;
+  closed: boolean;
+  deathCause: MeasurementDepthDeathCause;
+  summary: string;
+};
+
+type FinalStrictCandidateDecision = {
+  candidateId: string;
+  shortId: string;
+  missingGate: "holdout_support" | "inspectability_package";
+  gateClosed: boolean;
+  promotionReady: boolean;
+  promoted: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftRef: string | null;
+  killed: boolean;
+  killReason: MeasurementDepthDeathCause;
+  reason: string;
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -5395,6 +5507,403 @@ export class RivalDiscriminationHardMode {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       rivalNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+export class RemainingStrictCandidateClosure {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<RemainingStrictCandidateClosureReport> {
+    await mkdir(this.closureRoot(), { recursive: true });
+    const rivalReport = await this.readRivalReport();
+    const depthReport = await this.readDepthReport();
+    const candidates = await this.readStrictInsightCandidates();
+    const strictValidSeeds = await this.readStrictValidSeeds();
+    const scoredTargets = await this.readDepthScoredTargets();
+    const deepChecks = rebuildMeasurementDepthChecksForReport(
+      depthReport,
+      strictValidSeeds,
+      scoredTargets,
+    );
+    const matrix = candidates.map((candidate) =>
+      strictInsightGateMatrixRow({
+        candidate,
+        seed: strictValidSeeds.find(
+          (seed) =>
+            seed.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+        check: deepChecks.find(
+          (check) =>
+            check.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+      }),
+    );
+    const candidateById = new Map(
+      candidates.map((candidate) => [candidate.candidateId, candidate]),
+    );
+    const selected = remainingStrictClosureRows(matrix)
+      .map((row) =>
+        remainingStrictCandidateEvidenceForRow({
+          row,
+          candidate: candidateById.get(row.candidateId),
+          strictValidSeeds,
+        }),
+      )
+      .filter(
+        (candidate): candidate is RemainingStrictCandidateEvidence =>
+          !!candidate,
+      );
+    const holdoutCandidates = selected.filter(
+      (candidate) => candidate.missingGate === "holdout_support",
+    );
+    const inspectabilityCandidates = selected.filter(
+      (candidate) => candidate.missingGate === "inspectability_package",
+    );
+    const holdoutResults = holdoutCandidates.map((candidate) =>
+      runRemainingStrictHoldoutClosure(candidate, strictValidSeeds),
+    );
+    const inspectabilityResults: InspectabilityPackageResult[] = [];
+    for (const candidate of inspectabilityCandidates) {
+      inspectabilityResults.push(
+        await this.runInspectabilityClosure(candidate),
+      );
+    }
+    const decisions = selected.map((candidate) =>
+      finalStrictCandidateDecision({
+        candidate,
+        holdout: holdoutResults.find(
+          (result) => result.candidateId === candidate.candidateId,
+        ),
+        inspectability: inspectabilityResults.find(
+          (result) => result.candidateId === candidate.candidateId,
+        ),
+      }),
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${
+      rivalReport.nextCheckpointRef.split("/").pop()?.replace(".json", "") ??
+      "cycle-0000"
+    }-remaining-strict-closure.json`;
+    const report: RemainingStrictCandidateClosureReport = withEvidenceHash({
+      kind: "remaining_strict_candidate_closure" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: rivalReport.nextCheckpointRef,
+      nextCheckpointRef,
+      candidatesLoaded: candidates.length,
+      candidateIdsTested: selected.map((candidate) => candidate.shortId),
+      candidatesTested: selected.length,
+      holdoutCandidates: holdoutCandidates.length,
+      inspectabilityCandidates: inspectabilityCandidates.length,
+      holdoutSupported: holdoutResults.filter(
+        (result) => result.classification === "holdout_supported",
+      ).length,
+      holdoutWeak: holdoutResults.filter(
+        (result) => result.classification === "holdout_weak",
+      ).length,
+      holdoutFailed: holdoutResults.filter(
+        (result) => result.classification === "holdout_failed",
+      ).length,
+      holdoutNotAvailable: holdoutResults.filter(
+        (result) => result.classification === "holdout_not_available",
+      ).length,
+      inspectabilityComplete: inspectabilityResults.filter(
+        (result) => result.classification === "inspectability_complete",
+      ).length,
+      inspectabilityIncomplete: inspectabilityResults.filter(
+        (result) => result.classification === "inspectability_incomplete",
+      ).length,
+      inspectabilityBlockedMissingEvidence: inspectabilityResults.filter(
+        (result) =>
+          result.classification === "inspectability_blocked_missing_evidence",
+      ).length,
+      candidatesKilled: decisions.filter((decision) => decision.killed).length,
+      candidatesPromoted: decisions.filter((decision) => decision.promoted)
+        .length,
+      discoveryCandidatesCreated: decisions.filter(
+        (decision) => decision.discoveryCandidateId !== null,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        "Remaining strict InsightCandidates did not close fresh holdout or inspectability readiness from existing real evidence; no DiscoveryCandidate or FundCandidateDraft was created.",
+      artifactRefs: remainingStrictClosureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      candidates: selected,
+      holdoutResults,
+      inspectabilityResults,
+      decisions,
+    });
+    return report;
+  }
+
+  private closureRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      instrumentedMarathonDir,
+      "depth-gauntlet",
+      "remaining-strict-closure",
+    );
+  }
+
+  private async readRivalReport(): Promise<RivalDiscriminationHardModeReport> {
+    const report = await readOptionalJson<RivalDiscriminationHardModeReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "rival-hard-mode",
+        "latest.json",
+      ),
+    );
+    if (!report) {
+      throw new Error(
+        "Remaining strict closure requires a completed rival-hard-mode pass.",
+      );
+    }
+    return report;
+  }
+
+  private async readDepthReport(): Promise<MeasurementDepthGauntletReport> {
+    const report = await readOptionalJson<MeasurementDepthGauntletReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "latest.json",
+      ),
+    );
+    if (!report) {
+      throw new Error(
+        "Remaining strict closure requires a completed measurement-depth gauntlet.",
+      );
+    }
+    return report;
+  }
+
+  private async readStrictInsightCandidates(): Promise<InsightCandidate[]> {
+    const markdown = await readFile(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_INSIGHT_CANDIDATES.md",
+      ),
+      "utf8",
+    );
+    const refs = uniqueStrings(
+      [...markdown.matchAll(/ref=([^,\s]+\.json)/g)].map(
+        (match) => match[1] ?? "",
+      ),
+    ).filter((ref) => ref.length > 0);
+    const candidates: InsightCandidate[] = [];
+    for (const ref of refs) {
+      const row = await readOptionalJson<unknown>(join(this.root, ref));
+      const candidate = insightCandidateFromUnknown(row);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async readStrictValidSeeds(): Promise<RealityMeasuredSeed[]> {
+    const ledger = await readOptionalJson<{ seeds?: RealityMeasuredSeed[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_VALID_SEEDS.json",
+      ),
+    );
+    return Array.isArray(ledger?.seeds) ? ledger.seeds : [];
+  }
+
+  private async readDepthScoredTargets(): Promise<DepthScoredTarget[]> {
+    const ledger = await readOptionalJson<{ targets?: DepthScoredTarget[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "DEPTH_SCORED_TARGETS.json",
+      ),
+    );
+    return Array.isArray(ledger?.targets) ? ledger.targets : [];
+  }
+
+  private async runInspectabilityClosure(
+    candidate: RemainingStrictCandidateEvidence,
+  ): Promise<InspectabilityPackageResult> {
+    const packageRef = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/remaining-strict-closure/INSPECTABILITY_PACKAGES/${normalizeCandidateIdPart(candidate.candidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    await mkdir(packageRoot, { recursive: true });
+    await writeText(
+      join(packageRoot, "PAPER.md"),
+      remainingStrictPaperMarkdown(candidate),
+    );
+    await writeText(
+      join(packageRoot, "METHOD.md"),
+      remainingStrictMethodMarkdown(candidate),
+    );
+    await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+      kind: "remaining_strict_claim_evidence_bindings",
+      candidateId: candidate.candidateId,
+      exactClaim: candidate.exactClaim,
+      evidenceRefs: candidate.currentEvidenceRefs,
+      sourceSeedRef: candidate.parentSeedRef,
+      auditStatus: "inspectability_closure_attempt_only",
+    });
+    await writeText(
+      join(packageRoot, "REPRODUCE.md"),
+      remainingStrictReproduceMarkdown(candidate),
+    );
+    await writeText(
+      join(packageRoot, "LIMITATIONS.md"),
+      remainingStrictLimitationsMarkdown(candidate),
+    );
+    const refChecks: EvidenceRefCheck[] = [];
+    for (const ref of candidate.currentEvidenceRefs) {
+      refChecks.push(await this.checkEvidenceRef(ref));
+    }
+    const requiredFilesPresent = (
+      await Promise.all(
+        requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
+      )
+    ).every(Boolean);
+    const allRefsExist = refChecks.every((check) => check.exists);
+    const hasCurrentEvidenceMinimum = candidate.currentEvidenceRefs.length >= 5;
+    const hasExternalOrFormalSource = candidate.currentEvidenceRefs.some(
+      (ref) =>
+        ref.startsWith("https://") || ref.startsWith("formal-generator://"),
+    );
+    const classification: InspectabilityClosureClassification =
+      !allRefsExist || !hasExternalOrFormalSource
+        ? "inspectability_blocked_missing_evidence"
+        : requiredFilesPresent && hasCurrentEvidenceMinimum
+          ? "inspectability_complete"
+          : "inspectability_incomplete";
+    return {
+      candidateId: candidate.candidateId,
+      shortId: candidate.shortId,
+      packageRef,
+      requiredFiles: [...requiredFundPackageFiles],
+      requiredFilesPresent,
+      evidenceRefChecks: refChecks,
+      allRefsExist,
+      hasCurrentEvidenceMinimum,
+      hasExternalOrFormalSource,
+      classification,
+      closed: classification === "inspectability_complete",
+      deathCause:
+        classification === "inspectability_complete"
+          ? "unknown_requires_manual_review"
+          : "insufficient_external_inspectability",
+      summary:
+        classification === "inspectability_complete"
+          ? "Existing evidence refs were sufficient to assemble a complete inspectability package."
+          : "Package files were assembled, but existing real evidence refs are still too sparse or incomplete for external-review-ready promotion.",
+    };
+  }
+
+  private async checkEvidenceRef(ref: string): Promise<EvidenceRefCheck> {
+    const artifactRef = ref.split("#", 1)[0] ?? ref;
+    if (artifactRef.startsWith("formal-generator://")) {
+      return {
+        ref,
+        exists: true,
+        reason: "stable formal generator spec reference",
+      };
+    }
+    const corpusPrefix =
+      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/";
+    if (artifactRef.startsWith(corpusPrefix)) {
+      const localCorpusPath = join(
+        this.root,
+        "..",
+        "sovryn-open-inventions",
+        artifactRef.slice(corpusPrefix.length),
+      );
+      return {
+        ref,
+        exists: await exists(localCorpusPath),
+        reason:
+          "github tree ref checked against sibling public corpus checkout",
+      };
+    }
+    if (artifactRef.startsWith("https://")) {
+      return {
+        ref,
+        exists: true,
+        reason: "external https source ref retained without network mutation",
+      };
+    }
+    return {
+      ref,
+      exists: await exists(join(this.root, artifactRef)),
+      reason: "local evidence artifact path checked before anchor",
+    };
+  }
+
+  private async writeArtifacts(input: {
+    report: RemainingStrictCandidateClosureReport;
+    candidates: RemainingStrictCandidateEvidence[];
+    holdoutResults: HoldoutClosureResult[];
+    inspectabilityResults: InspectabilityPackageResult[];
+    decisions: FinalStrictCandidateDecision[];
+  }): Promise<void> {
+    const root = this.closureRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "remaining_strict_candidate_closure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      checkpointUsed: input.report.checkpointUsed,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/remaining-strict-closure/latest.json`,
+      candidatesTested: input.report.candidateIdsTested,
+      nextAction:
+        "continue searching; remaining strict candidates were killed or blocked by holdout and inspectability closure pressure",
+    });
+    await writeText(
+      join(root, "REMAINING_STRICT_CANDIDATES.md"),
+      remainingStrictCandidatesMarkdown(input.candidates),
+    );
+    await writeText(
+      join(root, "HOLDOUT_CLOSURE_DESIGN.md"),
+      holdoutClosureDesignMarkdown(input.holdoutResults),
+    );
+    await writeText(
+      join(root, "HOLDOUT_CLOSURE_RESULTS.md"),
+      holdoutClosureResultsMarkdown(input.holdoutResults),
+    );
+    await writeText(
+      join(root, "INSPECTABILITY_PACKAGE_RESULTS.md"),
+      inspectabilityPackageResultsMarkdown(input.inspectabilityResults),
+    );
+    await writeText(
+      join(root, "PROMOTION_READINESS_FINAL.md"),
+      finalPromotionReadinessMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      remainingStrictFundGateResultsMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "FINAL_STRICT_CANDIDATE_DECISION.md"),
+      finalStrictCandidateDecisionMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      remainingStrictNextCheckpointMarkdown(input.report),
     );
   }
 }
@@ -12074,6 +12583,11 @@ export class AutonomousDiscoveryDaemonService {
   async marathonRivalHardMode(): Promise<RivalDiscriminationHardModeReport> {
     await this.ensureInitialized();
     return new RivalDiscriminationHardMode(this.root).run();
+  }
+
+  async marathonRemainingStrictClosure(): Promise<RemainingStrictCandidateClosureReport> {
+    await this.ensureInitialized();
+    return new RemainingStrictCandidateClosure(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {
@@ -19458,6 +19972,399 @@ function rivalFundGateResultsMarkdown(
 
 function rivalNextCheckpointMarkdown(
   report: RivalDiscriminationHardModeReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function remainingStrictClosureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/remaining-strict-closure`;
+  return [
+    `${root}/REMAINING_STRICT_CANDIDATES.md`,
+    `${root}/HOLDOUT_CLOSURE_DESIGN.md`,
+    `${root}/HOLDOUT_CLOSURE_RESULTS.md`,
+    `${root}/INSPECTABILITY_PACKAGE_RESULTS.md`,
+    `${root}/PROMOTION_READINESS_FINAL.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/FINAL_STRICT_CANDIDATE_DECISION.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function remainingStrictClosureRows(
+  matrix: StrictInsightGateMatrixRow[],
+): StrictInsightGateMatrixRow[] {
+  const requested = ["021", "441", "086", "170", "290"];
+  const remainingRows = matrix.filter(
+    (row) =>
+      !row.currentFailedGates.includes("rival_discrimination") &&
+      (row.currentFailedGates.includes("holdout_support") ||
+        row.currentFailedGates.includes("inspectability_package")),
+  );
+  const requestedRows = remainingRows.filter((row) =>
+    requested.some((fragment) =>
+      rivalCandidateIdMatches(row.candidateId, fragment),
+    ),
+  );
+  return (
+    requestedRows.length === requested.length ? requestedRows : remainingRows
+  ).sort(
+    (left, right) =>
+      requested.indexOf(rivalCandidateShortId(left.candidateId)) -
+        requested.indexOf(rivalCandidateShortId(right.candidateId)) ||
+      left.candidateId.localeCompare(right.candidateId),
+  );
+}
+
+function remainingStrictCandidateEvidenceForRow(input: {
+  row: StrictInsightGateMatrixRow;
+  candidate?: InsightCandidate;
+  strictValidSeeds: RealityMeasuredSeed[];
+}): RemainingStrictCandidateEvidence | null {
+  const seed = input.strictValidSeeds.find(
+    (item) =>
+      item.candidateId ===
+      (input.candidate?.parentPipelineCandidateId ?? "").replace(
+        /-STRICT$/,
+        "",
+      ),
+  );
+  const missingGate = input.row.currentFailedGates.includes("holdout_support")
+    ? "holdout_support"
+    : input.row.currentFailedGates.includes("inspectability_package")
+      ? "inspectability_package"
+      : null;
+  if (!seed || !input.candidate || missingGate === null) return null;
+  return {
+    candidateId: input.row.candidateId,
+    shortId: rivalCandidateShortId(input.row.candidateId),
+    seedId: seed.seedId,
+    exactClaim: input.candidate.exactNarrowClaim,
+    domain: input.candidate.domain,
+    measuredOutcome: seed.measuredOutcome,
+    measuredTargetOutcome:
+      seed.targetOutcome ?? input.row.measuredTargetOutcome,
+    currentEvidenceRefs: uniqueStrings(input.candidate.parentEvidenceRefs),
+    missingGate,
+    baselineStatus: input.row.gateMatrix.baseline_resistance,
+    rivalStatus: input.row.gateMatrix.rival_discrimination,
+    counterexampleStatus: input.row.gateMatrix.counterexample_pressure,
+    replayStatus: input.row.gateMatrix.replay_support,
+    mechanismProofStatus: input.row.gateMatrix.mechanism_proof_pressure,
+    sourceKind: seed.sourceKind,
+    parentSeedRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+    seed,
+    row: input.row,
+  };
+}
+
+function targetNumberFromId(value: string): number {
+  const match = value.match(/TARGET-(\d{4})-/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function runRemainingStrictHoldoutClosure(
+  candidate: RemainingStrictCandidateEvidence,
+  seeds: RealityMeasuredSeed[],
+): HoldoutClosureResult {
+  const candidateTargetNumber = targetNumberFromId(candidate.seedId);
+  const freshDomainSlices = seeds
+    .filter(
+      (seed) =>
+        seed.seedId !== candidate.seedId &&
+        seed.domain === candidate.domain &&
+        targetNumberFromId(seed.seedId) > candidateTargetNumber,
+    )
+    .sort(
+      (left, right) =>
+        targetNumberFromId(left.seedId) - targetNumberFromId(right.seedId) ||
+        left.seedId.localeCompare(right.seedId),
+    )
+    .slice(0, 6);
+  const independentSlices = freshDomainSlices.filter(
+    (seed) => seed.sourceKind !== candidate.sourceKind,
+  );
+  const priorResidual = rivalResidualMagnitude(candidate.seed);
+  const holdoutMedian =
+    freshDomainSlices.length > 0
+      ? medianNumber(freshDomainSlices.map(rivalResidualMagnitude))
+      : null;
+  const supported =
+    independentSlices.length >= 2 &&
+    holdoutMedian !== null &&
+    holdoutMedian >= priorResidual * 0.8;
+  const weak =
+    !supported &&
+    freshDomainSlices.length > 0 &&
+    (independentSlices.length < 2 ||
+      (holdoutMedian !== null && holdoutMedian >= priorResidual * 0.45));
+  const classification: HoldoutClosureClassification = supported
+    ? "holdout_supported"
+    : weak
+      ? "holdout_weak"
+      : freshDomainSlices.length === 0
+        ? "holdout_not_available"
+        : "holdout_failed";
+  return {
+    candidateId: candidate.candidateId,
+    shortId: candidate.shortId,
+    requirement:
+      "Fresh holdout must be selected after claim freeze, use at least two independent same-domain slices, and retain a residual not explained by the prior source family.",
+    holdoutSliceIds: freshDomainSlices.map((seed) => seed.seedId),
+    priorEvidenceRef: candidate.parentSeedRef,
+    priorResidualMagnitude: priorResidual,
+    holdoutResidualMedian: holdoutMedian,
+    independentSliceCount: independentSlices.length,
+    comparedAgainstPriorEvidence: true,
+    classification,
+    closed: classification === "holdout_supported",
+    deathCause:
+      classification === "holdout_supported"
+        ? "unknown_requires_manual_review"
+        : "holdout_failed",
+    summary:
+      classification === "holdout_supported"
+        ? "Fresh independent holdout support retained the residual after claim freeze."
+        : classification === "holdout_weak"
+          ? "Fresh slices exist, but they are not independent enough or are too weak to close holdout support."
+          : classification === "holdout_not_available"
+            ? "No valid post-freeze same-domain holdout slice was available from strict valid seeds."
+            : "Fresh holdout slices failed to retain enough residual support.",
+    evidenceRefs: [
+      candidate.parentSeedRef,
+      ...freshDomainSlices.map(
+        (seed) =>
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+      ),
+    ],
+  };
+}
+
+function finalStrictCandidateDecision(input: {
+  candidate: RemainingStrictCandidateEvidence;
+  holdout?: HoldoutClosureResult;
+  inspectability?: InspectabilityPackageResult;
+}): FinalStrictCandidateDecision {
+  const gateClosed =
+    input.holdout?.closed === true || input.inspectability?.closed === true;
+  const missingDraftEvidence =
+    input.candidate.currentEvidenceRefs.length < 5 ||
+    input.candidate.row.sourceCheck?.deathCause ===
+      "insufficient_external_inspectability";
+  const promotionReady = gateClosed && !missingDraftEvidence;
+  const promoted = false;
+  const killReason =
+    input.holdout?.deathCause ??
+    input.inspectability?.deathCause ??
+    "unknown_requires_manual_review";
+  return {
+    candidateId: input.candidate.candidateId,
+    shortId: input.candidate.shortId,
+    missingGate: input.candidate.missingGate,
+    gateClosed,
+    promotionReady,
+    promoted,
+    discoveryCandidateId: null,
+    fundCandidateDraftRef: null,
+    killed: !promotionReady,
+    killReason,
+    reason: promotionReady
+      ? "Missing strict gate closed, but DiscoveryCandidate creation remains disabled until a real FundCandidateDraft can satisfy prediction, holdout, replay, counterexample, kill-week, and package refs."
+      : `Not promoted: ${input.candidate.missingGate} remained unclosed or existing evidence is too sparse for a real FundCandidateDraft.`,
+  };
+}
+
+function remainingStrictPaperMarkdown(
+  candidate: RemainingStrictCandidateEvidence,
+): string {
+  return [
+    "# Strict InsightCandidate Inspectability Package",
+    "",
+    `Candidate: ${candidate.candidateId}.`,
+    `Exact claim: ${candidate.exactClaim}`,
+    "",
+    "This package is an inspectability closure attempt assembled only from existing strict-gauntlet evidence. It is not a Fund, not an external validation, and not a discovery-scored candidate.",
+  ].join("\n");
+}
+
+function remainingStrictMethodMarkdown(
+  candidate: RemainingStrictCandidateEvidence,
+): string {
+  return [
+    "# Method",
+    "",
+    `Domain: ${candidate.domain}.`,
+    `Measured outcome: ${candidate.measuredTargetOutcome}.`,
+    `Mechanism/proof status: ${candidate.mechanismProofStatus.status}.`,
+    "",
+    "Method scope: bind the exact frozen claim to existing strict measurement-depth artifacts and verify whether those artifacts are enough for inspectability. No new search, new target generation, or Fund Gate weakening is performed.",
+  ].join("\n");
+}
+
+function remainingStrictReproduceMarkdown(
+  candidate: RemainingStrictCandidateEvidence,
+): string {
+  return [
+    "# Reproduce",
+    "",
+    "Use the existing strict measurement-depth artifacts referenced below; this package does not add new measurements.",
+    "",
+    ...candidate.currentEvidenceRefs.map((ref) => `- ${ref}`),
+  ].join("\n");
+}
+
+function remainingStrictLimitationsMarkdown(
+  candidate: RemainingStrictCandidateEvidence,
+): string {
+  return [
+    "# Limitations",
+    "",
+    "- This is an inspectability closure attempt, not a discovery package.",
+    "- Existing evidence refs are inherited from the strict InsightCandidate and may be too sparse for FundCandidateDraft validation.",
+    `- Missing gate before this pass: ${candidate.missingGate}.`,
+  ].join("\n");
+}
+
+function remainingStrictCandidatesMarkdown(
+  candidates: RemainingStrictCandidateEvidence[],
+): string {
+  return [
+    "# Remaining Strict Candidates",
+    "",
+    `Candidates tested: ${candidates.length}.`,
+    "",
+    "| Short ID | Candidate | Domain | Missing gate | Measured outcome | Baseline | Rival | Counterexample | Replay | Mechanism | Evidence refs |",
+    "| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | ---: |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.shortId} | ${candidate.candidateId} | ${candidate.domain} | ${candidate.missingGate} | ${candidate.measuredOutcome ?? "n/a"} | ${candidate.baselineStatus.status} | ${candidate.rivalStatus.status} | ${candidate.counterexampleStatus.status} | ${candidate.replayStatus.status} | ${candidate.mechanismProofStatus.status} | ${candidate.currentEvidenceRefs.length} |`,
+    ),
+    "",
+    "## Claims",
+    "",
+    ...candidates.map(
+      (candidate) =>
+        `- ${candidate.shortId}: ${candidate.exactClaim}; seed=${candidate.parentSeedRef}`,
+    ),
+  ].join("\n");
+}
+
+function holdoutClosureDesignMarkdown(results: HoldoutClosureResult[]): string {
+  return [
+    "# Holdout Closure Design",
+    "",
+    "Holdout closure uses only strict valid seeds selected after the frozen claim target index. A valid supportive holdout needs at least two independent same-domain slices and residual support compared with the prior evidence.",
+    "",
+    ...results.map(
+      (result) =>
+        `- ${result.shortId}: requirement=${result.requirement}; slices=${result.holdoutSliceIds.join(", ") || "none"}`,
+    ),
+  ].join("\n");
+}
+
+function holdoutClosureResultsMarkdown(
+  results: HoldoutClosureResult[],
+): string {
+  return [
+    "# Holdout Closure Results",
+    "",
+    `Holdout candidates tested: ${results.length}.`,
+    "",
+    "| Candidate | Classification | Closed | Prior residual | Holdout median | Independent slices | Summary |",
+    "| --- | --- | --- | ---: | ---: | ---: | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.candidateId} | ${result.classification} | ${String(result.closed)} | ${result.priorResidualMagnitude} | ${result.holdoutResidualMedian ?? "n/a"} | ${result.independentSliceCount} | ${result.summary} |`,
+    ),
+  ].join("\n");
+}
+
+function inspectabilityPackageResultsMarkdown(
+  results: InspectabilityPackageResult[],
+): string {
+  return [
+    "# Inspectability Package Results",
+    "",
+    `Inspectability candidates tested: ${results.length}.`,
+    "",
+    "| Candidate | Classification | Closed | Required files | All refs exist | Evidence minimum | Package | Summary |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.candidateId} | ${result.classification} | ${String(result.closed)} | ${String(result.requiredFilesPresent)} | ${String(result.allRefsExist)} | ${String(result.hasCurrentEvidenceMinimum)} | ${result.packageRef} | ${result.summary} |`,
+    ),
+    "",
+    "## Ref Checks",
+    "",
+    ...results.flatMap((result) =>
+      result.evidenceRefChecks.map(
+        (check) =>
+          `- ${result.shortId}: exists=${String(check.exists)}; ${check.ref}; ${check.reason}`,
+      ),
+    ),
+  ].join("\n");
+}
+
+function finalPromotionReadinessMarkdown(
+  decisions: FinalStrictCandidateDecision[],
+): string {
+  return [
+    "# Promotion Readiness Final",
+    "",
+    "Promotion requires the missing strict gate to close and enough real evidence to create a non-synthetic FundCandidateDraft with prediction, holdout, counterexample, replay, kill-week, and package refs.",
+    "",
+    ...decisions.map(
+      (decision) =>
+        `- ${decision.shortId}: gateClosed=${String(decision.gateClosed)}; promotionReady=${String(decision.promotionReady)}; promoted=${String(decision.promoted)}; draft=${decision.fundCandidateDraftRef ?? "none"}; discoveryCandidateId=${decision.discoveryCandidateId ?? "none"}; reason=${decision.reason}`,
+    ),
+  ].join("\n");
+}
+
+function finalStrictCandidateDecisionMarkdown(
+  decisions: FinalStrictCandidateDecision[],
+): string {
+  return [
+    "# Final Strict Candidate Decision",
+    "",
+    `Decisions: ${decisions.length}.`,
+    "",
+    "| Candidate | Missing gate | Gate closed | Killed | Promoted | Kill reason |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.missingGate} | ${String(decision.gateClosed)} | ${String(decision.killed)} | ${String(decision.promoted)} | ${decision.killReason} |`,
+    ),
+  ].join("\n");
+}
+
+function remainingStrictFundGateResultsMarkdown(
+  report: RemainingStrictCandidateClosureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FundCandidateDraft was created because no remaining strict candidate reached promotion readiness from existing real evidence.",
+  ].join("\n");
+}
+
+function remainingStrictNextCheckpointMarkdown(
+  report: RemainingStrictCandidateClosureReport,
 ): string {
   return [
     "# Next Checkpoint",

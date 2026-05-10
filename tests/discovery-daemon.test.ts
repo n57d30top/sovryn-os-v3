@@ -2571,6 +2571,81 @@ test("discover-daemon marathon rival hard mode kills rival-blocked strict Insigh
   );
 });
 
+test("discover-daemon marathon remaining strict closure handles holdout and inspectability blockers without fake Fund", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.marathon();
+  await service.marathonDepthGauntlet();
+  await service.marathonGateClosureAutopsy();
+  await service.marathonRivalHardMode();
+
+  const report = await service.marathonRemainingStrictClosure();
+
+  assert.equal(report.kind, "remaining_strict_candidate_closure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.candidatesLoaded, 10);
+  assert.equal(report.candidatesTested, 5);
+  assert.equal(new Set(report.candidateIdsTested).size, 5);
+  assert.ok(
+    report.candidateIdsTested.every((candidateId) =>
+      /^\d{3}$/.test(candidateId),
+    ),
+  );
+  assert.equal(report.holdoutCandidates, 3);
+  assert.equal(report.inspectabilityCandidates, 2);
+  assert.equal(
+    report.holdoutSupported +
+      report.holdoutWeak +
+      report.holdoutFailed +
+      report.holdoutNotAvailable,
+    3,
+  );
+  assert.equal(
+    report.inspectabilityComplete +
+      report.inspectabilityIncomplete +
+      report.inspectabilityBlockedMissingEvidence,
+    2,
+  );
+  assert.equal(report.candidatesKilled, 5);
+  assert.equal(report.candidatesPromoted, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "REMAINING_STRICT_CANDIDATES.md",
+    "HOLDOUT_CLOSURE_DESIGN.md",
+    "HOLDOUT_CLOSURE_RESULTS.md",
+    "INSPECTABILITY_PACKAGE_RESULTS.md",
+    "PROMOTION_READINESS_FINAL.md",
+    "FUND_GATE_RESULTS.md",
+    "FINAL_STRICT_CANDIDATE_DECISION.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(
+        join(
+          root,
+          daemonRoot,
+          "marathon",
+          "depth-gauntlet",
+          "remaining-strict-closure",
+          artifact,
+        ),
+      ),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon marathon gate-closure-autopsy CLI is bounded and silent", async () => {
   const root = await tempRoot();
   await writeRealityCorpusFixture(root, 720);
@@ -2637,6 +2712,56 @@ test("discover-daemon marathon rival-hard-mode CLI is bounded and silent", async
   assert.equal(
     (response.data as Record<string, unknown>).kind,
     "rival_discrimination_hard_mode",
+  );
+  assert.equal((response.data as Record<string, unknown>).candidatesTested, 5);
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon marathon remaining-strict-closure CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  assert.equal(
+    (await executeCli(["discover-daemon", "marathon", "--json"], root)).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "depth-gauntlet", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "gate-closure-autopsy", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "rival-hard-mode", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+
+  const response = await executeCli(
+    ["discover-daemon", "marathon", "remaining-strict-closure", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "remaining_strict_candidate_closure",
   );
   assert.equal((response.data as Record<string, unknown>).candidatesTested, 5);
   assert.equal((response.data as Record<string, unknown>).fundFound, false);

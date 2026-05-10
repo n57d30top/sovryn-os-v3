@@ -77,6 +77,7 @@ const commands = [
   "outcome-pattern-search",
   "outcome-war",
   "reality-marathon",
+  "marathon",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -2259,6 +2260,159 @@ test("discover-daemon reality-marathon status and audit are bounded", async () =
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon marathon runs multi-wave instrumented search and checkpoints without fake Fund", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.marathon();
+
+  assert.equal(
+    report.kind,
+    "multi_day_autonomous_instrumented_discovery_marathon",
+  );
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.fundFound, false);
+  assert.equal(report.wavesRun, 5);
+  assert.equal(report.targetsConsidered, 2000);
+  assert.ok(report.targetsLoadedChecked >= 500);
+  assert.ok(report.representedDomains.length >= 8);
+  assert.ok(report.toolchainsComposed >= 12);
+  assert.ok(report.pipelinesExecuted >= 8);
+  assert.ok(report.measuredHardSeeds >= 300);
+  assert.ok(report.validHardSeeds < report.measuredHardSeeds);
+  assert.equal(report.seedValidatorTooWeak, false);
+  assert.ok(report.baselineFirstChecks >= 250);
+  assert.ok(report.counterexampleChecks >= 150);
+  assert.ok(report.rivalDiscriminationChecks >= 100);
+  assert.ok(report.holdoutChecks >= 80);
+  assert.ok(report.replayChecks >= 80);
+  assert.ok(report.mechanismPressureChecks >= 50);
+  assert.equal(report.top10CandidateIds.length, 10);
+  assert.equal(report.top3CandidateIds.length, 3);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "marathon", "latest.json")),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "marathon", "TARGET_RECEIPTS.json")),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "marathon", "TOOLCHAIN_REGISTRY.md")),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(root, daemonRoot, "marathon", "CHECKPOINT_CONTINUE_SEARCHING.md"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon marathon status resume and audit enforce valid terminal status", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const runResponse = await executeCli(
+    ["discover-daemon", "marathon", "--json"],
+    root,
+  );
+  assert.equal(runResponse.ok, true, JSON.stringify(runResponse.errors));
+  assert.equal(
+    (runResponse.data as Record<string, unknown>).kind,
+    "multi_day_autonomous_instrumented_discovery_marathon",
+  );
+
+  const statusResponse = await executeCli(
+    ["discover-daemon", "marathon", "status", "--json"],
+    root,
+  );
+  assert.equal(statusResponse.ok, true, JSON.stringify(statusResponse.errors));
+  assert.equal(
+    (statusResponse.data as Record<string, unknown>).kind,
+    "instrumented_marathon_status",
+  );
+  assert.equal((statusResponse.data as Record<string, unknown>).hasRun, true);
+
+  const resumeResponse = await executeCli(
+    ["discover-daemon", "marathon", "resume", "--json"],
+    root,
+  );
+  assert.equal(resumeResponse.ok, true, JSON.stringify(resumeResponse.errors));
+  assert.equal(
+    (resumeResponse.data as Record<string, unknown>).status,
+    "continue_searching_checkpointed",
+  );
+
+  const auditResponse = await executeCli(
+    ["discover-daemon", "marathon", "audit", "--json"],
+    root,
+  );
+  assert.equal(auditResponse.ok, true, JSON.stringify(auditResponse.errors));
+  assert.equal(
+    (auditResponse.data as Record<string, unknown>).kind,
+    "instrumented_marathon_audit",
+  );
+  assert.equal((auditResponse.data as Record<string, unknown>).passed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("top-level pipeline commands produce instrumental evidence without Fund state", async () => {
+  const root = await tempRoot();
+  const compose = await executeCli(
+    [
+      "pipeline",
+      "compose",
+      "--goal",
+      "climate energy residual target outcome check",
+      "--json",
+    ],
+    root,
+  );
+  assert.equal(compose.ok, true, JSON.stringify(compose.errors));
+  const pipelineId = String(
+    (compose.data as Record<string, unknown>).pipelineId,
+  );
+  assert.equal(
+    (compose.data as Record<string, unknown>).classification,
+    "pipeline_capability_verified",
+  );
+  assert.equal(
+    (compose.data as Record<string, unknown>).discoveryScored,
+    false,
+  );
+
+  const run = await executeCli(
+    ["pipeline", "run", "--pipeline", pipelineId, "--json"],
+    root,
+  );
+  assert.equal(run.ok, true, JSON.stringify(run.errors));
+  assert.equal(
+    (run.data as Record<string, unknown>).classification,
+    "pipeline_capability_verified",
+  );
+  assert.equal((run.data as Record<string, unknown>).fundFound, false);
+
+  const evidence = await executeCli(
+    ["pipeline", "evidence", "--pipeline", pipelineId, "--json"],
+    root,
+  );
+  assert.equal(evidence.ok, true, JSON.stringify(evidence.errors));
+  assert.equal(
+    (evidence.data as Record<string, unknown>).discoveryScored,
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2894,6 +3048,11 @@ const cliScenarios: {
     name: "reality-marathon",
     args: ["discover-daemon", "reality-marathon", "status", "--json"],
     expectedKind: "reality_marathon_status",
+  },
+  {
+    name: "marathon",
+    args: ["discover-daemon", "marathon", "status", "--json"],
+    expectedKind: "instrumented_marathon_status",
   },
   {
     name: "cycle",

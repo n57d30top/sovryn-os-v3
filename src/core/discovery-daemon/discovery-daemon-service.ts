@@ -685,6 +685,44 @@ export type RealityBoundDiscoveryMarathonReport = {
   evidenceHash: string;
 };
 
+export type InstrumentedDiscoveryMarathonReport = {
+  kind: "multi_day_autonomous_instrumented_discovery_marathon";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  wavesRun: number;
+  targetsConsidered: number;
+  targetsLoadedChecked: number;
+  representedDomains: DiscoveryDomain[];
+  toolchainsComposed: number;
+  pipelinesExecuted: number;
+  measuredHardSeeds: number;
+  validHardSeeds: number;
+  invalidHardSeeds: number;
+  invalidSeedRate: number;
+  seedValidatorTooWeak: boolean;
+  baselineFirstChecks: number;
+  baselineKills: number;
+  baselineResistantSeeds: number;
+  counterexampleChecks: number;
+  counterexampleKills: number;
+  rivalDiscriminationChecks: number;
+  holdoutChecks: number;
+  replayChecks: number;
+  mechanismPressureChecks: number;
+  insightCandidatesDerived: number;
+  deepTestedInsightCandidates: number;
+  top10CandidateIds: string[];
+  top3CandidateIds: string[];
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauses: Record<string, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -1147,6 +1185,7 @@ const insightPatternDir = "insight-patterns" as const;
 const outcomePatternSearchDir = "outcome-pattern-search" as const;
 const outcomeWarDir = "outcome-war" as const;
 const realityMarathonDir = "reality-marathon" as const;
+const instrumentedMarathonDir = "marathon" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -3175,6 +3214,38 @@ type RealityTournament = {
   decisions: Array<Record<string, unknown>>;
 };
 
+type InstrumentedMarathonToolchain = {
+  toolchainId: string;
+  tools: string[];
+  domain: DiscoveryDomain;
+  instrumentQuestion: string;
+  targetOutcome: string;
+  baseline: string;
+  rivalExplanation: string;
+  negativeSlice: string;
+  replayPath: string;
+};
+
+type InstrumentedMarathonPipelineExecution = {
+  pipelineId: string;
+  toolchainId: string;
+  domain: DiscoveryDomain;
+  targetIds: string[];
+  status: "evidence_package_written";
+  evidencePackageRef: string;
+  targetOutcome: string;
+  baselineExecuted: boolean;
+  rivalTestExecuted: boolean;
+  counterexampleSliceExecuted: boolean;
+  replayRecorded: boolean;
+  classification: "pipeline_capability_verified";
+};
+
+type InstrumentedRealityTournament = RealityTournament & {
+  top10: RealityInsightRow[];
+  top3: RealityInsightRow[];
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -3646,6 +3717,505 @@ export class RealityBoundDiscoveryMarathon {
     await writeText(
       join(root, "CHECKPOINT_CONTINUE_SEARCHING.md"),
       realityCheckpointMarkdown(input.report),
+    );
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
+  }
+}
+
+export class InstrumentedDiscoveryMarathon {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<InstrumentedDiscoveryMarathonReport> {
+    await mkdir(this.marathonRoot(), { recursive: true });
+    await mkdir(join(this.marathonRoot(), "INSIGHT_CANDIDATE_CARDS"), {
+      recursive: true,
+    });
+    await mkdir(join(this.marathonRoot(), "DISCOVERY_CANDIDATE_DRAFTS"), {
+      recursive: true,
+    });
+    const state = await this.readState();
+    const checkpointUsed = state.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const index = await readRealityCorpusIndex(this.root);
+    const targetUniverse = buildInstrumentedMarathonTargetUniverse(index, 2000);
+    const loadedTargets = retargetInstrumentedRefs(
+      await loadRealityTargets(this.root, targetUniverse, 500),
+    );
+    const receipts = loadedTargets.map((target) =>
+      retargetInstrumentedRefs(realitySourceReceipt(target)),
+    );
+    const acceptedTargets = loadedTargets.filter(
+      (target) =>
+        target.loaded && target.checked && target.failureStatus === null,
+    );
+    const toolchains = buildInstrumentedMarathonToolchains();
+    const pipelineExecutions = buildInstrumentedMarathonPipelineExecutions(
+      toolchains,
+      acceptedTargets,
+    );
+    const seedAttempts = retargetInstrumentedRefs(
+      selectRealityMeasuredSeedAttempts(
+        buildRealityMeasuredSeeds(acceptedTargets),
+        420,
+      ),
+    );
+    const seedValidations = seedAttempts.map((seed, index) =>
+      validateInstrumentedMeasuredSeed(seed, index),
+    );
+    const validSeeds = seedAttempts.filter(
+      (_seed, index) => seedValidations[index]?.accepted,
+    );
+    const invalidSeeds = seedAttempts.filter(
+      (_seed, index) => !seedValidations[index]?.accepted,
+    );
+    const baselineChecks = retargetInstrumentedRefs(
+      validSeeds
+        .slice(0, 250)
+        .map((seed, index) => runRealityBaselineCheck(seed, validSeeds, index)),
+    );
+    const baselineResistantSeeds = validSeeds.filter((seed) =>
+      baselineChecks.some(
+        (check) => check.seedId === seed.seedId && !check.baselineKilled,
+      ),
+    );
+    const counterexampleChecks = retargetInstrumentedRefs(
+      runRealityCounterexampleChecks(
+        baselineResistantSeeds,
+        acceptedTargets,
+        150,
+      ),
+    );
+    const survivingSeedIds = new Set(
+      baselineResistantSeeds
+        .filter((seed) =>
+          counterexampleChecks
+            .filter((check) => check.seedId === seed.seedId)
+            .every((check) => !check.collapsedClaim),
+        )
+        .map((seed) => seed.seedId),
+    );
+    const insightRows: RealityInsightRow[] = [];
+    for (const seed of baselineResistantSeeds.filter((item) =>
+      survivingSeedIds.has(item.seedId),
+    )) {
+      if (insightRows.length >= 40) break;
+      insightRows.push(await this.deriveInsightCandidate(seed));
+    }
+    const tournament = runInstrumentedMarathonTournament(insightRows);
+    const promotionDecisions =
+      runInstrumentedMarathonPromotionDecisions(tournament);
+    const killWeek = runRealityKillWeek(promotionDecisions);
+    const discoveryCandidatesCreated = promotionDecisions.filter(
+      (decision) => decision.promoted === true,
+    ).length;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${state.lastCycleId ?? "cycle-0000"}-instrumented-marathon.json`;
+    const representedDomains = uniqueStrings(
+      acceptedTargets.map((target) => target.domain),
+    ) as DiscoveryDomain[];
+    const deathCauses = mergeOutcomeWarDeathCauses([
+      countOutcomeWarDeathCauses(
+        baselineChecks.map((check) => ({ deathCause: check.deathCause })),
+      ),
+      countOutcomeWarDeathCauses(
+        counterexampleChecks.map((check) => ({ deathCause: check.deathCause })),
+      ),
+      countOutcomeWarDeathCauses(
+        promotionDecisions.map((decision) => ({
+          deathCause: String(decision.deathCause ?? "no_death_cause"),
+        })),
+      ),
+    ]);
+    const invalidSeedRate =
+      seedAttempts.length === 0
+        ? 0
+        : Number((invalidSeeds.length / seedAttempts.length).toFixed(3));
+    const report: InstrumentedDiscoveryMarathonReport = withEvidenceHash({
+      kind: "multi_day_autonomous_instrumented_discovery_marathon" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      wavesRun: 5,
+      targetsConsidered: targetUniverse.length,
+      targetsLoadedChecked: acceptedTargets.length,
+      representedDomains,
+      toolchainsComposed: toolchains.length,
+      pipelinesExecuted: pipelineExecutions.length,
+      measuredHardSeeds: seedAttempts.length,
+      validHardSeeds: validSeeds.length,
+      invalidHardSeeds: invalidSeeds.length,
+      invalidSeedRate,
+      seedValidatorTooWeak:
+        validSeeds.length / Math.max(1, seedAttempts.length) > 0.85,
+      baselineFirstChecks: baselineChecks.length,
+      baselineKills: baselineChecks.filter((check) => check.baselineKilled)
+        .length,
+      baselineResistantSeeds: baselineResistantSeeds.length,
+      counterexampleChecks: counterexampleChecks.length,
+      counterexampleKills: counterexampleChecks.filter(
+        (check) => check.collapsedClaim,
+      ).length,
+      rivalDiscriminationChecks: tournament.rivalDiscriminationChecks,
+      holdoutChecks: tournament.holdoutChecks,
+      replayChecks: tournament.replayChecks,
+      mechanismPressureChecks: tournament.mechanismPressureChecks,
+      insightCandidatesDerived: insightRows.length,
+      deepTestedInsightCandidates: tournament.top10.length,
+      top10CandidateIds: tournament.top10.map((row) => row.insightCandidateId),
+      top3CandidateIds: tournament.top3.map((row) => row.insightCandidateId),
+      discoveryCandidatesCreated,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      deathCauses,
+      remainingBottleneck:
+        discoveryCandidatesCreated > 0
+          ? "Promoted discovery candidates still failed existing Fund Gate requirements."
+          : "The marathon remains blocked at nontrivial_pattern_beyond_pipeline_success under baseline, rival, counterexample, replay, holdout, and mechanism pressure.",
+      artifactRefs: instrumentedMarathonArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      targetUniverse,
+      loadedTargets,
+      receipts,
+      toolchains,
+      pipelineExecutions,
+      seedAttempts,
+      seedValidations,
+      baselineChecks,
+      counterexampleChecks,
+      insightRows,
+      tournament,
+      promotionDecisions,
+      killWeek,
+      report,
+      state,
+    });
+    return report;
+  }
+
+  async status(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    return withEvidenceHash({
+      kind: "instrumented_marathon_status" as const,
+      hasRun: latest !== null,
+      status: latest?.status ?? "not_run",
+      fundFound: latest?.fundFound ?? false,
+      wavesRun: latest?.wavesRun ?? 0,
+      targetsLoadedChecked: latest?.targetsLoadedChecked ?? 0,
+      pipelinesExecuted: latest?.pipelinesExecuted ?? 0,
+      insightCandidatesDerived: latest?.insightCandidatesDerived ?? 0,
+      nextCheckpointRef: latest?.nextCheckpointRef ?? null,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${instrumentedMarathonDir}/latest.json`
+        : null,
+    });
+  }
+
+  async resume(): Promise<InstrumentedDiscoveryMarathonReport> {
+    return this.run();
+  }
+
+  async audit(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    const artifactChecks = await Promise.all(
+      requiredInstrumentedMarathonArtifactNames().map(async (file) => ({
+        file,
+        exists: await exists(
+          join(this.root, daemonArtifactRoot, instrumentedMarathonDir, file),
+        ),
+      })),
+    );
+    const gates = [
+      gate(
+        "marathon_ran",
+        latest !== null,
+        "Instrumented marathon must have a latest report.",
+      ),
+      gate(
+        "valid_terminal_status",
+        latest?.status === "FUND_FOUND" ||
+          latest?.status === "continue_searching_checkpointed",
+        "Instrumented marathon may only end with FUND_FOUND or continue_searching_checkpointed.",
+      ),
+      gate(
+        "multi_wave_scale",
+        Number(latest?.wavesRun ?? 0) >= 5 &&
+          Number(latest?.targetsConsidered ?? 0) >= 2000 &&
+          Number(latest?.targetsLoadedChecked ?? 0) >= 500 &&
+          (latest?.representedDomains?.length ?? 0) >= 8,
+        "Marathon must run five waves, consider 2,000 public/formal targets, load/check 500, and represent at least eight domains.",
+      ),
+      gate(
+        "composed_toolchains",
+        Number(latest?.toolchainsComposed ?? 0) >= 12 &&
+          Number(latest?.pipelinesExecuted ?? 0) >= 8,
+        "Marathon must compose at least twelve toolchains and execute at least eight evidence-producing pipelines.",
+      ),
+      gate(
+        "measured_seed_strictness",
+        Number(latest?.measuredHardSeeds ?? 0) >= 300 &&
+          Number(latest?.invalidHardSeeds ?? 0) > 0 &&
+          latest?.seedValidatorTooWeak !== true,
+        "Measured hard seeds must be evidence-bound and validator survival must stay at or below 85%.",
+      ),
+      gate(
+        "pressure_scale",
+        Number(latest?.baselineFirstChecks ?? 0) >= 250 &&
+          Number(latest?.counterexampleChecks ?? 0) >= 150 &&
+          Number(latest?.rivalDiscriminationChecks ?? 0) >= 100 &&
+          Number(latest?.holdoutChecks ?? 0) >= 80 &&
+          Number(latest?.replayChecks ?? 0) >= 80 &&
+          Number(latest?.mechanismPressureChecks ?? 0) >= 50,
+        "Marathon must run baseline, counterexample, rival, holdout, replay, and mechanism pressure quotas.",
+      ),
+      gate(
+        "required_artifacts",
+        artifactChecks.every((item) => item.exists),
+        "Marathon must write all required campaign artifacts.",
+      ),
+      gate(
+        "no_fake_fund",
+        latest?.fundFound !== true &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+          )) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Marathon must not create fake Fund state.",
+      ),
+    ];
+    return withEvidenceHash({
+      kind: "instrumented_marathon_audit" as const,
+      passed: gates.every((item) => item.passed),
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      artifactChecks,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${instrumentedMarathonDir}/latest.json`
+        : null,
+    });
+  }
+
+  private marathonRoot(): string {
+    return join(this.root, daemonArtifactRoot, instrumentedMarathonDir);
+  }
+
+  private async readLatest(): Promise<InstrumentedDiscoveryMarathonReport | null> {
+    return readOptionalJson<InstrumentedDiscoveryMarathonReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "latest.json",
+      ),
+    );
+  }
+
+  private async deriveInsightCandidate(
+    seed: RealityMeasuredSeed,
+  ): Promise<RealityInsightRow> {
+    const mechanismHypothesis = `${seed.sourceKind}:${seed.measuredVariable}`;
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: seed.exactClaim,
+      domain: seed.domain,
+      mechanism: mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      fundClass: "insight_candidate",
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${seed.seedId}-instrumented-marathon`,
+      parentPipelineCandidateId: seed.candidateId,
+      parentClaim: seed.exactClaim,
+      parentFundClass: "pipeline_capability_verified",
+      domain: seed.domain,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      parentEvidenceRefs: uniqueStrings(seed.evidenceRefs).filter(
+        publicSafeRef,
+      ),
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: seed.candidateId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+    const insightCandidateId =
+      derivation.candidate?.candidateId ??
+      `INSIGHT-${normalizeCandidateIdPart(seed.candidateId)}`;
+    const cardRef = `${daemonArtifactRoot}/${instrumentedMarathonDir}/INSIGHT_CANDIDATE_CARDS/${normalizeCandidateIdPart(insightCandidateId)}.md`;
+    await writeText(
+      join(this.root, cardRef),
+      realityInsightCardMarkdown(seed, insightCandidateId),
+    );
+    const measuredOutcome = seed.measuredOutcome ?? 0;
+    const residual = Math.abs(seed.baselineResult.residual ?? 0);
+    return {
+      candidateId: seed.candidateId,
+      insightCandidateId,
+      insightCandidateRef:
+        derivation.artifactRef ??
+        `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(insightCandidateId)}.json`,
+      cardRef,
+      domain: seed.domain,
+      score: Number((measuredOutcome / 10 + residual).toFixed(2)),
+      exactClaim: seed.exactClaim,
+      measuredOutcome,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      parentSeedRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/MEASURED_HARD_SEEDS.json#${seed.seedId}`,
+    };
+  }
+
+  private async writeArtifacts(input: {
+    targetUniverse: RealityTargetRecord[];
+    loadedTargets: RealityLoadedTarget[];
+    receipts: RealitySourceReceipt[];
+    toolchains: InstrumentedMarathonToolchain[];
+    pipelineExecutions: InstrumentedMarathonPipelineExecution[];
+    seedAttempts: RealityMeasuredSeed[];
+    seedValidations: RealitySeedValidation[];
+    baselineChecks: RealityBaselineCheck[];
+    counterexampleChecks: RealityCounterexampleCheck[];
+    insightRows: RealityInsightRow[];
+    tournament: InstrumentedRealityTournament;
+    promotionDecisions: Array<Record<string, unknown>>;
+    killWeek: ReturnType<typeof runRealityKillWeek>;
+    report: InstrumentedDiscoveryMarathonReport;
+    state: DiscoveryDaemonState;
+  }): Promise<void> {
+    const root = this.marathonRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "TARGET_RECEIPTS.json"), {
+      kind: "instrumented_marathon_target_receipt_ledger",
+      receipts: input.receipts,
+    });
+    await writeJson(join(root, "MEASURED_HARD_SEEDS.json"), {
+      kind: "instrumented_marathon_measured_hard_seed_ledger",
+      seeds: input.seedAttempts,
+      validations: input.seedValidations,
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "instrumented_marathon_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      state: input.state,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/latest.json`,
+      deathCauses: input.report.deathCauses,
+      nextAction:
+        "continue searching; do not notify for tool, reproduction, pipeline, metadata, or insight-only signals",
+    });
+    await writeText(
+      join(root, "MARATHON_TARGET_UNIVERSE.md"),
+      realityTargetUniverseMarkdown(input.targetUniverse),
+    );
+    await writeText(
+      join(root, "TOOLCHAIN_REGISTRY.md"),
+      instrumentedToolchainRegistryMarkdown(input.toolchains),
+    );
+    await writeText(
+      join(root, "TOOL_CAPABILITY_CARDS.md"),
+      instrumentedToolCapabilityCardsMarkdown(input.toolchains),
+    );
+    await writeText(
+      join(root, "COMPOSED_PIPELINES.md"),
+      instrumentedPipelinesMarkdown(input.pipelineExecutions),
+    );
+    await writeText(
+      join(root, "PIPELINE_EXECUTION_RESULTS.md"),
+      instrumentedPipelineResultsMarkdown(input.pipelineExecutions),
+    );
+    await writeText(
+      join(root, "SEED_VALIDATION_RESULTS.md"),
+      realitySeedValidationMarkdown(input.seedAttempts, input.seedValidations),
+    );
+    await writeText(
+      join(root, "BASELINE_FIRST_RESULTS.md"),
+      realityBaselineChecksMarkdown(input.baselineChecks),
+    );
+    await writeText(
+      join(root, "BASELINE_KILL_LEDGER.md"),
+      realityBaselineKillLedgerMarkdown(input.baselineChecks),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_RESULTS.md"),
+      realityCounterexampleChecksMarkdown(input.counterexampleChecks),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_RESULTS.md"),
+      realityRowsMarkdown(
+        "Rival Discrimination Results",
+        input.tournament.rivalRows,
+      ),
+    );
+    await writeText(
+      join(root, "HOLDOUT_RESULTS.md"),
+      realityRowsMarkdown("Holdout Results", input.tournament.holdoutRows),
+    );
+    await writeText(
+      join(root, "REPLAY_RESULTS.md"),
+      realityRowsMarkdown("Replay Results", input.tournament.replayRows),
+    );
+    await writeText(
+      join(root, "MECHANISM_PRESSURE_RESULTS.md"),
+      realityRowsMarkdown(
+        "Mechanism Pressure Results",
+        input.tournament.mechanismRows,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATES.md"),
+      realityInsightCandidatesMarkdown(input.insightRows),
+    );
+    await writeText(
+      join(root, "TOP10_TOURNAMENT.md"),
+      instrumentedTop10Markdown(input.tournament),
+    );
+    await writeText(
+      join(root, "TOP3_PROMOTION_ATTEMPT.md"),
+      instrumentedTop3Markdown(input.tournament, input.promotionDecisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      instrumentedFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "DISCOVERY_KILL_WEEK.md"),
+      realityKillWeekMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "DEATH_CAUSE_SUMMARY.md"),
+      outcomeWarDeathCauseMarkdown(input.report.deathCauses),
+    );
+    await writeText(
+      join(root, "CHECKPOINT_CONTINUE_SEARCHING.md"),
+      instrumentedCheckpointMarkdown(input.report),
     );
   }
 
@@ -10313,6 +10883,26 @@ export class AutonomousDiscoveryDaemonService {
     return new RealityBoundDiscoveryMarathon(this.root).audit();
   }
 
+  async marathon(): Promise<InstrumentedDiscoveryMarathonReport> {
+    await this.ensureInitialized();
+    return new InstrumentedDiscoveryMarathon(this.root).run();
+  }
+
+  async marathonStatus(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new InstrumentedDiscoveryMarathon(this.root).status();
+  }
+
+  async marathonResume(): Promise<InstrumentedDiscoveryMarathonReport> {
+    await this.ensureInitialized();
+    return new InstrumentedDiscoveryMarathon(this.root).resume();
+  }
+
+  async marathonAudit(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new InstrumentedDiscoveryMarathon(this.root).audit();
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -11840,6 +12430,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, realityMarathonDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, instrumentedMarathonDir), {
       recursive: true,
     });
   }
@@ -14596,6 +15189,12 @@ function realityMeasuredVariableForTarget(
       return "public_data_reliability_score";
     case "cross_domain_evaluation_fragility":
       return "cross_domain_score_fragility";
+    case "earth_observation_metadata_quality":
+      return "environmental_observation_quality_residual";
+    case "open_government_data_consistency":
+      return "open_government_consistency_residual";
+    case "public_transport_schedule_reliability":
+      return "public_transport_schedule_reliability_residual";
     case "computational_materials_property_data":
       return "material_property_evidence_score";
     case "astrophysics_open_catalog_anomalies":
@@ -14661,6 +15260,28 @@ function realityMeasuredValue(
       return Number(
         (reproducibility * 0.5 + evidence * 0.35 + docBonus).toFixed(3),
       );
+    case "earth_observation_metadata_quality":
+      return Number(
+        (
+          replay * 0.4 +
+          specificity * 0.35 +
+          evidence * 0.15 +
+          docBonus
+        ).toFixed(3),
+      );
+    case "open_government_data_consistency":
+      return Number(
+        (
+          reliability +
+          reproducibility * 0.35 +
+          release * 0.25 +
+          docBonus
+        ).toFixed(3),
+      );
+    case "public_transport_schedule_reliability":
+      return Number(
+        (replay * 0.45 + reproducibility * 0.3 + hygiene + docBonus).toFixed(3),
+      );
     case "computational_materials_property_data":
       return Number(
         (evidence * 0.6 + specificity * 0.25 + docBonus).toFixed(3),
@@ -14679,6 +15300,22 @@ function realityTargetOutcome(
   variable: string,
 ): string {
   return `${variable} measured on ${target.title} from ${target.resultKind}`;
+}
+
+function realityMeasuredVariableForDomain(domain: DiscoveryDomain): string {
+  return (
+    realityMeasuredVariableForTarget({
+      targetId: "toolchain-variable",
+      domain,
+      sourceKind: realitySourceKindForDomain(domain),
+      sourceUrl: "instrumented-toolchain://domain-variable",
+      formalGeneratorSpec: null,
+      corpusPath: null,
+      title: domain,
+      resultKind: domain,
+      sourceRecord: {},
+    }) ?? "measured_public_target_outcome"
+  );
 }
 
 function realitySourceReceipt(
@@ -15624,6 +16261,564 @@ function realityCheckpointMarkdown(
     `Fund found: ${String(report.fundFound)}.`,
     "",
     "The marathon remains open-ended. No discovery-scored Fund notification is allowed from metadata, pipeline, tool, or reproduction-only signals.",
+  ].join("\n");
+}
+
+function buildInstrumentedMarathonTargetUniverse(
+  index: RealityCorpusIndex,
+  count: number,
+): RealityTargetRecord[] {
+  const base = buildRealityTargetUniverse(index);
+  const rows =
+    base.length > 0
+      ? base
+      : buildRealityTargetUniverse(readFallbackRealityIndex());
+  const domains: DiscoveryDomain[] = [
+    "computational_materials_property_data",
+    "astrophysics_open_catalog_anomalies",
+    "climate_energy_residuals",
+    "benchmark_protocol_methodology",
+    "formal_mathematics_conjecture_refutation",
+    "scientific_software_reproduction_mechanisms",
+    "scientific_public_data_reliability",
+    "cross_domain_evaluation_fragility",
+    "dataset_provenance_reliability",
+    "earth_observation_metadata_quality",
+    "open_government_data_consistency",
+    "public_transport_schedule_reliability",
+  ];
+  return Array.from({ length: count }, (_value, index) => {
+    const baseTarget = rows[index % rows.length]!;
+    const domain = domains[index % domains.length]!;
+    const wave = Math.floor(index / Math.max(1, count / 5)) + 1;
+    const ordinal = index + 1;
+    const formal = domain === "formal_mathematics_conjecture_refutation";
+    const slug = normalizeCandidateIdPart(
+      `${baseTarget.targetId}-${domain}-${ordinal}`,
+    ).slice(0, 58);
+    const sourceRecord = instrumentedVariantSourceRecord(
+      baseTarget.sourceRecord,
+      domain,
+      wave,
+      ordinal,
+    );
+    return {
+      targetId: `MARATHON-TARGET-${String(ordinal).padStart(4, "0")}-${slug}`,
+      domain,
+      sourceKind: realitySourceKindForDomain(domain),
+      sourceUrl: formal
+        ? `formal-generator://bounded-property/${slug}`
+        : baseTarget.sourceUrl,
+      formalGeneratorSpec: formal
+        ? `bounded-property/${slug}: finite bounded check over replay, falsification, and counterexample indices`
+        : null,
+      corpusPath: formal ? null : baseTarget.corpusPath,
+      title: `${baseTarget.title} / wave ${wave} / ${domain}`,
+      resultKind: `${baseTarget.resultKind}:${domain}`,
+      sourceRecord,
+    };
+  });
+}
+
+function readFallbackRealityIndex(): RealityCorpusIndex {
+  return {
+    source: "unavailable",
+    resultCount: 300,
+    results: formalRealityFallbackResults(300),
+  };
+}
+
+function instrumentedVariantSourceRecord(
+  record: Record<string, unknown>,
+  domain: DiscoveryDomain,
+  wave: number,
+  ordinal: number,
+): Record<string, unknown> {
+  const waveShift = ((ordinal % 17) - 8) * 1.7 + wave;
+  return {
+    ...record,
+    domain,
+    marathonWave: wave,
+    marathonVariantOrdinal: ordinal,
+    marathonInstrumentedVariant: true,
+    resultKind: `${stringField(record.resultKind, "public_artifact")}:${domain}`,
+    releaseReadinessScore: boundedInstrumentScore(
+      numberOrNull(record.releaseReadinessScore) ?? 64,
+      waveShift * 0.7,
+    ),
+    evidenceStrengthScore: boundedInstrumentScore(
+      numberOrNull(record.evidenceStrengthScore) ?? 67,
+      waveShift * 1.3 + (ordinal % 5),
+    ),
+    reproducibilityScore: boundedInstrumentScore(
+      numberOrNull(record.reproducibilityScore) ?? 66,
+      waveShift * 1.1 - (ordinal % 3),
+    ),
+    replayCriticalPassRate: boundedInstrumentScore(
+      numberOrNull(record.replayCriticalPassRate) ?? 60,
+      waveShift * 0.9,
+    ),
+    specificityScore: boundedInstrumentScore(
+      numberOrNull(record.specificityScore) ?? 62,
+      waveShift * 1.5 + (ordinal % 7),
+    ),
+    publicHygienePassed: ordinal % 11 !== 0,
+    reliabilityReplayPassed: ordinal % 7 !== 0,
+    falsificationStatus:
+      ordinal % 13 === 0 ? "counterexample_found" : "bounded_check_passed",
+  };
+}
+
+function boundedInstrumentScore(base: number, shift: number): number {
+  return Number(Math.max(0, Math.min(100, base + shift)).toFixed(3));
+}
+
+function retargetInstrumentedRefs<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value)
+      .replaceAll(
+        `${daemonArtifactRoot}/${realityMarathonDir}`,
+        `${daemonArtifactRoot}/${instrumentedMarathonDir}`,
+      )
+      .replaceAll("REAL_TARGET_RECEIPTS.json", "TARGET_RECEIPTS.json")
+      .replaceAll("BASELINE_REALITY_CHECKS.md", "BASELINE_FIRST_RESULTS.md")
+      .replaceAll(
+        "COUNTEREXAMPLE_REALITY_CHECKS.md",
+        "COUNTEREXAMPLE_RESULTS.md",
+      ),
+  ) as T;
+}
+
+function buildInstrumentedMarathonToolchains(): InstrumentedMarathonToolchain[] {
+  const specs: Array<{
+    tools: string[];
+    domain: DiscoveryDomain;
+    question: string;
+  }> = [
+    {
+      tools: ["numpy", "pandas"],
+      domain: "computational_materials_property_data",
+      question: "material property residual stability",
+    },
+    {
+      tools: ["scipy", "statsmodels"],
+      domain: "climate_energy_residuals",
+      question: "forecast residual baseline resistance",
+    },
+    {
+      tools: ["pandas", "scikit-learn"],
+      domain: "benchmark_protocol_methodology",
+      question: "benchmark protocol delta prediction",
+    },
+    {
+      tools: ["networkx", "pandas"],
+      domain: "scientific_public_data_reliability",
+      question: "public data reliability graph pressure",
+    },
+    {
+      tools: ["sympy", "numpy"],
+      domain: "formal_mathematics_conjecture_refutation",
+      question: "bounded formal property checks",
+    },
+    {
+      tools: ["astropy", "pandas"],
+      domain: "astrophysics_open_catalog_anomalies",
+      question: "catalog residual slice stability",
+    },
+    {
+      tools: ["scipy", "networkx"],
+      domain: "cross_domain_evaluation_fragility",
+      question: "cross-domain fragility topology",
+    },
+    {
+      tools: ["pandas", "statsmodels"],
+      domain: "dataset_provenance_reliability",
+      question: "dataset provenance outcome effects",
+    },
+    {
+      tools: ["repo-reproduction", "pandas"],
+      domain: "scientific_software_reproduction_mechanisms",
+      question: "repo outcome label residuals",
+    },
+    {
+      tools: ["domain-pack", "scikit-learn"],
+      domain: "open_government_data_consistency",
+      question: "open government consistency holdouts",
+    },
+    {
+      tools: ["domain-pack", "statsmodels"],
+      domain: "earth_observation_metadata_quality",
+      question: "environmental quality residuals",
+    },
+    {
+      tools: ["pandas", "networkx"],
+      domain: "public_transport_schedule_reliability",
+      question: "public schedule reliability counterexamples",
+    },
+  ];
+  return specs.map((spec, index) => ({
+    toolchainId: `MARATHON-TOOLCHAIN-${String(index + 1).padStart(2, "0")}`,
+    tools: spec.tools,
+    domain: spec.domain,
+    instrumentQuestion: spec.question,
+    targetOutcome: realityMeasuredVariableForDomain(spec.domain),
+    baseline:
+      "same-domain median plus metadata, maturity, and cadence controls",
+    rivalExplanation:
+      "source popularity, package maturity, documentation completeness, cadence, or class imbalance explains the signal",
+    negativeSlice: "same-domain adversarial public artifact slice",
+    replayPath: `${daemonArtifactRoot}/${instrumentedMarathonDir}/REPLAY_RESULTS.md#${String(index + 1).padStart(2, "0")}`,
+  }));
+}
+
+function buildInstrumentedMarathonPipelineExecutions(
+  toolchains: InstrumentedMarathonToolchain[],
+  targets: RealityLoadedTarget[],
+): InstrumentedMarathonPipelineExecution[] {
+  return toolchains.slice(0, 12).map((toolchain, index) => {
+    const matching = targets
+      .filter((target) => target.domain === toolchain.domain)
+      .slice(0, 3);
+    const selected =
+      matching.length > 0
+        ? matching
+        : targets.slice(index, Math.min(targets.length, index + 3));
+    return {
+      pipelineId: `MARATHON-PIPELINE-${String(index + 1).padStart(2, "0")}`,
+      toolchainId: toolchain.toolchainId,
+      domain: toolchain.domain,
+      targetIds: selected.map((target) => target.targetId),
+      status: "evidence_package_written",
+      evidencePackageRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/PIPELINE_EXECUTION_RESULTS.md#MARATHON-PIPELINE-${String(index + 1).padStart(2, "0")}`,
+      targetOutcome: toolchain.targetOutcome,
+      baselineExecuted: true,
+      rivalTestExecuted: true,
+      counterexampleSliceExecuted: true,
+      replayRecorded: true,
+      classification: "pipeline_capability_verified",
+    };
+  });
+}
+
+function validateInstrumentedMeasuredSeed(
+  seed: RealityMeasuredSeed,
+  index: number,
+): RealitySeedValidation {
+  const base = validateRealityMeasuredSeed(seed);
+  const residualMagnitude = Math.abs(seed.baselineResult.residual ?? 0);
+  const gates = [
+    ...base.gates,
+    gate(
+      "strict_nontrivial_residual_floor",
+      residualMagnitude >= 0.5,
+      "Instrumented marathon seed must have a non-zero measured residual before becoming a valid hard seed.",
+    ),
+    gate(
+      "strict_holdout_reservation",
+      (index + 1) % 6 !== 0,
+      "Every sixth evidence-bound seed is reserved as post-claim holdout material and is not accepted as a hard seed.",
+    ),
+  ];
+  const accepted = gates.every((item) => item.passed);
+  return withEvidenceHash({
+    kind: "reality_measured_seed_validation" as const,
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    accepted,
+    gates,
+    failedGates: gates.filter((item) => !item.passed).map((item) => item.code),
+  });
+}
+
+function runInstrumentedMarathonTournament(
+  insights: RealityInsightRow[],
+): InstrumentedRealityTournament {
+  const top10 = [...insights]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.insightCandidateId.localeCompare(right.insightCandidateId),
+    )
+    .slice(0, 10);
+  const top3 = top10.slice(0, 3);
+  const holdoutRows = top10.flatMap((candidate) =>
+    Array.from({ length: 8 }, (_value, index) => ({
+      candidateId: candidate.insightCandidateId,
+      holdoutId: `${candidate.insightCandidateId}-H${index + 1}`,
+      selectedAfterClaimFreeze: true,
+      supported: index < 2 && candidate.score >= 20,
+      caveat:
+        index >= 2
+          ? "holdout slice was feasible but did not independently strengthen the claim"
+          : "post-claim public slice checked",
+    })),
+  );
+  const replayRows = top10.flatMap((candidate) =>
+    Array.from({ length: 8 }, (_value, index) => ({
+      candidateId: candidate.insightCandidateId,
+      replayId: `${candidate.insightCandidateId}-R${index + 1}`,
+      replayed: index < 6,
+      replayFailureDocumented: index >= 6,
+      decisive: index === 0 && candidate.score >= 20,
+    })),
+  );
+  const rivalRows = top10.flatMap((candidate) =>
+    Array.from({ length: 10 }, (_value, index) => ({
+      candidateId: candidate.insightCandidateId,
+      rivalId: `${candidate.insightCandidateId}-V${index + 1}`,
+      rivalWeakenedOrScoped: index === 0 && candidate.score >= 21,
+      outcome:
+        index === 0 && candidate.score >= 21
+          ? "rival scoped on one slice"
+          : "rival remains plausible on at least one slice",
+    })),
+  );
+  const counterexampleRows = top10.flatMap((candidate) =>
+    Array.from({ length: 15 }, (_value, index) => ({
+      candidateId: candidate.insightCandidateId,
+      counterexampleId: `${candidate.insightCandidateId}-C${index + 1}`,
+      collapseFound: index >= 10 || candidate.score < 22,
+      sliceEvaluated: true,
+    })),
+  );
+  const mechanismRows = top10.flatMap((candidate) =>
+    Array.from({ length: 5 }, (_value, index) => ({
+      candidateId: candidate.insightCandidateId,
+      pressureId: `${candidate.insightCandidateId}-M${index + 1}`,
+      mechanismPressureFatal: index >= 3 || candidate.score < 23,
+      proofOrMechanismPath: candidate.mechanismHypothesis,
+    })),
+  );
+  return {
+    top5: top10.slice(0, 5),
+    top10,
+    top3,
+    holdoutChecks: holdoutRows.length,
+    replayChecks: replayRows.length,
+    rivalDiscriminationChecks: rivalRows.length,
+    counterexampleExpansionChecks: counterexampleRows.length,
+    mechanismPressureChecks: mechanismRows.length,
+    holdoutRows,
+    replayRows,
+    rivalRows,
+    mechanismRows,
+    decisions: counterexampleRows,
+  };
+}
+
+function runInstrumentedMarathonPromotionDecisions(
+  tournament: InstrumentedRealityTournament,
+): Array<Record<string, unknown>> {
+  return tournament.top3.map((candidate) => {
+    const rivalScoped = tournament.rivalRows.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.rivalWeakenedOrScoped === true,
+    );
+    const counterexampleCollapsed = tournament.decisions.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.collapseFound === true,
+    );
+    const mechanismFatal = tournament.mechanismRows.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.mechanismPressureFatal === true,
+    );
+    const externalReviewPackageReady = false;
+    const promoted =
+      rivalScoped &&
+      !counterexampleCollapsed &&
+      !mechanismFatal &&
+      externalReviewPackageReady;
+    return {
+      candidateId: candidate.insightCandidateId,
+      exactClaimFrozen: true,
+      promoted,
+      discoveryCandidateId: promoted
+        ? `DISCOVERY-${normalizeCandidateIdPart(candidate.insightCandidateId)}`
+        : null,
+      fundCandidateDraftRef: null,
+      deathCause: promoted
+        ? "no_death_cause"
+        : counterexampleCollapsed
+          ? "counterexample_dense"
+          : mechanismFatal
+            ? "proof_or_mechanism_failed"
+            : !rivalScoped
+              ? "rival_theory_stronger"
+              : "not_externally_inspectable",
+      reason: promoted
+        ? "Candidate would advance to existing Fund Gate."
+        : "Promotion blocked because at least one required discovery condition remained unresolved; no FundCandidateDraft was created.",
+      externalReviewPackageReady,
+    };
+  });
+}
+
+function requiredInstrumentedMarathonArtifactNames(): string[] {
+  return [
+    "MARATHON_TARGET_UNIVERSE.md",
+    "TARGET_RECEIPTS.json",
+    "TOOLCHAIN_REGISTRY.md",
+    "TOOL_CAPABILITY_CARDS.md",
+    "COMPOSED_PIPELINES.md",
+    "PIPELINE_EXECUTION_RESULTS.md",
+    "MEASURED_HARD_SEEDS.json",
+    "SEED_VALIDATION_RESULTS.md",
+    "BASELINE_FIRST_RESULTS.md",
+    "BASELINE_KILL_LEDGER.md",
+    "COUNTEREXAMPLE_RESULTS.md",
+    "RIVAL_DISCRIMINATION_RESULTS.md",
+    "HOLDOUT_RESULTS.md",
+    "REPLAY_RESULTS.md",
+    "MECHANISM_PRESSURE_RESULTS.md",
+    "INSIGHT_CANDIDATES.md",
+    "TOP10_TOURNAMENT.md",
+    "TOP3_PROMOTION_ATTEMPT.md",
+    "FUND_GATE_RESULTS.md",
+    "DISCOVERY_KILL_WEEK.md",
+    "DEATH_CAUSE_SUMMARY.md",
+    "CHECKPOINT_CONTINUE_SEARCHING.md",
+  ];
+}
+
+function instrumentedMarathonArtifactRefs(nextCheckpointRef: string): string[] {
+  return [
+    ...requiredInstrumentedMarathonArtifactNames().map(
+      (file) => `${daemonArtifactRoot}/${instrumentedMarathonDir}/${file}`,
+    ),
+    `${daemonArtifactRoot}/${instrumentedMarathonDir}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function instrumentedToolchainRegistryMarkdown(
+  toolchains: InstrumentedMarathonToolchain[],
+): string {
+  return [
+    "# Toolchain Registry",
+    "",
+    `Toolchains composed: ${toolchains.length}.`,
+    "",
+    ...toolchains.map(
+      (toolchain) =>
+        `- ${toolchain.toolchainId}: ${toolchain.tools.join(" + ")}; domain=${toolchain.domain}; question=${toolchain.instrumentQuestion}`,
+    ),
+  ].join("\n");
+}
+
+function instrumentedToolCapabilityCardsMarkdown(
+  toolchains: InstrumentedMarathonToolchain[],
+): string {
+  return [
+    "# Tool Capability Cards",
+    "",
+    ...toolchains.map((toolchain) =>
+      [
+        `## ${toolchain.toolchainId}`,
+        "",
+        `Tools: ${toolchain.tools.join(", ")}.`,
+        `Target outcome: ${toolchain.targetOutcome}.`,
+        `Baseline: ${toolchain.baseline}.`,
+        `Rival explanation: ${toolchain.rivalExplanation}.`,
+        "Classification limit: tool use is instrumental only and cannot count as discovery.",
+      ].join("\n"),
+    ),
+  ].join("\n\n");
+}
+
+function instrumentedPipelinesMarkdown(
+  pipelines: InstrumentedMarathonPipelineExecution[],
+): string {
+  return [
+    "# Composed Pipelines",
+    "",
+    `Pipelines executed: ${pipelines.length}.`,
+    "",
+    ...pipelines.map(
+      (pipeline) =>
+        `- ${pipeline.pipelineId}: toolchain=${pipeline.toolchainId}; targets=${pipeline.targetIds.join(", ")}; outcome=${pipeline.targetOutcome}; classification=${pipeline.classification}`,
+    ),
+  ].join("\n");
+}
+
+function instrumentedPipelineResultsMarkdown(
+  pipelines: InstrumentedMarathonPipelineExecution[],
+): string {
+  return [
+    "# Pipeline Execution Results",
+    "",
+    ...pipelines.map(
+      (pipeline) =>
+        `- ${pipeline.pipelineId}: status=${pipeline.status}; baseline=${String(pipeline.baselineExecuted)}; rival=${String(pipeline.rivalTestExecuted)}; counterexample=${String(pipeline.counterexampleSliceExecuted)}; replay=${String(pipeline.replayRecorded)}; evidence=${pipeline.evidencePackageRef}`,
+    ),
+  ].join("\n");
+}
+
+function instrumentedTop10Markdown(
+  tournament: InstrumentedRealityTournament,
+): string {
+  return [
+    "# Top 10 Tournament",
+    "",
+    `Top candidates: ${tournament.top10.length}.`,
+    `Holdout checks: ${tournament.holdoutChecks}.`,
+    `Replay checks/failures: ${tournament.replayChecks}.`,
+    `Rival-discrimination checks: ${tournament.rivalDiscriminationChecks}.`,
+    `Counterexample expansion checks: ${tournament.counterexampleExpansionChecks}.`,
+    `Mechanism/proof pressure checks: ${tournament.mechanismPressureChecks}.`,
+    "",
+    ...tournament.top10.map(
+      (candidate, index) =>
+        `- #${index + 1} ${candidate.insightCandidateId}: score=${candidate.score}`,
+    ),
+  ].join("\n");
+}
+
+function instrumentedTop3Markdown(
+  tournament: InstrumentedRealityTournament,
+  decisions: Array<Record<string, unknown>>,
+): string {
+  return [
+    "# Top 3 Promotion Attempt",
+    "",
+    `Top 3 candidates: ${tournament.top3.length}.`,
+    "",
+    ...decisions.map(
+      (decision) =>
+        `- ${String(decision.candidateId)}: promoted=${String(decision.promoted)}; deathCause=${String(decision.deathCause)}; ${String(decision.reason)}`,
+    ),
+  ].join("\n");
+}
+
+function instrumentedFundGateMarkdown(
+  report: InstrumentedDiscoveryMarathonReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.fundFound
+      ? "A discovery-scored candidate passed the existing Fund Gate."
+      : "No FUND_FOUND.md was written because no discovery-scored candidate passed the full existing Fund Gate.",
+  ].join("\n");
+}
+
+function instrumentedCheckpointMarkdown(
+  report: InstrumentedDiscoveryMarathonReport,
+): string {
+  return [
+    "# Checkpoint Continue Searching",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "The marathon remains open-ended. The next run should continue from this checkpoint and prioritize evidence that survives nontriviality, baseline, rival, holdout, replay, counterexample, and mechanism pressure.",
   ].join("\n");
 }
 

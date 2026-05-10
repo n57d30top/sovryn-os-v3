@@ -38,6 +38,7 @@ import { MissionService } from "../core/mission/mission-service.js";
 import { NodeManager } from "../core/node/node-manager.js";
 import { NodeAlphaToolchainManager } from "../core/node/toolchain-manager.js";
 import { OvernightOperator } from "../core/overnight/overnight-operator.js";
+import { PipelineService } from "../core/pipeline/pipeline-service.js";
 import {
   AutonomyCampaignService,
   CorpusDiscoveryService,
@@ -189,6 +190,7 @@ Commands:
   sovryn discover-daemon outcome-pattern-search [--hard-seeds 30] [--checks 12] [--json]
   sovryn discover-daemon outcome-war [status|resume|audit] [--json]
   sovryn discover-daemon reality-marathon [status|audit] [--json]
+  sovryn discover-daemon marathon [status|resume|audit] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -202,6 +204,9 @@ Commands:
   sovryn self-assemble run [--json]
   sovryn self-assemble smoke [--json]
   sovryn self-assemble audit [--json]
+  sovryn pipeline compose --goal <goal> [--json]
+  sovryn pipeline run --pipeline <id> [--json]
+  sovryn pipeline evidence --pipeline <id> [--json]
   sovryn os status [--json]
   sovryn os hardening-plan [--json]
   sovryn os run-scale [--json]
@@ -1145,6 +1150,16 @@ export async function executeCli(
             : [],
         });
       }
+      case "pipeline": {
+        const result = await pipelineCommand(parsed, root);
+        return okEnvelope("pipeline", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
       case "strategy": {
         const result = await strategyCommand(parsed, root);
         return okEnvelope("strategy", result, {
@@ -1634,7 +1649,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1720,6 +1735,17 @@ async function discoverDaemonCommand(
       throw new AppError(
         "UNKNOWN_DISCOVER_DAEMON_REALITY_MARATHON_COMMAND",
         `Unknown discover-daemon reality-marathon command: ${action}`,
+      );
+    }
+    case "marathon": {
+      const action = parsed.positionals[1];
+      if (!action) return service.marathon();
+      if (action === "status") return service.marathonStatus();
+      if (action === "resume") return service.marathonResume();
+      if (action === "audit") return service.marathonAudit();
+      throw new AppError(
+        "UNKNOWN_DISCOVER_DAEMON_MARATHON_COMMAND",
+        `Unknown discover-daemon marathon command: ${action}`,
       );
     }
     case "cycle":
@@ -3927,6 +3953,52 @@ async function discoveryCommand(
   throw new AppError(
     "DISCOVERY_COMMAND_REQUIRED",
     "Use: sovryn discovery <search-space|candidates|pipeline|breakthrough|campaign|report>.",
+  );
+}
+
+async function pipelineCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const service = new PipelineService(root);
+  if (subcommand === "compose") {
+    const goal =
+      flagString(parsed.flags, "--goal") ??
+      parsed.positionals.slice(1).join(" ").trim();
+    if (!goal) {
+      throw new AppError(
+        "PIPELINE_COMPOSE_USAGE",
+        "Use: sovryn pipeline compose --goal <goal>.",
+      );
+    }
+    return service.compose(goal);
+  }
+  if (subcommand === "run") {
+    const pipelineId =
+      flagString(parsed.flags, "--pipeline") ?? parsed.positionals[1];
+    if (!pipelineId) {
+      throw new AppError(
+        "PIPELINE_RUN_USAGE",
+        "Use: sovryn pipeline run --pipeline <id>.",
+      );
+    }
+    return service.run(pipelineId);
+  }
+  if (subcommand === "evidence") {
+    const pipelineId =
+      flagString(parsed.flags, "--pipeline") ?? parsed.positionals[1];
+    if (!pipelineId) {
+      throw new AppError(
+        "PIPELINE_EVIDENCE_USAGE",
+        "Use: sovryn pipeline evidence --pipeline <id>.",
+      );
+    }
+    return service.evidence(pipelineId);
+  }
+  throw new AppError(
+    "PIPELINE_COMMAND_REQUIRED",
+    "Use: sovryn pipeline <compose|run|evidence>.",
   );
 }
 

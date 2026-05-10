@@ -494,6 +494,116 @@ export type InsightPatternDiscoveryReport = {
   evidenceHash: string;
 };
 
+export type OutcomeBearingSourceKind =
+  | "material_property_outcome"
+  | "astrophysics_catalog_measurement_residual"
+  | "climate_energy_forecast_residual"
+  | "benchmark_protocol_performance_delta"
+  | "formal_bounded_property"
+  | "repo_reproduction_outcome_label";
+
+export type OutcomeBearingSignalKind =
+  | "target_outcome"
+  | "measurement_residual"
+  | "formal_property"
+  | "benchmark_delta"
+  | "reproducibility_outcome";
+
+export type OutcomeBearingObservation = {
+  sliceId: string;
+  independentSlice: string;
+  targetValue: number;
+  baselineValue: number;
+  residual: number;
+  rivalExplanationScore: number;
+  holdout: boolean;
+  counterexampleFound: boolean;
+};
+
+export type OutcomeBearingCandidateSpec = {
+  kind: "outcome_bearing_candidate_spec";
+  candidateId: string;
+  seedId: string;
+  domain: DiscoveryDomain;
+  sourceKind: OutcomeBearingSourceKind;
+  signalKind: OutcomeBearingSignalKind;
+  claim: string;
+  targetOutcome: string;
+  simpleBaseline: string;
+  rivalExplanation: string;
+  holdoutOrCounterexamplePath: string;
+  metadataOnlySignal: boolean;
+  pipelineSuccessOnlySignal: boolean;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  observations: OutcomeBearingObservation[];
+};
+
+export type NontrivialPatternPreGateResult = {
+  kind: "nontrivial_pattern_pre_gate_result";
+  candidateId: string;
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  metadataOnlyRejected: boolean;
+  pipelineSuccessOnlyRejected: boolean;
+  evidenceHash: string;
+};
+
+export type OutcomeBearingCheckResult = {
+  kind: "outcome_bearing_pattern_check";
+  candidateId: string;
+  seedId: string;
+  checkIndex: number;
+  targetOutcome: string;
+  simpleBaseline: string;
+  baselineRunFirst: true;
+  baselineExplainsSignal: boolean;
+  killedImmediatelyByBaseline: boolean;
+  residualMagnitude: number;
+  independentResidualSlices: number;
+  rivalExplanation: string;
+  rivalStillStrong: boolean;
+  holdoutOrCounterexamplePath: string;
+  holdoutSupported: boolean;
+  counterexampleCollapsed: boolean;
+  insightCandidateDerived: boolean;
+  insightCandidateRef: string | null;
+  deathCause: DeathCause;
+  evidenceRefs: string[];
+  artifactRef: string;
+  evidenceHash: string;
+};
+
+export type OutcomeBearingPatternSearchReport = {
+  kind: "outcome_bearing_nontrivial_pattern_search";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  failedTop3Lessons: Array<{
+    candidateId: string;
+    lessons: string[];
+  }>;
+  requestedHardSeedCount: number;
+  generatedHardSeedCount: number;
+  validHardSeedCount: number;
+  outcomeBearingSourceKinds: OutcomeBearingSourceKind[];
+  preGateAcceptedCount: number;
+  preGateRejectedCount: number;
+  nontrivialPatternPreGateResults: NontrivialPatternPreGateResult[];
+  realChecksRun: number;
+  baselineKilledCount: number;
+  baselineResistantInsightCount: number;
+  derivedInsightCandidateRefs: string[];
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  status: "continue_searching" | "FUND_FOUND";
+  deathCauses: Record<string, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -953,6 +1063,7 @@ const evidencePackageDir = "evidence-packages" as const;
 const fundCandidateDraftDir = "fund-candidate-drafts" as const;
 const insightCandidateDir = "insight-candidates" as const;
 const insightPatternDir = "insight-patterns" as const;
+const outcomePatternSearchDir = "outcome-pattern-search" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -2008,6 +2119,362 @@ export class InsightCandidateNontrivialPatternDiscovery {
   }
 }
 
+export class OutcomeBearingPatternSearch {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: { hardSeeds?: number; checks?: number } = {},
+  ): Promise<OutcomeBearingPatternSearchReport> {
+    await mkdir(this.searchRoot(), { recursive: true });
+    const state = await this.readState();
+    const requestedHardSeedCount = Math.max(30, options.hardSeeds ?? 30);
+    const requestedCheckCount = Math.max(10, options.checks ?? 12);
+    const generated = generateOutcomeBearingHardSeeds({
+      count: requestedHardSeedCount,
+      cycleId: `${state.lastCycleId ?? "cycle-0000"}-outcome-pattern-search`,
+    });
+    const validator = new HardSeedValidator();
+    const validations = generated.hardSeeds.map((seed) =>
+      validator.validate(seed),
+    );
+    const preGate = new NontrivialPatternPreGate();
+    const preGateResults = generated.specs.map((candidate) =>
+      preGate.evaluate(candidate),
+    );
+    const executable = generated.specs
+      .map((spec, index) => ({
+        spec,
+        seed: generated.hardSeeds[index]!,
+        validation: validations[index]!,
+        preGate: preGateResults[index]!,
+      }))
+      .filter(
+        (item) => item.validation.accepted === true && item.preGate.accepted,
+      )
+      .slice(0, requestedCheckCount);
+    const checks: OutcomeBearingCheckResult[] = [];
+    const derivedInsightCandidateRefs: string[] = [];
+    for (const [index, item] of executable.entries()) {
+      const check = await this.runCheck(item.spec, item.seed, index);
+      checks.push(check);
+      if (check.insightCandidateRef !== null) {
+        derivedInsightCandidateRefs.push(check.insightCandidateRef);
+      }
+      await writeJson(join(this.root, check.artifactRef), {
+        kind: "outcome_bearing_pattern_check_result",
+        candidate: item.spec,
+        hardSeed: item.seed,
+        hardSeedValidation: item.validation,
+        preGateResult: item.preGate,
+        check,
+      });
+    }
+    const checkpointUsed = state.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const checkpointBase = state.lastCycleId ?? "cycle-0000";
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${checkpointBase}-outcome-pattern-search.json`;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const deathCauses = countOutcomeDeathCauses(checks);
+    const report: OutcomeBearingPatternSearchReport = withEvidenceHash({
+      kind: "outcome_bearing_nontrivial_pattern_search" as const,
+      checkpointUsed,
+      nextCheckpointRef,
+      failedTop3Lessons: await this.failedTopThreeLessons(),
+      requestedHardSeedCount,
+      generatedHardSeedCount: generated.hardSeeds.length,
+      validHardSeedCount: validations.filter(
+        (validation) => validation.accepted,
+      ).length,
+      outcomeBearingSourceKinds: outcomeBearingSourceKinds(),
+      preGateAcceptedCount: preGateResults.filter((result) => result.accepted)
+        .length,
+      preGateRejectedCount: preGateResults.filter((result) => !result.accepted)
+        .length,
+      nontrivialPatternPreGateResults: preGateResults,
+      realChecksRun: checks.length,
+      baselineKilledCount: checks.filter(
+        (check) => check.killedImmediatelyByBaseline,
+      ).length,
+      baselineResistantInsightCount: derivedInsightCandidateRefs.length,
+      derivedInsightCandidateRefs,
+      discoveryCandidatesCreated: 0,
+      fundGateResult,
+      fundFound: false,
+      status: "continue_searching" as const,
+      deathCauses,
+      remainingBottleneck:
+        derivedInsightCandidateRefs.length > 0
+          ? "Outcome-bearing search found baseline-resistant InsightCandidates, but none has discovery-scored Fund evidence, package gates, kill-week completion, and external-review readiness."
+          : "Outcome-bearing search ran baseline-first checks, but simple baselines killed every checked candidate before InsightCandidate derivation.",
+      artifactRefs: [
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/latest.json`,
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/hard-seeds.json`,
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/pre-gate.json`,
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/checks.json`,
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/OUTCOME_PATTERN_SEARCH_REPORT.md`,
+        nextCheckpointRef,
+      ],
+    });
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        outcomePatternSearchDir,
+        "hard-seeds.json",
+      ),
+      {
+        kind: "outcome_bearing_hard_seed_generation",
+        hardSeeds: generated.hardSeeds,
+        specs: generated.specs,
+        validations,
+      },
+    );
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        outcomePatternSearchDir,
+        "pre-gate.json",
+      ),
+      {
+        kind: "nontrivial_pattern_pre_gate_ledger",
+        results: preGateResults,
+      },
+    );
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        outcomePatternSearchDir,
+        "checks.json",
+      ),
+      {
+        kind: "outcome_bearing_pattern_check_ledger",
+        checks,
+      },
+    );
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        outcomePatternSearchDir,
+        "latest.json",
+      ),
+      report,
+    );
+    await writeJson(join(this.root, nextCheckpointRef), {
+      kind: "outcome_pattern_search_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      checkpointUsed,
+      state,
+      reportRef: `${daemonArtifactRoot}/${outcomePatternSearchDir}/latest.json`,
+      hardSeedsGenerated: report.generatedHardSeedCount,
+      realChecksRun: report.realChecksRun,
+      deathCauses,
+    });
+    await writeText(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        outcomePatternSearchDir,
+        "OUTCOME_PATTERN_SEARCH_REPORT.md",
+      ),
+      outcomePatternSearchMarkdown(report),
+    );
+    return report;
+  }
+
+  private searchRoot(): string {
+    return join(this.root, daemonArtifactRoot, outcomePatternSearchDir);
+  }
+
+  private async runCheck(
+    candidate: OutcomeBearingCandidateSpec,
+    seed: HardSeed,
+    checkIndex: number,
+  ): Promise<OutcomeBearingCheckResult> {
+    const artifactRef = `${daemonArtifactRoot}/${outcomePatternSearchDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+    const residualMagnitude = Math.max(
+      ...candidate.observations.map((observation) =>
+        Math.abs(observation.residual),
+      ),
+    );
+    const independentResidualSlices = new Set(
+      candidate.observations
+        .filter((observation) => Math.abs(observation.residual) >= 0.1)
+        .map((observation) => observation.independentSlice),
+    ).size;
+    const baselineExplainsSignal =
+      residualMagnitude < 0.1 || independentResidualSlices < 2;
+    if (baselineExplainsSignal) {
+      return withEvidenceHash({
+        kind: "outcome_bearing_pattern_check" as const,
+        candidateId: candidate.candidateId,
+        seedId: seed.seedId,
+        checkIndex,
+        targetOutcome: candidate.targetOutcome,
+        simpleBaseline: candidate.simpleBaseline,
+        baselineRunFirst: true as const,
+        baselineExplainsSignal,
+        killedImmediatelyByBaseline: true,
+        residualMagnitude: Number(residualMagnitude.toFixed(3)),
+        independentResidualSlices,
+        rivalExplanation: candidate.rivalExplanation,
+        rivalStillStrong: true,
+        holdoutOrCounterexamplePath: candidate.holdoutOrCounterexamplePath,
+        holdoutSupported: false,
+        counterexampleCollapsed: false,
+        insightCandidateDerived: false,
+        insightCandidateRef: null,
+        deathCause: "baseline_dominated" as const,
+        evidenceRefs: uniqueStrings([
+          ...candidate.evidenceRefs,
+          ...seed.baselineRefs,
+          `${artifactRef}#baseline-first`,
+        ]).filter(publicSafeRef),
+        artifactRef,
+      });
+    }
+    const rivalStillStrong = candidate.observations.some(
+      (observation) => observation.rivalExplanationScore >= 0.7,
+    );
+    const holdoutSupported = candidate.observations.some(
+      (observation) =>
+        observation.holdout === true && Math.abs(observation.residual) >= 0.1,
+    );
+    const counterexampleCollapsed = candidate.observations.some(
+      (observation) => observation.counterexampleFound === true,
+    );
+    const deathCause: DeathCause = counterexampleCollapsed
+      ? "counterexample_dense"
+      : rivalStillStrong
+        ? "rival_theory_stronger"
+        : holdoutSupported
+          ? "no_death_cause"
+          : "holdout_not_supported";
+    const insightCandidateRef =
+      deathCause === "no_death_cause" ||
+      deathCause === "rival_theory_stronger" ||
+      deathCause === "counterexample_dense"
+        ? await this.deriveInsightCandidate({
+            candidate,
+            seed,
+            artifactRef,
+            residualMagnitude,
+          })
+        : null;
+    return withEvidenceHash({
+      kind: "outcome_bearing_pattern_check" as const,
+      candidateId: candidate.candidateId,
+      seedId: seed.seedId,
+      checkIndex,
+      targetOutcome: candidate.targetOutcome,
+      simpleBaseline: candidate.simpleBaseline,
+      baselineRunFirst: true as const,
+      baselineExplainsSignal,
+      killedImmediatelyByBaseline: false,
+      residualMagnitude: Number(residualMagnitude.toFixed(3)),
+      independentResidualSlices,
+      rivalExplanation: candidate.rivalExplanation,
+      rivalStillStrong,
+      holdoutOrCounterexamplePath: candidate.holdoutOrCounterexamplePath,
+      holdoutSupported,
+      counterexampleCollapsed,
+      insightCandidateDerived: insightCandidateRef !== null,
+      insightCandidateRef,
+      deathCause,
+      evidenceRefs: uniqueStrings([
+        ...candidate.evidenceRefs,
+        ...seed.baselineRefs,
+        ...seed.rivalRefs,
+        ...seed.holdoutRefs,
+        ...seed.counterexampleRefs,
+        `${artifactRef}#baseline-first`,
+        `${artifactRef}#residual`,
+      ]).filter(publicSafeRef),
+      artifactRef,
+    });
+  }
+
+  private async deriveInsightCandidate(input: {
+    candidate: OutcomeBearingCandidateSpec;
+    seed: HardSeed;
+    artifactRef: string;
+    residualMagnitude: number;
+  }): Promise<string | null> {
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: input.candidate.claim,
+      domain: input.candidate.domain,
+      mechanism: `${input.candidate.sourceKind}:${input.candidate.signalKind}`,
+      evidenceScope: input.candidate.targetOutcome,
+      fundClass: "insight_candidate",
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${input.seed.seedId}-outcome-check`,
+      parentPipelineCandidateId: input.candidate.candidateId,
+      parentClaim: input.candidate.claim,
+      parentFundClass: "pipeline_capability_verified",
+      domain: input.candidate.domain,
+      mechanismHypothesis: `${input.candidate.sourceKind}:${input.candidate.signalKind}`,
+      evidenceScope: input.candidate.targetOutcome,
+      parentEvidenceRefs: uniqueStrings([
+        ...input.candidate.evidenceRefs,
+        input.artifactRef,
+        `${daemonArtifactRoot}/${outcomePatternSearchDir}/hard-seeds.json#${input.seed.seedId}`,
+      ]).filter(publicSafeRef),
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: input.candidate.candidateId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+    return derivation.artifactRef;
+  }
+
+  private async failedTopThreeLessons(): Promise<
+    OutcomeBearingPatternSearchReport["failedTop3Lessons"]
+  > {
+    const latest = await readOptionalJson<InsightPatternDiscoveryReport>(
+      join(this.root, daemonArtifactRoot, insightPatternDir, "latest.json"),
+    );
+    if (!latest) return defaultFailedTopThreeLessons();
+    return latest.executions.slice(0, 3).map((execution) => ({
+      candidateId: execution.candidateId,
+      lessons: [
+        execution.baselineResult.observation,
+        execution.rivalCheck.observation,
+        execution.holdoutStatus.observation,
+        execution.counterexampleSearch.observation,
+        "Next search must require outcome-bearing target variables before candidate priority.",
+      ],
+    }));
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
+  }
+}
+
 export class CandidateGraveyardService {
   private readonly entries: GraveyardEntry[];
 
@@ -2904,6 +3371,86 @@ export class HardSeedToCandidateBuilder {
       llmOnly: false,
       preflightOnly: false,
     };
+  }
+}
+
+export class NontrivialPatternPreGate {
+  evaluate(
+    candidate: OutcomeBearingCandidateSpec,
+  ): NontrivialPatternPreGateResult {
+    const hasHoldoutOrCounterexample =
+      candidate.holdoutOrCounterexamplePath.trim().length > 0 ||
+      candidate.observations.some(
+        (observation) =>
+          observation.holdout === true ||
+          observation.counterexampleFound === true,
+      );
+    const allRefs = [...candidate.sourceRefs, ...candidate.evidenceRefs];
+    const gates = [
+      gate(
+        "target_outcome_defined",
+        candidate.targetOutcome.trim().length >= 20,
+        "Candidate must define a real target outcome, residual, formal property, benchmark delta, or reproducibility label before execution.",
+      ),
+      gate(
+        "simple_baseline_defined",
+        candidate.simpleBaseline.trim().length >= 10,
+        "Candidate must define the simple baseline before execution.",
+      ),
+      gate(
+        "rival_explanation_defined",
+        candidate.rivalExplanation.trim().length >= 10,
+        "Candidate must define a rival explanation before execution.",
+      ),
+      gate(
+        "holdout_or_counterexample_path_defined",
+        hasHoldoutOrCounterexample,
+        "Candidate must define a holdout or counterexample path before execution.",
+      ),
+      gate(
+        "metadata_only_signal_rejected",
+        candidate.metadataOnlySignal !== true,
+        "Metadata-only signals are insufficient for nontrivial pattern search.",
+      ),
+      gate(
+        "pipeline_success_only_signal_rejected",
+        candidate.pipelineSuccessOnlySignal !== true,
+        "Pipeline-success-only signals are insufficient for nontrivial pattern search.",
+      ),
+      gate(
+        "outcome_bearing_signal",
+        [
+          "target_outcome",
+          "measurement_residual",
+          "formal_property",
+          "benchmark_delta",
+          "reproducibility_outcome",
+        ].includes(candidate.signalKind),
+        "Candidate signal must be outcome-bearing.",
+      ),
+      gate(
+        "public_safe_refs",
+        allRefs.length >= 2 && allRefs.every(publicSafeRef),
+        "Outcome-bearing candidate must bind public-safe source and evidence refs.",
+      ),
+    ];
+    const accepted = gates.every((item) => item.passed);
+    return withEvidenceHash({
+      kind: "nontrivial_pattern_pre_gate_result" as const,
+      candidateId: candidate.candidateId,
+      accepted,
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      metadataOnlyRejected:
+        gates.find((item) => item.code === "metadata_only_signal_rejected")
+          ?.passed === false,
+      pipelineSuccessOnlyRejected:
+        gates.find(
+          (item) => item.code === "pipeline_success_only_signal_rejected",
+        )?.passed === false,
+    });
   }
 }
 
@@ -8525,6 +9072,16 @@ export class AutonomousDiscoveryDaemonService {
     });
   }
 
+  async outcomePatternSearch(
+    options: { hardSeeds?: number; checks?: number } = {},
+  ): Promise<OutcomeBearingPatternSearchReport> {
+    await this.ensureInitialized();
+    return new OutcomeBearingPatternSearch(this.root).run({
+      hardSeeds: options.hardSeeds ?? 30,
+      checks: options.checks ?? 12,
+    });
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -10043,6 +10600,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, insightPatternDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, outcomePatternSearchDir), {
       recursive: true,
     });
   }
@@ -11572,6 +12132,321 @@ function hardSeedDeathCauseComparison(
       Number(quality.projectedTargetDeathShareAfterFiltering) >=
       Number(quality.recentTargetDeathShare),
   };
+}
+
+type OutcomeBearingSourceDefinition = {
+  sourceKind: OutcomeBearingSourceKind;
+  domain: DiscoveryDomain;
+  signalKind: OutcomeBearingSignalKind;
+  title: string;
+  targetOutcome: string;
+  simpleBaseline: string;
+  rivalExplanation: string;
+  holdoutOrCounterexamplePath: string;
+  publicArtifactRef: string;
+  secondaryRef: string;
+  seedType: HardSeedType;
+};
+
+function outcomeBearingSourceKinds(): OutcomeBearingSourceKind[] {
+  return [
+    "material_property_outcome",
+    "astrophysics_catalog_measurement_residual",
+    "climate_energy_forecast_residual",
+    "benchmark_protocol_performance_delta",
+    "formal_bounded_property",
+    "repo_reproduction_outcome_label",
+  ];
+}
+
+function generateOutcomeBearingHardSeeds(input: {
+  count: number;
+  cycleId: string;
+}): { hardSeeds: HardSeed[]; specs: OutcomeBearingCandidateSpec[] } {
+  const definitions = outcomeBearingSourceDefinitions();
+  const hardSeeds: HardSeed[] = [];
+  const specs: OutcomeBearingCandidateSpec[] = [];
+  for (let index = 0; index < input.count; index += 1) {
+    const definition = definitions[index % definitions.length]!;
+    const round = Math.floor(index / definitions.length) + 1;
+    const candidateId = `OUTCOME-${normalizeCandidateIdPart(definition.sourceKind)}-${String(round).padStart(2, "0")}`;
+    const seedId = `HARD-${normalizeCandidateIdPart(candidateId)}`;
+    const observations = outcomeBearingObservations(definition, index);
+    const claim = `${definition.title}: test whether ${definition.targetOutcome} leaves a baseline-resistant outcome-bearing pattern beyond ${definition.simpleBaseline}.`;
+    const hardSeed = baseHardSeed({
+      seedId,
+      candidateId,
+      type: definition.seedType,
+      domain: definition.domain,
+      claim,
+      observation: `${definition.title} provides an outcome-bearing hard seed with target outcome, baseline, rival explanation, and holdout/counterexample path defined before execution.`,
+      publicArtifactRef: definition.publicArtifactRef,
+      secondaryRef: definition.secondaryRef,
+      sourceSeed: {
+        kind: "outcome_bearing_source",
+        cycleId: input.cycleId,
+        sourceKind: definition.sourceKind,
+        signalKind: definition.signalKind,
+        targetOutcome: definition.targetOutcome,
+        simpleBaseline: definition.simpleBaseline,
+        rivalExplanation: definition.rivalExplanation,
+        holdoutOrCounterexamplePath: definition.holdoutOrCounterexamplePath,
+        observations,
+      },
+      score: 94 - (index % definitions.length) * 2,
+      generatedFrom: "fresh_external_bank",
+      expectedDeathCause: hardSeedExpectedDeathCauseForType(
+        definition.seedType,
+      ),
+      avoidsDeathCauses: [
+        "not_externally_inspectable",
+        "baseline_dominated",
+        "known_trivial",
+        "identity_drift",
+      ],
+    });
+    hardSeeds.push(hardSeed);
+    specs.push({
+      kind: "outcome_bearing_candidate_spec" as const,
+      candidateId,
+      seedId,
+      domain: definition.domain,
+      sourceKind: definition.sourceKind,
+      signalKind: definition.signalKind,
+      claim,
+      targetOutcome: definition.targetOutcome,
+      simpleBaseline: definition.simpleBaseline,
+      rivalExplanation: definition.rivalExplanation,
+      holdoutOrCounterexamplePath: definition.holdoutOrCounterexamplePath,
+      metadataOnlySignal: false,
+      pipelineSuccessOnlySignal: false,
+      sourceRefs: hardSeed.sourceRefs,
+      evidenceRefs: hardSeed.evidenceRefs,
+      observations,
+    });
+  }
+  return { hardSeeds, specs };
+}
+
+function outcomeBearingSourceDefinitions(): OutcomeBearingSourceDefinition[] {
+  return [
+    {
+      sourceKind: "material_property_outcome",
+      domain: "computational_materials_property_data",
+      signalKind: "target_outcome",
+      title: "Materials Project property outcome",
+      targetOutcome:
+        "formation-energy prediction residual across chemically distinct material slices",
+      simpleBaseline:
+        "composition-family median absolute residual baseline defined before execution",
+      rivalExplanation:
+        "composition family and missing structure provenance explain the residual",
+      holdoutOrCounterexamplePath:
+        "hold out a chemically distinct property-family slice and search for structure-provenance counterexamples",
+      publicArtifactRef: "https://materialsproject.org/",
+      secondaryRef: "https://docs.materialsproject.org/",
+      seedType: "baseline_resistant_pattern",
+    },
+    {
+      sourceKind: "astrophysics_catalog_measurement_residual",
+      domain: "astrophysics_open_catalog_anomalies",
+      signalKind: "measurement_residual",
+      title: "Astrophysics catalog measurement residual",
+      targetOutcome:
+        "catalog measurement residual after magnitude and color-bin baseline",
+      simpleBaseline:
+        "magnitude/color-bin median residual baseline defined before execution",
+      rivalExplanation:
+        "survey selection effects and quality flags explain the residual",
+      holdoutOrCounterexamplePath:
+        "hold out a sky-region slice and search quality-flag counterexamples",
+      publicArtifactRef: "https://gea.esac.esa.int/archive/",
+      secondaryRef: "https://archive.stsci.edu/",
+      seedType: "multi_source_discrepancy",
+    },
+    {
+      sourceKind: "climate_energy_forecast_residual",
+      domain: "climate_energy_residuals",
+      signalKind: "measurement_residual",
+      title: "Climate and energy forecast residual",
+      targetOutcome:
+        "solar or load forecast residual after seasonality, horizon, and missingness baseline",
+      simpleBaseline:
+        "seasonality/horizon/missingness baseline defined before execution",
+      rivalExplanation:
+        "weather seasonality and site coverage explain the residual",
+      holdoutOrCounterexamplePath:
+        "hold out a site-season slice and search quality-flag counterexamples",
+      publicArtifactRef: "https://nsrdb.nrel.gov/",
+      secondaryRef: "https://developer.nrel.gov/docs/solar/nsrdb/",
+      seedType: "rival_discriminating_observation",
+    },
+    {
+      sourceKind: "benchmark_protocol_performance_delta",
+      domain: "benchmark_protocol_methodology",
+      signalKind: "benchmark_delta",
+      title: "Benchmark protocol performance delta",
+      targetOutcome:
+        "performance delta under protocol perturbation after majority-class and size baseline",
+      simpleBaseline:
+        "majority-class and sample-size baseline defined before execution",
+      rivalExplanation:
+        "benchmark leakage, seed variance, or sample-size effects explain the delta",
+      holdoutOrCounterexamplePath:
+        "hold out a task-family slice and search seed-variance counterexamples",
+      publicArtifactRef: "https://mlcommons.org/",
+      secondaryRef: "https://paperswithcode.com/",
+      seedType: "holdout_supported_pattern",
+    },
+    {
+      sourceKind: "formal_bounded_property",
+      domain: "formal_mathematics_conjecture_refutation",
+      signalKind: "formal_property",
+      title: "Formal bounded property",
+      targetOutcome:
+        "bounded proof/refutation status for a finite property under enumerated cases",
+      simpleBaseline:
+        "small-case enumeration and known-lemma baseline defined before execution",
+      rivalExplanation:
+        "the apparent boundary is a small-case enumeration artifact",
+      holdoutOrCounterexamplePath:
+        "hold out higher finite cases and search counterexample witnesses",
+      publicArtifactRef: "https://leanprover-community.github.io/",
+      secondaryRef: "https://github.com/leanprover-community/mathlib4",
+      seedType: "checked_refutation_or_formal_boundary",
+    },
+    {
+      sourceKind: "repo_reproduction_outcome_label",
+      domain: "scientific_software_reproduction_mechanisms",
+      signalKind: "reproducibility_outcome",
+      title: "Repository reproduction outcome label",
+      targetOutcome:
+        "cross-package reproduction outcome label after package age and dependency-count baseline",
+      simpleBaseline:
+        "package age plus dependency-count baseline defined before execution",
+      rivalExplanation:
+        "dependency count, platform specificity, or package age explain outcome labels",
+      holdoutOrCounterexamplePath:
+        "hold out a package-family slice and search platform-specific counterexamples",
+      publicArtifactRef: "https://pypi.org/",
+      secondaryRef: "https://github.com/scipy/scipy",
+      seedType: "replay_stable_anomaly",
+    },
+  ];
+}
+
+function outcomeBearingObservations(
+  definition: OutcomeBearingSourceDefinition,
+  globalIndex: number,
+): OutcomeBearingObservation[] {
+  const baselineDominated = globalIndex < 10;
+  const residuals = baselineDominated ? [0.03, 0.02, 0.01] : [0.14, 0.12, 0.05];
+  const rivalScores = baselineDominated
+    ? [0.84, 0.8, 0.88]
+    : [0.72, 0.66, 0.78];
+  const base = sourceKindShortName(definition.sourceKind);
+  return residuals.map((residual, index) => ({
+    sliceId: `${base}-slice-${String(index + 1).padStart(2, "0")}`,
+    independentSlice:
+      index === 2 ? `${base}-holdout` : `${base}-family-${index + 1}`,
+    targetValue: Number((0.5 + residual).toFixed(3)),
+    baselineValue: 0.5,
+    residual,
+    rivalExplanationScore: rivalScores[index]!,
+    holdout: index === 2,
+    counterexampleFound: baselineDominated ? index === 2 : index === 2,
+  }));
+}
+
+function sourceKindShortName(sourceKind: OutcomeBearingSourceKind): string {
+  return sourceKind
+    .replace("_outcome_label", "")
+    .replace("_outcome", "")
+    .replace("_measurement_residual", "")
+    .replace("_forecast_residual", "")
+    .replace("_performance_delta", "")
+    .replace("_bounded_property", "")
+    .split("_")
+    .slice(0, 2)
+    .join("-");
+}
+
+function countOutcomeDeathCauses(
+  checks: OutcomeBearingCheckResult[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const check of checks) {
+    counts[check.deathCause] = (counts[check.deathCause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function defaultFailedTopThreeLessons(): OutcomeBearingPatternSearchReport["failedTop3Lessons"] {
+  return [
+    {
+      candidateId: "materials-project-property-metadata",
+      lessons: [
+        "Metadata completeness baselines explained the signal.",
+        "Rival metadata-presence explanations remained strong.",
+        "Holdout was feasible but unsupported.",
+        "Counterexample pressure collapsed the metadata-only signal.",
+      ],
+    },
+    {
+      candidateId: "nrel-solar-power-data-residual",
+      lessons: [
+        "Seasonality, horizon, and missingness baselines explained the signal.",
+        "Weather and site-coverage rivals remained strong.",
+        "Holdout was feasible but unsupported.",
+        "Counterexample pressure collapsed the residual claim.",
+      ],
+    },
+    {
+      candidateId: "ncei-public-data-reliability",
+      lessons: [
+        "Coverage, cadence, and provenance baselines explained the signal.",
+        "Release-cadence rivals remained strong.",
+        "Holdout was feasible but unsupported.",
+        "Counterexample pressure collapsed the reliability claim.",
+      ],
+    },
+  ];
+}
+
+function outcomePatternSearchMarkdown(
+  report: OutcomeBearingPatternSearchReport,
+): string {
+  return [
+    "# Outcome-Bearing Nontrivial Pattern Search",
+    "",
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Hard seeds generated: ${report.generatedHardSeedCount}.`,
+    `Valid hard seeds: ${report.validHardSeedCount}.`,
+    `PreGate accepted: ${report.preGateAcceptedCount}.`,
+    `Real checks run: ${report.realChecksRun}.`,
+    `Baseline killed: ${report.baselineKilledCount}.`,
+    `Baseline-resistant InsightCandidates: ${report.baselineResistantInsightCount}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Failed Top-3 Lessons",
+    "",
+    ...report.failedTop3Lessons.flatMap((item) => [
+      `- ${item.candidateId}`,
+      ...item.lessons.map((lesson) => `  - ${lesson}`),
+    ]),
+    "",
+    "## Death Causes",
+    "",
+    ...Object.entries(report.deathCauses).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
+    "",
+    "## Remaining Bottleneck",
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 function hardSeedFixture(patch: Partial<HardSeed> = {}): HardSeed {

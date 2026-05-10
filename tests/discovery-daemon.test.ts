@@ -40,6 +40,7 @@ import {
   insightCandidateSchema,
   MechanismPlanExecutor,
   MechanismRouter,
+  NontrivialPatternPreGate,
   publicCorpusBaseRef,
   seedDiscoveryDaemonDomains,
   SilentSearchLoopRunner,
@@ -51,6 +52,7 @@ import {
   type HardSeed,
   type InsightCandidate,
   type MechanismCandidateType,
+  type OutcomeBearingCandidateSpec,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
@@ -72,6 +74,7 @@ const commands = [
   "hard-seed-audit",
   "insight-gauntlet",
   "insight-patterns",
+  "outcome-pattern-search",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -240,6 +243,69 @@ function hardSeedFixture(patch: Partial<HardSeed> = {}): HardSeed {
     partialCandidate: false,
     llmOnly: false,
     preflightOnly: false,
+    ...patch,
+  };
+}
+
+function outcomeBearingSpec(
+  patch: Partial<OutcomeBearingCandidateSpec> = {},
+): OutcomeBearingCandidateSpec {
+  return {
+    kind: "outcome_bearing_candidate_spec",
+    candidateId: "OUTCOME-FIXTURE-001",
+    seedId: "HARD-OUTCOME-FIXTURE-001",
+    domain: "climate_energy_residuals",
+    sourceKind: "climate_energy_forecast_residual",
+    signalKind: "measurement_residual",
+    claim:
+      "Outcome fixture tests whether forecast residuals survive seasonality and missingness baselines on a bounded public-safe target.",
+    targetOutcome:
+      "solar forecast residual after seasonality, horizon, and missingness baseline",
+    simpleBaseline:
+      "seasonality/horizon/missingness baseline defined before execution",
+    rivalExplanation:
+      "weather seasonality and site coverage explain the residual",
+    holdoutOrCounterexamplePath:
+      "hold out a site-season slice and search quality-flag counterexamples",
+    metadataOnlySignal: false,
+    pipelineSuccessOnlySignal: false,
+    sourceRefs: ["https://nsrdb.nrel.gov/"],
+    evidenceRefs: [
+      "https://nsrdb.nrel.gov/",
+      `${publicCorpusBaseRef}/tree/main/results/os-v1-stage03-class-level-evidence-report`,
+    ],
+    observations: [
+      {
+        sliceId: "site-a",
+        independentSlice: "site-a",
+        targetValue: 0.64,
+        baselineValue: 0.5,
+        residual: 0.14,
+        rivalExplanationScore: 0.65,
+        holdout: false,
+        counterexampleFound: false,
+      },
+      {
+        sliceId: "site-b",
+        independentSlice: "site-b",
+        targetValue: 0.62,
+        baselineValue: 0.5,
+        residual: 0.12,
+        rivalExplanationScore: 0.66,
+        holdout: false,
+        counterexampleFound: false,
+      },
+      {
+        sliceId: "holdout",
+        independentSlice: "holdout",
+        targetValue: 0.57,
+        baselineValue: 0.5,
+        residual: 0.07,
+        rivalExplanationScore: 0.72,
+        holdout: true,
+        counterexampleFound: true,
+      },
+    ],
     ...patch,
   };
 }
@@ -1760,6 +1826,105 @@ test("discover-daemon insight-patterns CLI is bounded and silent", async () => {
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("NontrivialPatternPreGate rejects metadata-only and pipeline-success-only signals", () => {
+  const gate = new NontrivialPatternPreGate();
+  const accepted = gate.evaluate(outcomeBearingSpec());
+  assert.equal(accepted.accepted, true);
+  assert.equal(accepted.failedGates.length, 0);
+
+  const metadataOnly = gate.evaluate(
+    outcomeBearingSpec({
+      candidateId: "OUTCOME-METADATA-ONLY",
+      metadataOnlySignal: true,
+    }),
+  );
+  assert.equal(metadataOnly.accepted, false);
+  assert.equal(metadataOnly.metadataOnlyRejected, true);
+  assert.equal(
+    metadataOnly.failedGates.includes("metadata_only_signal_rejected"),
+    true,
+  );
+
+  const pipelineOnly = gate.evaluate(
+    outcomeBearingSpec({
+      candidateId: "OUTCOME-PIPELINE-ONLY",
+      pipelineSuccessOnlySignal: true,
+    }),
+  );
+  assert.equal(pipelineOnly.accepted, false);
+  assert.equal(pipelineOnly.pipelineSuccessOnlyRejected, true);
+  assert.equal(
+    pipelineOnly.failedGates.includes("pipeline_success_only_signal_rejected"),
+    true,
+  );
+});
+
+test("outcome-bearing pattern search generates hard seeds, runs baseline-first checks, and preserves Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.outcomePatternSearch({
+    hardSeeds: 30,
+    checks: 12,
+  });
+
+  assert.equal(report.kind, "outcome_bearing_nontrivial_pattern_search");
+  assert.equal(report.generatedHardSeedCount, 30);
+  assert.equal(report.validHardSeedCount, 30);
+  assert.equal(report.preGateAcceptedCount, 30);
+  assert.equal(report.preGateRejectedCount, 0);
+  assert.equal(report.realChecksRun, 12);
+  assert.equal(report.baselineKilledCount, 10);
+  assert.equal(report.baselineResistantInsightCount, 2);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.status, "continue_searching");
+  assert.equal(report.deathCauses.baseline_dominated, 10);
+  assert.equal(report.deathCauses.counterexample_dense, 2);
+  assert.equal(report.failedTop3Lessons.length, 3);
+  assert.equal(
+    report.nontrivialPatternPreGateResults.every((result) => result.accepted),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(root, daemonRoot, "outcome-pattern-search", "latest.json"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon outcome-pattern-search CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  const response = await executeCli(
+    [
+      "discover-daemon",
+      "outcome-pattern-search",
+      "--hard-seeds",
+      "30",
+      "--checks",
+      "10",
+      "--json",
+    ],
+    root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "outcome_bearing_nontrivial_pattern_search",
+  );
+  assert.equal((response.data as Record<string, unknown>).realChecksRun, 10);
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2380,6 +2545,11 @@ const cliScenarios: {
     name: "insight-patterns",
     args: ["discover-daemon", "insight-patterns", "--json"],
     expectedKind: "insight_candidate_nontrivial_pattern_discovery",
+  },
+  {
+    name: "outcome-pattern-search",
+    args: ["discover-daemon", "outcome-pattern-search", "--json"],
+    expectedKind: "outcome_bearing_nontrivial_pattern_search",
   },
   {
     name: "cycle",

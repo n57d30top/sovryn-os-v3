@@ -186,6 +186,7 @@ Commands:
   sovryn discover-daemon hard-seed-audit [--json]
   sovryn discover-daemon insight-gauntlet [--top 3] [--json]
   sovryn discover-daemon insight-patterns [--top 3] [--json]
+  sovryn discover-daemon outcome-pattern-search [--hard-seeds 30] [--checks 12] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1631,7 +1632,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1692,6 +1693,11 @@ async function discoverDaemonCommand(
     case "insight-patterns":
       return service.insightPatterns({
         top: flagInt(parsed.flags, "--top", 3),
+      });
+    case "outcome-pattern-search":
+      return service.outcomePatternSearch({
+        hardSeeds: flagInt(parsed.flags, "--hard-seeds", 30),
+        checks: flagInt(parsed.flags, "--checks", 12),
       });
     case "cycle":
       return service.cycle({

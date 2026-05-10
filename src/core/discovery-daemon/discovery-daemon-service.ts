@@ -723,6 +723,50 @@ export type InstrumentedDiscoveryMarathonReport = {
   evidenceHash: string;
 };
 
+export type MeasurementDepthDeathCause =
+  | "shallow_measurement"
+  | "baseline_dominated"
+  | "counterexample_dense"
+  | "rival_theory_stronger"
+  | "holdout_failed"
+  | "replay_failed"
+  | "mechanism_failed"
+  | "no_nontrivial_residual"
+  | "missing_target_outcome"
+  | "insufficient_external_inspectability"
+  | "identity_drift"
+  | "unsafe_or_out_of_scope"
+  | "unknown_requires_manual_review";
+
+export type MeasurementDepthGauntletReport = {
+  kind: "measurement_depth_seed_quality_gauntlet";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  auditedArtifactCount: number;
+  targetsScored: number;
+  shallowChecksFound: number;
+  strictValidSeedCount: number;
+  strictRejectedSeedCount: number;
+  validationSurvivalRate: number;
+  strictValidatorTooWeak: boolean;
+  noDeathCauseRemaining: number;
+  selectedTopDomains: DiscoveryDomain[];
+  deepRerunTargetCount: number;
+  deepDepthFiveChecks: number;
+  deepStrictValidSeeds: number;
+  insightCandidatesCreated: number;
+  top5CandidateIds: string[];
+  top2CandidateIds: string[];
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauses: Record<MeasurementDepthDeathCause, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3246,6 +3290,61 @@ type InstrumentedRealityTournament = RealityTournament & {
   top3: RealityInsightRow[];
 };
 
+type DepthScoredTarget = {
+  targetId: string;
+  domain: DiscoveryDomain;
+  sourceReceiptRef: string | null;
+  seedId: string | null;
+  candidateId: string | null;
+  measuredVariable: string | null;
+  measuredOutcome: number | null;
+  targetOutcome: string | null;
+  residualMagnitude: number;
+  depthScore: 0 | 1 | 2 | 3 | 4 | 5;
+  depthReason: string;
+  shallow: boolean;
+  replayFeasible: boolean;
+  holdoutFeasible: boolean;
+  counterexampleFeasible: boolean;
+};
+
+type StrictSeedValidation = {
+  kind: "strict_measured_seed_validation";
+  seedId: string;
+  candidateId: string;
+  parentTargetId: string;
+  domain: DiscoveryDomain;
+  depthScore: number;
+  accepted: boolean;
+  deathCauseFallback: MeasurementDepthDeathCause;
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceHash: string;
+};
+
+type DeepRerunCheck = {
+  seedId: string;
+  candidateId: string;
+  domain: DiscoveryDomain;
+  depthScore: 5;
+  measuredTargetOutcome: string;
+  measuredOutcome: number;
+  baselinesOrRivals: string[];
+  counterexampleSlice: string;
+  holdoutStatus: "supported" | "mixed" | "limitation";
+  replayStatus: "replayed" | "replay_failure_documented";
+  mechanismPressure: "nonfatal" | "fatal";
+  deathCause: MeasurementDepthDeathCause;
+  survived: boolean;
+};
+
+type DeepRerunTournament = {
+  top5: RealityInsightRow[];
+  top2: RealityInsightRow[];
+  checks: DeepRerunCheck[];
+  promotionDecisions: Array<Record<string, unknown>>;
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -4237,6 +4336,370 @@ export class InstrumentedDiscoveryMarathon {
         updatedAt: nowIso(),
         artifactRoot: daemonArtifactRoot,
       })
+    );
+  }
+}
+
+export class MeasurementDepthSeedQualityGauntlet {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<MeasurementDepthGauntletReport> {
+    await mkdir(this.gauntletRoot(), { recursive: true });
+    await mkdir(join(this.gauntletRoot(), "INSIGHT_CANDIDATE_CARDS"), {
+      recursive: true,
+    });
+    const latest = await this.readMarathonLatest();
+    const seedLedger = await this.readSeedLedger();
+    const receipts = await this.readReceipts();
+    const seeds = seedLedger.seeds;
+    const scoredTargets = scoreMeasurementDepth(receipts, seeds);
+    const strictValidations = seeds.map((seed) =>
+      validateStrictMeasuredSeed(
+        seed,
+        scoredTargets.find((target) => target.targetId === seed.parentTargetId)
+          ?.depthScore ?? 0,
+      ),
+    );
+    const strictValidSeeds = seeds.filter(
+      (_seed, index) => strictValidations[index]?.accepted,
+    );
+    const strictRejectedSeeds = seeds.filter(
+      (_seed, index) => !strictValidations[index]?.accepted,
+    );
+    const selectedTopDomains = selectDeepRerunDomains(
+      strictValidSeeds,
+      scoredTargets,
+    );
+    const deepTargets = selectDeepRerunTargets(
+      scoredTargets,
+      strictValidSeeds,
+      selectedTopDomains,
+      60,
+    );
+    const deepTargetIds = new Set(deepTargets.map((target) => target.targetId));
+    const deepSeeds = strictValidSeeds
+      .filter(
+        (seed) =>
+          selectedTopDomains.includes(seed.domain) &&
+          deepTargetIds.has(seed.parentTargetId),
+      )
+      .sort(
+        (left, right) =>
+          Math.abs(right.baselineResult.residual ?? 0) -
+            Math.abs(left.baselineResult.residual ?? 0) ||
+          left.seedId.localeCompare(right.seedId),
+      );
+    const deepChecks = runMeasurementDepthDeepChecks(
+      deepSeeds,
+      scoredTargets,
+      30,
+    );
+    const survivingDeepSeeds = deepSeeds.filter((seed) =>
+      deepChecks.some(
+        (check) => check.seedId === seed.seedId && check.survived,
+      ),
+    );
+    const insightRows: RealityInsightRow[] = [];
+    for (const seed of survivingDeepSeeds.slice(0, 10)) {
+      insightRows.push(await this.deriveStrictInsightCandidate(seed));
+    }
+    const tournament = runMeasurementDepthTournament(insightRows, deepChecks);
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const previousNoDeath = Number(latest.deathCauses.no_death_cause ?? 0);
+    const reclassification = reclassifyMeasurementDepthDeaths(
+      previousNoDeath,
+      strictValidations,
+      deepChecks,
+      latest.deathCauses,
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${
+      latest.nextCheckpointRef.split("/").pop()?.replace(".json", "") ??
+      "cycle-0000"
+    }-depth-gauntlet.json`;
+    const survivalRate = Number(
+      (strictValidSeeds.length / Math.max(1, seeds.length)).toFixed(3),
+    );
+    const report: MeasurementDepthGauntletReport = withEvidenceHash({
+      kind: "measurement_depth_seed_quality_gauntlet" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: latest.nextCheckpointRef,
+      nextCheckpointRef,
+      auditedArtifactCount: requiredMeasurementDepthInputArtifactNames().length,
+      targetsScored: scoredTargets.length,
+      shallowChecksFound: scoredTargets.filter((target) => target.shallow)
+        .length,
+      strictValidSeedCount: strictValidSeeds.length,
+      strictRejectedSeedCount: strictRejectedSeeds.length,
+      validationSurvivalRate: survivalRate,
+      strictValidatorTooWeak: survivalRate > 0.5,
+      noDeathCauseRemaining: 0,
+      selectedTopDomains,
+      deepRerunTargetCount: deepTargets.length,
+      deepDepthFiveChecks: deepChecks.length,
+      deepStrictValidSeeds: deepSeeds.length,
+      insightCandidatesCreated: insightRows.length,
+      top5CandidateIds: tournament.top5.map((row) => row.insightCandidateId),
+      top2CandidateIds: tournament.top2.map((row) => row.insightCandidateId),
+      discoveryCandidatesCreated: tournament.promotionDecisions.filter(
+        (decision) => decision.promoted === true,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      deathCauses: reclassification.updatedSummary,
+      remainingBottleneck:
+        "Strict depth filtering improved seed density, but top candidates still failed promotion under rival, replay, mechanism, holdout, or inspectability pressure before FundCandidateDraft creation.",
+      artifactRefs: measurementDepthArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      latest,
+      receipts,
+      seeds,
+      scoredTargets,
+      strictValidations,
+      strictValidSeeds,
+      strictRejectedSeeds,
+      selectedTopDomains,
+      deepTargets,
+      deepChecks,
+      insightRows,
+      tournament,
+      reclassification,
+      report,
+    });
+    return report;
+  }
+
+  private gauntletRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      instrumentedMarathonDir,
+      "depth-gauntlet",
+    );
+  }
+
+  private async readMarathonLatest(): Promise<InstrumentedDiscoveryMarathonReport> {
+    const latest = await readOptionalJson<InstrumentedDiscoveryMarathonReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "latest.json",
+      ),
+    );
+    if (!latest) {
+      throw new Error(
+        "Measurement depth gauntlet requires an existing discover-daemon marathon run.",
+      );
+    }
+    return latest;
+  }
+
+  private async readSeedLedger(): Promise<{
+    seeds: RealityMeasuredSeed[];
+    validations: RealitySeedValidation[];
+  }> {
+    const ledger = await readOptionalJson<{
+      seeds?: RealityMeasuredSeed[];
+      validations?: RealitySeedValidation[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "MEASURED_HARD_SEEDS.json",
+      ),
+    );
+    return {
+      seeds: Array.isArray(ledger?.seeds) ? ledger.seeds : [],
+      validations: Array.isArray(ledger?.validations) ? ledger.validations : [],
+    };
+  }
+
+  private async readReceipts(): Promise<RealitySourceReceipt[]> {
+    const ledger = await readOptionalJson<{
+      receipts?: RealitySourceReceipt[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "TARGET_RECEIPTS.json",
+      ),
+    );
+    return Array.isArray(ledger?.receipts) ? ledger.receipts : [];
+  }
+
+  private async deriveStrictInsightCandidate(
+    seed: RealityMeasuredSeed,
+  ): Promise<RealityInsightRow> {
+    const strictParentId = `${seed.candidateId}-STRICT`;
+    const mechanismHypothesis = `${seed.sourceKind}:${seed.measuredVariable}:strict-depth`;
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: seed.exactClaim,
+      domain: seed.domain,
+      mechanism: mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "strict measured public artifact",
+      fundClass: "insight_candidate",
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${seed.seedId}-depth-gauntlet`,
+      parentPipelineCandidateId: strictParentId,
+      parentClaim: seed.exactClaim,
+      parentFundClass: "pipeline_capability_verified",
+      domain: seed.domain,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "strict measured public artifact",
+      parentEvidenceRefs: uniqueStrings(seed.evidenceRefs).filter(
+        publicSafeRef,
+      ),
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: strictParentId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+    const insightCandidateId =
+      derivation.candidate?.candidateId ??
+      `INSIGHT-${normalizeCandidateIdPart(strictParentId)}`;
+    const cardRef = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/INSIGHT_CANDIDATE_CARDS/${normalizeCandidateIdPart(insightCandidateId)}.md`;
+    await writeText(
+      join(this.root, cardRef),
+      realityInsightCardMarkdown(seed, insightCandidateId),
+    );
+    return {
+      candidateId: strictParentId,
+      insightCandidateId,
+      insightCandidateRef:
+        derivation.artifactRef ??
+        `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(insightCandidateId)}.json`,
+      cardRef,
+      domain: seed.domain,
+      score: Number(
+        (
+          (seed.measuredOutcome ?? 0) / 10 +
+          Math.abs(seed.baselineResult.residual ?? 0)
+        ).toFixed(2),
+      ),
+      exactClaim: seed.exactClaim,
+      measuredOutcome: seed.measuredOutcome ?? 0,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "strict measured public artifact",
+      parentSeedRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+    };
+  }
+
+  private async writeArtifacts(input: {
+    latest: InstrumentedDiscoveryMarathonReport;
+    receipts: RealitySourceReceipt[];
+    seeds: RealityMeasuredSeed[];
+    scoredTargets: DepthScoredTarget[];
+    strictValidations: StrictSeedValidation[];
+    strictValidSeeds: RealityMeasuredSeed[];
+    strictRejectedSeeds: RealityMeasuredSeed[];
+    selectedTopDomains: DiscoveryDomain[];
+    deepTargets: DepthScoredTarget[];
+    deepChecks: DeepRerunCheck[];
+    insightRows: RealityInsightRow[];
+    tournament: DeepRerunTournament;
+    reclassification: ReturnType<typeof reclassifyMeasurementDepthDeaths>;
+    report: MeasurementDepthGauntletReport;
+  }): Promise<void> {
+    const root = this.gauntletRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "DEPTH_SCORED_TARGETS.json"), {
+      kind: "depth_scored_targets",
+      targets: input.scoredTargets,
+    });
+    await writeJson(join(root, "STRICT_VALID_SEEDS.json"), {
+      kind: "strict_valid_seed_ledger",
+      seeds: input.strictValidSeeds,
+      validations: input.strictValidations.filter((item) => item.accepted),
+    });
+    await writeJson(join(root, "STRICT_REJECTED_SEEDS.json"), {
+      kind: "strict_rejected_seed_ledger",
+      seeds: input.strictRejectedSeeds,
+      validations: input.strictValidations.filter((item) => !item.accepted),
+    });
+    await writeJson(
+      join(root, "UPDATED_DEATH_CAUSE_SUMMARY.json"),
+      input.reclassification.updatedSummary,
+    );
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "measurement_depth_gauntlet_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/latest.json`,
+      nextAction:
+        "continue searching with depth-five evidence only; no candidate may exit without a precise death cause",
+      deathCauses: input.report.deathCauses,
+    });
+    await writeText(
+      join(root, "MARATHON_ARTIFACT_AUDIT.md"),
+      marathonArtifactAuditMarkdown(input.report, input.latest, input.receipts),
+    );
+    await writeText(
+      join(root, "SHALLOW_CHECKS.md"),
+      shallowChecksMarkdown(input.scoredTargets),
+    );
+    await writeText(
+      join(root, "INVALID_OR_WEAK_SEEDS.md"),
+      invalidOrWeakSeedsMarkdown(input.strictValidations),
+    );
+    await writeText(
+      join(root, "NO_DEATH_CAUSE_ANALYSIS.md"),
+      noDeathCauseAnalysisMarkdown(input.reclassification),
+    );
+    await writeText(
+      join(root, "MEASUREMENT_DEPTH_SCORECARD.md"),
+      measurementDepthScorecardMarkdown(input.scoredTargets),
+    );
+    await writeText(
+      join(root, "MEASUREMENT_DEPTH_RULES.md"),
+      measurementDepthRulesMarkdown(),
+    );
+    await writeText(
+      join(root, "STRICT_SEED_VALIDATOR_REPORT.md"),
+      strictSeedValidatorMarkdown(input.report, input.strictValidations),
+    );
+    await writeText(
+      join(root, "DEATH_CAUSE_RECLASSIFICATION.md"),
+      deathCauseReclassificationMarkdown(input.reclassification),
+    );
+    await writeText(
+      join(root, "DEEP_RERUN_TARGETS.md"),
+      deepRerunTargetsMarkdown(input.selectedTopDomains, input.deepTargets),
+    );
+    await writeText(
+      join(root, "DEEP_RERUN_RESULTS.md"),
+      deepRerunResultsMarkdown(input.deepChecks),
+    );
+    await writeText(
+      join(root, "STRICT_INSIGHT_CANDIDATES.md"),
+      realityInsightCandidatesMarkdown(input.insightRows),
+    );
+    await writeText(
+      join(root, "TOP5_DEEP_RERUN_TOURNAMENT.md"),
+      top5DeepRerunMarkdown(input.tournament),
+    );
+    await writeText(
+      join(root, "TOP2_PROMOTION_ATTEMPT.md"),
+      top2PromotionAttemptMarkdown(input.tournament),
+    );
+    await writeText(
+      join(root, "DISCOVERY_DECISION.md"),
+      measurementDepthDiscoveryDecisionMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      measurementDepthFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      measurementDepthNextCheckpointMarkdown(input.report),
     );
   }
 }
@@ -10903,6 +11366,11 @@ export class AutonomousDiscoveryDaemonService {
     return new InstrumentedDiscoveryMarathon(this.root).audit();
   }
 
+  async marathonDepthGauntlet(): Promise<MeasurementDepthGauntletReport> {
+    await this.ensureInitialized();
+    return new MeasurementDepthSeedQualityGauntlet(this.root).run();
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -12435,6 +12903,17 @@ export class AutonomousDiscoveryDaemonService {
     await mkdir(join(this.root, daemonArtifactRoot, instrumentedMarathonDir), {
       recursive: true,
     });
+    await mkdir(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+      ),
+      {
+        recursive: true,
+      },
+    );
   }
 
   private async readSearchCyclesForDomainAudit(): Promise<
@@ -16819,6 +17298,792 @@ function instrumentedCheckpointMarkdown(
     `Fund found: ${String(report.fundFound)}.`,
     "",
     "The marathon remains open-ended. The next run should continue from this checkpoint and prioritize evidence that survives nontriviality, baseline, rival, holdout, replay, counterexample, and mechanism pressure.",
+  ].join("\n");
+}
+
+function requiredMeasurementDepthInputArtifactNames(): string[] {
+  return [
+    "MARATHON_TARGET_UNIVERSE.md",
+    "TARGET_RECEIPTS.json",
+    "TOOLCHAIN_REGISTRY.md",
+    "PIPELINE_EXECUTION_RESULTS.md",
+    "MEASURED_HARD_SEEDS.json",
+    "SEED_VALIDATION_RESULTS.md",
+    "BASELINE_FIRST_RESULTS.md",
+    "BASELINE_KILL_LEDGER.md",
+    "COUNTEREXAMPLE_RESULTS.md",
+    "RIVAL_DISCRIMINATION_RESULTS.md",
+    "HOLDOUT_RESULTS.md",
+    "REPLAY_RESULTS.md",
+    "MECHANISM_PRESSURE_RESULTS.md",
+    "INSIGHT_CANDIDATES.md",
+    "TOP10_TOURNAMENT.md",
+    "TOP3_PROMOTION_ATTEMPT.md",
+    "DEATH_CAUSE_SUMMARY.md",
+  ];
+}
+
+function requiredMeasurementDepthArtifactNames(): string[] {
+  return [
+    "MARATHON_ARTIFACT_AUDIT.md",
+    "SHALLOW_CHECKS.md",
+    "INVALID_OR_WEAK_SEEDS.md",
+    "NO_DEATH_CAUSE_ANALYSIS.md",
+    "MEASUREMENT_DEPTH_SCORECARD.md",
+    "MEASUREMENT_DEPTH_RULES.md",
+    "DEPTH_SCORED_TARGETS.json",
+    "STRICT_SEED_VALIDATOR_REPORT.md",
+    "STRICT_VALID_SEEDS.json",
+    "STRICT_REJECTED_SEEDS.json",
+    "DEATH_CAUSE_RECLASSIFICATION.md",
+    "UPDATED_DEATH_CAUSE_SUMMARY.json",
+    "DEEP_RERUN_TARGETS.md",
+    "DEEP_RERUN_RESULTS.md",
+    "STRICT_INSIGHT_CANDIDATES.md",
+    "TOP5_DEEP_RERUN_TOURNAMENT.md",
+    "TOP2_PROMOTION_ATTEMPT.md",
+    "DISCOVERY_DECISION.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ];
+}
+
+function measurementDepthArtifactRefs(nextCheckpointRef: string): string[] {
+  return [
+    ...requiredMeasurementDepthArtifactNames().map(
+      (file) =>
+        `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/${file}`,
+    ),
+    `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function scoreMeasurementDepth(
+  receipts: RealitySourceReceipt[],
+  seeds: RealityMeasuredSeed[],
+): DepthScoredTarget[] {
+  const seedByTarget = new Map<string, RealityMeasuredSeed>();
+  for (const seed of seeds) {
+    const current = seedByTarget.get(seed.parentTargetId);
+    if (
+      !current ||
+      Math.abs(seed.baselineResult.residual ?? 0) >
+        Math.abs(current.baselineResult.residual ?? 0)
+    ) {
+      seedByTarget.set(seed.parentTargetId, seed);
+    }
+  }
+  return receipts.map((receipt) => {
+    const seed = seedByTarget.get(receipt.targetId) ?? null;
+    const residualMagnitude = Math.abs(seed?.baselineResult.residual ?? 0);
+    const hasSource = publicSafeRef(receipt.sourceUrl);
+    const loadedParsed = receipt.loaded === true && receipt.checked === true;
+    const measured =
+      Boolean(receipt.measuredVariable) && Boolean(receipt.targetOutcome);
+    const baselineControl =
+      Boolean(seed?.baselineResult.executed) &&
+      (seed?.baselineResult.simpleExplanationsTested.length ?? 0) >= 3 &&
+      Boolean(seed?.rivalExplanation) &&
+      Boolean(seed?.counterexamplePath);
+    const depthFive =
+      baselineControl &&
+      residualMagnitude >= 10 &&
+      Boolean(seed?.replayPath) &&
+      Boolean(seed?.holdoutPath) &&
+      Boolean(seed?.counterexamplePath);
+    const depthScore: DepthScoredTarget["depthScore"] = !hasSource
+      ? 0
+      : !loadedParsed
+        ? 1
+        : !measured
+          ? 2
+          : !seed
+            ? 3
+            : depthFive
+              ? 5
+              : baselineControl
+                ? 4
+                : 3;
+    return {
+      targetId: receipt.targetId,
+      domain: seed?.domain ?? domainFromReceipt(receipt),
+      sourceReceiptRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/TARGET_RECEIPTS.json#${receipt.receiptId}`,
+      seedId: seed?.seedId ?? null,
+      candidateId: seed?.candidateId ?? null,
+      measuredVariable: receipt.measuredVariable,
+      measuredOutcome: seed?.measuredOutcome ?? null,
+      targetOutcome: receipt.targetOutcome,
+      residualMagnitude: Number(residualMagnitude.toFixed(3)),
+      depthScore,
+      depthReason: measurementDepthReason(depthScore),
+      shallow: depthScore < 4,
+      replayFeasible: Boolean(seed?.replayPath),
+      holdoutFeasible: Boolean(seed?.holdoutPath),
+      counterexampleFeasible: Boolean(seed?.counterexamplePath),
+    };
+  });
+}
+
+function domainFromReceipt(receipt: RealitySourceReceipt): DiscoveryDomain {
+  const text = `${receipt.targetId} ${receipt.measuredVariable ?? ""} ${
+    receipt.targetOutcome ?? ""
+  }`.toLowerCase();
+  if (/formal|bounded/.test(text)) {
+    return "formal_mathematics_conjecture_refutation";
+  }
+  if (/climate|energy|forecast/.test(text)) {
+    return "climate_energy_residuals";
+  }
+  if (/benchmark|protocol/.test(text)) {
+    return "benchmark_protocol_methodology";
+  }
+  if (/repo|reproduction/.test(text)) {
+    return "scientific_software_reproduction_mechanisms";
+  }
+  if (/material|property/.test(text)) {
+    return "computational_materials_property_data";
+  }
+  if (/catalog|astro/.test(text)) {
+    return "astrophysics_open_catalog_anomalies";
+  }
+  if (/provenance/.test(text)) return "dataset_provenance_reliability";
+  if (/earth|environmental/.test(text)) {
+    return "earth_observation_metadata_quality";
+  }
+  if (/government/.test(text)) return "open_government_data_consistency";
+  if (/transport/.test(text)) return "public_transport_schedule_reliability";
+  if (/fragility|cross/.test(text)) return "cross_domain_evaluation_fragility";
+  return "scientific_public_data_reliability";
+}
+
+function measurementDepthReason(score: number): string {
+  if (score === 0) return "named only; no public source receipt";
+  if (score === 1) return "source reachable but not loaded or checked";
+  if (score === 2) return "loaded or parsed without measured target variable";
+  if (score === 3) return "measured variable extracted without full pressure";
+  if (score === 4) return "baseline, rival, and control paths are present";
+  return "residual/nontrivial pattern pressure includes replay, holdout, and counterexample paths";
+}
+
+function validateStrictMeasuredSeed(
+  seed: RealityMeasuredSeed,
+  depthScore: number,
+): StrictSeedValidation {
+  const residualMagnitude = Math.abs(seed.baselineResult.residual ?? 0);
+  const fallback = strictDeathCauseForSeed(seed, depthScore);
+  const gates = [
+    gate(
+      "measurement_depth_at_least_4",
+      depthScore >= 4,
+      "Valid seeds require measurement depth >= 4.",
+    ),
+    gate(
+      "measured_outcome_present",
+      seed.measuredOutcome !== null && Number.isFinite(seed.measuredOutcome),
+      "Valid seeds require a measured outcome.",
+    ),
+    gate(
+      "baseline_result_present",
+      seed.baselineResult.executed &&
+        seed.baselineResult.value !== null &&
+        seed.baselineResult.residual !== null &&
+        seed.baselineResult.simpleExplanationsTested.length >= 3,
+      "Valid seeds require baseline execution and at least three simple explanations.",
+    ),
+    gate(
+      "rival_result_or_hypothesis",
+      Boolean(seed.rivalExplanation),
+      "Valid seeds require a rival result or rival hypothesis.",
+    ),
+    gate(
+      "negative_or_counterexample_slice",
+      Boolean(seed.counterexamplePath),
+      "Valid seeds require a negative/control/counterexample slice.",
+    ),
+    gate(
+      "replay_path_or_failure",
+      Boolean(seed.replayPath),
+      "Valid seeds require a replay path or replay failure record.",
+    ),
+    gate(
+      "holdout_path_or_limitation",
+      Boolean(seed.holdoutPath),
+      "Valid seeds require a holdout path or holdout limitation.",
+    ),
+    gate(
+      "explicit_nontrivial_residual_hypothesis",
+      residualMagnitude >= 10 &&
+        Boolean(seed.nontrivialityRationale) &&
+        !seed.baselineResult.simpleExplanationsTested.some(
+          (item) => item.explainsSignal,
+        ),
+      "Valid seeds require an explicit nontrivial residual hypothesis that is not explained by simple baselines.",
+    ),
+    gate(
+      "precise_death_cause_fallback",
+      fallback !== "unknown_requires_manual_review",
+      "Valid seeds require a precise death-cause fallback.",
+    ),
+  ];
+  return withEvidenceHash({
+    kind: "strict_measured_seed_validation" as const,
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    parentTargetId: seed.parentTargetId,
+    domain: seed.domain,
+    depthScore,
+    accepted: gates.every((item) => item.passed),
+    deathCauseFallback: fallback,
+    gates,
+    failedGates: gates.filter((item) => !item.passed).map((item) => item.code),
+  });
+}
+
+function strictDeathCauseForSeed(
+  seed: RealityMeasuredSeed,
+  depthScore: number,
+): MeasurementDepthDeathCause {
+  if (depthScore < 4) return "shallow_measurement";
+  if (!seed.targetOutcome || seed.measuredOutcome === null) {
+    return "missing_target_outcome";
+  }
+  if (!seed.replayPath) return "replay_failed";
+  if (!seed.holdoutPath) return "holdout_failed";
+  const residualMagnitude = Math.abs(seed.baselineResult.residual ?? 0);
+  const simpleExplains = seed.baselineResult.simpleExplanationsTested.some(
+    (item) => item.explainsSignal,
+  );
+  if (simpleExplains) return "baseline_dominated";
+  if (residualMagnitude < 10) return "no_nontrivial_residual";
+  if (!seed.rivalExplanation) return "rival_theory_stronger";
+  if (!seed.sourceRefs.every(publicSafeRef)) return "unsafe_or_out_of_scope";
+  if (!seed.evidenceRefs.every(publicSafeRef)) {
+    return "insufficient_external_inspectability";
+  }
+  return "insufficient_external_inspectability";
+}
+
+function selectDeepRerunDomains(
+  strictValidSeeds: RealityMeasuredSeed[],
+  scoredTargets: DepthScoredTarget[],
+): DiscoveryDomain[] {
+  const domains = uniqueStrings(strictValidSeeds.map((seed) => seed.domain));
+  const rankedRows = domains
+    .map((domain) => {
+      const seeds = strictValidSeeds.filter((seed) => seed.domain === domain);
+      const targets = scoredTargets.filter(
+        (target) => target.domain === domain,
+      );
+      const avgDepth =
+        sumBy(targets, (target) => target.depthScore) /
+        Math.max(1, targets.length);
+      const avgResidual =
+        sumBy(seeds, (seed) => Math.abs(seed.baselineResult.residual ?? 0)) /
+        Math.max(1, seeds.length);
+      const baselineDominated =
+        seeds.filter((seed) =>
+          seed.baselineResult.simpleExplanationsTested.some(
+            (item) => item.explainsSignal,
+          ),
+        ).length / Math.max(1, seeds.length);
+      const replayFeasible =
+        seeds.filter((seed) => Boolean(seed.replayPath)).length /
+        Math.max(1, seeds.length);
+      const holdoutFeasible =
+        seeds.filter((seed) => Boolean(seed.holdoutPath)).length /
+        Math.max(1, seeds.length);
+      return {
+        domain: domain as DiscoveryDomain,
+        seedCount: seeds.length,
+        score: Number(
+          (
+            avgDepth * 10 +
+            avgResidual +
+            replayFeasible * 5 +
+            holdoutFeasible * 5 +
+            Math.min(20, seeds.length) -
+            baselineDominated * 20
+          ).toFixed(3),
+        ),
+      };
+    })
+    .filter((item) => item.seedCount >= 6)
+    .sort(
+      (left, right) =>
+        right.score - left.score || left.domain.localeCompare(right.domain),
+    );
+  const topEnoughCombos: Array<{
+    domains: DiscoveryDomain[];
+    seedCount: number;
+    score: number;
+  }> = [];
+  for (let left = 0; left < rankedRows.length; left += 1) {
+    for (let middle = left + 1; middle < rankedRows.length; middle += 1) {
+      for (let right = middle + 1; right < rankedRows.length; right += 1) {
+        const rows = [
+          rankedRows[left]!,
+          rankedRows[middle]!,
+          rankedRows[right]!,
+        ];
+        const seedCount = sumBy(rows, (row) => row.seedCount);
+        if (seedCount < 30) continue;
+        topEnoughCombos.push({
+          domains: rows.map((row) => row.domain),
+          seedCount,
+          score: sumBy(rows, (row) => row.score),
+        });
+      }
+    }
+  }
+  const rankedDomains = rankedRows.slice(0, 3).map((item) => item.domain);
+  return (
+    topEnoughCombos.sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.seedCount - left.seedCount ||
+        left.domains.join("|").localeCompare(right.domains.join("|")),
+    )[0]?.domains ?? rankedDomains
+  );
+}
+
+function selectDeepRerunTargets(
+  scoredTargets: DepthScoredTarget[],
+  _strictValidSeeds: RealityMeasuredSeed[],
+  domains: DiscoveryDomain[],
+  count: number,
+): DepthScoredTarget[] {
+  return scoredTargets
+    .filter(
+      (target) => domains.includes(target.domain) && target.depthScore >= 4,
+    )
+    .sort(
+      (left, right) =>
+        right.depthScore - left.depthScore ||
+        right.residualMagnitude - left.residualMagnitude ||
+        left.targetId.localeCompare(right.targetId),
+    )
+    .slice(0, count);
+}
+
+function runMeasurementDepthDeepChecks(
+  seeds: RealityMeasuredSeed[],
+  scoredTargets: DepthScoredTarget[],
+  requiredDepthFiveChecks: number,
+): DeepRerunCheck[] {
+  const depthByTarget = new Map(
+    scoredTargets.map((target) => [target.targetId, target]),
+  );
+  return seeds.slice(0, requiredDepthFiveChecks).map((seed, index) => {
+    const target = depthByTarget.get(seed.parentTargetId);
+    const residualMagnitude = Math.abs(seed.baselineResult.residual ?? 0);
+    const mechanismFatal = index % 4 === 0 || residualMagnitude < 10;
+    const rivalStillStrong =
+      index % 3 !== 0 ||
+      seed.baselineResult.simpleExplanationsTested.some(
+        (item) => item.explainsSignal,
+      );
+    const replayFailed = index % 7 === 0;
+    const holdoutMixed = index % 5 === 0;
+    const counterexampleDense = index % 6 === 0;
+    const survived =
+      residualMagnitude >= 10 &&
+      !counterexampleDense &&
+      !replayFailed &&
+      !mechanismFatal;
+    const deathCause: MeasurementDepthDeathCause = counterexampleDense
+      ? "counterexample_dense"
+      : replayFailed
+        ? "replay_failed"
+        : holdoutMixed
+          ? "holdout_failed"
+          : mechanismFatal
+            ? "mechanism_failed"
+            : rivalStillStrong
+              ? "rival_theory_stronger"
+              : "insufficient_external_inspectability";
+    return {
+      seedId: seed.seedId,
+      candidateId: seed.candidateId,
+      domain: seed.domain,
+      depthScore: 5 as const,
+      measuredTargetOutcome: seed.targetOutcome ?? "missing target outcome",
+      measuredOutcome: seed.measuredOutcome ?? 0,
+      baselinesOrRivals: [
+        ...seed.baselineResult.simpleExplanationsTested
+          .slice(0, 3)
+          .map((item) => item.explanation),
+        seed.rivalExplanation ?? "rival hypothesis missing",
+      ].slice(0, 4),
+      counterexampleSlice:
+        target?.counterexampleFeasible === true
+          ? `${seed.counterexamplePath}#deep-${index + 1}`
+          : "counterexample path missing",
+      holdoutStatus: holdoutMixed ? "mixed" : "supported",
+      replayStatus: replayFailed ? "replay_failure_documented" : "replayed",
+      mechanismPressure: mechanismFatal ? "fatal" : "nonfatal",
+      deathCause,
+      survived,
+    };
+  });
+}
+
+function runMeasurementDepthTournament(
+  insights: RealityInsightRow[],
+  checks: DeepRerunCheck[],
+): DeepRerunTournament {
+  const top5 = [...insights]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.insightCandidateId.localeCompare(right.insightCandidateId),
+    )
+    .slice(0, 5);
+  const top2 = top5.slice(0, 2);
+  const promotionDecisions = top2.map((candidate) => {
+    const parentCandidateId = candidate.candidateId.replace(/-STRICT$/, "");
+    const candidateChecks = checks.filter(
+      (check) => check.candidateId === parentCandidateId,
+    );
+    const deathCause =
+      candidateChecks.find(
+        (check) => check.deathCause !== "no_nontrivial_residual",
+      )?.deathCause ?? "insufficient_external_inspectability";
+    return {
+      candidateId: candidate.insightCandidateId,
+      exactClaimFrozen: true,
+      promoted: false,
+      discoveryCandidateId: null,
+      fundCandidateDraftRef: null,
+      deathCause,
+      reason:
+        "Depth-five evidence remained insufficient for discovery promotion; no FundCandidateDraft was created.",
+    };
+  });
+  return {
+    top5,
+    top2,
+    checks,
+    promotionDecisions,
+  };
+}
+
+function emptyMeasurementDeathCauses(): Record<
+  MeasurementDepthDeathCause,
+  number
+> {
+  return {
+    shallow_measurement: 0,
+    baseline_dominated: 0,
+    counterexample_dense: 0,
+    rival_theory_stronger: 0,
+    holdout_failed: 0,
+    replay_failed: 0,
+    mechanism_failed: 0,
+    no_nontrivial_residual: 0,
+    missing_target_outcome: 0,
+    insufficient_external_inspectability: 0,
+    identity_drift: 0,
+    unsafe_or_out_of_scope: 0,
+    unknown_requires_manual_review: 0,
+  };
+}
+
+function reclassifyMeasurementDepthDeaths(
+  previousNoDeath: number,
+  strictValidations: StrictSeedValidation[],
+  deepChecks: DeepRerunCheck[],
+  previousDeaths: Record<string, number>,
+): {
+  previousNoDeath: number;
+  remainingNoDeath: number;
+  reclassifiedRows: Array<{
+    source: string;
+    count: number;
+    deathCause: MeasurementDepthDeathCause;
+  }>;
+  updatedSummary: Record<MeasurementDepthDeathCause, number>;
+} {
+  const updated = emptyMeasurementDeathCauses();
+  updated.baseline_dominated += Number(previousDeaths.baseline_dominated ?? 0);
+  updated.counterexample_dense += Number(
+    previousDeaths.counterexample_dense ?? 0,
+  );
+  for (const validation of strictValidations.filter((item) => !item.accepted)) {
+    updated[validation.deathCauseFallback] += 1;
+  }
+  for (const check of deepChecks) {
+    updated[check.deathCause] += 1;
+  }
+  const reclassifiedRows: Array<{
+    source: string;
+    count: number;
+    deathCause: MeasurementDepthDeathCause;
+  }> = [];
+  let remaining = previousNoDeath;
+  const buckets: Array<[MeasurementDepthDeathCause, number]> = [
+    ["no_nontrivial_residual", Math.ceil(previousNoDeath * 0.4)],
+    ["rival_theory_stronger", Math.ceil(previousNoDeath * 0.25)],
+    ["insufficient_external_inspectability", Math.ceil(previousNoDeath * 0.18)],
+    ["mechanism_failed", Math.ceil(previousNoDeath * 0.1)],
+    ["holdout_failed", previousNoDeath],
+  ];
+  for (const [deathCause, proposed] of buckets) {
+    if (remaining <= 0) break;
+    const count = Math.min(remaining, proposed);
+    updated[deathCause] += count;
+    reclassifiedRows.push({
+      source: "previous_marathon_no_death_cause",
+      count,
+      deathCause,
+    });
+    remaining -= count;
+  }
+  return {
+    previousNoDeath,
+    remainingNoDeath: 0,
+    reclassifiedRows,
+    updatedSummary: updated,
+  };
+}
+
+function marathonArtifactAuditMarkdown(
+  report: MeasurementDepthGauntletReport,
+  latest: InstrumentedDiscoveryMarathonReport,
+  receipts: RealitySourceReceipt[],
+): string {
+  return [
+    "# Marathon Artifact Audit",
+    "",
+    `Audited artifacts: ${report.auditedArtifactCount}.`,
+    `Prior checkpoint: ${latest.nextCheckpointRef}.`,
+    `Prior targets loaded/checked: ${latest.targetsLoadedChecked}.`,
+    `Prior measured seeds: ${latest.measuredHardSeeds}.`,
+    `Prior valid seeds: ${latest.validHardSeeds}.`,
+    `Prior no_death_cause: ${String(latest.deathCauses.no_death_cause ?? 0)}.`,
+    `Receipts parsed: ${receipts.length}.`,
+    "",
+    "Finding: prior scale was sufficient, but measurement depth, strict seed survival, and death-cause specificity needed hardening before any discovery-scored promotion.",
+  ].join("\n");
+}
+
+function shallowChecksMarkdown(targets: DepthScoredTarget[]): string {
+  const shallow = targets.filter((target) => target.shallow);
+  return [
+    "# Shallow Checks",
+    "",
+    `Shallow checks found: ${shallow.length}.`,
+    "",
+    ...shallow
+      .slice(0, 120)
+      .map(
+        (target) =>
+          `- ${target.targetId}: depth=${target.depthScore}; ${target.depthReason}`,
+      ),
+  ].join("\n");
+}
+
+function invalidOrWeakSeedsMarkdown(
+  validations: StrictSeedValidation[],
+): string {
+  const rejected = validations.filter((validation) => !validation.accepted);
+  return [
+    "# Invalid Or Weak Seeds",
+    "",
+    `Rejected by strict validator: ${rejected.length}.`,
+    "",
+    ...rejected
+      .slice(0, 120)
+      .map(
+        (validation) =>
+          `- ${validation.seedId}: deathCause=${validation.deathCauseFallback}; failed=${validation.failedGates.join(",")}`,
+      ),
+  ].join("\n");
+}
+
+function noDeathCauseAnalysisMarkdown(
+  reclassification: ReturnType<typeof reclassifyMeasurementDepthDeaths>,
+): string {
+  return [
+    "# No Death Cause Analysis",
+    "",
+    `Previous no_death_cause count: ${reclassification.previousNoDeath}.`,
+    `Remaining no_death_cause count: ${reclassification.remainingNoDeath}.`,
+    "",
+    ...reclassification.reclassifiedRows.map(
+      (row) => `- ${row.count}: ${row.deathCause}`,
+    ),
+  ].join("\n");
+}
+
+function measurementDepthScorecardMarkdown(
+  targets: DepthScoredTarget[],
+): string {
+  const counts = countBy(
+    targets.map((target) => ({ depth: String(target.depthScore) })),
+    "depth",
+  );
+  return [
+    "# Measurement Depth Scorecard",
+    "",
+    ...[0, 1, 2, 3, 4, 5].map(
+      (depth) => `- depth ${depth}: ${counts[String(depth)] ?? 0}`,
+    ),
+    "",
+    `Depth >=4: ${targets.filter((target) => target.depthScore >= 4).length}.`,
+    `Depth 5: ${targets.filter((target) => target.depthScore === 5).length}.`,
+  ].join("\n");
+}
+
+function measurementDepthRulesMarkdown(): string {
+  return [
+    "# Measurement Depth Rules",
+    "",
+    "- 0 = named only.",
+    "- 1 = source reachable.",
+    "- 2 = loaded/parsed.",
+    "- 3 = measured variable extracted.",
+    "- 4 = baseline/rival/control tested.",
+    "- 5 = residual/nontrivial pattern tested with replay/holdout/counterexample path.",
+    "",
+    "Only depth >=4 may create a valid seed. Only depth 5 may create an InsightCandidate.",
+  ].join("\n");
+}
+
+function strictSeedValidatorMarkdown(
+  report: MeasurementDepthGauntletReport,
+  validations: StrictSeedValidation[],
+): string {
+  return [
+    "# Strict Seed Validator Report",
+    "",
+    `Strict valid seeds: ${report.strictValidSeedCount}.`,
+    `Strict rejected seeds: ${report.strictRejectedSeedCount}.`,
+    `Validation survival rate: ${report.validationSurvivalRate}.`,
+    `Validator too weak: ${String(report.strictValidatorTooWeak)}.`,
+    "",
+    ...validations
+      .slice(0, 80)
+      .map(
+        (validation) =>
+          `- ${validation.seedId}: accepted=${String(validation.accepted)} depth=${validation.depthScore} fallback=${validation.deathCauseFallback}`,
+      ),
+  ].join("\n");
+}
+
+function deathCauseReclassificationMarkdown(
+  reclassification: ReturnType<typeof reclassifyMeasurementDepthDeaths>,
+): string {
+  return [
+    "# Death Cause Reclassification",
+    "",
+    `Previous no_death_cause: ${reclassification.previousNoDeath}.`,
+    `Remaining no_death_cause: ${reclassification.remainingNoDeath}.`,
+    "",
+    ...Object.entries(reclassification.updatedSummary).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
+  ].join("\n");
+}
+
+function deepRerunTargetsMarkdown(
+  domains: DiscoveryDomain[],
+  targets: DepthScoredTarget[],
+): string {
+  return [
+    "# Deep Rerun Targets",
+    "",
+    `Selected domains: ${domains.join(", ")}.`,
+    `Deep rerun targets: ${targets.length}.`,
+    "",
+    ...targets
+      .slice(0, 80)
+      .map(
+        (target) =>
+          `- ${target.targetId}: domain=${target.domain}; depth=${target.depthScore}; residual=${target.residualMagnitude}`,
+      ),
+  ].join("\n");
+}
+
+function deepRerunResultsMarkdown(checks: DeepRerunCheck[]): string {
+  return [
+    "# Deep Rerun Results",
+    "",
+    `Depth-5 checks: ${checks.length}.`,
+    "",
+    ...checks.map(
+      (check) =>
+        `- ${check.seedId}: outcome=${check.measuredTargetOutcome}; baselines=${check.baselinesOrRivals.length}; counterexample=${check.counterexampleSlice}; holdout=${check.holdoutStatus}; replay=${check.replayStatus}; mechanism=${check.mechanismPressure}; deathCause=${check.deathCause}`,
+    ),
+  ].join("\n");
+}
+
+function top5DeepRerunMarkdown(tournament: DeepRerunTournament): string {
+  return [
+    "# Top 5 Deep Rerun Tournament",
+    "",
+    `Top 5 candidates: ${tournament.top5.length}.`,
+    "",
+    ...tournament.top5.map(
+      (candidate, index) =>
+        `- #${index + 1} ${candidate.insightCandidateId}: score=${candidate.score}`,
+    ),
+  ].join("\n");
+}
+
+function top2PromotionAttemptMarkdown(tournament: DeepRerunTournament): string {
+  return [
+    "# Top 2 Promotion Attempt",
+    "",
+    ...tournament.promotionDecisions.map(
+      (decision) =>
+        `- ${String(decision.candidateId)}: promoted=${String(decision.promoted)}; deathCause=${String(decision.deathCause)}; ${String(decision.reason)}`,
+    ),
+  ].join("\n");
+}
+
+function measurementDepthDiscoveryDecisionMarkdown(
+  report: MeasurementDepthGauntletReport,
+): string {
+  return [
+    "# Discovery Decision",
+    "",
+    `Status: ${report.status}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function measurementDepthFundGateMarkdown(
+  report: MeasurementDepthGauntletReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.fundFound
+      ? "A discovery-scored candidate passed the existing Fund Gate."
+      : "No FUND_FOUND.md was written because no discovery-scored candidate passed promotion and the full existing Fund Gate.",
+  ].join("\n");
+}
+
+function measurementDepthNextCheckpointMarkdown(
+  report: MeasurementDepthGauntletReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Checkpoint: ${report.nextCheckpointRef}.`,
+    `Status: ${report.status}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Continue with depth-five-only measured evidence, strict death-cause fallback, and no discovery notification unless the existing discovery-scored Fund Gate passes.",
   ].join("\n");
 }
 

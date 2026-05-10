@@ -2365,6 +2365,96 @@ test("discover-daemon marathon status resume and audit enforce valid terminal st
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon marathon depth gauntlet hardens measurement depth and death causes", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.marathon();
+
+  const report = await service.marathonDepthGauntlet();
+
+  assert.equal(report.kind, "measurement_depth_seed_quality_gauntlet");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.fundFound, false);
+  assert.ok(report.auditedArtifactCount >= 17);
+  assert.ok(report.targetsScored >= 500);
+  assert.ok(report.shallowChecksFound > 0);
+  assert.ok(report.strictValidSeedCount >= 20);
+  assert.ok(report.strictRejectedSeedCount > report.strictValidSeedCount);
+  assert.ok(report.validationSurvivalRate <= 0.5);
+  assert.equal(report.strictValidatorTooWeak, false);
+  assert.equal(report.noDeathCauseRemaining, 0);
+  assert.ok(report.selectedTopDomains.length >= 2);
+  assert.ok(report.selectedTopDomains.length <= 3);
+  assert.equal(report.deepRerunTargetCount, 60);
+  assert.ok(report.deepDepthFiveChecks >= 30);
+  assert.ok(report.deepStrictValidSeeds >= 20);
+  assert.ok(report.insightCandidatesCreated >= 10);
+  assert.equal(report.top5CandidateIds.length, 5);
+  assert.equal(report.top2CandidateIds.length, 2);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "MARATHON_ARTIFACT_AUDIT.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "UPDATED_DEATH_CAUSE_SUMMARY.json",
+      ),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon marathon depth-gauntlet CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const runResponse = await executeCli(
+    ["discover-daemon", "marathon", "--json"],
+    root,
+  );
+  assert.equal(runResponse.ok, true, JSON.stringify(runResponse.errors));
+
+  const gauntletResponse = await executeCli(
+    ["discover-daemon", "marathon", "depth-gauntlet", "--json"],
+    root,
+  );
+  assert.equal(
+    gauntletResponse.ok,
+    true,
+    JSON.stringify(gauntletResponse.errors),
+  );
+  assert.equal(
+    (gauntletResponse.data as Record<string, unknown>).kind,
+    "measurement_depth_seed_quality_gauntlet",
+  );
+  assert.equal(
+    (gauntletResponse.data as Record<string, unknown>).fundFound,
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("top-level pipeline commands produce instrumental evidence without Fund state", async () => {
   const root = await tempRoot();
   const compose = await executeCli(

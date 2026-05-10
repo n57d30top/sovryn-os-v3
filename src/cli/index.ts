@@ -190,7 +190,7 @@ Commands:
   sovryn discover-daemon outcome-pattern-search [--hard-seeds 30] [--checks 12] [--json]
   sovryn discover-daemon outcome-war [status|resume|audit] [--json]
   sovryn discover-daemon reality-marathon [status|audit] [--json]
-  sovryn discover-daemon marathon [status|resume|audit] [--json]
+  sovryn discover-daemon marathon [status|resume|audit|depth-gauntlet] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1743,6 +1743,7 @@ async function discoverDaemonCommand(
       if (action === "status") return service.marathonStatus();
       if (action === "resume") return service.marathonResume();
       if (action === "audit") return service.marathonAudit();
+      if (action === "depth-gauntlet") return service.marathonDepthGauntlet();
       throw new AppError(
         "UNKNOWN_DISCOVER_DAEMON_MARATHON_COMMAND",
         `Unknown discover-daemon marathon command: ${action}`,

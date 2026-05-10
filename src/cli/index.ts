@@ -57,6 +57,7 @@ import { ExternalReproductionService } from "../core/external-reproduction/exter
 import { ExternalReviewScientistService } from "../core/external-review/external-review-scientist-service.js";
 import { FormalDiscoveryService } from "../core/formal/formal-discovery-service.js";
 import { GeneralScientistService } from "../core/scientist/general-scientist-service.js";
+import { DiscoveryFrictionHealthService } from "../core/health/discovery-friction-health-service.js";
 import { NobelDiscoveryPortfolioService } from "../core/nobel/nobel-discovery-portfolio-service.js";
 import { NobelReadinessService } from "../core/nobel/nobel-readiness-service.js";
 import { OSHardeningService } from "../core/os/os-v15-hardening-service.js";
@@ -204,6 +205,7 @@ Commands:
   sovryn self-assemble run [--json]
   sovryn self-assemble smoke [--json]
   sovryn self-assemble audit [--json]
+  sovryn health friction [--json]
   sovryn pipeline compose --goal <goal> [--json]
   sovryn pipeline run --pipeline <id> [--json]
   sovryn pipeline evidence --pipeline <id> [--json]
@@ -774,6 +776,16 @@ export async function executeCli(
       case "self-assemble": {
         const result = await selfAssembleCommand(parsed, root);
         return okEnvelope("self-assemble", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "health": {
+        const result = await healthCommand(parsed, root);
+        return okEnvelope("health", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1812,6 +1824,29 @@ async function selfAssembleCommand(
       throw new AppError(
         "UNKNOWN_SELF_ASSEMBLE_COMMAND",
         `Unknown self-assemble command: ${subcommand}`,
+      );
+  }
+}
+
+async function healthCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (!subcommand) {
+    throw new AppError(
+      "HEALTH_COMMAND_REQUIRED",
+      "Use: sovryn health <friction>.",
+    );
+  }
+  const service = new DiscoveryFrictionHealthService(root);
+  switch (subcommand) {
+    case "friction":
+      return service.friction();
+    default:
+      throw new AppError(
+        "UNKNOWN_HEALTH_COMMAND",
+        `Unknown health command: ${subcommand}`,
       );
   }
 }

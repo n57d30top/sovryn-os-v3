@@ -38,6 +38,7 @@ graphify-out/graph.json
 .sovryn/lab/
 .sovryn/discovery/
 .sovryn/discovery-daemon/
+.sovryn/discovery-engine/
 .sovryn/pipeline/
 .sovryn/strategy/
 .sovryn/knowledge/

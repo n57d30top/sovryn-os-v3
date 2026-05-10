@@ -82,6 +82,7 @@ const commands = [
   "cross-source-residual-search",
   "generative-experiments",
   "tool-expansion",
+  "mechanism-first-pressure",
   "raw-insight-gate-closure",
   "overnight-completion",
   "cycle",
@@ -3394,6 +3395,120 @@ test("discover-daemon tool-expansion CLI is bounded and silent", async () => {
   );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon mechanism-first-pressure consumes tool hard seeds and blocks weak signals", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.toolExpansion();
+
+  const report = await service.mechanismFirstPressure();
+
+  assert.equal(report.kind, "domain_tool_mechanism_first_pressure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.seedsLoaded, 6);
+  assert.equal(report.testsRun, 36);
+  assert.equal(report.seedsKilledByBaseline, 4);
+  assert.equal(report.seedsKilledByRival, 1);
+  assert.equal(report.seedsKilledByCounterexample, 1);
+  assert.equal(report.seedsKilledByLackOfRecurrence, 0);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "DOMAIN_TOOL_HARD_SEEDS_PROFILE.md",
+    "MECHANISM_FIRST_TEST_PLANS.md",
+    "BASELINE_PRESSURE_RESULTS.md",
+    "RIVAL_MECHANISM_RESULTS.md",
+    "COUNTEREXAMPLE_CONTROL_RESULTS.md",
+    "CROSS_SOURCE_RECURRENCE_RESULTS.md",
+    "HOLDOUT_REPLAY_RESULTS.md",
+    "MECHANISM_PROOF_PRESSURE_RESULTS.md",
+    "INSIGHT_CANDIDATE_DERIVATION_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+    "PRESSURE_ROWS.json",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "mechanism-first-pressure", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  const rowsPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "mechanism-first-pressure", "PRESSURE_ROWS.json"),
+      "utf8",
+    ),
+  ) as {
+    rows: Array<{
+      seedId: string;
+      profile: { evidenceRefs: string[]; candidateMechanism: string };
+      primaryKillReason: string;
+      insightCandidateCreated: boolean;
+    }>;
+  };
+  assert.equal(rowsPayload.rows.length, 6);
+  assert.equal(
+    rowsPayload.rows.every(
+      (row) =>
+        row.profile.evidenceRefs.length >= 3 &&
+        row.profile.candidateMechanism.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    rowsPayload.rows.every((row) => row.insightCandidateCreated === false),
+    true,
+  );
+  assert.deepEqual(
+    rowsPayload.rows.map((row) => row.primaryKillReason).sort(),
+    [
+      "baseline_dominated",
+      "baseline_dominated",
+      "baseline_dominated",
+      "baseline_dominated",
+      "counterexample_dense",
+      "rival_theory_stronger",
+    ],
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon mechanism-first-pressure CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "mechanism-first-pressure", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "domain_tool_mechanism_first_pressure",
+  );
+  assert.equal((response.data as Record<string, unknown>).seedsLoaded, 6);
+  assert.equal(
+    (response.data as Record<string, unknown>).insightCandidatesCreated,
+    0,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
 });
 
 test("discover-daemon raw-insight-gate-closure evaluates the raw-born InsightCandidate without fake Fund", async () => {

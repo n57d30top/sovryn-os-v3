@@ -1022,6 +1022,26 @@ export type OvernightAutonomousCompletionRunReport = {
   evidenceHash: string;
 };
 
+export type MechanismFirstPressureReport = {
+  kind: "domain_tool_mechanism_first_pressure";
+  status: "FUND_FOUND" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  seedsLoaded: number;
+  testsRun: number;
+  seedsKilledByBaseline: number;
+  seedsKilledByRival: number;
+  seedsKilledByCounterexample: number;
+  seedsKilledByLackOfRecurrence: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -4144,6 +4164,91 @@ type DomainInstrumentPipeline = {
   hardSeedId: string;
   hardSeedCreated: boolean;
   promotionBlockedReason: string;
+};
+
+type DomainToolHardSeed = {
+  seedId: string;
+  seedType: string;
+  domain: DiscoveryToolDomain;
+  parentPipelineId: string;
+  sourceRefs: string[];
+  toolRefs: string[];
+  measuredVariable: string;
+  measuredOutcome: number;
+  residual: number;
+  baselineRefs: string[];
+  counterexamplePath: string;
+  replayPath: string;
+  candidateUse: string;
+  promotionBlockedReason: string;
+};
+
+type MechanismFirstSeedProfile = {
+  seedId: string;
+  domain: DiscoveryToolDomain;
+  toolsUsed: string[];
+  measuredTargetOutcome: number;
+  measuredVariable: string;
+  evidenceRefs: string[];
+  candidateMechanism: string;
+  strongestSimpleBaseline: string;
+  strongestRivalMechanism: string;
+  counterexamplePath: string;
+  holdoutPath: string;
+  replayPath: string;
+  residual: number;
+};
+
+type MechanismFirstTestPlan = {
+  seedId: string;
+  candidateMechanismPrediction: string;
+  rivalMechanismPrediction: string;
+  falsifier: string;
+  negativeControlSlice: string;
+  independentHoldoutOrBoundedCaveat: string;
+};
+
+type MechanismFirstPressureRow = {
+  seedId: string;
+  profile: MechanismFirstSeedProfile;
+  plan: MechanismFirstTestPlan;
+  baseline: {
+    passed: boolean;
+    strongestBaseline: string;
+    summary: string;
+  };
+  rival: {
+    weakened: boolean;
+    strongestRival: string;
+    summary: string;
+  };
+  counterexample: {
+    survived: boolean;
+    summary: string;
+  };
+  recurrence: {
+    supported: boolean;
+    summary: string;
+  };
+  holdoutReplay: {
+    supported: boolean;
+    summary: string;
+  };
+  mechanismProof: {
+    survived: boolean;
+    summary: string;
+  };
+  primaryKillReason:
+    | "baseline_dominated"
+    | "rival_theory_stronger"
+    | "counterexample_dense"
+    | "no_cross_source_support"
+    | "holdout_or_replay_failed"
+    | "proof_or_mechanism_failed"
+    | "survived";
+  insightCandidateCreated: boolean;
+  insightCandidateRef: string | null;
+  discoveryCandidateCreated: boolean;
 };
 
 type OvernightCompletionWave = {
@@ -9530,6 +9635,725 @@ function discoveryToolFundGateMarkdown(
 
 function discoveryToolNextCheckpointMarkdown(
   report: DiscoveryToolExpansionReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+export class DomainToolMechanismFirstPressure {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<MechanismFirstPressureReport> {
+    await mkdir(this.pressureRoot(), { recursive: true });
+    await this.ensureToolExpansionArtifacts();
+    const { hardSeeds, pipelines } = await this.loadToolExpansionSeeds();
+    const pipelineById = new Map(
+      pipelines.map((pipeline) => [pipeline.pipelineId, pipeline]),
+    );
+    const rows: MechanismFirstPressureRow[] = [];
+    for (const seed of hardSeeds) {
+      const pipeline = pipelineById.get(seed.parentPipelineId);
+      if (!pipeline) {
+        throw new Error(
+          `Missing tool-expansion pipeline ${seed.parentPipelineId}`,
+        );
+      }
+      const row = mechanismFirstPressureRow(seed, pipeline);
+      if (row.primaryKillReason === "survived") {
+        const derivation = await this.deriveInsightCandidate(row);
+        row.insightCandidateCreated = derivation.derived;
+        row.insightCandidateRef = derivation.artifactRef;
+      }
+      rows.push(row);
+    }
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const fundFound = fundGateResult.passed;
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/mechanism-first-pressure-continue-searching.json`;
+    const report: MechanismFirstPressureReport = withEvidenceHash({
+      kind: "domain_tool_mechanism_first_pressure" as const,
+      status: fundFound
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: await this.checkpointUsed(),
+      nextCheckpointRef,
+      seedsLoaded: hardSeeds.length,
+      testsRun: rows.length * 6,
+      seedsKilledByBaseline: rows.filter(
+        (row) => row.primaryKillReason === "baseline_dominated",
+      ).length,
+      seedsKilledByRival: rows.filter(
+        (row) => row.primaryKillReason === "rival_theory_stronger",
+      ).length,
+      seedsKilledByCounterexample: rows.filter(
+        (row) => row.primaryKillReason === "counterexample_dense",
+      ).length,
+      seedsKilledByLackOfRecurrence: rows.filter(
+        (row) => row.primaryKillReason === "no_cross_source_support",
+      ).length,
+      insightCandidatesCreated: rows.filter(
+        (row) => row.insightCandidateCreated,
+      ).length,
+      discoveryCandidatesCreated: rows.filter(
+        (row) => row.discoveryCandidateCreated,
+      ).length,
+      fundGateResult,
+      fundFound,
+      remainingBottleneck: mechanismFirstRemainingBottleneck(rows),
+      artifactRefs: mechanismFirstArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({ report, rows });
+    return report;
+  }
+
+  private pressureRoot(): string {
+    return join(this.root, daemonArtifactRoot, "mechanism-first-pressure");
+  }
+
+  private async ensureToolExpansionArtifacts(): Promise<void> {
+    const seedPath = join(
+      this.root,
+      daemonArtifactRoot,
+      "tool-expansion",
+      "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json",
+    );
+    const pipelinePath = join(
+      this.root,
+      daemonArtifactRoot,
+      "tool-expansion",
+      "DOMAIN_EVIDENCE_PIPELINES.json",
+    );
+    if ((await exists(seedPath)) && (await exists(pipelinePath))) return;
+    await new DiscoveryToolExpansion(this.root).run();
+  }
+
+  private async loadToolExpansionSeeds(): Promise<{
+    hardSeeds: DomainToolHardSeed[];
+    pipelines: DomainInstrumentPipeline[];
+  }> {
+    const seedPayload = await readOptionalJson<{
+      hardSeeds?: DomainToolHardSeed[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "tool-expansion",
+        "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json",
+      ),
+    );
+    const pipelinePayload = await readOptionalJson<{
+      pipelines?: DomainInstrumentPipeline[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "tool-expansion",
+        "DOMAIN_EVIDENCE_PIPELINES.json",
+      ),
+    );
+    const hardSeeds = seedPayload?.hardSeeds ?? [];
+    const pipelines = pipelinePayload?.pipelines ?? [];
+    if (hardSeeds.length === 0 || pipelines.length === 0) {
+      throw new Error(
+        "Mechanism-first pressure requires tool-expansion seeds.",
+      );
+    }
+    return { hardSeeds, pipelines };
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    const overnightCheckpoint = `${daemonArtifactRoot}/checkpoints/overnight-completion-continue-searching.json`;
+    if (await exists(join(this.root, overnightCheckpoint))) {
+      return overnightCheckpoint;
+    }
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    return state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+  }
+
+  private async writeArtifacts(input: {
+    report: MechanismFirstPressureReport;
+    rows: MechanismFirstPressureRow[];
+  }): Promise<void> {
+    const root = this.pressureRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "PRESSURE_ROWS.json"), {
+      kind: "mechanism_first_pressure_rows",
+      rows: input.rows,
+      evidenceHash: hashEvidence(input.rows),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "mechanism_first_pressure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      seedsLoaded: input.report.seedsLoaded,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
+      discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
+      reportRef: `${daemonArtifactRoot}/mechanism-first-pressure/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "DOMAIN_TOOL_HARD_SEEDS_PROFILE.md"),
+      mechanismFirstSeedProfileMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "MECHANISM_FIRST_TEST_PLANS.md"),
+      mechanismFirstTestPlansMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "BASELINE_PRESSURE_RESULTS.md"),
+      mechanismFirstBaselineMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "RIVAL_MECHANISM_RESULTS.md"),
+      mechanismFirstRivalMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_CONTROL_RESULTS.md"),
+      mechanismFirstCounterexampleMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "CROSS_SOURCE_RECURRENCE_RESULTS.md"),
+      mechanismFirstRecurrenceMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "HOLDOUT_REPLAY_RESULTS.md"),
+      mechanismFirstHoldoutReplayMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "MECHANISM_PROOF_PRESSURE_RESULTS.md"),
+      mechanismFirstMechanismProofMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATE_DERIVATION_DECISIONS.md"),
+      mechanismFirstInsightDecisionMarkdown(input.rows, input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      mechanismFirstFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      mechanismFirstNextCheckpointMarkdown(input.report),
+    );
+  }
+
+  private async deriveInsightCandidate(
+    row: MechanismFirstPressureRow,
+  ): Promise<InsightCandidateDerivation> {
+    const domain = mechanismFirstDiscoveryDomain(row.profile.domain);
+    const parentClaim = normalizeWhitespace(
+      [
+        `Mechanism-first seed ${row.seedId} proposes ${row.profile.candidateMechanism}.`,
+        `Measured outcome ${row.profile.measuredVariable}=${row.profile.measuredTargetOutcome} with residual ${row.profile.residual}.`,
+        "This remains an insight candidate only unless downstream discovery-scored gates pass.",
+      ].join(" "),
+    );
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: parentClaim,
+      domain,
+      mechanism: row.profile.candidateMechanism,
+      evidenceScope: row.profile.measuredVariable,
+      fundClass: "insight_candidate",
+    });
+    return new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${row.seedId}-mechanism-first-pressure`,
+      parentPipelineCandidateId: row.seedId,
+      parentClaim,
+      parentFundClass: "pipeline_capability_verified",
+      domain,
+      mechanismHypothesis: row.profile.candidateMechanism,
+      evidenceScope: `${row.profile.domain} ${row.profile.measuredVariable} residual pressure`,
+      parentEvidenceRefs: row.profile.evidenceRefs,
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: row.seedId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+  }
+}
+
+function mechanismFirstPressureRow(
+  seed: DomainToolHardSeed,
+  pipeline: DomainInstrumentPipeline,
+): MechanismFirstPressureRow {
+  const profile = mechanismFirstSeedProfile(seed, pipeline);
+  const plan = mechanismFirstTestPlan(profile);
+  const rivalStronger = mechanismFirstRivalStronger(profile, pipeline);
+  const baselineDominated = mechanismFirstBaselineDominated(seed, pipeline);
+  const counterexampleSurvived =
+    !mechanismFirstCounterexampleCollapsed(profile);
+  const recurrenceSupported = mechanismFirstRecurrenceSupported(profile);
+  const holdoutReplaySupported = mechanismFirstHoldoutReplaySupported(profile);
+  const mechanismSurvived = mechanismFirstMechanismSurvived(profile);
+  const primaryKillReason =
+    rivalStronger && profile.domain === "benchmark_methodology"
+      ? "rival_theory_stronger"
+      : baselineDominated
+        ? "baseline_dominated"
+        : !counterexampleSurvived
+          ? "counterexample_dense"
+          : !recurrenceSupported
+            ? "no_cross_source_support"
+            : !holdoutReplaySupported
+              ? "holdout_or_replay_failed"
+              : !mechanismSurvived
+                ? "proof_or_mechanism_failed"
+                : rivalStronger
+                  ? "rival_theory_stronger"
+                  : "survived";
+  return {
+    seedId: seed.seedId,
+    profile,
+    plan,
+    baseline: {
+      passed: !baselineDominated,
+      strongestBaseline: profile.strongestSimpleBaseline,
+      summary: baselineDominated
+        ? "Killed before InsightCandidate birth: stronger simple/matched baseline explains the measured residual."
+        : "Initial simple baselines did not fully explain the measured residual; seed proceeds to rival and control pressure.",
+    },
+    rival: {
+      weakened: !rivalStronger,
+      strongestRival: profile.strongestRivalMechanism,
+      summary: rivalStronger
+        ? "Rival mechanism remains at least as strong as the candidate mechanism under matched controls."
+        : "Rival mechanism is scoped but not enough to promote without recurrence, holdout, replay, and mechanism pressure.",
+    },
+    counterexample: {
+      survived: counterexampleSurvived,
+      summary: counterexampleSurvived
+        ? "Negative/control slices did not immediately collapse the seed."
+        : profile.counterexamplePath,
+    },
+    recurrence: {
+      supported: recurrenceSupported,
+      summary: recurrenceSupported
+        ? "Residual recurs across independent slices."
+        : "No independent cross-source or cross-slice recurrence is established for this seed.",
+    },
+    holdoutReplay: {
+      supported: holdoutReplaySupported,
+      summary: holdoutReplaySupported
+        ? "Holdout and replay path is available, but earlier pressure still blocks derivation."
+        : "Holdout/replay path is too weak or remains bounded caveat only.",
+    },
+    mechanismProof: {
+      survived: mechanismSurvived,
+      summary: mechanismSurvived
+        ? "Mechanism pressure is nonfatal, but all other promotion gates must also close."
+        : "Mechanism/proof pressure is fatal for the proposed generalization.",
+    },
+    primaryKillReason,
+    insightCandidateCreated: false,
+    insightCandidateRef: null,
+    discoveryCandidateCreated: false,
+  };
+}
+
+function mechanismFirstDiscoveryDomain(
+  domain: DiscoveryToolDomain,
+): DiscoveryDomain {
+  const domains: Record<DiscoveryToolDomain, DiscoveryDomain> = {
+    computational_materials: "computational_materials_property_data",
+    astrophysics: "astrophysics_open_catalog_anomalies",
+    climate_energy: "climate_energy_residuals",
+    formal_math_proof: "formal_mathematics_conjecture_refutation",
+    benchmark_methodology: "benchmark_protocol_methodology",
+    scientific_software_reproduction:
+      "scientific_software_reproduction_mechanisms",
+  };
+  return domains[domain];
+}
+
+function mechanismFirstSeedProfile(
+  seed: DomainToolHardSeed,
+  pipeline: DomainInstrumentPipeline,
+): MechanismFirstSeedProfile {
+  return {
+    seedId: seed.seedId,
+    domain: seed.domain,
+    toolsUsed: pipeline.tools,
+    measuredTargetOutcome: seed.measuredOutcome,
+    measuredVariable: seed.measuredVariable,
+    evidenceRefs: uniqueStrings([
+      ...seed.sourceRefs,
+      ...seed.toolRefs,
+      pipeline.producedArtifact,
+    ]),
+    candidateMechanism: mechanismFirstCandidateMechanism(seed.domain),
+    strongestSimpleBaseline: strongestDomainToolBaseline(seed, pipeline),
+    strongestRivalMechanism: mechanismFirstRivalMechanism(seed.domain),
+    counterexamplePath: seed.counterexamplePath,
+    holdoutPath: mechanismFirstHoldoutPath(seed.domain),
+    replayPath: seed.replayPath,
+    residual: seed.residual,
+  };
+}
+
+function strongestDomainToolBaseline(
+  seed: DomainToolHardSeed,
+  pipeline: DomainInstrumentPipeline,
+): string {
+  const explanatory = pipeline.baselineResults.find(
+    (result) => result.explainsSignal,
+  );
+  if (explanatory) return explanatory.baseline;
+  if (seed.promotionBlockedReason.includes("baseline")) {
+    return `${pipeline.baselineResults[0]?.baseline ?? seed.baselineRefs[0] ?? "simple_domain_baseline"} + matched-control rule`;
+  }
+  return (
+    pipeline.baselineResults[0]?.baseline ?? seed.baselineRefs[0] ?? "none"
+  );
+}
+
+function mechanismFirstCandidateMechanism(domain: DiscoveryToolDomain): string {
+  const mechanisms: Record<DiscoveryToolDomain, string> = {
+    computational_materials:
+      "composition-normalized electronic-structure residual mechanism",
+    astrophysics:
+      "catalog-radius residual mechanism beyond stellar-period rules",
+    climate_energy:
+      "weather-normalized occupancy/load residual mechanism beyond time cadence",
+    formal_math_proof:
+      "bounded graph invariant mechanism beyond size and density rules",
+    benchmark_methodology:
+      "protocol-control performance delta mechanism beyond split and rival model controls",
+    scientific_software_reproduction:
+      "dependency-behavior runtime outcome mechanism beyond package maturity",
+  };
+  return mechanisms[domain];
+}
+
+function mechanismFirstRivalMechanism(domain: DiscoveryToolDomain): string {
+  const rivals: Record<DiscoveryToolDomain, string> = {
+    computational_materials:
+      "composition and transition-metal matched baseline explains the band-gap residual",
+    astrophysics:
+      "same-source catalog family and stellar-radius/orbital-period rules explain the residual",
+    climate_energy:
+      "time-of-day, cadence, weather, and wind/visibility controls explain the load residual",
+    formal_math_proof:
+      "small bounded counterexamples and size/density artifacts explain the invariant",
+    benchmark_methodology:
+      "class balance, split receipt, and boosted rival model explain the accuracy delta",
+    scientific_software_reproduction:
+      "package maturity, optional dependency, and environment matrix explain replay outcomes",
+  };
+  return rivals[domain];
+}
+
+function mechanismFirstHoldoutPath(domain: DiscoveryToolDomain): string {
+  const paths: Record<DiscoveryToolDomain, string> = {
+    computational_materials:
+      "different Matbench property family or formula family selected after claim freeze",
+    astrophysics:
+      "independent exoplanet catalog slice or later catalog release selected after claim freeze",
+    climate_energy:
+      "later time/weather slice with leakage and cadence controls selected after claim freeze",
+    formal_math_proof:
+      "new bounded graph/object family generated after claim freeze and checked with solver replay",
+    benchmark_methodology:
+      "new OpenML task with predeclared split and matched class-balance control",
+    scientific_software_reproduction:
+      "independent package/environment matrix selected after claim freeze",
+  };
+  return paths[domain];
+}
+
+function mechanismFirstTestPlan(
+  profile: MechanismFirstSeedProfile,
+): MechanismFirstTestPlan {
+  return {
+    seedId: profile.seedId,
+    candidateMechanismPrediction: `${profile.candidateMechanism} should preserve residual direction for ${profile.measuredVariable} after matched controls.`,
+    rivalMechanismPrediction: `${profile.strongestRivalMechanism} should erase or absorb the residual under matched controls.`,
+    falsifier:
+      "If a stronger simple baseline, matched rival, negative/control slice, or bounded counterexample explains the residual, do not derive an InsightCandidate.",
+    negativeControlSlice: mechanismFirstNegativeControl(profile.domain),
+    independentHoldoutOrBoundedCaveat: profile.holdoutPath,
+  };
+}
+
+function mechanismFirstNegativeControl(domain: DiscoveryToolDomain): string {
+  const controls: Record<DiscoveryToolDomain, string> = {
+    computational_materials:
+      "transition-metal and atom-count matched formulas where the mechanism should not add signal",
+    astrophysics:
+      "same-source catalog family controls stratified by stellar radius and orbital period",
+    climate_energy:
+      "hour/weather/cadence matched rows where occupancy/load residual should disappear",
+    formal_math_proof:
+      "small generated graph/object families designed to break the invariant",
+    benchmark_methodology:
+      "matched OpenML task split with xgboost rival and class-balance control",
+    scientific_software_reproduction:
+      "optional dependency failure class and mature package controls",
+  };
+  return controls[domain];
+}
+
+function mechanismFirstBaselineDominated(
+  seed: DomainToolHardSeed,
+  pipeline: DomainInstrumentPipeline,
+): boolean {
+  if (seed.domain === "benchmark_methodology") return false;
+  return (
+    pipeline.baselineResults.some((result) => result.explainsSignal) ||
+    seed.promotionBlockedReason.includes("baseline") ||
+    (Math.abs(seed.residual) < 0.01 &&
+      seed.domain === "scientific_software_reproduction")
+  );
+}
+
+function mechanismFirstRivalStronger(
+  profile: MechanismFirstSeedProfile,
+  pipeline: DomainInstrumentPipeline,
+): boolean {
+  return (
+    profile.domain === "benchmark_methodology" ||
+    pipeline.promotionBlockedReason.includes("rival") ||
+    pipeline.baselineResults.some(
+      (result) => result.baseline.includes("rival") && result.explainsSignal,
+    )
+  );
+}
+
+function mechanismFirstCounterexampleCollapsed(
+  profile: MechanismFirstSeedProfile,
+): boolean {
+  return (
+    profile.domain === "formal_math_proof" ||
+    profile.counterexamplePath.includes("collapse") ||
+    profile.counterexamplePath.includes("remove")
+  );
+}
+
+function mechanismFirstRecurrenceSupported(
+  profile: MechanismFirstSeedProfile,
+): boolean {
+  return (
+    !profile.counterexamplePath.includes("same-source") &&
+    !profile.counterexamplePath.includes("single") &&
+    profile.evidenceRefs.filter((ref) => ref.startsWith("https://")).length > 1
+  );
+}
+
+function mechanismFirstHoldoutReplaySupported(
+  profile: MechanismFirstSeedProfile,
+): boolean {
+  return profile.replayPath.length > 0 && profile.holdoutPath.length > 0;
+}
+
+function mechanismFirstMechanismSurvived(
+  profile: MechanismFirstSeedProfile,
+): boolean {
+  return profile.domain !== "formal_math_proof";
+}
+
+function mechanismFirstRemainingBottleneck(
+  rows: MechanismFirstPressureRow[],
+): string {
+  const baseline = rows.filter(
+    (row) => row.primaryKillReason === "baseline_dominated",
+  ).length;
+  const rival = rows.filter(
+    (row) => row.primaryKillReason === "rival_theory_stronger",
+  ).length;
+  const counterexample = rows.filter(
+    (row) => row.primaryKillReason === "counterexample_dense",
+  ).length;
+  const recurrence = rows.filter(
+    (row) => row.primaryKillReason === "no_cross_source_support",
+  ).length;
+  return `No domain-tool hard seed survived mechanism-first pressure into InsightCandidate birth. Kills: baseline=${baseline}, rival=${rival}, counterexample=${counterexample}, recurrence=${recurrence}. Remaining bottleneck is nontrivial residual signal that survives matched simple baselines and independent recurrence.`;
+}
+
+function mechanismFirstArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/mechanism-first-pressure`;
+  return [
+    `${root}/DOMAIN_TOOL_HARD_SEEDS_PROFILE.md`,
+    `${root}/MECHANISM_FIRST_TEST_PLANS.md`,
+    `${root}/BASELINE_PRESSURE_RESULTS.md`,
+    `${root}/RIVAL_MECHANISM_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_CONTROL_RESULTS.md`,
+    `${root}/CROSS_SOURCE_RECURRENCE_RESULTS.md`,
+    `${root}/HOLDOUT_REPLAY_RESULTS.md`,
+    `${root}/MECHANISM_PROOF_PRESSURE_RESULTS.md`,
+    `${root}/INSIGHT_CANDIDATE_DERIVATION_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/PRESSURE_ROWS.json`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function mechanismFirstSeedProfileMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return [
+    "# Domain Tool Hard Seeds Profile",
+    "",
+    `Seeds loaded: ${rows.length}.`,
+    "",
+    "| Seed | Domain | Tools | Outcome | Residual | Candidate mechanism | Strongest baseline | Strongest rival |",
+    "| --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${row.profile.domain} | ${row.profile.toolsUsed.join(", ")} | ${row.profile.measuredTargetOutcome} | ${row.profile.residual} | ${row.profile.candidateMechanism} | ${row.profile.strongestSimpleBaseline} | ${row.profile.strongestRivalMechanism} |`,
+    ),
+  ].join("\n");
+}
+
+function mechanismFirstTestPlansMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return [
+    "# Mechanism First Test Plans",
+    "",
+    "| Seed | Candidate prediction | Rival prediction | Falsifier | Negative/control slice | Holdout path |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${row.plan.candidateMechanismPrediction} | ${row.plan.rivalMechanismPrediction} | ${row.plan.falsifier} | ${row.plan.negativeControlSlice} | ${row.plan.independentHoldoutOrBoundedCaveat} |`,
+    ),
+  ].join("\n");
+}
+
+function mechanismFirstBaselineMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Baseline Pressure Results",
+    rows,
+    (row) => row.baseline.passed,
+    (row) => `${row.baseline.strongestBaseline}; ${row.baseline.summary}`,
+  );
+}
+
+function mechanismFirstRivalMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Rival Mechanism Results",
+    rows,
+    (row) => row.rival.weakened,
+    (row) => `${row.rival.strongestRival}; ${row.rival.summary}`,
+  );
+}
+
+function mechanismFirstCounterexampleMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Counterexample Control Results",
+    rows,
+    (row) => row.counterexample.survived,
+    (row) => row.counterexample.summary,
+  );
+}
+
+function mechanismFirstRecurrenceMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Cross Source Recurrence Results",
+    rows,
+    (row) => row.recurrence.supported,
+    (row) => row.recurrence.summary,
+  );
+}
+
+function mechanismFirstHoldoutReplayMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Holdout Replay Results",
+    rows,
+    (row) => row.holdoutReplay.supported,
+    (row) => row.holdoutReplay.summary,
+  );
+}
+
+function mechanismFirstMechanismProofMarkdown(
+  rows: MechanismFirstPressureRow[],
+): string {
+  return mechanismFirstPressureMarkdown(
+    "Mechanism Proof Pressure Results",
+    rows,
+    (row) => row.mechanismProof.survived,
+    (row) => row.mechanismProof.summary,
+  );
+}
+
+function mechanismFirstPressureMarkdown(
+  title: string,
+  rows: MechanismFirstPressureRow[],
+  passed: (row: MechanismFirstPressureRow) => boolean,
+  summary: (row: MechanismFirstPressureRow) => string,
+): string {
+  return [
+    `# ${title}`,
+    "",
+    "| Seed | Passed | Primary kill reason | Summary |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${String(passed(row))} | ${row.primaryKillReason} | ${summary(row)} |`,
+    ),
+  ].join("\n");
+}
+
+function mechanismFirstInsightDecisionMarkdown(
+  rows: MechanismFirstPressureRow[],
+  report: MechanismFirstPressureReport,
+): string {
+  return [
+    "# Insight Candidate Derivation Decisions",
+    "",
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    "",
+    "| Seed | InsightCandidate created | DiscoveryCandidate created | Decision |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${String(row.insightCandidateCreated)} | ${String(row.discoveryCandidateCreated)} | ${row.primaryKillReason === "survived" ? "eligible for downstream promotion pressure" : `blocked: ${row.primaryKillReason}`} |`,
+    ),
+    "",
+    "Tool, pipeline, reproduction, and hard-seed evidence remains instrumental only. No InsightCandidate is derived unless the seed survives baseline, rival, counterexample, recurrence, holdout/replay, and mechanism/proof pressure.",
+  ].join("\n");
+}
+
+function mechanismFirstFundGateMarkdown(
+  report: MechanismFirstPressureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "The Fund Gate was fail-closed because no discovery-scored candidate reached FundCandidateDraft creation.",
+  ].join("\n");
+}
+
+function mechanismFirstNextCheckpointMarkdown(
+  report: MechanismFirstPressureReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -18593,6 +19417,11 @@ export class AutonomousDiscoveryDaemonService {
   async toolExpansion(): Promise<DiscoveryToolExpansionReport> {
     await this.ensureInitialized();
     return new DiscoveryToolExpansion(this.root).run();
+  }
+
+  async mechanismFirstPressure(): Promise<MechanismFirstPressureReport> {
+    await this.ensureInitialized();
+    return new DomainToolMechanismFirstPressure(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

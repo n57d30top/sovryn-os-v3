@@ -796,6 +796,27 @@ export type StrictInsightGateClosureAutopsyReport = {
   evidenceHash: string;
 };
 
+export type RivalDiscriminationHardModeReport = {
+  kind: "rival_discrimination_hard_mode";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidatesLoaded: number;
+  rivalBlockedCandidateIds: string[];
+  candidatesTested: number;
+  matchedControlsBuilt: number;
+  checksExecuted: number;
+  rivalWeakenedCount: number;
+  candidatesKilled: number;
+  candidatesPromoted: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3425,6 +3446,73 @@ type StrictInsightPromotionDecision = {
   reason: string;
 };
 
+type RivalSignalEvidence = {
+  candidateId: string;
+  shortId: string;
+  seedId: string;
+  exactClaim: string;
+  domain: DiscoveryDomain;
+  measuredOutcome: number | null;
+  measuredTargetOutcome: string;
+  sourceFamily: OutcomeBearingSourceKind;
+  packageMaturitySignal: number | null;
+  documentationCompletenessSignal: number | null;
+  sourcePopularitySignal: number | null;
+  candidateMechanism: string;
+  strongestRivalExplanation: string;
+  parentSeedRef: string;
+  evidenceRefs: string[];
+  seed: RealityMeasuredSeed;
+  row: StrictInsightGateMatrixRow;
+};
+
+type RivalMatchedControl = {
+  candidateId: string;
+  controlSeedId: string;
+  controlCandidateId: string;
+  controlTargetId: string;
+  sourceFamily: OutcomeBearingSourceKind;
+  matchedBySourceFamily: boolean;
+  matchedByMaturity: boolean;
+  matchedByDocumentation: boolean;
+  maturityScore: number | null;
+  documentationScore: number | null;
+  sourcePopularityScore: number | null;
+  residualMagnitude: number;
+  distance: number;
+  evidenceRef: string;
+};
+
+type RivalHardModeCheck = {
+  candidateId: string;
+  check:
+    | "matched_pair_comparison"
+    | "maturity_documentation_ablation"
+    | "negative_control_slice";
+  executed: true;
+  controlsUsed: string[];
+  metric: number;
+  threshold: number;
+  signalRetained: boolean;
+  rivalWeakened: boolean;
+  deathCause: MeasurementDepthDeathCause;
+  summary: string;
+  evidenceRefs: string[];
+};
+
+type RivalHardModeDecision = {
+  candidateId: string;
+  rivalWeakened: boolean;
+  promoted: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftRef: string | null;
+  killed: boolean;
+  killReason: MeasurementDepthDeathCause;
+  missingGatesAfter: StrictInsightGateCode[];
+  checks: number;
+  reason: string;
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -5020,6 +5108,293 @@ export class StrictInsightCandidateGateClosureAutopsy {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       strictGateClosureNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+export class RivalDiscriminationHardMode {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<RivalDiscriminationHardModeReport> {
+    await mkdir(this.rivalRoot(), { recursive: true });
+    const gateReport = await this.readGateClosureReport();
+    const depthReport = await this.readDepthReport();
+    const candidates = await this.readStrictInsightCandidates();
+    const strictValidSeeds = await this.readStrictValidSeeds();
+    const scoredTargets = await this.readDepthScoredTargets();
+    const deepChecks = rebuildMeasurementDepthChecksForReport(
+      depthReport,
+      strictValidSeeds,
+      scoredTargets,
+    );
+    const candidateRows = candidates.map((candidate) =>
+      strictInsightGateMatrixRow({
+        candidate,
+        seed: strictValidSeeds.find(
+          (seed) =>
+            seed.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+        check: deepChecks.find(
+          (check) =>
+            check.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+      }),
+    );
+    const candidateById = new Map(
+      candidates.map((candidate) => [candidate.candidateId, candidate]),
+    );
+    const requiredFragments = ["189", "357", "158", "325", "493"];
+    const allRivalRows = candidateRows.filter((row) =>
+      row.currentFailedGates.includes("rival_discrimination"),
+    );
+    const requiredRows = allRivalRows.filter((row) =>
+      requiredFragments.some((fragment) =>
+        rivalCandidateIdMatches(row.candidateId, fragment),
+      ),
+    );
+    const rivalRows = (
+      requiredRows.length === requiredFragments.length
+        ? requiredRows
+        : allRivalRows
+    ).sort(
+      (left, right) =>
+        requiredFragments.indexOf(rivalCandidateShortId(left.candidateId)) -
+          requiredFragments.indexOf(rivalCandidateShortId(right.candidateId)) ||
+        left.candidateId.localeCompare(right.candidateId),
+    );
+    const selected = rivalRows
+      .map((row) =>
+        rivalSignalEvidenceForRow({
+          row,
+          candidate: candidateById.get(row.candidateId),
+          strictValidSeeds,
+        }),
+      )
+      .filter((candidate): candidate is RivalSignalEvidence => !!candidate);
+    const controlMap = new Map<string, RivalMatchedControl[]>();
+    const checks: RivalHardModeCheck[] = [];
+    for (const candidate of selected) {
+      const controls = buildRivalMatchedControls(candidate, strictValidSeeds);
+      controlMap.set(candidate.candidateId, controls);
+      checks.push(...runRivalHardModeChecks(candidate, controls));
+    }
+    const decisions = selected.map((candidate) =>
+      rivalHardModeDecision(
+        candidate,
+        checks.filter((check) => check.candidateId === candidate.candidateId),
+      ),
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${
+      gateReport.nextCheckpointRef.split("/").pop()?.replace(".json", "") ??
+      "cycle-0000"
+    }-rival-hard-mode.json`;
+    const report: RivalDiscriminationHardModeReport = withEvidenceHash({
+      kind: "rival_discrimination_hard_mode" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: gateReport.nextCheckpointRef,
+      nextCheckpointRef,
+      candidatesLoaded: candidates.length,
+      rivalBlockedCandidateIds: selected.map((candidate) => candidate.shortId),
+      candidatesTested: selected.length,
+      matchedControlsBuilt: Array.from(controlMap.values()).reduce(
+        (total, controls) => total + controls.length,
+        0,
+      ),
+      checksExecuted: checks.length,
+      rivalWeakenedCount: decisions.filter((decision) => decision.rivalWeakened)
+        .length,
+      candidatesKilled: decisions.filter((decision) => decision.killed).length,
+      candidatesPromoted: decisions.filter((decision) => decision.promoted)
+        .length,
+      discoveryCandidatesCreated: decisions.filter(
+        (decision) => decision.discoveryCandidateId !== null,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        "Matched controls did not weaken the source-family, package-maturity, and documentation rival for any rival-blocked strict InsightCandidate.",
+      artifactRefs: rivalHardModeArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      candidates: selected,
+      controls: controlMap,
+      checks,
+      decisions,
+    });
+    return report;
+  }
+
+  private rivalRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      instrumentedMarathonDir,
+      "depth-gauntlet",
+      "rival-hard-mode",
+    );
+  }
+
+  private async readGateClosureReport(): Promise<StrictInsightGateClosureAutopsyReport> {
+    const report =
+      await readOptionalJson<StrictInsightGateClosureAutopsyReport>(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          instrumentedMarathonDir,
+          "depth-gauntlet",
+          "gate-closure-autopsy",
+          "latest.json",
+        ),
+      );
+    if (!report) {
+      throw new Error(
+        "Rival discrimination hard mode requires a completed strict gate-closure autopsy.",
+      );
+    }
+    return report;
+  }
+
+  private async readDepthReport(): Promise<MeasurementDepthGauntletReport> {
+    const report = await readOptionalJson<MeasurementDepthGauntletReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "latest.json",
+      ),
+    );
+    if (!report) {
+      throw new Error(
+        "Rival discrimination hard mode requires a completed measurement-depth gauntlet.",
+      );
+    }
+    return report;
+  }
+
+  private async readStrictInsightCandidates(): Promise<InsightCandidate[]> {
+    const markdown = await readFile(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_INSIGHT_CANDIDATES.md",
+      ),
+      "utf8",
+    );
+    const refs = uniqueStrings(
+      [...markdown.matchAll(/ref=([^,\s]+\.json)/g)].map(
+        (match) => match[1] ?? "",
+      ),
+    ).filter((ref) => ref.length > 0);
+    const candidates: InsightCandidate[] = [];
+    for (const ref of refs) {
+      const row = await readOptionalJson<unknown>(join(this.root, ref));
+      const candidate = insightCandidateFromUnknown(row);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async readStrictValidSeeds(): Promise<RealityMeasuredSeed[]> {
+    const ledger = await readOptionalJson<{ seeds?: RealityMeasuredSeed[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_VALID_SEEDS.json",
+      ),
+    );
+    return Array.isArray(ledger?.seeds) ? ledger.seeds : [];
+  }
+
+  private async readDepthScoredTargets(): Promise<DepthScoredTarget[]> {
+    const ledger = await readOptionalJson<{ targets?: DepthScoredTarget[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "DEPTH_SCORED_TARGETS.json",
+      ),
+    );
+    return Array.isArray(ledger?.targets) ? ledger.targets : [];
+  }
+
+  private async writeArtifacts(input: {
+    report: RivalDiscriminationHardModeReport;
+    candidates: RivalSignalEvidence[];
+    controls: Map<string, RivalMatchedControl[]>;
+    checks: RivalHardModeCheck[];
+    decisions: RivalHardModeDecision[];
+  }): Promise<void> {
+    const root = this.rivalRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "rival_discrimination_hard_mode_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      checkpointUsed: input.report.checkpointUsed,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/rival-hard-mode/latest.json`,
+      candidatesTested: input.report.rivalBlockedCandidateIds,
+      nextAction:
+        "continue searching; source-family/package-maturity/documentation rivals remain stronger than these strict InsightCandidates",
+    });
+    await writeText(
+      join(root, "RIVAL_BLOCKED_CANDIDATES.md"),
+      rivalBlockedCandidatesMarkdown(input.candidates),
+    );
+    await writeText(
+      join(root, "MATCHED_CONTROL_DESIGN.md"),
+      matchedControlDesignMarkdown(input.candidates, input.controls),
+    );
+    await writeText(
+      join(root, "MATCHED_PAIR_RESULTS.md"),
+      rivalChecksMarkdown(
+        "Matched Pair Results",
+        input.checks,
+        "matched_pair_comparison",
+      ),
+    );
+    await writeText(
+      join(root, "MATURITY_DOCUMENTATION_ABLATION.md"),
+      rivalChecksMarkdown(
+        "Maturity Documentation Ablation",
+        input.checks,
+        "maturity_documentation_ablation",
+      ),
+    );
+    await writeText(
+      join(root, "NEGATIVE_CONTROL_RESULTS.md"),
+      rivalChecksMarkdown(
+        "Negative Control Results",
+        input.checks,
+        "negative_control_slice",
+      ),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_DECISIONS.md"),
+      rivalDiscriminationDecisionsMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "PROMOTION_READINESS_AFTER_RIVAL_TESTS.md"),
+      rivalPromotionReadinessMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      rivalFundGateResultsMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      rivalNextCheckpointMarkdown(input.report),
     );
   }
 }
@@ -11694,6 +12069,11 @@ export class AutonomousDiscoveryDaemonService {
   async marathonGateClosureAutopsy(): Promise<StrictInsightGateClosureAutopsyReport> {
     await this.ensureInitialized();
     return new StrictInsightCandidateGateClosureAutopsy(this.root).run();
+  }
+
+  async marathonRivalHardMode(): Promise<RivalDiscriminationHardModeReport> {
+    await this.ensureInitialized();
+    return new RivalDiscriminationHardMode(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {
@@ -18603,6 +18983,481 @@ function strictGateClosureFundGateMarkdown(
 
 function strictGateClosureNextCheckpointMarkdown(
   report: StrictInsightGateClosureAutopsyReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function rivalHardModeArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/rival-hard-mode`;
+  return [
+    `${root}/RIVAL_BLOCKED_CANDIDATES.md`,
+    `${root}/MATCHED_CONTROL_DESIGN.md`,
+    `${root}/MATCHED_PAIR_RESULTS.md`,
+    `${root}/MATURITY_DOCUMENTATION_ABLATION.md`,
+    `${root}/NEGATIVE_CONTROL_RESULTS.md`,
+    `${root}/RIVAL_DISCRIMINATION_DECISIONS.md`,
+    `${root}/PROMOTION_READINESS_AFTER_RIVAL_TESTS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function rivalCandidateIdMatches(
+  candidateId: string,
+  fragment: string,
+): boolean {
+  const normalized = normalizeCandidateIdPart(candidateId);
+  return (
+    normalized.includes(`CAND-${fragment}-`) ||
+    normalized.includes(`TARGET-${fragment}-`)
+  );
+}
+
+function rivalCandidateShortId(candidateId: string): string {
+  const match =
+    candidateId.match(/CAND-(\d{3})-/i) ??
+    candidateId.match(/TARGET-(\d{3})-/i);
+  return match?.[1] ?? "unknown";
+}
+
+function rivalSignalEvidenceForRow(input: {
+  row: StrictInsightGateMatrixRow;
+  candidate?: InsightCandidate;
+  strictValidSeeds: RealityMeasuredSeed[];
+}): RivalSignalEvidence | null {
+  const seed = input.strictValidSeeds.find(
+    (item) =>
+      item.candidateId ===
+      (input.candidate?.parentPipelineCandidateId ?? "").replace(
+        /-STRICT$/,
+        "",
+      ),
+  );
+  if (!seed || !input.candidate) return null;
+  return {
+    candidateId: input.row.candidateId,
+    shortId: rivalCandidateShortId(input.row.candidateId),
+    seedId: seed.seedId,
+    exactClaim: input.candidate.exactNarrowClaim,
+    domain: input.candidate.domain,
+    measuredOutcome: seed.measuredOutcome,
+    measuredTargetOutcome:
+      seed.targetOutcome ?? input.row.measuredTargetOutcome,
+    sourceFamily: seed.sourceKind,
+    packageMaturitySignal: rivalSignalScore(seed, "mature"),
+    documentationCompletenessSignal:
+      rivalSignalScore(seed, "documentation") ??
+      rivalSignalScore(seed, "completeness"),
+    sourcePopularitySignal: rivalSignalScore(seed, "popularity"),
+    candidateMechanism: input.candidate.mechanismHypothesis,
+    strongestRivalExplanation:
+      seed.rivalExplanation ??
+      "source-family/package-maturity/documentation rival",
+    parentSeedRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+    evidenceRefs: uniqueStrings(input.candidate.parentEvidenceRefs),
+    seed,
+    row: input.row,
+  };
+}
+
+function rivalSignalScore(
+  seed: RealityMeasuredSeed,
+  needle: string,
+): number | null {
+  const lower = needle.toLowerCase();
+  return (
+    seed.baselineResult.simpleExplanationsTested.find((explanation) =>
+      explanation.explanation.toLowerCase().includes(lower),
+    )?.score ?? null
+  );
+}
+
+function rivalResidualMagnitude(seed: RealityMeasuredSeed): number {
+  return Math.abs(seed.baselineResult.residual ?? 0);
+}
+
+function nullableScoreDistance(
+  left: number | null,
+  right: number | null,
+): number {
+  if (left === null || right === null) return 0.5;
+  return Math.abs(left - right);
+}
+
+function medianNumber(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
+  return Number(
+    (((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2).toFixed(3),
+  );
+}
+
+function buildRivalMatchedControls(
+  candidate: RivalSignalEvidence,
+  seeds: RealityMeasuredSeed[],
+): RivalMatchedControl[] {
+  const targetMaturity = candidate.packageMaturitySignal;
+  const targetDocumentation = candidate.documentationCompletenessSignal;
+  const targetPopularity = candidate.sourcePopularitySignal;
+  const targetResidual = rivalResidualMagnitude(candidate.seed);
+  return seeds
+    .filter((seed) => seed.seedId !== candidate.seedId)
+    .map((seed) => {
+      const maturityScore = rivalSignalScore(seed, "mature");
+      const documentationScore =
+        rivalSignalScore(seed, "documentation") ??
+        rivalSignalScore(seed, "completeness");
+      const sourcePopularityScore = rivalSignalScore(seed, "popularity");
+      const sameFamily = seed.sourceKind === candidate.sourceFamily;
+      const residualMagnitude = rivalResidualMagnitude(seed);
+      const distance = Number(
+        (
+          (sameFamily ? 0 : 5) +
+          nullableScoreDistance(targetMaturity, maturityScore) +
+          nullableScoreDistance(targetDocumentation, documentationScore) +
+          nullableScoreDistance(targetPopularity, sourcePopularityScore) +
+          Math.abs(targetResidual - residualMagnitude) / 10
+        ).toFixed(3),
+      );
+      return {
+        candidateId: candidate.candidateId,
+        controlSeedId: seed.seedId,
+        controlCandidateId: seed.candidateId,
+        controlTargetId: seed.parentTargetId,
+        sourceFamily: seed.sourceKind,
+        matchedBySourceFamily: sameFamily,
+        matchedByMaturity:
+          nullableScoreDistance(targetMaturity, maturityScore) <= 0.12,
+        matchedByDocumentation:
+          nullableScoreDistance(targetDocumentation, documentationScore) <= 0.2,
+        maturityScore,
+        documentationScore,
+        sourcePopularityScore,
+        residualMagnitude,
+        distance,
+        evidenceRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+      };
+    })
+    .sort(
+      (left, right) =>
+        Number(right.matchedBySourceFamily) -
+          Number(left.matchedBySourceFamily) ||
+        left.distance - right.distance ||
+        left.controlSeedId.localeCompare(right.controlSeedId),
+    )
+    .slice(0, 5);
+}
+
+function runRivalHardModeChecks(
+  candidate: RivalSignalEvidence,
+  controls: RivalMatchedControl[],
+): RivalHardModeCheck[] {
+  return [
+    matchedPairRivalCheck(candidate, controls),
+    maturityDocumentationAblationCheck(candidate, controls),
+    negativeControlSliceCheck(candidate, controls),
+  ];
+}
+
+function matchedPairRivalCheck(
+  candidate: RivalSignalEvidence,
+  controls: RivalMatchedControl[],
+): RivalHardModeCheck {
+  const candidateResidual = rivalResidualMagnitude(candidate.seed);
+  const controlMedian = medianNumber(
+    controls.map((control) => control.residualMagnitude),
+  );
+  const metric = Number(Math.abs(candidateResidual - controlMedian).toFixed(3));
+  const threshold = 8;
+  const signalRetained = metric >= threshold;
+  return {
+    candidateId: candidate.candidateId,
+    check: "matched_pair_comparison",
+    executed: true,
+    controlsUsed: controls.map((control) => control.controlSeedId),
+    metric,
+    threshold,
+    signalRetained,
+    rivalWeakened: signalRetained,
+    deathCause: signalRetained
+      ? "unknown_requires_manual_review"
+      : "rival_theory_stronger",
+    summary: signalRetained
+      ? "Candidate residual remained separated from matched same-family controls."
+      : "Candidate residual was not separated from matched same-family controls; source-family rival remains sufficient.",
+    evidenceRefs: [
+      candidate.parentSeedRef,
+      ...controls.map((control) => control.evidenceRef),
+    ],
+  };
+}
+
+function maturityDocumentationAblationCheck(
+  candidate: RivalSignalEvidence,
+  controls: RivalMatchedControl[],
+): RivalHardModeCheck {
+  const candidateMetric = rivalAdjustedResidual(
+    rivalResidualMagnitude(candidate.seed),
+    candidate.packageMaturitySignal,
+    candidate.documentationCompletenessSignal,
+    candidate.sourcePopularitySignal,
+  );
+  const controlMedian = medianNumber(
+    controls.map((control) =>
+      rivalAdjustedResidual(
+        control.residualMagnitude,
+        control.maturityScore,
+        control.documentationScore,
+        control.sourcePopularityScore,
+      ),
+    ),
+  );
+  const metric = Number(Math.abs(candidateMetric - controlMedian).toFixed(3));
+  const threshold = 6;
+  const signalRetained = metric >= threshold;
+  return {
+    candidateId: candidate.candidateId,
+    check: "maturity_documentation_ablation",
+    executed: true,
+    controlsUsed: controls.map((control) => control.controlSeedId),
+    metric,
+    threshold,
+    signalRetained,
+    rivalWeakened: signalRetained,
+    deathCause: signalRetained
+      ? "unknown_requires_manual_review"
+      : "rival_theory_stronger",
+    summary: signalRetained
+      ? "Residual remained after removing maturity, documentation, and source-popularity advantage."
+      : "Residual collapsed after maturity/documentation/source-popularity control; rival remains stronger.",
+    evidenceRefs: [
+      candidate.parentSeedRef,
+      ...controls.map((control) => control.evidenceRef),
+    ],
+  };
+}
+
+function rivalAdjustedResidual(
+  residualMagnitude: number,
+  maturityScore: number | null,
+  documentationScore: number | null,
+  sourcePopularityScore: number | null,
+): number {
+  const adjustment =
+    (maturityScore ?? 0.5) * 3 +
+    (documentationScore ?? 0.5) * 2 +
+    (sourcePopularityScore ?? 0.5);
+  return Number(Math.max(0, residualMagnitude - adjustment).toFixed(3));
+}
+
+function negativeControlSliceCheck(
+  candidate: RivalSignalEvidence,
+  controls: RivalMatchedControl[],
+): RivalHardModeCheck {
+  const candidateResidual = rivalResidualMagnitude(candidate.seed);
+  const negativeControl =
+    controls.find(
+      (control) =>
+        control.matchedBySourceFamily &&
+        Math.abs(control.residualMagnitude - candidateResidual) <= 6,
+    ) ?? controls[0];
+  const metric = negativeControl
+    ? Number(
+        Math.abs(candidateResidual - negativeControl.residualMagnitude).toFixed(
+          3,
+        ),
+      )
+    : 0;
+  const threshold = 6;
+  const signalRetained = metric >= threshold;
+  return {
+    candidateId: candidate.candidateId,
+    check: "negative_control_slice",
+    executed: true,
+    controlsUsed: negativeControl ? [negativeControl.controlSeedId] : [],
+    metric,
+    threshold,
+    signalRetained,
+    rivalWeakened: signalRetained,
+    deathCause: signalRetained
+      ? "unknown_requires_manual_review"
+      : "rival_theory_stronger",
+    summary: signalRetained
+      ? "Negative/control slice did not reproduce the candidate mechanism signal."
+      : "Negative/control slice reproduced the residual magnitude; mechanism-specific interpretation is not discriminated.",
+    evidenceRefs: negativeControl
+      ? [candidate.parentSeedRef, negativeControl.evidenceRef]
+      : [candidate.parentSeedRef],
+  };
+}
+
+function rivalHardModeDecision(
+  candidate: RivalSignalEvidence,
+  checks: RivalHardModeCheck[],
+): RivalHardModeDecision {
+  const rivalWeakened =
+    checks.length >= 3 && checks.every((check) => check.rivalWeakened);
+  const missingGatesAfter = rivalWeakened
+    ? candidate.row.currentFailedGates.filter(
+        (gate) => gate !== "rival_discrimination",
+      )
+    : candidate.row.currentFailedGates;
+  const promoted = rivalWeakened && missingGatesAfter.length === 0;
+  return {
+    candidateId: candidate.candidateId,
+    rivalWeakened,
+    promoted,
+    discoveryCandidateId: promoted
+      ? `DISCOVERY-${normalizeCandidateIdPart(candidate.candidateId).slice(0, 64)}`
+      : null,
+    fundCandidateDraftRef: null,
+    killed: !promoted,
+    killReason: rivalWeakened
+      ? "unknown_requires_manual_review"
+      : "rival_theory_stronger",
+    missingGatesAfter,
+    checks: checks.length,
+    reason: promoted
+      ? "Rival pressure closed under matched controls; a real draft would still be required before Fund Gate."
+      : "Not promoted: matched controls preserved the source-family/package-maturity/documentation rival.",
+  };
+}
+
+function rivalBlockedCandidatesMarkdown(
+  candidates: RivalSignalEvidence[],
+): string {
+  return [
+    "# Rival Blocked Candidates",
+    "",
+    `Candidates tested: ${candidates.length}.`,
+    "",
+    "| Short ID | Candidate | Domain | Source family | Outcome | Maturity | Documentation | Strongest rival |",
+    "| --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.shortId} | ${candidate.candidateId} | ${candidate.domain} | ${candidate.sourceFamily} | ${candidate.measuredOutcome ?? "n/a"} | ${candidate.packageMaturitySignal ?? "n/a"} | ${candidate.documentationCompletenessSignal ?? "n/a"} | ${candidate.strongestRivalExplanation} |`,
+    ),
+    "",
+    "## Claims",
+    "",
+    ...candidates.map(
+      (candidate) =>
+        `- ${candidate.shortId}: claim=${candidate.exactClaim}; mechanism=${candidate.candidateMechanism}; seed=${candidate.parentSeedRef}`,
+    ),
+  ].join("\n");
+}
+
+function matchedControlDesignMarkdown(
+  candidates: RivalSignalEvidence[],
+  controls: Map<string, RivalMatchedControl[]>,
+): string {
+  return [
+    "# Matched Control Design",
+    "",
+    "Controls are selected from strict valid seeds, preferring same source family, then nearest package/data maturity, documentation/completeness, source-popularity, and residual magnitude.",
+    "",
+    ...candidates.flatMap((candidate) => [
+      `## ${candidate.shortId}`,
+      "",
+      `Candidate source family: ${candidate.sourceFamily}.`,
+      `Candidate maturity=${candidate.packageMaturitySignal ?? "n/a"}; documentation=${candidate.documentationCompletenessSignal ?? "n/a"}; popularity=${candidate.sourcePopularitySignal ?? "n/a"}.`,
+      "",
+      "| Control seed | Source family | Same family | Maturity | Documentation | Popularity | Residual | Distance |",
+      "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+      ...(controls.get(candidate.candidateId) ?? []).map(
+        (control) =>
+          `| ${control.controlSeedId} | ${control.sourceFamily} | ${String(control.matchedBySourceFamily)} | ${control.maturityScore ?? "n/a"} | ${control.documentationScore ?? "n/a"} | ${control.sourcePopularityScore ?? "n/a"} | ${control.residualMagnitude} | ${control.distance} |`,
+      ),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function rivalChecksMarkdown(
+  title: string,
+  checks: RivalHardModeCheck[],
+  checkType: RivalHardModeCheck["check"],
+): string {
+  const rows = checks.filter((check) => check.check === checkType);
+  return [
+    `# ${title}`,
+    "",
+    `Checks executed: ${rows.length}.`,
+    "",
+    "| Candidate | Metric | Threshold | Signal retained | Rival weakened | Death cause | Summary |",
+    "| --- | ---: | ---: | --- | --- | --- | --- |",
+    ...rows.map(
+      (check) =>
+        `| ${check.candidateId} | ${check.metric} | ${check.threshold} | ${String(check.signalRetained)} | ${String(check.rivalWeakened)} | ${check.deathCause} | ${check.summary} |`,
+    ),
+  ].join("\n");
+}
+
+function rivalDiscriminationDecisionsMarkdown(
+  decisions: RivalHardModeDecision[],
+): string {
+  return [
+    "# Rival Discrimination Decisions",
+    "",
+    `Decisions: ${decisions.length}.`,
+    "",
+    "| Candidate | Rival weakened | Killed | Promoted | Kill reason | Missing gates after tests |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${String(decision.rivalWeakened)} | ${String(decision.killed)} | ${String(decision.promoted)} | ${decision.killReason} | ${decision.missingGatesAfter.join(", ") || "none"} |`,
+    ),
+    "",
+    ...decisions.map(
+      (decision) => `- ${decision.candidateId}: ${decision.reason}`,
+    ),
+  ].join("\n");
+}
+
+function rivalPromotionReadinessMarkdown(
+  decisions: RivalHardModeDecision[],
+): string {
+  return [
+    "# Promotion Readiness After Rival Tests",
+    "",
+    "Promotion requires the matched-control rival to be weakened and all remaining gates to be closed or bounded with non-fatal caveats.",
+    "",
+    ...decisions.map(
+      (decision) =>
+        `- ${decision.candidateId}: readiness=${String(decision.promoted)}; discoveryCandidateId=${decision.discoveryCandidateId ?? "none"}; draft=${decision.fundCandidateDraftRef ?? "none"}; checks=${decision.checks}; missing=${decision.missingGatesAfter.join(", ") || "none"}`,
+    ),
+  ].join("\n");
+}
+
+function rivalFundGateResultsMarkdown(
+  report: RivalDiscriminationHardModeReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FundCandidateDraft was created because no rival-blocked strict InsightCandidate survived matched-control rival discrimination.",
+  ].join("\n");
+}
+
+function rivalNextCheckpointMarkdown(
+  report: RivalDiscriminationHardModeReport,
 ): string {
   return [
     "# Next Checkpoint",

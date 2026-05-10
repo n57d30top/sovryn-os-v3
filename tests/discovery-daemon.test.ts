@@ -2508,6 +2508,69 @@ test("discover-daemon marathon gate-closure autopsy analyzes strict InsightCandi
   );
 });
 
+test("discover-daemon marathon rival hard mode kills rival-blocked strict InsightCandidates with matched controls", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.marathon();
+  await service.marathonDepthGauntlet();
+  await service.marathonGateClosureAutopsy();
+
+  const report = await service.marathonRivalHardMode();
+
+  assert.equal(report.kind, "rival_discrimination_hard_mode");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.candidatesLoaded, 10);
+  assert.equal(report.rivalBlockedCandidateIds.length, 5);
+  assert.ok(
+    report.rivalBlockedCandidateIds.every((candidateId) =>
+      /^\d{3}$/.test(candidateId),
+    ),
+  );
+  assert.equal(report.candidatesTested, 5);
+  assert.equal(report.matchedControlsBuilt, report.candidatesTested * 5);
+  assert.equal(report.checksExecuted, report.candidatesTested * 3);
+  assert.equal(report.rivalWeakenedCount, 0);
+  assert.equal(report.candidatesKilled, 5);
+  assert.equal(report.candidatesPromoted, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "rival-hard-mode",
+        "MATCHED_PAIR_RESULTS.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "rival-hard-mode",
+        "PROMOTION_READINESS_AFTER_RIVAL_TESTS.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon marathon gate-closure-autopsy CLI is bounded and silent", async () => {
   const root = await tempRoot();
   await writeRealityCorpusFixture(root, 720);
@@ -2535,6 +2598,47 @@ test("discover-daemon marathon gate-closure-autopsy CLI is bounded and silent", 
     (response.data as Record<string, unknown>).kind,
     "strict_insight_candidate_gate_closure_autopsy",
   );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon marathon rival-hard-mode CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  assert.equal(
+    (await executeCli(["discover-daemon", "marathon", "--json"], root)).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "depth-gauntlet", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "gate-closure-autopsy", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+
+  const response = await executeCli(
+    ["discover-daemon", "marathon", "rival-hard-mode", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "rival_discrimination_hard_mode",
+  );
+  assert.equal((response.data as Record<string, unknown>).candidatesTested, 5);
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

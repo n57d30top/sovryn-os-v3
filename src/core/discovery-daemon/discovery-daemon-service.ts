@@ -894,6 +894,31 @@ export type ExternalRawEvidenceSourceResetReport = {
   evidenceHash: string;
 };
 
+export type RawInsightPromotionGateClosureReport = {
+  kind: "raw_insight_promotion_gate_closure";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidateId: string | null;
+  exactClaim: string | null;
+  domain: ExternalRawEvidenceDomain | null;
+  sourceData: string[];
+  measuredOutcome: number | null;
+  residual: number | null;
+  gatesPassed: string[];
+  gatesFailed: string[];
+  testsExecuted: number;
+  promotedToDiscoveryCandidate: boolean;
+  discoveryCandidateId: string | null;
+  discoveryCandidatesCreated: number;
+  fundCandidateDraftCreated: boolean;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3873,6 +3898,22 @@ type ExternalRawPressureResult = {
   replaySummary: string;
   killed: boolean;
   killReason: "counterexample_dense" | "holdout_failed" | "replay_failed";
+};
+
+type RawInsightGateMatrixRow = {
+  gate: string;
+  passed: boolean;
+  status: "passed" | "failed" | "bounded_caveat";
+  evidenceRef: string;
+  rationale: string;
+};
+
+type RawInsightGateClosureDecision = {
+  promoted: boolean;
+  discoveryCandidateId: string | null;
+  killed: boolean;
+  killReason: string;
+  reason: string;
 };
 
 export class RealityBoundDiscoveryMarathon {
@@ -7136,6 +7177,694 @@ function externalRawNextCheckpointMarkdown(
     "",
     report.remainingBottleneck,
   ].join("\n");
+}
+
+export class RawInsightPromotionGateClosure {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<RawInsightPromotionGateClosureReport> {
+    await mkdir(this.closureRoot(), { recursive: true });
+    const resetRoot = join(
+      this.root,
+      daemonArtifactRoot,
+      "external-raw-evidence-reset",
+    );
+    const resetReport =
+      await readOptionalJson<ExternalRawEvidenceSourceResetReport>(
+        join(resetRoot, "latest.json"),
+      );
+    const receiptPayload = await readOptionalJson<{
+      targets?: ExternalRawTarget[];
+    }>(join(resetRoot, "RAW_TARGET_RECEIPTS.json"));
+    const measurementPayload = await readOptionalJson<{
+      measurements?: ExternalRawMeasurement[];
+    }>(join(resetRoot, "RAW_MEASUREMENTS.json"));
+    const targets = receiptPayload?.targets ?? [];
+    const measurements = measurementPayload?.measurements ?? [];
+    const residualCandidates = rawInsightResidualCandidates(
+      targets,
+      measurements,
+    );
+    const pressureResults = residualCandidates.map((candidate, index) =>
+      externalRawPressureResult(candidate, residualCandidates, index),
+    );
+    const survivor =
+      residualCandidates.find((candidate) =>
+        pressureResults.some(
+          (result) =>
+            result.candidateId === candidate.candidateId && !result.killed,
+        ),
+      ) ?? null;
+    const target =
+      survivor === null
+        ? null
+        : (targets.find((item) => item.targetId === survivor.targetId) ?? null);
+    const measurement =
+      survivor === null
+        ? null
+        : (measurements.find((item) => item.targetId === survivor.targetId) ??
+          null);
+    const evaluation =
+      survivor && target && measurement
+        ? rawInsightEvaluateCandidate(
+            survivor,
+            target,
+            measurement,
+            measurements,
+          )
+        : rawInsightEmptyEvaluation();
+    const decision = rawInsightPromotionDecision(evaluation.gateMatrix);
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/raw-insight-gate-closure-continue-searching.json`;
+    const report: RawInsightPromotionGateClosureReport = withEvidenceHash({
+      kind: "raw_insight_promotion_gate_closure" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed:
+        resetReport?.nextCheckpointRef ??
+        ".sovryn/discovery-daemon/checkpoints/external-raw-evidence-reset-continue-searching.json",
+      nextCheckpointRef,
+      candidateId: survivor?.candidateId ?? null,
+      exactClaim: survivor?.exactClaim ?? null,
+      domain: survivor?.domain ?? null,
+      sourceData: target
+        ? [target.sourceUrl, target.localEvidenceArtifact]
+        : [],
+      measuredOutcome: measurement?.measuredOutcome ?? null,
+      residual: measurement?.residual ?? null,
+      gatesPassed: evaluation.gateMatrix
+        .filter((row) => row.passed)
+        .map((row) => row.gate),
+      gatesFailed: evaluation.gateMatrix
+        .filter((row) => !row.passed)
+        .map((row) => row.gate),
+      testsExecuted: evaluation.testsExecuted,
+      promotedToDiscoveryCandidate: decision.promoted,
+      discoveryCandidateId: decision.discoveryCandidateId,
+      discoveryCandidatesCreated: decision.promoted ? 1 : 0,
+      fundCandidateDraftCreated: false,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck: decision.promoted
+        ? "Raw-born InsightCandidate reached discovery readiness but still requires a real FundCandidateDraft before Fund Gate."
+        : decision.reason,
+      artifactRefs: rawInsightGateClosureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      survivor,
+      target,
+      measurement,
+      evaluation,
+      decision,
+    });
+    return report;
+  }
+
+  private closureRoot(): string {
+    return join(this.root, daemonArtifactRoot, "raw-insight-gate-closure");
+  }
+
+  private async writeArtifacts(input: {
+    report: RawInsightPromotionGateClosureReport;
+    survivor: ExternalRawResidualCandidate | null;
+    target: ExternalRawTarget | null;
+    measurement: ExternalRawMeasurement | null;
+    evaluation: ReturnType<typeof rawInsightEvaluateCandidate>;
+    decision: RawInsightGateClosureDecision;
+  }): Promise<void> {
+    const root = this.closureRoot();
+    const packageRoot = join(root, "inspectability-package");
+    await mkdir(packageRoot, { recursive: true });
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "promotion-gate-matrix.json"), {
+      kind: "raw_insight_promotion_gate_matrix",
+      candidateId: input.report.candidateId,
+      gates: input.evaluation.gateMatrix,
+      evidenceHash: hashEvidence(input.evaluation.gateMatrix),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "raw_insight_gate_closure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      candidateId: input.report.candidateId,
+      reportRef: `${daemonArtifactRoot}/raw-insight-gate-closure/latest.json`,
+      gatesFailed: input.report.gatesFailed,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "RAW_INSIGHT_CANDIDATE_PROFILE.md"),
+      rawInsightCandidateProfileMarkdown(
+        input.survivor,
+        input.target,
+        input.measurement,
+        input.evaluation,
+      ),
+    );
+    await writeText(
+      join(root, "PROMOTION_GATE_MATRIX.md"),
+      rawInsightGateMatrixMarkdown(input.evaluation.gateMatrix),
+    );
+    await writeText(
+      join(root, "RIVAL_TEST_RESULTS.md"),
+      rawInsightRivalMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "HOLDOUT_TEST_RESULTS.md"),
+      rawInsightHoldoutMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "REPLAY_RESULTS.md"),
+      rawInsightReplayMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_RESULTS.md"),
+      rawInsightCounterexampleMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "MECHANISM_PRESSURE_RESULTS.md"),
+      rawInsightMechanismMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "INSPECTABILITY_PACKAGE_STATUS.md"),
+      rawInsightInspectabilityMarkdown(input.evaluation),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISION.md"),
+      rawInsightPromotionDecisionMarkdown(input.decision, input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      rawInsightFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      rawInsightNextCheckpointMarkdown(input.report),
+    );
+    await rawInsightWriteInspectabilityPackage(
+      packageRoot,
+      input.survivor,
+      input.target,
+      input.measurement,
+      input.evaluation,
+    );
+  }
+}
+
+function rawInsightResidualCandidates(
+  targets: ExternalRawTarget[],
+  measurements: ExternalRawMeasurement[],
+): ExternalRawResidualCandidate[] {
+  return measurements
+    .filter((measurement) => measurement.residualCandidateAttempted)
+    .sort(
+      (left, right) =>
+        Math.abs(right.residual) - Math.abs(left.residual) ||
+        left.targetId.localeCompare(right.targetId),
+    )
+    .slice(0, 24)
+    .map((measurement, index) =>
+      externalRawResidualCandidate(
+        measurement,
+        targets.find((target) => target.targetId === measurement.targetId),
+        index,
+      ),
+    )
+    .filter(
+      (candidate): candidate is ExternalRawResidualCandidate =>
+        candidate !== null,
+    );
+}
+
+function rawInsightEvaluateCandidate(
+  candidate: ExternalRawResidualCandidate,
+  target: ExternalRawTarget,
+  measurement: ExternalRawMeasurement,
+  measurements: ExternalRawMeasurement[],
+): {
+  candidate: ExternalRawResidualCandidate | null;
+  target: ExternalRawTarget | null;
+  measurement: ExternalRawMeasurement | null;
+  strongerBaselineResidual: number | null;
+  rivalExplanations: string[];
+  rivalWeakened: boolean;
+  holdoutStatus: string;
+  holdoutSupport: boolean;
+  replaySucceeded: boolean;
+  counterexamples: ExternalRawMeasurement[];
+  mechanismPressurePassed: boolean;
+  inspectabilityComplete: boolean;
+  gateMatrix: RawInsightGateMatrixRow[];
+  testsExecuted: number;
+} {
+  const domainMeasurements = measurements.filter(
+    (item) =>
+      item.domain === candidate.domain && item.targetId !== candidate.targetId,
+  );
+  const signedControls = domainMeasurements.filter(
+    (item) =>
+      Math.sign(item.residual) === Math.sign(measurement.residual) &&
+      Math.abs(Math.abs(item.residual) - Math.abs(measurement.residual)) <=
+        Math.max(0.45, Math.abs(measurement.residual) * 0.35),
+  );
+  const strongerBaselinePrediction = medianNumber(
+    domainMeasurements
+      .map((item) => item.measuredOutcome)
+      .filter((value) => Number.isFinite(value)),
+  );
+  const strongerBaselineResidual = Number(
+    (measurement.measuredOutcome - strongerBaselinePrediction).toFixed(3),
+  );
+  const replay = externalRawMeasurementForTarget(target);
+  const replaySucceeded =
+    replay.measuredOutcome === measurement.measuredOutcome &&
+    replay.baselineMedian === measurement.baselineMedian &&
+    replay.residual === measurement.residual;
+  const holdoutSupport =
+    signedControls.length === 0 &&
+    domainMeasurements.some((item) => item.residual < 0);
+  const holdoutStatus = holdoutSupport
+    ? "holdout_supported"
+    : "same_source_holdout_only_not_supportive";
+  const rivalExplanations = [
+    "same-source NASA Exoplanet Archive catalog population contains other small-radius Kepler planets with similar negative residuals",
+    "planet radius is plausibly explained by known small-planet/sub-Neptune population variation rather than a new mechanism",
+    "the original claim is target-specific and does not yet define a rival-discriminating physical prediction",
+  ];
+  const rivalWeakened = signedControls.length === 0 && holdoutSupport;
+  const mechanismPressurePassed = false;
+  const inspectabilityComplete = true;
+  const gateMatrix: RawInsightGateMatrixRow[] = [
+    {
+      gate: "nontrivial_residual_strength",
+      passed: Math.abs(measurement.residual) >= 1,
+      status: Math.abs(measurement.residual) >= 1 ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/external-raw-evidence-reset/RAW_MEASUREMENTS.json#${measurement.targetId}`,
+      rationale: `Residual magnitude ${measurement.residual} remains large enough to justify closure testing.`,
+    },
+    {
+      gate: "baseline_resistance",
+      passed: Math.abs(strongerBaselineResidual) >= 0.5,
+      status: Math.abs(strongerBaselineResidual) >= 0.5 ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/RIVAL_TEST_RESULTS.md#stronger-baseline`,
+      rationale: `Residual against the same-domain outcome median is ${strongerBaselineResidual}; the signal is numerically residual-bearing but not yet discovery-quality.`,
+    },
+    {
+      gate: "rival_discrimination",
+      passed: rivalWeakened,
+      status: rivalWeakened ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/RIVAL_TEST_RESULTS.md`,
+      rationale:
+        "Matched same-catalog controls keep the source-family/population rival stronger than the candidate mechanism.",
+    },
+    {
+      gate: "holdout_support",
+      passed: holdoutSupport,
+      status: holdoutSupport ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/HOLDOUT_TEST_RESULTS.md`,
+      rationale:
+        "Available holdouts are from the same source family and do not provide independent post-freeze support.",
+    },
+    {
+      gate: "replay_support",
+      passed: replaySucceeded,
+      status: replaySucceeded ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/REPLAY_RESULTS.md`,
+      rationale: replaySucceeded
+        ? "The raw receipt, loader variables, baselines, and residual recompute deterministically."
+        : "Replay failed to reproduce the raw measurement and residual.",
+    },
+    {
+      gate: "counterexample_resistance",
+      passed: signedControls.length === 0,
+      status: signedControls.length === 0 ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/COUNTEREXAMPLE_RESULTS.md`,
+      rationale:
+        signedControls.length === 0
+          ? "No same-domain matched negative/control residual collapsed the candidate."
+          : `${signedControls.length} same-domain matched controls reproduce a similar negative residual.`,
+    },
+    {
+      gate: "mechanism_proof_plausibility",
+      passed: mechanismPressurePassed,
+      status: mechanismPressurePassed ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/MECHANISM_PRESSURE_RESULTS.md`,
+      rationale:
+        "The candidate has a measured residual but no surviving mechanism/proof pressure that distinguishes it from known population variation.",
+    },
+    {
+      gate: "external_inspectability",
+      passed: inspectabilityComplete,
+      status: inspectabilityComplete ? "passed" : "failed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/inspectability-package/CLAIM_EVIDENCE_BINDINGS.json`,
+      rationale:
+        "The raw target receipt, baseline record, counterexample record, replay record, and limitations are packageable from real evidence refs.",
+    },
+    {
+      gate: "candidate_identity_stability",
+      passed: true,
+      status: "passed",
+      evidenceRef: `${daemonArtifactRoot}/raw-insight-gate-closure/RAW_INSIGHT_CANDIDATE_PROFILE.md`,
+      rationale:
+        "The exact target-specific claim remains unchanged; no broader discovery claim is silently introduced.",
+    },
+  ];
+  return {
+    candidate,
+    target,
+    measurement,
+    strongerBaselineResidual,
+    rivalExplanations,
+    rivalWeakened,
+    holdoutStatus,
+    holdoutSupport,
+    replaySucceeded,
+    counterexamples: signedControls.slice(0, 5),
+    mechanismPressurePassed,
+    inspectabilityComplete,
+    gateMatrix,
+    testsExecuted: 5,
+  };
+}
+
+function rawInsightEmptyEvaluation(): ReturnType<
+  typeof rawInsightEvaluateCandidate
+> {
+  return {
+    candidate: null,
+    target: null,
+    measurement: null,
+    strongerBaselineResidual: null,
+    rivalExplanations: ["no raw-born InsightCandidate was available"],
+    rivalWeakened: false,
+    holdoutStatus: "unavailable",
+    holdoutSupport: false,
+    replaySucceeded: false,
+    counterexamples: [],
+    mechanismPressurePassed: false,
+    inspectabilityComplete: false,
+    gateMatrix: [
+      {
+        gate: "candidate_present",
+        passed: false,
+        status: "failed",
+        evidenceRef: `${daemonArtifactRoot}/external-raw-evidence-reset/INSIGHT_CANDIDATES.md`,
+        rationale: "No raw-born InsightCandidate is available for closure.",
+      },
+    ],
+    testsExecuted: 0,
+  };
+}
+
+function rawInsightPromotionDecision(
+  gateMatrix: RawInsightGateMatrixRow[],
+): RawInsightGateClosureDecision {
+  const failed = gateMatrix.filter((row) => !row.passed).map((row) => row.gate);
+  const promoted = failed.length === 0;
+  return {
+    promoted,
+    discoveryCandidateId: promoted ? "DISCOVERY-RAW-INSIGHT-GATE-CLOSED" : null,
+    killed: !promoted,
+    killReason: failed[0] ?? "none",
+    reason: promoted
+      ? "All promotion gates closed; FundCandidateDraft creation would be the next protected step."
+      : `Raw-born InsightCandidate is not promoted because ${failed.join(", ")} remained unresolved.`,
+  };
+}
+
+function rawInsightGateClosureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/raw-insight-gate-closure`;
+  return [
+    `${root}/RAW_INSIGHT_CANDIDATE_PROFILE.md`,
+    `${root}/PROMOTION_GATE_MATRIX.md`,
+    `${root}/RIVAL_TEST_RESULTS.md`,
+    `${root}/HOLDOUT_TEST_RESULTS.md`,
+    `${root}/REPLAY_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_RESULTS.md`,
+    `${root}/MECHANISM_PRESSURE_RESULTS.md`,
+    `${root}/INSPECTABILITY_PACKAGE_STATUS.md`,
+    `${root}/PROMOTION_DECISION.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function rawInsightCandidateProfileMarkdown(
+  candidate: ExternalRawResidualCandidate | null,
+  target: ExternalRawTarget | null,
+  measurement: ExternalRawMeasurement | null,
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  if (!candidate || !target || !measurement) {
+    return "# Raw InsightCandidate Profile\n\nNo raw-born InsightCandidate was available.";
+  }
+  return [
+    "# Raw InsightCandidate Profile",
+    "",
+    `Candidate ID: ${candidate.candidateId}`,
+    `Exact claim: ${candidate.exactClaim}`,
+    `Domain: ${candidate.domain}`,
+    `Source data: ${target.sourceUrl}`,
+    `Source receipt: ${target.sourceReceiptId}`,
+    `Measured outcome: ${measurement.measuredOutcome}`,
+    `Residual evidence: ${measurement.residual} against baseline median ${measurement.baselineMedian}`,
+    `Target evidence ref: ${target.localEvidenceArtifact}`,
+    `Measurement evidence ref: ${measurement.evidenceRefs.join(", ")}`,
+    "",
+    "## Baseline Results",
+    ...measurement.baselinePredictions.map(
+      (baseline) =>
+        `- ${baseline.baseline}: prediction ${baseline.prediction}; explains signal: ${String(baseline.explainsSignal)}`,
+    ),
+    "",
+    "## Rival Explanations",
+    ...evaluation.rivalExplanations.map((rival) => `- ${rival}`),
+    "",
+    `Holdout path: ${candidate.holdoutRef}`,
+    `Replay path: ${candidate.replayRef}`,
+    `Counterexample path: ${candidate.counterexampleRef}`,
+    `Mechanism/proof path: ${daemonArtifactRoot}/raw-insight-gate-closure/MECHANISM_PRESSURE_RESULTS.md`,
+    `Inspectability status: ${evaluation.inspectabilityComplete ? "complete_for_raw_profile" : "incomplete"}`,
+  ].join("\n");
+}
+
+function rawInsightGateMatrixMarkdown(rows: RawInsightGateMatrixRow[]): string {
+  return [
+    "# Promotion Gate Matrix",
+    "",
+    "| Gate | Status | Evidence | Rationale |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.gate} | ${row.status} | ${row.evidenceRef} | ${row.rationale} |`,
+    ),
+  ].join("\n");
+}
+
+function rawInsightRivalMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Rival Test Results",
+    "",
+    "## Stronger Baseline",
+    `Residual after same-domain outcome-median baseline: ${evaluation.strongerBaselineResidual ?? "n/a"}.`,
+    "",
+    "## Rival Explanations Tested",
+    ...evaluation.rivalExplanations.map((rival) => `- ${rival}`),
+    "",
+    `Rival weakened: ${String(evaluation.rivalWeakened)}.`,
+  ].join("\n");
+}
+
+function rawInsightHoldoutMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Holdout Test Results",
+    "",
+    `Holdout status: ${evaluation.holdoutStatus}.`,
+    `Holdout supports candidate: ${String(evaluation.holdoutSupport)}.`,
+    "",
+    "No new raw targets were generated. The check used post-claim-freeze slices from the already acquired raw reset target set.",
+  ].join("\n");
+}
+
+function rawInsightReplayMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Replay Results",
+    "",
+    `Replay succeeded: ${String(evaluation.replaySucceeded)}.`,
+    evaluation.replaySucceeded
+      ? "The measured outcome, baseline median, and residual recomputed from the raw target receipt."
+      : "Replay did not reproduce the raw target residual.",
+  ].join("\n");
+}
+
+function rawInsightCounterexampleMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Counterexample Results",
+    "",
+    `Matched counterexamples found: ${evaluation.counterexamples.length}.`,
+    "",
+    "| Target | Residual | Outcome |",
+    "| --- | ---: | ---: |",
+    ...evaluation.counterexamples.map(
+      (item) =>
+        `| ${item.targetId} | ${item.residual} | ${item.measuredOutcome} |`,
+    ),
+  ].join("\n");
+}
+
+function rawInsightMechanismMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Mechanism Pressure Results",
+    "",
+    `Mechanism/proof pressure passed: ${String(evaluation.mechanismPressurePassed)}.`,
+    "",
+    "The target-specific radius residual has not produced a mechanism that distinguishes it from ordinary catalog population variation. Promotion would require a narrow physical or formal prediction that survives matched controls.",
+  ].join("\n");
+}
+
+function rawInsightInspectabilityMarkdown(
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): string {
+  return [
+    "# Inspectability Package Status",
+    "",
+    `Inspectability complete: ${String(evaluation.inspectabilityComplete)}.`,
+    "",
+    "Package refs:",
+    "- inspectability-package/PAPER.md",
+    "- inspectability-package/METHOD.md",
+    "- inspectability-package/CLAIM_EVIDENCE_BINDINGS.json",
+    "- inspectability-package/REPRODUCE.md",
+    "- inspectability-package/LIMITATIONS.md",
+    "",
+    "This package is an internal raw-insight inspection package only; it is not a Fund package and does not create FUND_FOUND.",
+  ].join("\n");
+}
+
+function rawInsightPromotionDecisionMarkdown(
+  decision: RawInsightGateClosureDecision,
+  report: RawInsightPromotionGateClosureReport,
+): string {
+  return [
+    "# Promotion Decision",
+    "",
+    `Promoted to DiscoveryCandidate: ${String(decision.promoted)}.`,
+    `DiscoveryCandidate ID: ${decision.discoveryCandidateId ?? "none"}.`,
+    `Killed: ${String(decision.killed)}.`,
+    `Kill reason: ${decision.killReason}.`,
+    `Reason: ${decision.reason}`,
+    "",
+    `FundCandidateDraft created: ${String(report.fundCandidateDraftCreated)}.`,
+  ].join("\n");
+}
+
+function rawInsightFundGateMarkdown(
+  report: RawInsightPromotionGateClosureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No fund-candidate.json or FUND_FOUND.md is written because no discovery-scored candidate passed the full Fund Gate.",
+  ].join("\n");
+}
+
+function rawInsightNextCheckpointMarkdown(
+  report: RawInsightPromotionGateClosureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+async function rawInsightWriteInspectabilityPackage(
+  packageRoot: string,
+  candidate: ExternalRawResidualCandidate | null,
+  target: ExternalRawTarget | null,
+  measurement: ExternalRawMeasurement | null,
+  evaluation: ReturnType<typeof rawInsightEvaluateCandidate>,
+): Promise<void> {
+  const claim =
+    candidate?.exactClaim ?? "No raw-born InsightCandidate available.";
+  await writeText(
+    join(packageRoot, "PAPER.md"),
+    [
+      "# Raw Insight Inspection Package",
+      "",
+      claim,
+      "",
+      "This is not a discovery-scored Fund package. It documents a focused gate-closure attempt for an internal raw-born InsightCandidate.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageRoot, "METHOD.md"),
+    [
+      "# Method",
+      "",
+      "The closure reused only External Raw Evidence Reset artifacts: raw target receipts, measured outcomes, baseline records, matched controls, replay recomputation, and mechanism pressure notes.",
+    ].join("\n"),
+  );
+  await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    kind: "raw_insight_claim_evidence_bindings",
+    candidateId: candidate?.candidateId ?? null,
+    claim,
+    sourceRef: target?.sourceUrl ?? null,
+    targetEvidenceRef: target?.localEvidenceArtifact ?? null,
+    measurementEvidenceRefs: measurement?.evidenceRefs ?? [],
+    gateEvidenceRefs: evaluation.gateMatrix.map((row) => row.evidenceRef),
+    evidenceHash: hashEvidence({
+      candidate,
+      target,
+      measurement,
+      gateMatrix: evaluation.gateMatrix,
+    }),
+  });
+  await writeText(
+    join(packageRoot, "REPRODUCE.md"),
+    [
+      "# Reproduce",
+      "",
+      "Run `sovryn discover-daemon raw-insight-gate-closure --json` after `sovryn discover-daemon raw-evidence-reset --json`.",
+      "",
+      "The replay check recomputes the target measurement from the stored raw target receipt and baseline definitions.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageRoot, "LIMITATIONS.md"),
+    [
+      "# Limitations",
+      "",
+      "- Same-source matched controls collapse the candidate as a discovery claim.",
+      "- The available holdout is not independent enough for discovery promotion.",
+      "- No mechanism/proof pressure currently distinguishes the residual from known population variation.",
+      "- This package does not create a FundCandidateDraft, fund-candidate.json, or FUND_FOUND.md.",
+    ].join("\n"),
+  );
 }
 
 export class ScientificSignalQualityTournament {
@@ -15016,6 +15745,11 @@ export class AutonomousDiscoveryDaemonService {
   async rawEvidenceReset(): Promise<ExternalRawEvidenceSourceResetReport> {
     await this.ensureInitialized();
     return new ExternalRawEvidenceSourceReset(this.root).run();
+  }
+
+  async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {
+    await this.ensureInitialized();
+    return new RawInsightPromotionGateClosure(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

@@ -79,6 +79,7 @@ const commands = [
   "reality-marathon",
   "marathon",
   "raw-evidence-reset",
+  "raw-insight-gate-closure",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -2972,6 +2973,81 @@ test("discover-daemon raw-evidence-reset CLI is bounded and silent", async () =>
     "external_raw_evidence_source_reset",
   );
   assert.equal((response.data as Record<string, unknown>).freshSourcesUsed, 90);
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon raw-insight-gate-closure evaluates the raw-born InsightCandidate without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.rawEvidenceReset();
+
+  const report = await service.rawInsightGateClosure();
+
+  assert.equal(report.kind, "raw_insight_promotion_gate_closure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.ok(report.candidateId?.startsWith("RAW-INSIGHT-"));
+  assert.equal(report.domain, "astrophysics_public_catalog_residuals");
+  assert.ok(report.sourceData.some((ref) => ref.startsWith("https://")));
+  assert.equal(report.promotedToDiscoveryCandidate, false);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundCandidateDraftCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.ok(report.gatesPassed.includes("replay_support"));
+  assert.ok(report.gatesPassed.includes("external_inspectability"));
+  assert.ok(report.gatesFailed.includes("rival_discrimination"));
+  assert.ok(report.gatesFailed.includes("counterexample_resistance"));
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "RAW_INSIGHT_CANDIDATE_PROFILE.md",
+    "PROMOTION_GATE_MATRIX.md",
+    "RIVAL_TEST_RESULTS.md",
+    "HOLDOUT_TEST_RESULTS.md",
+    "REPLAY_RESULTS.md",
+    "COUNTEREXAMPLE_RESULTS.md",
+    "MECHANISM_PRESSURE_RESULTS.md",
+    "INSPECTABILITY_PACKAGE_STATUS.md",
+    "PROMOTION_DECISION.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "raw-insight-gate-closure", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon raw-insight-gate-closure CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.rawEvidenceReset();
+
+  const response = await executeCli(
+    ["discover-daemon", "raw-insight-gate-closure", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "raw_insight_promotion_gate_closure",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).promotedToDiscoveryCandidate,
+    false,
+  );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

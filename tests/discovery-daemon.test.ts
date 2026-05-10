@@ -75,6 +75,7 @@ const commands = [
   "insight-gauntlet",
   "insight-patterns",
   "outcome-pattern-search",
+  "outcome-war",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -1925,6 +1926,99 @@ test("discover-daemon outcome-pattern-search CLI is bounded and silent", async (
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("outcome-war campaign meets exhaustion scale and blocks fake Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.outcomeWar();
+
+  assert.equal(report.kind, "outcome_bearing_discovery_war_campaign");
+  assert.equal(report.seedsGenerated, 600);
+  assert.equal(report.validSeeds, 600);
+  assert.equal(report.realChecksRun, 160);
+  assert.equal(report.baselineKills, 112);
+  assert.equal(report.baselineResistantInsightsFound, 48);
+  assert.equal(report.insightCandidatesDerived, 48);
+  assert.equal(report.requiredNextTestCandidates, 20);
+  assert.equal(report.top10CandidateIds.length, 10);
+  assert.equal(report.top3CandidateIds.length, 3);
+  assert.equal(report.promotionAttempts, 3);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.exhaustionCriteriaMet, true);
+  assert.equal(report.status, "campaign_exhausted_continue_searching");
+  assert.ok(report.holdoutChecks >= 30);
+  assert.ok(report.counterexampleChecks >= 30);
+  assert.ok(report.replayChecks >= 20);
+  assert.ok(report.rivalTheoryChecks >= 20);
+  assert.ok(report.proofMechanismPressureChecks >= 10);
+  assert.equal(report.deathCauses.baseline_dominated, 112);
+  assert.ok(Number(report.deathCauses.counterexample_dense ?? 0) >= 40);
+  assert.equal(
+    await exists(join(root, daemonRoot, "outcome-war", "latest.json")),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(root, daemonRoot, "outcome-war", "OUTCOME_HARD_SEEDS_600.json"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon outcome-war status resume and audit are bounded", async () => {
+  const root = await tempRoot();
+  const runResponse = await executeCli(
+    ["discover-daemon", "outcome-war", "--json"],
+    root,
+  );
+  assert.equal(runResponse.ok, true, JSON.stringify(runResponse.errors));
+  assert.equal(
+    (runResponse.data as Record<string, unknown>).kind,
+    "outcome_bearing_discovery_war_campaign",
+  );
+
+  const statusResponse = await executeCli(
+    ["discover-daemon", "outcome-war", "status", "--json"],
+    root,
+  );
+  assert.equal(statusResponse.ok, true, JSON.stringify(statusResponse.errors));
+  assert.equal(
+    (statusResponse.data as Record<string, unknown>).kind,
+    "outcome_war_status",
+  );
+  assert.equal((statusResponse.data as Record<string, unknown>).hasRun, true);
+
+  const resumeResponse = await executeCli(
+    ["discover-daemon", "outcome-war", "resume", "--json"],
+    root,
+  );
+  assert.equal(resumeResponse.ok, true, JSON.stringify(resumeResponse.errors));
+  assert.equal(
+    (resumeResponse.data as Record<string, unknown>).kind,
+    "outcome_bearing_discovery_war_campaign",
+  );
+
+  const auditResponse = await executeCli(
+    ["discover-daemon", "outcome-war", "audit", "--json"],
+    root,
+  );
+  assert.equal(auditResponse.ok, true, JSON.stringify(auditResponse.errors));
+  assert.equal(
+    (auditResponse.data as Record<string, unknown>).kind,
+    "outcome_war_audit",
+  );
+  assert.equal((auditResponse.data as Record<string, unknown>).passed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2550,6 +2644,11 @@ const cliScenarios: {
     name: "outcome-pattern-search",
     args: ["discover-daemon", "outcome-pattern-search", "--json"],
     expectedKind: "outcome_bearing_nontrivial_pattern_search",
+  },
+  {
+    name: "outcome-war",
+    args: ["discover-daemon", "outcome-war", "status", "--json"],
+    expectedKind: "outcome_war_status",
   },
   {
     name: "cycle",

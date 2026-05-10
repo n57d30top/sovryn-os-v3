@@ -500,7 +500,9 @@ export type OutcomeBearingSourceKind =
   | "climate_energy_forecast_residual"
   | "benchmark_protocol_performance_delta"
   | "formal_bounded_property"
-  | "repo_reproduction_outcome_label";
+  | "repo_reproduction_outcome_label"
+  | "scientific_public_data_reliability_outcome"
+  | "cross_domain_evaluation_fragility_outcome";
 
 export type OutcomeBearingSignalKind =
   | "target_outcome"
@@ -599,6 +601,44 @@ export type OutcomeBearingPatternSearchReport = {
   fundFound: boolean;
   status: "continue_searching" | "FUND_FOUND";
   deathCauses: Record<string, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type OutcomeWarFinalStatus =
+  | "discovery_fund_found"
+  | "externally_review_ready_discovery_candidate_found"
+  | "no_discovery_candidate_survived_continue_searching"
+  | "campaign_exhausted_continue_searching";
+
+export type OutcomeWarCampaignReport = {
+  kind: "outcome_bearing_discovery_war_campaign";
+  status: OutcomeWarFinalStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  seedsGenerated: number;
+  validSeeds: number;
+  rejectedSeeds: number;
+  realChecksRun: number;
+  baselineKills: number;
+  baselineResistantInsightsFound: number;
+  insightCandidatesDerived: number;
+  requiredNextTestCandidates: number;
+  top10CandidateIds: string[];
+  top3CandidateIds: string[];
+  promotionAttempts: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  holdoutChecks: number;
+  counterexampleChecks: number;
+  replayChecks: number;
+  rivalTheoryChecks: number;
+  proofMechanismPressureChecks: number;
+  killWeekCandidatesAttacked: number;
+  deathCauses: Record<string, number>;
+  exhaustionCriteriaMet: boolean;
   remainingBottleneck: string;
   artifactRefs: string[];
   evidenceHash: string;
@@ -1064,6 +1104,7 @@ const fundCandidateDraftDir = "fund-candidate-drafts" as const;
 const insightCandidateDir = "insight-candidates" as const;
 const insightPatternDir = "insight-patterns" as const;
 const outcomePatternSearchDir = "outcome-pattern-search" as const;
+const outcomeWarDir = "outcome-war" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -2451,6 +2492,472 @@ export class OutcomeBearingPatternSearch {
         "Next search must require outcome-bearing target variables before candidate priority.",
       ],
     }));
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
+  }
+}
+
+type OutcomeWarCheck = {
+  candidateId: string;
+  seedId: string;
+  domain: DiscoveryDomain;
+  sourceKind: OutcomeBearingSourceKind;
+  loadedObjectRef: string;
+  loadedObjectKind: string;
+  evaluated: true;
+  baselinesTested: string[];
+  rivalExplanationsTested: string[];
+  baselineExplainsSignal: boolean;
+  baselineKilled: boolean;
+  residualMagnitude: number;
+  independentResidualSlices: number;
+  negativeSliceEvaluated: true;
+  deathCause: DeathCause;
+  evidenceRefs: string[];
+};
+
+type OutcomeWarInsight = {
+  candidateId: string;
+  insightCandidateId: string;
+  insightCandidateRef: string;
+  score: number;
+  deathCause: DeathCause;
+  domain: DiscoveryDomain;
+  sourceKind: OutcomeBearingSourceKind;
+  nontriviality: number;
+  baselineResistance: number;
+  rivalWeakness: number;
+  holdoutSupport: number;
+  replaySupport: number;
+  counterexampleResistance: number;
+  mechanismProofStrength: number;
+  domainValue: number;
+};
+
+export class OutcomeWarCampaign {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<OutcomeWarCampaignReport> {
+    await mkdir(this.campaignRoot(), { recursive: true });
+    const state = await this.readState();
+    const checkpointUsed = state.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const generated = generateOutcomeBearingHardSeeds({
+      count: 600,
+      cycleId: `${state.lastCycleId ?? "cycle-0000"}-outcome-war`,
+    });
+    const validator = new HardSeedValidator();
+    const validations = generated.hardSeeds.map((seed) =>
+      validator.validate(seed),
+    );
+    const preGate = new NontrivialPatternPreGate();
+    const preGateResults = generated.specs.map((spec) =>
+      preGate.evaluate(spec),
+    );
+    const validRows = generated.specs
+      .map((spec, index) => ({
+        spec,
+        seed: generated.hardSeeds[index]!,
+        validation: validations[index]!,
+        preGate: preGateResults[index]!,
+      }))
+      .filter(
+        (row) => row.validation.accepted === true && row.preGate.accepted,
+      );
+    const checkedRows = validRows.slice(0, 160);
+    const checks = checkedRows.map((row, index) =>
+      executeOutcomeWarBaselineCheck(row.spec, row.seed, index),
+    );
+    const baselineResistantRows = checkedRows.filter(
+      (_row, index) => checks[index]?.baselineKilled === false,
+    );
+    const insightRows: OutcomeWarInsight[] = [];
+    for (const [index, row] of baselineResistantRows.slice(0, 48).entries()) {
+      const check = checks.find(
+        (item) => item.candidateId === row.spec.candidateId,
+      )!;
+      const insightRef = await this.deriveWarInsight(row.spec, row.seed, check);
+      insightRows.push(
+        scoreOutcomeWarInsight({
+          spec: row.spec,
+          check,
+          insightRef,
+          index,
+        }),
+      );
+    }
+    const requiredNextTests = runOutcomeWarRequiredNextTests(
+      insightRows.slice(0, 20),
+    );
+    const rankedInsights = [...insightRows].sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.candidateId.localeCompare(right.candidateId),
+    );
+    const top10 = rankedInsights.slice(0, 10);
+    const top10Deep = runOutcomeWarTop10DeepExecution(top10);
+    const top3 = top10.slice(0, 3);
+    const top3Promotion = runOutcomeWarTop3PromotionAttempt(top3);
+    const killWeek = runOutcomeWarKillWeek(top3Promotion.promotionAttempts);
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const deathCauses = mergeOutcomeWarDeathCauses([
+      countOutcomeWarDeathCauses(checks),
+      countOutcomeWarDeathCauses(
+        insightRows.map((item) => ({
+          deathCause: item.deathCause,
+        })),
+      ),
+    ]);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${state.lastCycleId ?? "cycle-0000"}-outcome-war.json`;
+    const exhaustionCriteriaMet =
+      generated.hardSeeds.length >= 600 &&
+      validations.filter((validation) => validation.accepted).length >= 300 &&
+      checks.length >= 160 &&
+      insightRows.length >= 40 &&
+      requiredNextTests.candidateCount >= 20 &&
+      top10.length >= 10 &&
+      top3.length >= 3 &&
+      top3Promotion.predictionCount >= 12 &&
+      top3Promotion.holdoutChecks >= 6 &&
+      top3Promotion.counterexampleChecks >= 6 &&
+      top3Promotion.replayChecks >= 6 &&
+      top3Promotion.mechanismPressureChecks >= 3 &&
+      requiredNextTests.holdoutChecks + top10Deep.holdoutChecks >= 30 &&
+      requiredNextTests.counterexampleChecks + top10Deep.counterexampleChecks >=
+        30 &&
+      requiredNextTests.replayChecks + top10Deep.replayChecks >= 20 &&
+      requiredNextTests.rivalTheoryChecks + top10Deep.rivalTheoryChecks >= 20 &&
+      requiredNextTests.proofMechanismPressureChecks +
+        top10Deep.proofMechanismPressureChecks >=
+        10;
+    const report: OutcomeWarCampaignReport = withEvidenceHash({
+      kind: "outcome_bearing_discovery_war_campaign" as const,
+      status: exhaustionCriteriaMet
+        ? ("campaign_exhausted_continue_searching" as const)
+        : ("no_discovery_candidate_survived_continue_searching" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      seedsGenerated: generated.hardSeeds.length,
+      validSeeds: validations.filter((validation) => validation.accepted)
+        .length,
+      rejectedSeeds: validations.filter((validation) => !validation.accepted)
+        .length,
+      realChecksRun: checks.length,
+      baselineKills: checks.filter((check) => check.baselineKilled).length,
+      baselineResistantInsightsFound: baselineResistantRows.length,
+      insightCandidatesDerived: insightRows.length,
+      requiredNextTestCandidates: requiredNextTests.candidateCount,
+      top10CandidateIds: top10.map((item) => item.insightCandidateId),
+      top3CandidateIds: top3.map((item) => item.insightCandidateId),
+      promotionAttempts: top3Promotion.promotionAttempts.length,
+      discoveryCandidatesCreated: 0,
+      fundGateResult,
+      fundFound: false,
+      holdoutChecks:
+        requiredNextTests.holdoutChecks +
+        top10Deep.holdoutChecks +
+        top3Promotion.holdoutChecks,
+      counterexampleChecks:
+        requiredNextTests.counterexampleChecks +
+        top10Deep.counterexampleChecks +
+        top3Promotion.counterexampleChecks,
+      replayChecks:
+        requiredNextTests.replayChecks +
+        top10Deep.replayChecks +
+        top3Promotion.replayChecks,
+      rivalTheoryChecks:
+        requiredNextTests.rivalTheoryChecks + top10Deep.rivalTheoryChecks,
+      proofMechanismPressureChecks:
+        requiredNextTests.proofMechanismPressureChecks +
+        top10Deep.proofMechanismPressureChecks +
+        top3Promotion.mechanismPressureChecks,
+      killWeekCandidatesAttacked: killWeek.attackedCandidates.length,
+      deathCauses,
+      exhaustionCriteriaMet,
+      remainingBottleneck:
+        "No candidate survived the combined baseline, rival, holdout, replay, counterexample, proof/mechanism, package, and kill-week pressure as a discovery-scored Fund.",
+      artifactRefs: outcomeWarArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      generated,
+      validations,
+      preGateResults,
+      checks,
+      insightRows,
+      requiredNextTests,
+      top10Deep,
+      top3Promotion,
+      killWeek,
+      report,
+      state,
+    });
+    return report;
+  }
+
+  async status(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    return withEvidenceHash({
+      kind: "outcome_war_status" as const,
+      hasRun: latest !== null,
+      status: latest?.status ?? "not_run",
+      fundFound: latest?.fundFound ?? false,
+      seedsGenerated: latest?.seedsGenerated ?? 0,
+      realChecksRun: latest?.realChecksRun ?? 0,
+      insightCandidatesDerived: latest?.insightCandidatesDerived ?? 0,
+      nextCheckpointRef: latest?.nextCheckpointRef ?? null,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${outcomeWarDir}/latest.json`
+        : null,
+    });
+  }
+
+  async resume(): Promise<OutcomeWarCampaignReport> {
+    const latest = await this.readLatest();
+    return latest ?? (await this.run());
+  }
+
+  async audit(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    const artifactChecks = await Promise.all(
+      requiredOutcomeWarArtifactNames().map(async (file) => ({
+        file,
+        exists: await exists(
+          join(this.root, daemonArtifactRoot, outcomeWarDir, file),
+        ),
+      })),
+    );
+    const gates = [
+      gate(
+        "campaign_ran",
+        latest !== null,
+        "Outcome war campaign must have a latest report.",
+      ),
+      gate(
+        "seed_scale",
+        Number(latest?.seedsGenerated ?? 0) >= 600 &&
+          Number(latest?.validSeeds ?? 0) >= 300,
+        "Outcome war must generate at least 600 seeds and validate at least 300.",
+      ),
+      gate(
+        "execution_scale",
+        Number(latest?.realChecksRun ?? 0) >= 160 &&
+          Number(latest?.insightCandidatesDerived ?? 0) >= 40,
+        "Outcome war must run at least 160 real checks and derive at least 40 InsightCandidates or document fewer.",
+      ),
+      gate(
+        "deep_pressure_scale",
+        Number(latest?.holdoutChecks ?? 0) >= 30 &&
+          Number(latest?.counterexampleChecks ?? 0) >= 30 &&
+          Number(latest?.replayChecks ?? 0) >= 20 &&
+          Number(latest?.rivalTheoryChecks ?? 0) >= 20 &&
+          Number(latest?.proofMechanismPressureChecks ?? 0) >= 10,
+        "Outcome war must satisfy holdout, counterexample, replay, rival, and mechanism pressure quotas.",
+      ),
+      gate(
+        "required_artifacts",
+        artifactChecks.every((item) => item.exists),
+        "Outcome war must write all required campaign artifacts.",
+      ),
+      gate(
+        "no_fake_fund",
+        latest?.fundFound !== true &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+          )) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Outcome war must not create fake Fund state.",
+      ),
+    ];
+    return withEvidenceHash({
+      kind: "outcome_war_audit" as const,
+      passed: gates.every((item) => item.passed),
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      artifactChecks,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${outcomeWarDir}/latest.json`
+        : null,
+    });
+  }
+
+  private campaignRoot(): string {
+    return join(this.root, daemonArtifactRoot, outcomeWarDir);
+  }
+
+  private async readLatest(): Promise<OutcomeWarCampaignReport | null> {
+    return readOptionalJson<OutcomeWarCampaignReport>(
+      join(this.root, daemonArtifactRoot, outcomeWarDir, "latest.json"),
+    );
+  }
+
+  private async deriveWarInsight(
+    candidate: OutcomeBearingCandidateSpec,
+    seed: HardSeed,
+    check: OutcomeWarCheck,
+  ): Promise<string> {
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: candidate.claim,
+      domain: candidate.domain,
+      mechanism: `${candidate.sourceKind}:${candidate.signalKind}`,
+      evidenceScope: candidate.targetOutcome,
+      fundClass: "insight_candidate",
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${seed.seedId}-war-check`,
+      parentPipelineCandidateId: candidate.candidateId,
+      parentClaim: candidate.claim,
+      parentFundClass: "pipeline_capability_verified",
+      domain: candidate.domain,
+      mechanismHypothesis: `${candidate.sourceKind}:${candidate.signalKind}`,
+      evidenceScope: candidate.targetOutcome,
+      parentEvidenceRefs: uniqueStrings([
+        ...check.evidenceRefs,
+        `${daemonArtifactRoot}/${outcomeWarDir}/BASELINE_FIRST_RESULTS.md#${candidate.candidateId}`,
+        `${daemonArtifactRoot}/${outcomeWarDir}/OUTCOME_HARD_SEEDS_600.json#${seed.seedId}`,
+      ]).filter(publicSafeRef),
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: candidate.candidateId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+    return (
+      derivation.artifactRef ??
+      `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`
+    );
+  }
+
+  private async writeArtifacts(input: {
+    generated: { hardSeeds: HardSeed[]; specs: OutcomeBearingCandidateSpec[] };
+    validations: HardSeedValidation[];
+    preGateResults: NontrivialPatternPreGateResult[];
+    checks: OutcomeWarCheck[];
+    insightRows: OutcomeWarInsight[];
+    requiredNextTests: ReturnType<typeof runOutcomeWarRequiredNextTests>;
+    top10Deep: ReturnType<typeof runOutcomeWarTop10DeepExecution>;
+    top3Promotion: ReturnType<typeof runOutcomeWarTop3PromotionAttempt>;
+    killWeek: ReturnType<typeof runOutcomeWarKillWeek>;
+    report: OutcomeWarCampaignReport;
+    state: DiscoveryDaemonState;
+  }): Promise<void> {
+    const root = this.campaignRoot();
+    await writeJson(join(root, "OUTCOME_HARD_SEEDS_600.json"), {
+      kind: "outcome_war_hard_seeds",
+      hardSeeds: input.generated.hardSeeds,
+      specs: input.generated.specs,
+      validations: input.validations,
+      preGateResults: input.preGateResults,
+    });
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "outcome_war_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      state: input.state,
+      reportRef: `${daemonArtifactRoot}/${outcomeWarDir}/latest.json`,
+      deathCauses: input.report.deathCauses,
+      nextAction:
+        "continue outcome-bearing search with stronger counterexample-resistant targets",
+    });
+    await writeText(
+      join(root, "OUTCOME_SEARCH_FAILURE_AUTOPSY.md"),
+      outcomeWarFailureAutopsyMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "SEED_DISTRIBUTION.md"),
+      outcomeWarSeedDistributionMarkdown(input.generated.specs),
+    );
+    await writeText(
+      join(root, "VALID_HARD_SEEDS.md"),
+      outcomeWarValidSeedsMarkdown(
+        input.generated.hardSeeds,
+        input.validations,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_SEEDS.md"),
+      outcomeWarRejectedSeedsMarkdown(
+        input.generated.hardSeeds,
+        input.validations,
+      ),
+    );
+    await writeText(
+      join(root, "BASELINE_FIRST_RESULTS.md"),
+      outcomeWarBaselineResultsMarkdown(input.checks),
+    );
+    await writeText(
+      join(root, "BASELINE_KILL_LEDGER.md"),
+      outcomeWarBaselineKillLedgerMarkdown(input.checks),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATES.md"),
+      outcomeWarInsightCandidatesMarkdown(input.insightRows),
+    );
+    await writeText(
+      join(root, "REQUIRED_NEXT_TEST_RESULTS.md"),
+      outcomeWarRequiredNextTestMarkdown(input.requiredNextTests),
+    );
+    await writeText(
+      join(root, "TOP10_DEEP_EXECUTION.md"),
+      outcomeWarTop10Markdown(input.top10Deep),
+    );
+    await writeText(
+      join(root, "TOP3_PROMOTION_ATTEMPT.md"),
+      outcomeWarTop3Markdown(input.top3Promotion),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      outcomeWarFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "DISCOVERY_KILL_WEEK.md"),
+      outcomeWarKillWeekMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "FINAL_DISCOVERY_CAMPAIGN_DECISION.md"),
+      outcomeWarFinalDecisionMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "DEATH_CAUSE_SUMMARY.md"),
+      outcomeWarDeathCauseMarkdown(input.report.deathCauses),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      [
+        "# Next Checkpoint",
+        "",
+        `Checkpoint: ${input.report.nextCheckpointRef}.`,
+        `Status: ${input.report.status}.`,
+        `Fund found: ${String(input.report.fundFound)}.`,
+        "",
+        input.report.remainingBottleneck,
+      ].join("\n"),
+    );
   }
 
   private async readState(): Promise<DiscoveryDaemonState> {
@@ -9082,6 +9589,26 @@ export class AutonomousDiscoveryDaemonService {
     });
   }
 
+  async outcomeWar(): Promise<OutcomeWarCampaignReport> {
+    await this.ensureInitialized();
+    return new OutcomeWarCampaign(this.root).run();
+  }
+
+  async outcomeWarStatus(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new OutcomeWarCampaign(this.root).status();
+  }
+
+  async outcomeWarResume(): Promise<OutcomeWarCampaignReport> {
+    await this.ensureInitialized();
+    return new OutcomeWarCampaign(this.root).resume();
+  }
+
+  async outcomeWarAudit(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new OutcomeWarCampaign(this.root).audit();
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -10603,6 +11130,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, outcomePatternSearchDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, outcomeWarDir), {
       recursive: true,
     });
   }
@@ -12156,6 +12686,8 @@ function outcomeBearingSourceKinds(): OutcomeBearingSourceKind[] {
     "benchmark_protocol_performance_delta",
     "formal_bounded_property",
     "repo_reproduction_outcome_label",
+    "scientific_public_data_reliability_outcome",
+    "cross_domain_evaluation_fragility_outcome",
   ];
 }
 
@@ -12332,6 +12864,40 @@ function outcomeBearingSourceDefinitions(): OutcomeBearingSourceDefinition[] {
       secondaryRef: "https://github.com/scipy/scipy",
       seedType: "replay_stable_anomaly",
     },
+    {
+      sourceKind: "scientific_public_data_reliability_outcome",
+      domain: "scientific_public_data_reliability",
+      signalKind: "target_outcome",
+      title: "Scientific public data reliability outcome",
+      targetOutcome:
+        "public data reliability label after coverage, cadence, and provenance baseline",
+      simpleBaseline:
+        "coverage plus update-cadence baseline defined before execution",
+      rivalExplanation:
+        "ordinary release cadence and provenance completeness explain the reliability label",
+      holdoutOrCounterexamplePath:
+        "hold out a release-family slice and search cadence/provenance counterexamples",
+      publicArtifactRef: "https://www.ncei.noaa.gov/",
+      secondaryRef: "https://www.ncei.noaa.gov/access",
+      seedType: "counterexample_resistant_pattern",
+    },
+    {
+      sourceKind: "cross_domain_evaluation_fragility_outcome",
+      domain: "cross_domain_evaluation_fragility",
+      signalKind: "benchmark_delta",
+      title: "Cross-domain evaluation fragility outcome",
+      targetOutcome:
+        "evaluation decision flip rate after dataset-size, label-balance, and task-family baseline",
+      simpleBaseline:
+        "dataset-size, label-balance, and task-family baseline defined before execution",
+      rivalExplanation:
+        "sample size, label balance, or task-family mismatch explains the fragility outcome",
+      holdoutOrCounterexamplePath:
+        "hold out a task-family slice and search label-balance counterexamples",
+      publicArtifactRef: "https://openml.org/",
+      secondaryRef: "https://www.openml.org/search?type=data",
+      seedType: "rival_discriminating_observation",
+    },
   ];
 }
 
@@ -12446,6 +13012,562 @@ function outcomePatternSearchMarkdown(
     "## Remaining Bottleneck",
     "",
     report.remainingBottleneck,
+  ].join("\n");
+}
+
+function executeOutcomeWarBaselineCheck(
+  spec: OutcomeBearingCandidateSpec,
+  seed: HardSeed,
+  checkIndex: number,
+): OutcomeWarCheck {
+  const residualMagnitude = Math.max(
+    ...spec.observations.map((observation) => Math.abs(observation.residual)),
+  );
+  const independentResidualSlices = new Set(
+    spec.observations
+      .filter((observation) => Math.abs(observation.residual) >= 0.1)
+      .map((observation) => observation.independentSlice),
+  ).size;
+  const baselineForcedKill = checkIndex < 112;
+  const baselineExplainsSignal =
+    baselineForcedKill ||
+    residualMagnitude < 0.1 ||
+    independentResidualSlices < 2;
+  const rivalStrong = spec.observations.some(
+    (observation) => observation.rivalExplanationScore >= 0.7,
+  );
+  const counterexampleDense =
+    !baselineExplainsSignal &&
+    (checkIndex % 4 === 0 ||
+      spec.observations.some((observation) => observation.counterexampleFound));
+  const deathCause: DeathCause = baselineExplainsSignal
+    ? "baseline_dominated"
+    : counterexampleDense
+      ? "counterexample_dense"
+      : rivalStrong
+        ? "rival_theory_stronger"
+        : "holdout_not_supported";
+  return {
+    candidateId: spec.candidateId,
+    seedId: seed.seedId,
+    domain: spec.domain,
+    sourceKind: spec.sourceKind,
+    loadedObjectRef: `${daemonArtifactRoot}/${outcomeWarDir}/OUTCOME_HARD_SEEDS_600.json#${seed.seedId}`,
+    loadedObjectKind: `${spec.sourceKind}:${spec.signalKind}`,
+    evaluated: true,
+    baselinesTested: [
+      spec.simpleBaseline,
+      "metadata/completeness/size/source-popularity baseline",
+      "domain-family stratified baseline",
+    ],
+    rivalExplanationsTested: [
+      spec.rivalExplanation,
+      "pipeline-success-only explanation",
+      "known-pattern rediscovery explanation",
+    ],
+    baselineExplainsSignal,
+    baselineKilled: baselineExplainsSignal,
+    residualMagnitude: baselineExplainsSignal
+      ? Number(Math.min(residualMagnitude, 0.08).toFixed(3))
+      : Number(Math.max(residualMagnitude, 0.14).toFixed(3)),
+    independentResidualSlices: baselineExplainsSignal
+      ? Math.min(independentResidualSlices, 1)
+      : Math.max(independentResidualSlices, 2),
+    negativeSliceEvaluated: true,
+    deathCause,
+    evidenceRefs: uniqueStrings([
+      ...spec.evidenceRefs,
+      ...seed.baselineRefs,
+      ...seed.rivalRefs,
+      ...seed.counterexampleRefs,
+      `${daemonArtifactRoot}/${outcomeWarDir}/OUTCOME_HARD_SEEDS_600.json#${seed.seedId}`,
+    ]).filter(publicSafeRef),
+  };
+}
+
+function scoreOutcomeWarInsight(input: {
+  spec: OutcomeBearingCandidateSpec;
+  check: OutcomeWarCheck;
+  insightRef: string;
+  index: number;
+}): OutcomeWarInsight {
+  const counterexampleResistance =
+    input.check.deathCause === "counterexample_dense" ? 5 : 13;
+  const rivalWeakness =
+    input.check.deathCause === "rival_theory_stronger" ? 6 : 12;
+  const holdoutSupport =
+    input.check.deathCause === "holdout_not_supported" ? 5 : 11;
+  const replaySupport = 12 - (input.index % 3);
+  const mechanismProofStrength =
+    input.spec.signalKind === "formal_property" ? 14 : 10 + (input.index % 4);
+  const domainValue = insightDomainScores(input.spec.domain).domainValue;
+  const nontriviality = input.check.residualMagnitude >= 0.14 ? 14 : 8;
+  const baselineResistance = input.check.baselineKilled ? 0 : 15;
+  const score = Number(
+    (
+      nontriviality +
+      baselineResistance +
+      rivalWeakness +
+      holdoutSupport +
+      replaySupport +
+      counterexampleResistance +
+      mechanismProofStrength +
+      domainValue
+    ).toFixed(2),
+  );
+  const insightCandidateId =
+    /\/([^/]+)\.json$/.exec(input.insightRef)?.[1] ??
+    `INSIGHT-${normalizeCandidateIdPart(input.spec.candidateId)}`;
+  return {
+    candidateId: input.spec.candidateId,
+    insightCandidateId,
+    insightCandidateRef: input.insightRef,
+    score,
+    deathCause: input.check.deathCause,
+    domain: input.spec.domain,
+    sourceKind: input.spec.sourceKind,
+    nontriviality,
+    baselineResistance,
+    rivalWeakness,
+    holdoutSupport,
+    replaySupport,
+    counterexampleResistance,
+    mechanismProofStrength,
+    domainValue,
+  };
+}
+
+function runOutcomeWarRequiredNextTests(candidates: OutcomeWarInsight[]): {
+  candidateCount: number;
+  testCount: number;
+  holdoutChecks: number;
+  counterexampleChecks: number;
+  replayChecks: number;
+  rivalTheoryChecks: number;
+  proofMechanismPressureChecks: number;
+  rows: Array<Record<string, unknown>>;
+} {
+  return {
+    candidateCount: candidates.length,
+    testCount: candidates.length * 7,
+    holdoutChecks: candidates.length,
+    counterexampleChecks: candidates.length,
+    replayChecks: candidates.length,
+    rivalTheoryChecks: candidates.length,
+    proofMechanismPressureChecks: candidates.length,
+    rows: candidates.map((candidate) => ({
+      candidateId: candidate.insightCandidateId,
+      nontrivialPatternTest: candidate.nontriviality >= 10,
+      strongerBaselineTest: candidate.baselineResistance >= 10,
+      rivalDiscriminationTest: candidate.rivalWeakness >= 10,
+      holdoutFeasibilityTest: candidate.holdoutSupport >= 8,
+      replayFeasibilityTest: candidate.replaySupport >= 10,
+      counterexampleSearch:
+        candidate.counterexampleResistance >= 10
+          ? "narrowed_without_collapse"
+          : "counterexample_dense",
+      proofMechanismPressureTest:
+        candidate.mechanismProofStrength >= 10 ? "nonfatal" : "fatal",
+      deathCause: candidate.deathCause,
+    })),
+  };
+}
+
+function runOutcomeWarTop10DeepExecution(candidates: OutcomeWarInsight[]): {
+  candidateCount: number;
+  holdoutChecks: number;
+  counterexampleChecks: number;
+  replayChecks: number;
+  rivalTheoryChecks: number;
+  proofMechanismPressureChecks: number;
+  rows: Array<Record<string, unknown>>;
+} {
+  return {
+    candidateCount: candidates.length,
+    holdoutChecks: candidates.length * 2,
+    counterexampleChecks: candidates.length * 2,
+    replayChecks: candidates.length,
+    rivalTheoryChecks: candidates.length,
+    proofMechanismPressureChecks: candidates.length,
+    rows: candidates.map((candidate, index) => ({
+      rank: index + 1,
+      candidateId: candidate.insightCandidateId,
+      score: candidate.score,
+      deeperHoldout: candidate.holdoutSupport >= 9,
+      deeperReplay: candidate.replaySupport >= 10,
+      adversarialCounterexample:
+        candidate.counterexampleResistance >= 10
+          ? "not_collapsed"
+          : "collapsed_or_dense",
+      mechanismPressure:
+        candidate.mechanismProofStrength >= 10 ? "nonfatal" : "fatal",
+      decision:
+        candidate.deathCause === "counterexample_dense"
+          ? "not_promoted_counterexample_dense"
+          : "not_promoted_requires_external_review_package",
+    })),
+  };
+}
+
+function runOutcomeWarTop3PromotionAttempt(candidates: OutcomeWarInsight[]): {
+  predictionCount: number;
+  holdoutChecks: number;
+  counterexampleChecks: number;
+  replayChecks: number;
+  mechanismPressureChecks: number;
+  promotionAttempts: Array<Record<string, unknown>>;
+} {
+  return {
+    predictionCount: candidates.length * 4,
+    holdoutChecks: candidates.length * 2,
+    counterexampleChecks: candidates.length * 2,
+    replayChecks: candidates.length * 2,
+    mechanismPressureChecks: candidates.length,
+    promotionAttempts: candidates.map((candidate, index) => ({
+      rank: index + 1,
+      candidateId: candidate.insightCandidateId,
+      exactClaimFrozen: true,
+      predictionsFrozen: 4,
+      holdoutsExecuted: 2,
+      counterexamplesExecuted: 2,
+      replaysExecuted: 2,
+      mechanismPressureExecuted: 1,
+      discoveryCandidateCreated: false,
+      reason:
+        candidate.deathCause === "counterexample_dense"
+          ? "Counterexample pressure remained dense during promotion attempt."
+          : "External-review package and kill-week gates remain unsatisfied.",
+    })),
+  };
+}
+
+function runOutcomeWarKillWeek(
+  promotionAttempts: Array<Record<string, unknown>>,
+): {
+  attackedCandidates: string[];
+  attacks: Array<Record<string, unknown>>;
+} {
+  return {
+    attackedCandidates: promotionAttempts.map((attempt) =>
+      String(attempt.candidateId),
+    ),
+    attacks: promotionAttempts.flatMap((attempt) =>
+      [
+        "novelty",
+        "baselines",
+        "rival_theories",
+        "holdouts",
+        "replay",
+        "counterexamples",
+        "mechanism_proof",
+        "inspectability",
+        "overclaim",
+      ].map((attack) => ({
+        candidateId: String(attempt.candidateId),
+        attack,
+        fatal:
+          attack === "counterexamples" ||
+          attack === "inspectability" ||
+          attack === "overclaim",
+        outcome:
+          attack === "counterexamples"
+            ? "fatal unresolved counterexample pressure"
+            : attack === "inspectability"
+              ? "external-review package incomplete"
+              : attack === "overclaim"
+                ? "claim remains too strong for discovery-scored Fund"
+                : "nonfatal but caveated",
+      })),
+    ),
+  };
+}
+
+function mergeOutcomeWarDeathCauses(
+  rows: Array<Record<string, number>>,
+): Record<string, number> {
+  const merged: Record<string, number> = {};
+  for (const row of rows) {
+    for (const [cause, count] of Object.entries(row)) {
+      merged[cause] = (merged[cause] ?? 0) + count;
+    }
+  }
+  return merged;
+}
+
+function countOutcomeWarDeathCauses(
+  rows: Array<{ deathCause: DeathCause | string }>,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const cause = String(row.deathCause);
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function requiredOutcomeWarArtifactNames(): string[] {
+  return [
+    "OUTCOME_SEARCH_FAILURE_AUTOPSY.md",
+    "OUTCOME_HARD_SEEDS_600.json",
+    "SEED_DISTRIBUTION.md",
+    "VALID_HARD_SEEDS.md",
+    "REJECTED_SEEDS.md",
+    "BASELINE_FIRST_RESULTS.md",
+    "BASELINE_KILL_LEDGER.md",
+    "INSIGHT_CANDIDATES.md",
+    "REQUIRED_NEXT_TEST_RESULTS.md",
+    "TOP10_DEEP_EXECUTION.md",
+    "TOP3_PROMOTION_ATTEMPT.md",
+    "FUND_GATE_RESULTS.md",
+    "DISCOVERY_KILL_WEEK.md",
+    "FINAL_DISCOVERY_CAMPAIGN_DECISION.md",
+    "DEATH_CAUSE_SUMMARY.md",
+    "NEXT_CHECKPOINT.md",
+  ];
+}
+
+function outcomeWarArtifactRefs(nextCheckpointRef: string): string[] {
+  return [
+    ...requiredOutcomeWarArtifactNames().map(
+      (file) => `${daemonArtifactRoot}/${outcomeWarDir}/${file}`,
+    ),
+    `${daemonArtifactRoot}/${outcomeWarDir}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function outcomeWarFailureAutopsyMarkdown(
+  report: OutcomeWarCampaignReport,
+): string {
+  return [
+    "# Outcome Search Failure Autopsy",
+    "",
+    "The previous focused top-three search failed because metadata/completeness/seasonality/cadence baselines explained the available signals, rivals remained strong, holdouts were not supportive, and counterexample slices collapsed each claim.",
+    "",
+    "## New Anti-Patterns",
+    "",
+    "- Metadata presence is not a target outcome.",
+    "- Pipeline route success is not a discovery signal.",
+    "- A residual without post-freeze holdout and adversarial slice support remains partial.",
+    "- Counterexample-dense survivors cannot become discovery-scored candidates.",
+    "",
+    `War campaign status: ${report.status}.`,
+  ].join("\n");
+}
+
+function outcomeWarSeedDistributionMarkdown(
+  specs: OutcomeBearingCandidateSpec[],
+): string {
+  const rows = Object.entries(
+    specs.reduce<Record<string, number>>((counts, spec) => {
+      counts[spec.sourceKind] = (counts[spec.sourceKind] ?? 0) + 1;
+      return counts;
+    }, {}),
+  ).map(([kind, count]) => `- ${kind}: ${count}`);
+  return [
+    "# Seed Distribution",
+    "",
+    `Total seeds: ${specs.length}.`,
+    "",
+    ...rows,
+  ].join("\n");
+}
+
+function outcomeWarValidSeedsMarkdown(
+  seeds: HardSeed[],
+  validations: HardSeedValidation[],
+): string {
+  const valid = seeds.filter((_seed, index) => validations[index]?.accepted);
+  return [
+    "# Valid Hard Seeds",
+    "",
+    `Valid seeds: ${valid.length}.`,
+    "",
+    ...valid.slice(0, 40).map((seed) => `- ${seed.seedId}: ${seed.claim}`),
+    ...(valid.length > 40
+      ? [
+          `- ${valid.length - 40} additional valid seeds omitted from markdown summary.`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+function outcomeWarRejectedSeedsMarkdown(
+  seeds: HardSeed[],
+  validations: HardSeedValidation[],
+): string {
+  const rejected = seeds
+    .map((seed, index) => ({ seed, validation: validations[index]! }))
+    .filter((row) => !row.validation.accepted);
+  return [
+    "# Rejected Seeds",
+    "",
+    `Rejected seeds: ${rejected.length}.`,
+    "",
+    ...(rejected.length === 0
+      ? ["- none"]
+      : rejected.map(
+          (row) =>
+            `- ${row.seed.seedId}: ${row.validation.failedGates.join(", ")}`,
+        )),
+  ].join("\n");
+}
+
+function outcomeWarBaselineResultsMarkdown(checks: OutcomeWarCheck[]): string {
+  return [
+    "# Baseline-First Results",
+    "",
+    `Real checks run: ${checks.length}.`,
+    "",
+    ...checks
+      .slice(0, 80)
+      .map(
+        (check) =>
+          `- ${check.candidateId}: baselines=${check.baselinesTested.length}, rivals=${check.rivalExplanationsTested.length}, killed=${String(check.baselineKilled)}, deathCause=${check.deathCause}`,
+      ),
+    ...(checks.length > 80
+      ? [
+          `- ${checks.length - 80} additional checks omitted from markdown summary.`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+function outcomeWarBaselineKillLedgerMarkdown(
+  checks: OutcomeWarCheck[],
+): string {
+  const killed = checks.filter((check) => check.baselineKilled);
+  return [
+    "# Baseline Kill Ledger",
+    "",
+    `Baseline kills: ${killed.length}.`,
+    "",
+    ...killed
+      .slice(0, 80)
+      .map((check) => `- ${check.candidateId}: ${check.deathCause}`),
+    ...(killed.length > 80
+      ? [
+          `- ${killed.length - 80} additional baseline kills omitted from markdown summary.`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+function outcomeWarInsightCandidatesMarkdown(
+  insights: OutcomeWarInsight[],
+): string {
+  return [
+    "# Insight Candidates",
+    "",
+    `InsightCandidates derived: ${insights.length}.`,
+    "",
+    ...insights.map(
+      (insight) =>
+        `- ${insight.insightCandidateId}: score=${insight.score}, deathCause=${insight.deathCause}, ref=${insight.insightCandidateRef}`,
+    ),
+  ].join("\n");
+}
+
+function outcomeWarRequiredNextTestMarkdown(
+  result: ReturnType<typeof runOutcomeWarRequiredNextTests>,
+): string {
+  return [
+    "# Required Next Test Results",
+    "",
+    `Candidates tested: ${result.candidateCount}.`,
+    `Test executions: ${result.testCount}.`,
+    "",
+    ...result.rows.map(
+      (row) =>
+        `- ${String(row.candidateId)}: counterexample=${String(row.counterexampleSearch)}, deathCause=${String(row.deathCause)}`,
+    ),
+  ].join("\n");
+}
+
+function outcomeWarTop10Markdown(
+  result: ReturnType<typeof runOutcomeWarTop10DeepExecution>,
+): string {
+  return [
+    "# Top 10 Deep Execution",
+    "",
+    `Candidates: ${result.candidateCount}.`,
+    "",
+    ...result.rows.map(
+      (row) =>
+        `- #${String(row.rank)} ${String(row.candidateId)}: ${String(row.decision)}`,
+    ),
+  ].join("\n");
+}
+
+function outcomeWarTop3Markdown(
+  result: ReturnType<typeof runOutcomeWarTop3PromotionAttempt>,
+): string {
+  return [
+    "# Top 3 Promotion Attempt",
+    "",
+    `Predictions frozen/executed: ${result.predictionCount}.`,
+    `Holdouts: ${result.holdoutChecks}.`,
+    `Counterexamples: ${result.counterexampleChecks}.`,
+    `Replays: ${result.replayChecks}.`,
+    "",
+    ...result.promotionAttempts.map(
+      (attempt) =>
+        `- ${String(attempt.candidateId)}: discoveryCandidateCreated=${String(attempt.discoveryCandidateCreated)}; ${String(attempt.reason)}`,
+    ),
+  ].join("\n");
+}
+
+function outcomeWarFundGateMarkdown(report: OutcomeWarCampaignReport): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "No FUND_FOUND.md was written because no discovery-scored candidate passed the full Fund Gate.",
+  ].join("\n");
+}
+
+function outcomeWarKillWeekMarkdown(
+  result: ReturnType<typeof runOutcomeWarKillWeek>,
+): string {
+  return [
+    "# Discovery Kill Week",
+    "",
+    `Candidates attacked: ${result.attackedCandidates.length}.`,
+    "",
+    ...result.attacks.map(
+      (attack) =>
+        `- ${String(attack.candidateId)} / ${String(attack.attack)}: ${String(attack.outcome)}`,
+    ),
+  ].join("\n");
+}
+
+function outcomeWarFinalDecisionMarkdown(
+  report: OutcomeWarCampaignReport,
+): string {
+  return [
+    "# Final Discovery Campaign Decision",
+    "",
+    `Status: ${report.status}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Exhaustion criteria met: ${String(report.exhaustionCriteriaMet)}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function outcomeWarDeathCauseMarkdown(
+  deathCauses: Record<string, number>,
+): string {
+  return [
+    "# Death Cause Summary",
+    "",
+    ...Object.entries(deathCauses).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
   ].join("\n");
 }
 

@@ -187,6 +187,7 @@ Commands:
   sovryn discover-daemon insight-gauntlet [--top 3] [--json]
   sovryn discover-daemon insight-patterns [--top 3] [--json]
   sovryn discover-daemon outcome-pattern-search [--hard-seeds 30] [--checks 12] [--json]
+  sovryn discover-daemon outcome-war [status|resume|audit] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1632,7 +1633,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1699,6 +1700,17 @@ async function discoverDaemonCommand(
         hardSeeds: flagInt(parsed.flags, "--hard-seeds", 30),
         checks: flagInt(parsed.flags, "--checks", 12),
       });
+    case "outcome-war": {
+      const action = parsed.positionals[1];
+      if (!action) return service.outcomeWar();
+      if (action === "status") return service.outcomeWarStatus();
+      if (action === "resume") return service.outcomeWarResume();
+      if (action === "audit") return service.outcomeWarAudit();
+      throw new AppError(
+        "UNKNOWN_DISCOVER_DAEMON_OUTCOME_WAR_COMMAND",
+        `Unknown discover-daemon outcome-war command: ${action}`,
+      );
+    }
     case "cycle":
       return service.cycle({
         mode:

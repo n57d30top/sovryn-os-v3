@@ -8,6 +8,7 @@ import {
   CandidateYieldController,
   EvidenceRefResolver,
   HoldoutBank,
+  InsightCandidateBirthGate,
 } from "../src/core/health/discovery-friction-health-service.js";
 
 type SeedFixture = {
@@ -16,6 +17,8 @@ type SeedFixture = {
   domain: string;
   sourceKind: string;
   baselineResult: { residual: number };
+  nontrivialityRationale: string;
+  targetOutcome: string;
   evidenceRefs: string[];
   metadataOnlySignal: false;
   pipelineSuccessOnlySignal: false;
@@ -78,13 +81,56 @@ test("HoldoutBank requires independent source-family holdouts", () => {
   ]).report();
   assert.equal(sameFamilyOnly.independentAvailable, 0);
   assert.equal(sameFamilyOnly.sameFamilyOnly, 1);
+  assert.equal(
+    sameFamilyOnly.assessments[0].status,
+    "same_source_holdout_only",
+  );
 
   const independent = new HoldoutBank([
     seed("001", "dataset", "family-a", 14, []),
     seed("002", "dataset", "family-b", 12, []),
   ]).report();
   assert.equal(independent.independentAvailable, 1);
-  assert.equal(independent.assessments[0].status, "independent_available");
+  assert.equal(
+    independent.assessments[0].status,
+    "independent_holdout_available",
+  );
+});
+
+test("HoldoutBank classifies weak and leakage-risk holdouts as not independent", () => {
+  const weak = new HoldoutBank([
+    seed("002", "dataset", "family-b", 12, []),
+    seed("001", "dataset", "family-a", 14, []),
+  ]).report();
+  assert.equal(weak.assessments[0].status, "weak_holdout_only");
+
+  const leakage = new HoldoutBank([
+    seed("001", "dataset", "family-alpha-main", 14, []),
+    seed("002", "dataset", "family-alpha-replica", 12, []),
+  ]).report();
+  assert.equal(leakage.assessments[0].status, "leakage_risk_holdout");
+  assert.equal(leakage.independentAvailable, 0);
+});
+
+test("InsightCandidate birth gate blocks missing target-load and weak holdout", () => {
+  const seedFixture = seed("001", "dataset", "family-a", 14, []);
+  const holdout = new HoldoutBank([
+    seedFixture,
+    seed("002", "dataset", "family-a", 12, []),
+  ]).report().assessments[0];
+
+  const evaluation = new InsightCandidateBirthGate().evaluate({
+    seed: seedFixture,
+    evidenceRefsReady: true,
+    targetLoadRecord: null,
+    holdout,
+    evidenceDepth: 5,
+  });
+
+  assert.equal(evaluation.allowed, false);
+  assert.equal(evaluation.targetLoadExecutionReady, false);
+  assert.equal(evaluation.holdoutReady, false);
+  assert.equal(evaluation.blocker, "missing_target_load_execution_ref");
 });
 
 test("CandidateYieldController penalizes repeated low-quality death causes", () => {
@@ -133,6 +179,7 @@ test("CandidateYieldController penalizes repeated low-quality death causes", () 
 
   assert.equal(report.materialImprovement, true);
   assert.ok(report.penalties[0].penalty > 0);
+  assert.equal(report.after.yieldEligibleCandidates, 1);
   assert.equal(report.after.discoveryCandidatesCreated, 0);
   assert.equal(report.after.fundFound, false);
 });
@@ -153,6 +200,7 @@ test("health friction command writes strict reports without creating Fund state"
     "continue_searching",
   );
   assert.ok(Number(data.evidenceRefClosureRate) < 1);
+  assert.equal(data.evidenceRefsRepaired, 1);
   assert.ok(Number(data.holdoutIndependenceRate) > 0);
   assert.ok(
     [
@@ -162,6 +210,20 @@ test("health friction command writes strict reports without creating Fund state"
   );
   for (const artifact of [
     "FRICTION_HEALTH_REPORT.md",
+    "EVIDENCE_REF_ROOT_CAUSE.md",
+    "FAILED_EVIDENCE_REFS_BY_TYPE.json",
+    "TARGET_LOAD_EXECUTION_REF_GAPS.md",
+    "TARGET_LOAD_EXECUTION_SCHEMA.md",
+    "EVIDENCE_REF_REPAIR_REPORT.md",
+    "HOLDOUT_BANK_SCHEMA.md",
+    "HOLDOUT_BANK_RESULTS.json",
+    "HOLDOUT_INDEPENDENCE_AUDIT.md",
+    "HOLDOUT_FAILURES.md",
+    "INSIGHT_BIRTH_GATE_RULES.md",
+    "BLOCKED_INSIGHT_BIRTHS.md",
+    "UPDATED_CANDIDATE_YIELD_CONTROLLER.md",
+    "REEVALUATION_AFTER_REF_HOLDOUT_REPAIR.md",
+    "YIELD_ELIGIBILITY_BEFORE_AFTER.md",
     "EVIDENCE_REF_RESOLUTION_REPORT.md",
     "HOLDOUT_BANK_REPORT.md",
     "CANDIDATE_YIELD_CONTROLLER_REPORT.md",
@@ -199,6 +261,41 @@ test("health friction command writes strict reports without creating Fund state"
     "utf8",
   );
   assert.match(evidenceReport, /MISSING.md/);
+  const targetLoadReport = await readFile(
+    join(
+      root,
+      ".sovryn/discovery-daemon/marathon/TARGET_LOAD_EXECUTION_RESULTS.md",
+    ),
+    "utf8",
+  );
+  assert.match(targetLoadReport, /## TARGET-002/);
+});
+
+test("evidence refs verify and holdout audit commands expose repaired contracts", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+
+  const evidence = await executeCli(
+    ["evidence", "refs", "verify", "--json"],
+    root,
+  );
+  assert.equal(evidence.ok, true, JSON.stringify(evidence.errors));
+  assert.equal(
+    (evidence.data as Record<string, unknown>).kind,
+    "evidence_refs_verify",
+  );
+  assert.equal((evidence.data as Record<string, unknown>).repairedRefs, 1);
+
+  const holdout = await executeCli(["holdout", "audit", "--json"], root);
+  assert.equal(holdout.ok, true, JSON.stringify(holdout.errors));
+  assert.equal((holdout.data as Record<string, unknown>).kind, "holdout_audit");
+  assert.ok(
+    Number((holdout.data as Record<string, unknown>).independenceRate) > 0,
+  );
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/FUND_FOUND.md")),
+    false,
+  );
 });
 
 async function writeFrictionFixture(root: string): Promise<void> {
@@ -251,6 +348,7 @@ async function writeFrictionFixture(root: string): Promise<void> {
     ]),
     seed("002", "dataset", "family-b", 16, [
       ".sovryn/discovery-daemon/marathon/TARGET_RECEIPTS.json#RECEIPT-002",
+      ".sovryn/discovery-daemon/marathon/TARGET_LOAD_EXECUTION_RESULTS.md#TARGET-002",
       ".sovryn/discovery-daemon/marathon/MISSING.md#TARGET-002",
     ]),
     seed("003", "dataset", "family-a", 8, [
@@ -284,6 +382,8 @@ function seed(
     domain,
     sourceKind,
     baselineResult: { residual },
+    nontrivialityRationale: "residual exceeds baseline and requires pressure",
+    targetOutcome: `measured outcome from ${sourceKind}:dataset`,
     evidenceRefs,
     metadataOnlySignal: false,
     pipelineSuccessOnlySignal: false,

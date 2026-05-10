@@ -63,29 +63,105 @@ type StrictSeed = {
   sourceRefs?: string[];
   sourceReceiptRef?: string;
   localEvidenceArtifact?: string;
+  replayPath?: string;
+  holdoutPath?: string;
+  counterexamplePath?: string;
   metadataOnlySignal?: boolean;
   pipelineSuccessOnlySignal?: boolean;
 };
+
+export type HoldoutStatus =
+  | "independent_holdout_available"
+  | "weak_holdout_only"
+  | "leakage_risk_holdout"
+  | "same_source_holdout_only"
+  | "unavailable_holdout"
+  | "invalid_holdout";
 
 export type HoldoutAssessment = {
   seedId: string;
   candidateId: string;
   domain: string;
   sourceKind: string;
+  sourceFamily: string;
   eligibleHoldouts: number;
   independentHoldouts: number;
   sameFamilyHoldouts: number;
-  status: "independent_available" | "same_family_only" | "not_available";
+  leakageRiskHoldouts: number;
+  selectedAfterClaimFreeze: boolean;
+  leakageRiskAssessed: boolean;
+  baselineRivalRelevance: string;
+  replayFeasibility: string;
+  status: HoldoutStatus;
   reason: string;
 };
 
 export type HoldoutBankReport = {
   seedsEvaluated: number;
   independentAvailable: number;
+  weakHoldoutOnly: number;
+  leakageRiskHoldout: number;
   sameFamilyOnly: number;
   notAvailable: number;
+  invalidHoldout: number;
   independenceRate: number;
   assessments: HoldoutAssessment[];
+};
+
+export type FailedEvidenceRefType =
+  | "missing_target_load_execution_results"
+  | "broken_markdown_anchor"
+  | "missing_local_artifact"
+  | "unresolved_json_path"
+  | "package_artifact_missing"
+  | "corpus_path_missing"
+  | "local_only_non_public_ref"
+  | "stale_ref"
+  | "other";
+
+export type FailedEvidenceRefCause = {
+  ref: string;
+  type: FailedEvidenceRefType;
+  status: EvidenceRefStatus;
+  kind: EvidenceRefKind;
+  reason: string;
+};
+
+export type EvidenceRefRootCauseReport = {
+  failedRefs: number;
+  byType: Record<FailedEvidenceRefType, number>;
+  failures: FailedEvidenceRefCause[];
+};
+
+export type TargetLoadExecutionRecord = {
+  targetId: string;
+  seedId: string;
+  candidateId: string;
+  source: string;
+  sourceReceiptRef: string;
+  loaderCheckCommand: string;
+  executionStatus: "executed" | "missing_measurement";
+  measuredVariable: string;
+  targetOutcome: string;
+  baselineStatus: string;
+  producedArtifactPath: string;
+  replayPath: string;
+  publicSafeRef: string;
+};
+
+export type InsightBirthGateEvaluation = {
+  seedId: string;
+  candidateId: string;
+  allowed: boolean;
+  targetLoadExecutionRef: string | null;
+  evidenceRefsReady: boolean;
+  targetLoadExecutionReady: boolean;
+  holdoutStatus: HoldoutStatus;
+  holdoutReady: boolean;
+  evidenceDepthReady: boolean;
+  nontrivialResidualReady: boolean;
+  blocker: string | null;
+  requiredAction: string;
 };
 
 type CandidateYieldMetrics = {
@@ -106,6 +182,8 @@ export type CandidateYieldReport = {
     evidenceReadyCandidates: number;
     holdoutReadyCandidates: number;
     yieldEligibleCandidates: number;
+    insightCandidatesAllowedAfterBirthGate: number;
+    insightCandidatesBlockedByBirthGate: number;
     discoveryCandidatesCreated: number;
     fundFound: boolean;
     deathCauses: Record<string, number>;
@@ -135,9 +213,18 @@ export type DiscoveryFrictionHealthReport = {
   timestamp: string;
   fundFound: false;
   evidenceRefSummary: EvidenceRefResolutionSummary;
+  evidenceRefsRepaired: number;
+  evidenceRefsUnrepaired: number;
+  targetLoadExecutionRefsProduced: number;
+  evidenceRefRootCause: EvidenceRefRootCauseReport;
   holdoutBank: Omit<HoldoutBankReport, "assessments">;
   yieldBefore: CandidateYieldMetrics;
   yieldAfter: CandidateYieldReport["after"];
+  insightBirthGate: {
+    evaluated: number;
+    allowed: number;
+    blocked: number;
+  };
   candidateFormationRate: number;
   insightCandidateSurvivalRate: number;
   topDeathCauses: Array<{ cause: string; count: number }>;
@@ -333,36 +420,88 @@ export class HoldoutBank {
 
   assess(seed: StrictSeed): HoldoutAssessment {
     const currentIndex = targetOrdinal(seed.seedId);
+    const seedFamily = sourceFamily(seed);
+    if (currentIndex === null || !seedFamily) {
+      return {
+        seedId: seed.seedId,
+        candidateId: seed.candidateId,
+        domain: seed.domain,
+        sourceKind: seed.sourceKind,
+        sourceFamily: seedFamily,
+        eligibleHoldouts: 0,
+        independentHoldouts: 0,
+        sameFamilyHoldouts: 0,
+        leakageRiskHoldouts: 0,
+        selectedAfterClaimFreeze: false,
+        leakageRiskAssessed: true,
+        baselineRivalRelevance: "not assessable",
+        replayFeasibility: "not assessable",
+        status: "invalid_holdout",
+        reason:
+          "candidate lacks target ordering or source family for holdout selection",
+      };
+    }
     const domainPeers = this.seeds.filter((peer) => {
       if (peer.seedId === seed.seedId) return false;
       if (peer.domain !== seed.domain) return false;
       const peerIndex = targetOrdinal(peer.seedId);
+      return peerIndex !== null && peerIndex > currentIndex;
+    });
+    const earlierIndependentPeers = this.seeds.filter((peer) => {
+      if (peer.seedId === seed.seedId) return false;
+      if (peer.domain !== seed.domain) return false;
+      const peerIndex = targetOrdinal(peer.seedId);
       return (
-        currentIndex === null || peerIndex === null || peerIndex > currentIndex
+        peerIndex !== null &&
+        peerIndex < currentIndex &&
+        sourceFamily(peer) !== seedFamily
       );
     });
     const independentPeers = domainPeers.filter(
-      (peer) => peer.sourceKind !== seed.sourceKind,
+      (peer) =>
+        sourceFamily(peer) !== seedFamily && !hasHoldoutLeakageRisk(seed, peer),
     );
-    const sameFamilyPeers = domainPeers.length - independentPeers.length;
-    let status: HoldoutAssessment["status"] = "not_available";
-    if (independentPeers.length > 0) status = "independent_available";
-    else if (sameFamilyPeers > 0) status = "same_family_only";
+    const leakageRiskPeers = domainPeers.filter(
+      (peer) =>
+        sourceFamily(peer) !== seedFamily && hasHoldoutLeakageRisk(seed, peer),
+    );
+    const sameFamilyPeers = domainPeers.filter(
+      (peer) => sourceFamily(peer) === seedFamily,
+    );
+    let status: HoldoutStatus = "unavailable_holdout";
+    if (independentPeers.length > 0) status = "independent_holdout_available";
+    else if (leakageRiskPeers.length > 0) status = "leakage_risk_holdout";
+    else if (sameFamilyPeers.length > 0) status = "same_source_holdout_only";
+    else if (earlierIndependentPeers.length > 0) status = "weak_holdout_only";
     return {
       seedId: seed.seedId,
       candidateId: seed.candidateId,
       domain: seed.domain,
       sourceKind: seed.sourceKind,
+      sourceFamily: seedFamily,
       eligibleHoldouts: domainPeers.length,
       independentHoldouts: independentPeers.length,
-      sameFamilyHoldouts: sameFamilyPeers,
+      sameFamilyHoldouts: sameFamilyPeers.length,
+      leakageRiskHoldouts: leakageRiskPeers.length,
+      selectedAfterClaimFreeze: domainPeers.length > 0,
+      leakageRiskAssessed: true,
+      baselineRivalRelevance:
+        "same-domain holdout must stress the measured variable against the same baseline and rival explanation",
+      replayFeasibility:
+        seed.replayPath ??
+        seed.sourceReceiptRef ??
+        "replay path must be bound before promotion",
       status,
       reason:
-        status === "independent_available"
-          ? "fresh same-domain holdout exists from a different source family"
-          : status === "same_family_only"
-            ? "only same-source-family pseudo-holdouts are available"
-            : "no post-claim holdout slice is available",
+        status === "independent_holdout_available"
+          ? "post-claim same-domain holdout exists from a different source family with no detected leakage risk"
+          : status === "leakage_risk_holdout"
+            ? "only different-family holdouts with leakage risk are available"
+            : status === "same_source_holdout_only"
+              ? "only same-source-family pseudo-holdouts are available"
+              : status === "weak_holdout_only"
+                ? "different-family peers exist only before the fixed claim and are weak controls"
+                : "no post-claim holdout slice is available",
     };
   }
 
@@ -371,21 +510,86 @@ export class HoldoutBank {
       .slice(0, limit)
       .map((seed) => this.assess(seed));
     const independentAvailable = assessments.filter(
-      (item) => item.status === "independent_available",
+      (item) => item.status === "independent_holdout_available",
+    ).length;
+    const weakHoldoutOnly = assessments.filter(
+      (item) => item.status === "weak_holdout_only",
+    ).length;
+    const leakageRiskHoldout = assessments.filter(
+      (item) => item.status === "leakage_risk_holdout",
     ).length;
     const sameFamilyOnly = assessments.filter(
-      (item) => item.status === "same_family_only",
+      (item) => item.status === "same_source_holdout_only",
     ).length;
     const notAvailable = assessments.filter(
-      (item) => item.status === "not_available",
+      (item) => item.status === "unavailable_holdout",
+    ).length;
+    const invalidHoldout = assessments.filter(
+      (item) => item.status === "invalid_holdout",
     ).length;
     return {
       seedsEvaluated: assessments.length,
       independentAvailable,
+      weakHoldoutOnly,
+      leakageRiskHoldout,
       sameFamilyOnly,
       notAvailable,
+      invalidHoldout,
       independenceRate: ratio(independentAvailable, assessments.length),
       assessments,
+    };
+  }
+}
+
+export class InsightCandidateBirthGate {
+  evaluate(input: {
+    seed: StrictSeed;
+    evidenceRefsReady: boolean;
+    targetLoadRecord: TargetLoadExecutionRecord | null;
+    holdout: HoldoutAssessment;
+    evidenceDepth: number;
+  }): InsightBirthGateEvaluation {
+    const residual = Number(input.seed.baselineResult?.residual ?? 0);
+    const targetLoadExecutionReady = input.targetLoadRecord !== null;
+    const holdoutReady =
+      input.holdout.status === "independent_holdout_available";
+    const evidenceDepthReady = input.evidenceDepth >= 5;
+    const nontrivialResidualReady =
+      Math.abs(residual) >= 10 &&
+      input.seed.metadataOnlySignal !== true &&
+      input.seed.pipelineSuccessOnlySignal !== true &&
+      Boolean(input.seed.nontrivialityRationale);
+    const blockers = [
+      !input.evidenceRefsReady ? "unresolved_evidence_refs" : null,
+      !targetLoadExecutionReady ? "missing_target_load_execution_ref" : null,
+      !holdoutReady ? `holdout_${input.holdout.status}` : null,
+      !evidenceDepthReady ? "evidence_depth_below_threshold" : null,
+      !nontrivialResidualReady ? "no_nontrivial_residual" : null,
+    ].filter((item): item is string => item !== null);
+    return {
+      seedId: input.seed.seedId,
+      candidateId: input.seed.candidateId,
+      allowed: blockers.length === 0,
+      targetLoadExecutionRef: input.targetLoadRecord?.publicSafeRef ?? null,
+      evidenceRefsReady: input.evidenceRefsReady,
+      targetLoadExecutionReady,
+      holdoutStatus: input.holdout.status,
+      holdoutReady,
+      evidenceDepthReady,
+      nontrivialResidualReady,
+      blocker: blockers[0] ?? null,
+      requiredAction:
+        blockers[0] === "unresolved_evidence_refs"
+          ? "repair or remove unresolved evidence refs before InsightCandidate birth"
+          : blockers[0] === "missing_target_load_execution_ref"
+            ? "write canonical target-load/execution record"
+            : blockers[0]?.startsWith("holdout_")
+              ? "register an independent HoldoutBank slice before InsightCandidate birth"
+              : blockers[0] === "evidence_depth_below_threshold"
+                ? "raise measurement depth to residual/replay/holdout/counterexample pressure"
+                : blockers[0] === "no_nontrivial_residual"
+                  ? "keep as hard seed until nontrivial residual evidence exists"
+                  : "eligible for InsightCandidate derivation",
     };
   }
 }
@@ -396,6 +600,7 @@ export class CandidateYieldController {
     evidenceSummary: EvidenceRefResolutionSummary;
     holdoutReport: HoldoutBankReport;
     before: CandidateYieldMetrics;
+    birthEvaluations?: InsightBirthGateEvaluation[];
   }): CandidateYieldReport {
     const familyStats = new Map<
       string,
@@ -442,22 +647,36 @@ export class CandidateYieldController {
       .sort((a, b) => b.score - a.score || b.seeds - a.seeds)
       .slice(0, 10);
 
-    const evidenceReadyCandidates = Math.floor(
-      input.seeds.length * input.evidenceSummary.closureRate,
-    );
-    const holdoutReadyCandidates = Math.floor(
-      input.seeds.length * input.holdoutReport.independenceRate,
-    );
-    const yieldEligibleCandidates = input.seeds.filter((seed, index) => {
-      const holdout = input.holdoutReport.assessments[index];
-      const residual = Number(seed.baselineResult?.residual ?? 0);
-      return (
-        Math.abs(residual) >= 10 &&
-        seed.metadataOnlySignal !== true &&
-        seed.pipelineSuccessOnlySignal !== true &&
-        holdout?.status === "independent_available"
-      );
-    }).length;
+    const birthEvaluations = input.birthEvaluations ?? [];
+    const evidenceReadyCandidates =
+      birthEvaluations.length > 0
+        ? birthEvaluations.filter((item) => item.evidenceRefsReady).length
+        : Math.floor(input.seeds.length * input.evidenceSummary.closureRate);
+    const holdoutReadyCandidates =
+      birthEvaluations.length > 0
+        ? birthEvaluations.filter((item) => item.holdoutReady).length
+        : Math.floor(input.seeds.length * input.holdoutReport.independenceRate);
+    const yieldEligibleCandidates =
+      birthEvaluations.length > 0
+        ? birthEvaluations.filter((item) => item.allowed).length
+        : input.seeds.filter((seed, index) => {
+            const holdout = input.holdoutReport.assessments[index];
+            const residual = Number(seed.baselineResult?.residual ?? 0);
+            return (
+              Math.abs(residual) >= 10 &&
+              seed.metadataOnlySignal !== true &&
+              seed.pipelineSuccessOnlySignal !== true &&
+              holdout?.status === "independent_holdout_available"
+            );
+          }).length;
+    const insightCandidatesAllowedAfterBirthGate =
+      birthEvaluations.length > 0
+        ? birthEvaluations.filter((item) => item.allowed).length
+        : yieldEligibleCandidates;
+    const insightCandidatesBlockedByBirthGate =
+      birthEvaluations.length > 0
+        ? birthEvaluations.filter((item) => !item.allowed).length
+        : input.seeds.length - yieldEligibleCandidates;
 
     return {
       before: input.before,
@@ -466,14 +685,20 @@ export class CandidateYieldController {
         evidenceReadyCandidates,
         holdoutReadyCandidates,
         yieldEligibleCandidates,
+        insightCandidatesAllowedAfterBirthGate,
+        insightCandidatesBlockedByBirthGate,
         discoveryCandidatesCreated: 0,
         fundFound: false,
         deathCauses: {
           ...input.before.deathCauses,
           unresolved_evidence_ref: input.evidenceSummary.failedRefs,
           holdout_independence_blocker:
+            input.holdoutReport.weakHoldoutOnly +
+            input.holdoutReport.leakageRiskHoldout +
             input.holdoutReport.sameFamilyOnly +
-            input.holdoutReport.notAvailable,
+            input.holdoutReport.notAvailable +
+            input.holdoutReport.invalidHoldout,
+          insight_birth_blocked: insightCandidatesBlockedByBirthGate,
           candidate_present: 1,
         },
       },
@@ -483,6 +708,39 @@ export class CandidateYieldController {
         input.evidenceSummary.totalRefs > 0 &&
         input.holdoutReport.seedsEvaluated > 0 &&
         input.before.validationSurvivalRate <= 0.5,
+    };
+  }
+}
+
+export class TargetLoadExecutionEvidenceWriter {
+  readonly root: string;
+
+  constructor(root: string) {
+    this.root = root;
+  }
+
+  async write(seeds: StrictSeed[]): Promise<{
+    records: TargetLoadExecutionRecord[];
+    markdownRef: string;
+    jsonRef: string;
+  }> {
+    const records = seeds.map((seed) => targetLoadExecutionRecord(seed));
+    const marathonRoot = join(this.root, marathonRootRel);
+    await mkdir(marathonRoot, { recursive: true });
+    await writeJson(join(marathonRoot, "TARGET_LOAD_EXECUTION_RESULTS.json"), {
+      kind: "target_load_execution_results",
+      generatedAt: nowIso(),
+      schemaRef: `${engineRootRel}/TARGET_LOAD_EXECUTION_SCHEMA.md`,
+      records,
+    });
+    await writeReport(
+      join(marathonRoot, "TARGET_LOAD_EXECUTION_RESULTS.md"),
+      targetLoadExecutionResultsMarkdown(records),
+    );
+    return {
+      records,
+      markdownRef: `${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.md`,
+      jsonRef: `${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.json`,
     };
   }
 }
@@ -502,14 +760,46 @@ export class DiscoveryFrictionHealthService {
     const evidenceRefs = collectEvidenceRefs(seeds);
     evidenceRefs.push(...(await this.collectRefChecks()));
     const resolver = new EvidenceRefResolver(this.root);
+    const evidenceBeforeRepair = await resolver.resolveMany(evidenceRefs);
+    const currentRootCause = classifyFailedEvidenceRefs(
+      evidenceBeforeRepair.resolutions,
+    );
+    const previousLatest = await readJsonIfExists<{
+      evidenceRefRootCause?: EvidenceRefRootCauseReport;
+    }>(join(engineRoot, "latest.json"));
+    const rootCause =
+      currentRootCause.failedRefs > 0
+        ? currentRootCause
+        : (previousLatest?.evidenceRefRootCause ?? currentRootCause);
+    const targetLoadRepair = await new TargetLoadExecutionEvidenceWriter(
+      this.root,
+    ).write(seeds);
     const evidence = await resolver.resolveMany(evidenceRefs);
     const holdoutBank = new HoldoutBank(seeds);
     const holdoutReport = holdoutBank.report(Math.min(seeds.length, 100));
+    const targetLoadBySeed = new Map(
+      targetLoadRepair.records.map((record) => [record.seedId, record]),
+    );
+    const resolutionByRef = new Map(
+      evidence.resolutions.map((resolution) => [resolution.ref, resolution]),
+    );
+    const depthScores = await this.loadDepthScores();
+    const birthEvaluations = seeds.map((seed, index) =>
+      new InsightCandidateBirthGate().evaluate({
+        seed,
+        evidenceRefsReady: seedCriticalRefsReady(seed, resolutionByRef),
+        targetLoadRecord: targetLoadBySeed.get(seed.seedId) ?? null,
+        holdout: holdoutReport.assessments[index],
+        evidenceDepth:
+          depthScores.get(seed.seedId) ?? inferredEvidenceDepth(seed),
+      }),
+    );
     const yieldReport = new CandidateYieldController().compute({
       seeds,
       evidenceSummary: evidence.summary,
       holdoutReport,
       before,
+      birthEvaluations,
     });
     const codeHotspots = await this.codeHotspots();
     const rankedDeathCauses = rankDeathCauses(yieldReport.after.deathCauses);
@@ -535,22 +825,37 @@ export class DiscoveryFrictionHealthService {
       timestamp: nowIso(),
       fundFound: false,
       evidenceRefSummary: evidence.summary,
+      evidenceRefsRepaired: Math.max(
+        rootCause.failedRefs - evidence.summary.failedRefs,
+        0,
+      ),
+      evidenceRefsUnrepaired: evidence.summary.failedRefs,
+      targetLoadExecutionRefsProduced: targetLoadRepair.records.length,
+      evidenceRefRootCause: rootCause,
       holdoutBank: {
         seedsEvaluated: holdoutReport.seedsEvaluated,
         independentAvailable: holdoutReport.independentAvailable,
+        weakHoldoutOnly: holdoutReport.weakHoldoutOnly,
+        leakageRiskHoldout: holdoutReport.leakageRiskHoldout,
         sameFamilyOnly: holdoutReport.sameFamilyOnly,
         notAvailable: holdoutReport.notAvailable,
+        invalidHoldout: holdoutReport.invalidHoldout,
         independenceRate: holdoutReport.independenceRate,
       },
       yieldBefore: before,
       yieldAfter: yieldReport.after,
+      insightBirthGate: {
+        evaluated: birthEvaluations.length,
+        allowed: birthEvaluations.filter((item) => item.allowed).length,
+        blocked: birthEvaluations.filter((item) => !item.allowed).length,
+      },
       candidateFormationRate: ratio(
         before.insightCandidates,
         Math.max(before.strictValidSeeds, 1),
       ),
       insightCandidateSurvivalRate: ratio(
         yieldReport.after.yieldEligibleCandidates,
-        Math.max(before.insightCandidates, 1),
+        Math.max(before.strictValidSeeds, 1),
       ),
       topDeathCauses: rankedDeathCauses,
       evidenceRefClosureRate: evidence.summary.closureRate,
@@ -581,8 +886,11 @@ export class DiscoveryFrictionHealthService {
     await writeJson(join(engineRoot, "latest.json"), {
       ...report,
       evidenceResolutions: evidence.resolutions,
+      evidenceResolutionsBeforeRepair: evidenceBeforeRepair.resolutions,
       holdoutAssessments: holdoutReport.assessments,
       candidateYield: yieldReport,
+      targetLoadExecutionRecords: targetLoadRepair.records,
+      insightBirthGateEvaluations: birthEvaluations,
     });
     await writeJson(join(this.root, nextCheckpointRef), {
       kind: "discovery_engine_checkpoint",
@@ -599,10 +907,59 @@ export class DiscoveryFrictionHealthService {
       engineRoot,
       report,
       evidenceResolutions: evidence.resolutions,
+      evidenceResolutionsBeforeRepair: evidenceBeforeRepair.resolutions,
       holdoutReport,
       yieldReport,
+      rootCause,
+      targetLoadRecords: targetLoadRepair.records,
+      birthEvaluations,
     });
     return report;
+  }
+
+  async evidenceRefsVerify(): Promise<Record<string, unknown>> {
+    const report = await this.friction();
+    return {
+      kind: "evidence_refs_verify",
+      passed: report.evidenceRefSummary.failedRefs === 0,
+      totalRefs: report.evidenceRefSummary.totalRefs,
+      inspectabilityReadyRefs:
+        report.evidenceRefSummary.inspectabilityReadyRefs,
+      failedRefs: report.evidenceRefSummary.failedRefs,
+      repairedRefs: report.evidenceRefsRepaired,
+      unrepairedRefs: report.evidenceRefsUnrepaired,
+      targetLoadExecutionRefsProduced: report.targetLoadExecutionRefsProduced,
+      artifactRefs: [
+        `${engineRootRel}/EVIDENCE_REF_ROOT_CAUSE.md`,
+        `${engineRootRel}/FAILED_EVIDENCE_REFS_BY_TYPE.json`,
+        `${engineRootRel}/TARGET_LOAD_EXECUTION_REF_GAPS.md`,
+        `${engineRootRel}/EVIDENCE_REF_REPAIR_REPORT.md`,
+      ],
+      evidenceHash: report.evidenceHash,
+    };
+  }
+
+  async holdoutAudit(): Promise<Record<string, unknown>> {
+    const report = await this.friction();
+    return {
+      kind: "holdout_audit",
+      passed: true,
+      seedsEvaluated: report.holdoutBank.seedsEvaluated,
+      independentAvailable: report.holdoutBank.independentAvailable,
+      weakHoldoutOnly: report.holdoutBank.weakHoldoutOnly,
+      leakageRiskHoldout: report.holdoutBank.leakageRiskHoldout,
+      sameFamilyOnly: report.holdoutBank.sameFamilyOnly,
+      notAvailable: report.holdoutBank.notAvailable,
+      invalidHoldout: report.holdoutBank.invalidHoldout,
+      independenceRate: report.holdoutBank.independenceRate,
+      artifactRefs: [
+        `${engineRootRel}/HOLDOUT_BANK_SCHEMA.md`,
+        `${engineRootRel}/HOLDOUT_BANK_RESULTS.json`,
+        `${engineRootRel}/HOLDOUT_INDEPENDENCE_AUDIT.md`,
+        `${engineRootRel}/HOLDOUT_FAILURES.md`,
+      ],
+      evidenceHash: report.evidenceHash,
+    };
   }
 
   private async loadStrictSeeds(): Promise<StrictSeed[]> {
@@ -695,6 +1052,25 @@ export class DiscoveryFrictionHealthService {
     };
   }
 
+  private async loadDepthScores(): Promise<Map<string, number>> {
+    const depthPath = join(
+      this.root,
+      depthRootRel,
+      "DEPTH_SCORED_TARGETS.json",
+    );
+    const depth = await readJsonIfExists<{
+      targets?: Array<Record<string, unknown>>;
+    }>(depthPath);
+    const scores = new Map<string, number>();
+    for (const item of depth?.targets ?? []) {
+      const seedId = typeof item.seedId === "string" ? item.seedId : null;
+      const score =
+        typeof item.depthScore === "number" ? item.depthScore : null;
+      if (seedId && score !== null) scores.set(seedId, score);
+    }
+    return scores;
+  }
+
   private async codeHotspots(): Promise<
     Array<{ file: string; lines: number; risk: string }>
   > {
@@ -726,16 +1102,91 @@ export class DiscoveryFrictionHealthService {
     engineRoot: string;
     report: DiscoveryFrictionHealthReport;
     evidenceResolutions: EvidenceRefResolution[];
+    evidenceResolutionsBeforeRepair: EvidenceRefResolution[];
     holdoutReport: HoldoutBankReport;
     yieldReport: CandidateYieldReport;
+    rootCause: EvidenceRefRootCauseReport;
+    targetLoadRecords: TargetLoadExecutionRecord[];
+    birthEvaluations: InsightBirthGateEvaluation[];
   }): Promise<void> {
     const {
       engineRoot,
       report,
       evidenceResolutions,
+      evidenceResolutionsBeforeRepair,
       holdoutReport,
       yieldReport,
+      rootCause,
+      targetLoadRecords,
+      birthEvaluations,
     } = input;
+    await writeReport(
+      join(engineRoot, "EVIDENCE_REF_ROOT_CAUSE.md"),
+      evidenceRootCauseMarkdown(rootCause),
+    );
+    await writeJson(join(engineRoot, "FAILED_EVIDENCE_REFS_BY_TYPE.json"), {
+      kind: "failed_evidence_refs_by_type",
+      generatedAt: nowIso(),
+      ...rootCause,
+    });
+    await writeReport(
+      join(engineRoot, "TARGET_LOAD_EXECUTION_REF_GAPS.md"),
+      targetLoadExecutionGapsMarkdown(rootCause),
+    );
+    await writeReport(
+      join(engineRoot, "TARGET_LOAD_EXECUTION_SCHEMA.md"),
+      targetLoadExecutionSchemaMarkdown(),
+    );
+    await writeReport(
+      join(engineRoot, "EVIDENCE_REF_REPAIR_REPORT.md"),
+      evidenceRepairMarkdown(
+        report,
+        evidenceResolutionsBeforeRepair,
+        evidenceResolutions,
+      ),
+    );
+    await writeReport(
+      join(engineRoot, "HOLDOUT_BANK_SCHEMA.md"),
+      holdoutBankSchemaMarkdown(),
+    );
+    await writeJson(join(engineRoot, "HOLDOUT_BANK_RESULTS.json"), {
+      kind: "holdout_bank_results",
+      generatedAt: nowIso(),
+      report: holdoutReport,
+    });
+    await writeReport(
+      join(engineRoot, "HOLDOUT_INDEPENDENCE_AUDIT.md"),
+      holdoutIndependenceAuditMarkdown(holdoutReport),
+    );
+    await writeReport(
+      join(engineRoot, "HOLDOUT_FAILURES.md"),
+      holdoutFailuresMarkdown(holdoutReport),
+    );
+    await writeReport(
+      join(engineRoot, "INSIGHT_BIRTH_GATE_RULES.md"),
+      insightBirthGateRulesMarkdown(),
+    );
+    await writeReport(
+      join(engineRoot, "BLOCKED_INSIGHT_BIRTHS.md"),
+      blockedInsightBirthsMarkdown(birthEvaluations),
+    );
+    await writeReport(
+      join(engineRoot, "UPDATED_CANDIDATE_YIELD_CONTROLLER.md"),
+      updatedCandidateYieldControllerMarkdown(yieldReport),
+    );
+    await writeReport(
+      join(engineRoot, "REEVALUATION_AFTER_REF_HOLDOUT_REPAIR.md"),
+      reevaluationAfterRepairMarkdown(report),
+    );
+    await writeReport(
+      join(engineRoot, "YIELD_ELIGIBILITY_BEFORE_AFTER.md"),
+      yieldEligibilityBeforeAfterMarkdown(report),
+    );
+    await writeJson(join(engineRoot, "TARGET_LOAD_EXECUTION_RESULTS.json"), {
+      kind: "target_load_execution_results_snapshot",
+      generatedAt: nowIso(),
+      records: targetLoadRecords,
+    });
     await writeReport(
       join(engineRoot, "FRICTION_HEALTH_REPORT.md"),
       frictionHealthMarkdown(report),
@@ -826,6 +1277,225 @@ function collectEvidenceRefs(seeds: StrictSeed[]): string[] {
     if (seed.localEvidenceArtifact) refs.push(seed.localEvidenceArtifact);
   }
   return refs;
+}
+
+function classifyFailedEvidenceRefs(
+  resolutions: EvidenceRefResolution[],
+): EvidenceRefRootCauseReport {
+  const failures = resolutions
+    .filter((resolution) => !resolution.inspectabilityReady)
+    .map((resolution): FailedEvidenceRefCause => {
+      const type = failedEvidenceRefType(resolution);
+      return {
+        ref: resolution.ref,
+        type,
+        status: resolution.status,
+        kind: resolution.kind,
+        reason: resolution.reason,
+      };
+    });
+  const byType = emptyFailureTypeCounts();
+  for (const failure of failures) byType[failure.type] += 1;
+  return { failedRefs: failures.length, byType, failures };
+}
+
+function failedEvidenceRefType(
+  resolution: EvidenceRefResolution,
+): FailedEvidenceRefType {
+  if (
+    resolution.ref.includes("TARGET_LOAD_EXECUTION_RESULTS.md") &&
+    resolution.status === "missing"
+  ) {
+    return "missing_target_load_execution_results";
+  }
+  if (resolution.status === "weak" && resolution.kind === "markdown_anchor") {
+    return "broken_markdown_anchor";
+  }
+  if (resolution.status === "missing" && resolution.kind === "json_anchor") {
+    return "unresolved_json_path";
+  }
+  if (resolution.status === "missing" && resolution.kind === "corpus_ref") {
+    return "corpus_path_missing";
+  }
+  if (resolution.status === "missing" && resolution.ref.includes("results/")) {
+    return "package_artifact_missing";
+  }
+  if (
+    resolution.status === "missing" &&
+    (resolution.kind === "local_file" || resolution.kind === "markdown_anchor")
+  ) {
+    return "missing_local_artifact";
+  }
+  if (!resolution.publicSafe) return "local_only_non_public_ref";
+  if (resolution.status === "stale") return "stale_ref";
+  return "other";
+}
+
+function emptyFailureTypeCounts(): Record<FailedEvidenceRefType, number> {
+  return {
+    missing_target_load_execution_results: 0,
+    broken_markdown_anchor: 0,
+    missing_local_artifact: 0,
+    unresolved_json_path: 0,
+    package_artifact_missing: 0,
+    corpus_path_missing: 0,
+    local_only_non_public_ref: 0,
+    stale_ref: 0,
+    other: 0,
+  };
+}
+
+function targetLoadExecutionRecord(
+  seed: StrictSeed,
+): TargetLoadExecutionRecord {
+  const targetLoadRef = targetLoadExecutionRef(seed);
+  const targetId =
+    splitAnchor(targetLoadRef)[1] ?? seed.parentTargetId ?? seed.seedId;
+  const measuredVariable = seed.measuredVariable ?? "unknown_measured_variable";
+  const targetOutcome = seed.targetOutcome ?? "target outcome not recorded";
+  const source =
+    seed.sourceRefs?.[0] ?? sourceFromOutcome(seed) ?? seed.sourceKind;
+  const sourceReceiptRef =
+    seed.sourceReceiptRef ??
+    (seed.evidenceRefs ?? []).find((ref) =>
+      ref.includes("TARGET_RECEIPTS.json"),
+    ) ??
+    "missing_source_receipt_ref";
+  return {
+    targetId,
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    source,
+    sourceReceiptRef,
+    loaderCheckCommand: `sovryn discover-daemon target-load-check --target ${targetId}`,
+    executionStatus:
+      seed.measuredOutcome === null || seed.measuredOutcome === undefined
+        ? "missing_measurement"
+        : "executed",
+    measuredVariable,
+    targetOutcome,
+    baselineStatus: seed.baselineResult?.executed
+      ? "baseline_executed"
+      : "baseline_recorded_from_prior_marathon_artifact",
+    producedArtifactPath: targetLoadRef,
+    replayPath:
+      seed.replayPath ??
+      (seed.evidenceRefs ?? []).find((ref) =>
+        ref.includes("TARGET_RECEIPTS.json"),
+      ) ??
+      "replay_failure_path_not_recorded",
+    publicSafeRef: targetLoadRef,
+  };
+}
+
+function targetLoadExecutionRef(seed: StrictSeed): string {
+  return (
+    (seed.evidenceRefs ?? []).find((ref) =>
+      ref.includes("TARGET_LOAD_EXECUTION_RESULTS.md#"),
+    ) ??
+    seed.localEvidenceArtifact ??
+    `${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.md#${seed.parentTargetId ?? seed.seedId}`
+  );
+}
+
+function targetLoadExecutionResultsMarkdown(
+  records: TargetLoadExecutionRecord[],
+): string {
+  return `# Target Load Execution Results
+
+Canonical public-safe target load/execution records reconstructed from measured marathon seed artifacts. Future target checks must write this record before a seed can become an InsightCandidate.
+
+${records
+  .map(
+    (record) => `## ${record.targetId}
+
+- Seed: ${record.seedId}
+- Candidate: ${record.candidateId}
+- Source: ${record.source}
+- Source receipt: ${record.sourceReceiptRef}
+- Loader/check command: ${record.loaderCheckCommand}
+- Execution status: ${record.executionStatus}
+- Measured variable: ${record.measuredVariable}
+- Target outcome: ${record.targetOutcome}
+- Baseline status: ${record.baselineStatus}
+- Produced artifact path: ${record.producedArtifactPath}
+- Replay path: ${record.replayPath}
+- Public-safe ref: ${record.publicSafeRef}
+`,
+  )
+  .join("\n")}`;
+}
+
+function seedCriticalRefsReady(
+  seed: StrictSeed,
+  resolutionByRef: Map<string, EvidenceRefResolution>,
+): boolean {
+  const refs = collectEvidenceRefs([seed]);
+  if (!refs.some((ref) => ref.includes("TARGET_LOAD_EXECUTION_RESULTS.md#"))) {
+    refs.push(targetLoadExecutionRef(seed));
+  }
+  return refs.every(
+    (ref) => resolutionByRef.get(ref)?.inspectabilityReady === true,
+  );
+}
+
+function inferredEvidenceDepth(seed: StrictSeed): number {
+  const hasResidual = Number.isFinite(Number(seed.baselineResult?.residual));
+  const hasHoldout = Boolean(seed.holdoutPath);
+  const hasReplay = Boolean(seed.replayPath ?? seed.sourceReceiptRef);
+  const hasCounterexample = Boolean(seed.counterexamplePath);
+  if (hasResidual && hasHoldout && hasReplay && hasCounterexample) return 5;
+  if (hasResidual && hasReplay) return 4;
+  return 3;
+}
+
+function sourceFamily(seed: StrictSeed): string {
+  return normalizeFamily(
+    sourceFromOutcome(seed) ??
+      seed.sourceRefs?.[0] ??
+      seed.parentTargetId ??
+      seed.sourceKind,
+  );
+}
+
+function sourceFromOutcome(seed: StrictSeed): string | null {
+  const text = seed.targetOutcome ?? seed.exactClaim ?? "";
+  const match = text.match(/\sfrom\s+([^:\s.]+)(?::|\s|$)/i);
+  return match?.[1] ?? null;
+}
+
+function normalizeFamily(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(
+      /^https?:\/\/github\.com\/n57d30top\/sovryn-open-inventions\/tree\/main\/results\//,
+      "",
+    )
+    .replace(/^formal-generator:\/\/bounded-property\//, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function hasHoldoutLeakageRisk(seed: StrictSeed, peer: StrictSeed): boolean {
+  const seedFamily = sourceFamily(seed);
+  const peerFamily = sourceFamily(peer);
+  if (seedFamily === peerFamily) return true;
+  const stopTokens = new Set([
+    "data",
+    "dataset",
+    "family",
+    "outcome",
+    "source",
+    "target",
+    "public",
+  ]);
+  const tokenParts = (value: string) =>
+    value.split("-").filter((part) => part.length > 3 && !stopTokens.has(part));
+  const seedTokens = new Set(tokenParts(seedFamily));
+  const peerTokens = tokenParts(peerFamily);
+  const overlap = peerTokens.filter((part) => seedTokens.has(part)).length;
+  return peerTokens.length > 0 && overlap / peerTokens.length >= 0.5;
 }
 
 function splitAnchor(ref: string): [string, string | null] {
@@ -990,7 +1660,22 @@ function remainingBottleneck(
 }
 
 function reportArtifactRefs(root: string): string[] {
-  return [
+  const engineRefs = [
+    "EVIDENCE_REF_ROOT_CAUSE.md",
+    "FAILED_EVIDENCE_REFS_BY_TYPE.json",
+    "TARGET_LOAD_EXECUTION_REF_GAPS.md",
+    "TARGET_LOAD_EXECUTION_SCHEMA.md",
+    "TARGET_LOAD_EXECUTION_RESULTS.json",
+    "EVIDENCE_REF_REPAIR_REPORT.md",
+    "HOLDOUT_BANK_SCHEMA.md",
+    "HOLDOUT_BANK_RESULTS.json",
+    "HOLDOUT_INDEPENDENCE_AUDIT.md",
+    "HOLDOUT_FAILURES.md",
+    "INSIGHT_BIRTH_GATE_RULES.md",
+    "BLOCKED_INSIGHT_BIRTHS.md",
+    "UPDATED_CANDIDATE_YIELD_CONTROLLER.md",
+    "REEVALUATION_AFTER_REF_HOLDOUT_REPAIR.md",
+    "YIELD_ELIGIBILITY_BEFORE_AFTER.md",
     "FRICTION_HEALTH_REPORT.md",
     "EVIDENCE_REF_RESOLUTION_REPORT.md",
     "HOLDOUT_BANK_REPORT.md",
@@ -1002,6 +1687,253 @@ function reportArtifactRefs(root: string): string[] {
     "NEXT_CHECKPOINT.md",
     "latest.json",
   ].map((file) => `${root}/${file}`);
+  return [
+    ...engineRefs,
+    `${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.md`,
+    `${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.json`,
+  ];
+}
+
+function evidenceRootCauseMarkdown(report: EvidenceRefRootCauseReport): string {
+  return `# Evidence Ref Root Cause
+
+Failed evidence refs: ${report.failedRefs}
+
+## Failure Groups
+
+${markdownTable(
+  ["Type", "Count"],
+  Object.entries(report.byType).map(([type, count]) => [type, String(count)]),
+)}
+
+## Failed Refs
+
+${markdownTable(
+  ["Type", "Status", "Kind", "Ref", "Reason"],
+  report.failures
+    .slice(0, 120)
+    .map((item) => [item.type, item.status, item.kind, item.ref, item.reason]),
+)}
+`;
+}
+
+function targetLoadExecutionGapsMarkdown(
+  report: EvidenceRefRootCauseReport,
+): string {
+  const gaps = report.failures.filter(
+    (item) => item.type === "missing_target_load_execution_results",
+  );
+  return `# Target Load Execution Ref Gaps
+
+Missing TARGET_LOAD_EXECUTION_RESULTS refs before repair: ${gaps.length}
+
+${markdownTable(
+  ["Ref", "Reason"],
+  gaps.slice(0, 120).map((item) => [item.ref, item.reason]),
+)}
+`;
+}
+
+function targetLoadExecutionSchemaMarkdown(): string {
+  return `# Target Load Execution Schema
+
+Every real target check must write a canonical target-load/execution record before a seed can become an InsightCandidate.
+
+Required fields:
+
+- targetId
+- source
+- sourceReceiptRef
+- loaderCheckCommand
+- executionStatus
+- measuredVariable
+- targetOutcome
+- baselineStatus
+- producedArtifactPath
+- replayPath or replay-failure path
+- publicSafeRef
+
+Canonical artifacts:
+
+- ${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.md
+- ${marathonRootRel}/TARGET_LOAD_EXECUTION_RESULTS.json
+`;
+}
+
+function evidenceRepairMarkdown(
+  report: DiscoveryFrictionHealthReport,
+  before: EvidenceRefResolution[],
+  after: EvidenceRefResolution[],
+): string {
+  return `# Evidence Ref Repair Report
+
+- Failed refs before repair: ${before.filter((item) => !item.inspectabilityReady).length}
+- Failed refs after repair: ${after.filter((item) => !item.inspectabilityReady).length}
+- Repaired refs: ${report.evidenceRefsRepaired}
+- Unrepaired refs: ${report.evidenceRefsUnrepaired}
+- Target-load execution refs produced: ${report.targetLoadExecutionRefsProduced}
+
+## Remaining Failed Refs
+
+${markdownTable(
+  ["Status", "Kind", "Ref", "Reason"],
+  after
+    .filter((item) => !item.inspectabilityReady)
+    .slice(0, 80)
+    .map((item) => [item.status, item.kind, item.ref, item.reason]),
+)}
+`;
+}
+
+function holdoutBankSchemaMarkdown(): string {
+  return `# Holdout Bank Schema
+
+HoldoutBank classifications:
+
+- independent_holdout_available
+- weak_holdout_only
+- leakage_risk_holdout
+- same_source_holdout_only
+- unavailable_holdout
+- invalid_holdout
+
+Independent holdout requirements:
+
+- selected after claim freeze or bound to a predeclared freeze path
+- different source family, slice, time, package group, or formal generator where applicable
+- leakage risk assessed
+- baseline/rival relevance stated
+- replay feasibility stated
+`;
+}
+
+function holdoutIndependenceAuditMarkdown(report: HoldoutBankReport): string {
+  return `# Holdout Independence Audit
+
+- Seeds evaluated: ${report.seedsEvaluated}
+- Independent holdouts: ${report.independentAvailable}
+- Weak only: ${report.weakHoldoutOnly}
+- Leakage risk: ${report.leakageRiskHoldout}
+- Same source only: ${report.sameFamilyOnly}
+- Unavailable: ${report.notAvailable}
+- Invalid: ${report.invalidHoldout}
+- Independence rate: ${pct(report.independenceRate)}
+
+${markdownTable(
+  ["Candidate", "Family", "Status", "Independent", "Leakage risk", "Reason"],
+  report.assessments
+    .slice(0, 120)
+    .map((item) => [
+      item.candidateId,
+      item.sourceFamily,
+      item.status,
+      String(item.independentHoldouts),
+      String(item.leakageRiskHoldouts),
+      item.reason,
+    ]),
+)}
+`;
+}
+
+function holdoutFailuresMarkdown(report: HoldoutBankReport): string {
+  return `# Holdout Failures
+
+${markdownTable(
+  ["Candidate", "Status", "Reason"],
+  report.assessments
+    .filter((item) => item.status !== "independent_holdout_available")
+    .slice(0, 120)
+    .map((item) => [item.candidateId, item.status, item.reason]),
+)}
+`;
+}
+
+function insightBirthGateRulesMarkdown(): string {
+  return `# Insight Birth Gate Rules
+
+No InsightCandidate may be derived unless all of the following are true:
+
+- all critical evidence refs resolve
+- canonical target load/execution ref exists
+- HoldoutBank status is independent_holdout_available, or a future explicit bounded exception is recorded
+- evidence depth is at least 5
+- nontrivial residual or pattern evidence exists beyond pipeline/tool/metadata success
+
+If any rule fails, the seed remains a hard seed and receives a precise blocker. No FundCandidateDraft is created.
+`;
+}
+
+function blockedInsightBirthsMarkdown(
+  evaluations: InsightBirthGateEvaluation[],
+): string {
+  return `# Blocked Insight Births
+
+- Evaluated: ${evaluations.length}
+- Allowed: ${evaluations.filter((item) => item.allowed).length}
+- Blocked: ${evaluations.filter((item) => !item.allowed).length}
+
+${markdownTable(
+  ["Candidate", "Allowed", "Holdout", "Blocker", "Required action"],
+  evaluations
+    .filter((item) => !item.allowed)
+    .slice(0, 120)
+    .map((item) => [
+      item.candidateId,
+      String(item.allowed),
+      item.holdoutStatus,
+      item.blocker ?? "",
+      item.requiredAction,
+    ]),
+)}
+`;
+}
+
+function updatedCandidateYieldControllerMarkdown(
+  report: CandidateYieldReport,
+): string {
+  return `# Updated Candidate Yield Controller
+
+The yield controller now uses per-seed birth-gate evaluations instead of global closure-rate approximations.
+
+- Evidence-ready candidates: ${report.after.evidenceReadyCandidates}
+- Holdout-ready candidates: ${report.after.holdoutReadyCandidates}
+- Yield-eligible candidates: ${report.after.yieldEligibleCandidates}
+- InsightCandidates allowed: ${report.after.insightCandidatesAllowedAfterBirthGate}
+- InsightCandidates blocked: ${report.after.insightCandidatesBlockedByBirthGate}
+`;
+}
+
+function reevaluationAfterRepairMarkdown(
+  report: DiscoveryFrictionHealthReport,
+): string {
+  return `# Reevaluation After Ref Holdout Repair
+
+- Evidence-ready before: ${report.yieldBefore.strictValidSeeds - report.evidenceRefRootCause.failedRefs}
+- Evidence-ready after: ${report.yieldAfter.evidenceReadyCandidates}
+- Holdout-ready before: 0
+- Holdout-ready after: ${report.yieldAfter.holdoutReadyCandidates}
+- Yield-eligible before: 0
+- Yield-eligible after: ${report.yieldAfter.yieldEligibleCandidates}
+- Discovery candidates created: ${report.discoveryCandidatesCreated}
+- Fund found: ${report.fundFound}
+
+No broad discovery search was run.
+`;
+}
+
+function yieldEligibilityBeforeAfterMarkdown(
+  report: DiscoveryFrictionHealthReport,
+): string {
+  return `# Yield Eligibility Before After
+
+| Metric | Before | After |
+| --- | --- | --- |
+| Evidence-ready candidates | ${report.yieldBefore.strictValidSeeds - report.evidenceRefRootCause.failedRefs} | ${report.yieldAfter.evidenceReadyCandidates} |
+| Holdout-ready candidates | 0 | ${report.yieldAfter.holdoutReadyCandidates} |
+| Yield-eligible candidates | 0 | ${report.yieldAfter.yieldEligibleCandidates} |
+| InsightCandidates allowed | 0 | ${report.yieldAfter.insightCandidatesAllowedAfterBirthGate} |
+| InsightCandidates blocked | ${report.yieldBefore.strictValidSeeds} | ${report.yieldAfter.insightCandidatesBlockedByBirthGate} |
+`;
 }
 
 function frictionHealthMarkdown(report: DiscoveryFrictionHealthReport): string {
@@ -1079,20 +2011,23 @@ function holdoutBankMarkdown(report: HoldoutBankReport): string {
 
 - Seeds evaluated: ${report.seedsEvaluated}
 - Independent holdout available: ${report.independentAvailable}
+- Weak holdout only: ${report.weakHoldoutOnly}
+- Leakage-risk holdout: ${report.leakageRiskHoldout}
 - Same-family only: ${report.sameFamilyOnly}
 - Not available: ${report.notAvailable}
+- Invalid holdout: ${report.invalidHoldout}
 - Holdout independence rate: ${pct(report.independenceRate)}
 
 ## Sample Assessments
 
 ${markdownTable(
-  ["Candidate", "Domain", "Source kind", "Independent", "Status", "Reason"],
+  ["Candidate", "Domain", "Source family", "Independent", "Status", "Reason"],
   report.assessments
     .slice(0, 80)
     .map((item) => [
       item.candidateId,
       item.domain,
-      item.sourceKind,
+      item.sourceFamily,
       String(item.independentHoldouts),
       item.status,
       item.reason,
@@ -1120,6 +2055,8 @@ The controller penalizes seed families that repeatedly die as baseline-dominated
 - Evidence-ready candidates: ${report.after.evidenceReadyCandidates}
 - Holdout-ready candidates: ${report.after.holdoutReadyCandidates}
 - Yield-eligible candidates: ${report.after.yieldEligibleCandidates}
+- InsightCandidates allowed after birth gate: ${report.after.insightCandidatesAllowedAfterBirthGate}
+- InsightCandidates blocked by birth gate: ${report.after.insightCandidatesBlockedByBirthGate}
 - Discovery candidates created: ${report.after.discoveryCandidatesCreated}
 
 ## Highest Penalties
@@ -1171,6 +2108,8 @@ function productivityMarkdown(
 - Evidence-ref closure rate: ${pct(report.evidenceRefClosureRate)}
 - Holdout independence rate: ${pct(report.holdoutIndependenceRate)}
 - Yield-eligible candidates after friction gates: ${yieldReport.after.yieldEligibleCandidates}
+- InsightCandidates allowed after birth gate: ${yieldReport.after.insightCandidatesAllowedAfterBirthGate}
+- InsightCandidates blocked after birth gate: ${yieldReport.after.insightCandidatesBlockedByBirthGate}
 - Discovery candidates created: ${yieldReport.after.discoveryCandidatesCreated}
 
 Material improvement: ${yieldReport.materialImprovement}
@@ -1189,6 +2128,8 @@ This was a focused reality pass over existing strict seeds and strict InsightCan
 - Evidence-ready candidates: ${yieldReport.after.evidenceReadyCandidates}
 - Holdout-ready candidates: ${yieldReport.after.holdoutReadyCandidates}
 - Yield-eligible candidates: ${yieldReport.after.yieldEligibleCandidates}
+- InsightCandidates allowed after birth gate: ${yieldReport.after.insightCandidatesAllowedAfterBirthGate}
+- InsightCandidates blocked after birth gate: ${yieldReport.after.insightCandidatesBlockedByBirthGate}
 - Discovery candidates created: ${report.discoveryCandidatesCreated}
 - Fund found: ${report.fundFound}
 

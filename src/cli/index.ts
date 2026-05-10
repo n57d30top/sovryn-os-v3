@@ -206,6 +206,8 @@ Commands:
   sovryn self-assemble smoke [--json]
   sovryn self-assemble audit [--json]
   sovryn health friction [--json]
+  sovryn evidence refs verify [--json]
+  sovryn holdout audit [--json]
   sovryn pipeline compose --goal <goal> [--json]
   sovryn pipeline run --pipeline <id> [--json]
   sovryn pipeline evidence --pipeline <id> [--json]
@@ -786,6 +788,26 @@ export async function executeCli(
       case "health": {
         const result = await healthCommand(parsed, root);
         return okEnvelope("health", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "evidence": {
+        const result = await evidenceCommand(parsed, root);
+        return okEnvelope("evidence", result, {
+          artifactRefs: Array.isArray(result.artifactRefs)
+            ? result.artifactRefs.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+      }
+      case "holdout": {
+        const result = await holdoutCommand(parsed, root);
+        return okEnvelope("holdout", result, {
           artifactRefs: Array.isArray(result.artifactRefs)
             ? result.artifactRefs.filter(
                 (value): value is string => typeof value === "string",
@@ -1849,6 +1871,35 @@ async function healthCommand(
         `Unknown health command: ${subcommand}`,
       );
   }
+}
+
+async function evidenceCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  const action = parsed.positionals[1];
+  if (subcommand !== "refs" || action !== "verify") {
+    throw new AppError(
+      "EVIDENCE_COMMAND_REQUIRED",
+      "Use: sovryn evidence refs verify.",
+    );
+  }
+  return new DiscoveryFrictionHealthService(root).evidenceRefsVerify();
+}
+
+async function holdoutCommand(
+  parsed: ParsedArgs,
+  root: string,
+): Promise<Record<string, unknown>> {
+  const subcommand = parsed.positionals[0];
+  if (subcommand !== "audit") {
+    throw new AppError(
+      "HOLDOUT_COMMAND_REQUIRED",
+      "Use: sovryn holdout audit.",
+    );
+  }
+  return new DiscoveryFrictionHealthService(root).holdoutAudit();
 }
 
 async function routeCommand(

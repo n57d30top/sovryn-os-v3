@@ -328,6 +328,88 @@ export type InsightCandidateDerivation = {
   evidenceHash: string;
 };
 
+export type InsightGauntletTestType =
+  | "nontrivial_pattern_test"
+  | "baseline_resistance_test"
+  | "rival_discrimination_test"
+  | "holdout_feasibility_test"
+  | "replay_feasibility_test"
+  | "counterexample_search"
+  | "proof_or_mechanism_pressure_test";
+
+export type InsightGauntletTestPlan = {
+  kind: "insight_candidate_required_next_test";
+  candidateId: string;
+  testType: InsightGauntletTestType;
+  promotionGate: string;
+  purpose: string;
+  safeComputationalOnly: true;
+  method: string;
+  requiredEvidence: string;
+};
+
+export type InsightGauntletRank = {
+  candidateId: string;
+  parentPipelineCandidateId: string;
+  domain: DiscoveryDomain;
+  mechanismHypothesis: string;
+  evidenceCompleteness: number;
+  domainValue: number;
+  testability: number;
+  replayFeasibility: number;
+  holdoutFeasibility: number;
+  expectedScientificValue: number;
+  totalScore: number;
+  selectedForExecution: boolean;
+};
+
+export type InsightGauntletTestExecution = {
+  kind: "insight_candidate_required_next_test_execution";
+  candidateId: string;
+  testType: InsightGauntletTestType;
+  promotionGate: string;
+  executed: true;
+  passed: boolean;
+  artifactRef: string;
+  evidenceRefs: string[];
+  observation: string;
+  caveats: string[];
+};
+
+export type InsightGauntletPromotionDecision = {
+  kind: "insight_candidate_promotion_decision";
+  candidateId: string;
+  parentPipelineCandidateId: string;
+  discoveryCandidateId: string | null;
+  promotedToDiscoveryCandidate: boolean;
+  fundCandidateDraftRef: string | null;
+  fundGateResult: FundGateResult;
+  promotionEvaluation: InsightCandidatePromotionEvaluation;
+  decision: "not_promoted" | "discovery_candidate_created" | "fund_found";
+  reason: string;
+};
+
+export type InsightGauntletReport = {
+  kind: "insight_candidate_required_next_test_gauntlet";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  loadedInsightCandidateCount: number;
+  generatedTestCount: number;
+  selectedForExecutionCount: number;
+  topCandidateIds: string[];
+  ranking: InsightGauntletRank[];
+  generatedTests: InsightGauntletTestPlan[];
+  executions: InsightGauntletTestExecution[];
+  promotionDecisions: InsightGauntletPromotionDecision[];
+  discoveryCandidatesCreated: number;
+  fundFound: boolean;
+  status: "continue_searching" | "FUND_FOUND";
+  notificationSuppressed: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -1362,6 +1444,285 @@ export class InsightCandidateDeriver {
       promotionEvaluation,
       artifactRef,
     });
+  }
+}
+
+export class InsightCandidateRequiredNextTestGauntlet {
+  constructor(private readonly root: string) {}
+
+  async run(options: { top?: number } = {}): Promise<InsightGauntletReport> {
+    await mkdir(this.gauntletRoot(), { recursive: true });
+    const candidates = await this.readInsightCandidates();
+    const ranked = candidates
+      .map((candidate) => rankInsightCandidate(candidate))
+      .sort(
+        (left, right) =>
+          right.totalScore - left.totalScore ||
+          right.evidenceCompleteness - left.evidenceCompleteness ||
+          left.candidateId.localeCompare(right.candidateId),
+      );
+    const topCount = Math.max(0, options.top ?? 3);
+    const selectedIds = new Set(
+      ranked.slice(0, topCount).map((item) => item.candidateId),
+    );
+    const ranking = ranked.map((item) => ({
+      ...item,
+      selectedForExecution: selectedIds.has(item.candidateId),
+    }));
+    const generatedTests = candidates.flatMap((candidate) =>
+      generateInsightGauntletTests(candidate),
+    );
+    const selectedCandidates = ranking
+      .filter((item) => item.selectedForExecution)
+      .map((item) =>
+        candidates.find(
+          (candidate) => candidate.candidateId === item.candidateId,
+        ),
+      )
+      .filter(
+        (candidate): candidate is InsightCandidate => candidate !== undefined,
+      );
+    const executions: InsightGauntletTestExecution[] = [];
+    const promotionDecisions: InsightGauntletPromotionDecision[] = [];
+    const fundGateResults: FundGateResult[] = [];
+    for (const candidate of selectedCandidates) {
+      const parentCycle = await this.readParentCycle(candidate);
+      const candidateExecutions = executeInsightGauntletTests({
+        candidate,
+        parentCycle,
+      });
+      executions.push(...candidateExecutions);
+      const decision = this.promotionDecision(candidate, candidateExecutions);
+      promotionDecisions.push(decision);
+      fundGateResults.push(decision.fundGateResult);
+      await this.writeCandidateExecution(
+        candidate,
+        candidateExecutions,
+        decision,
+      );
+    }
+    const state = await this.readState();
+    const checkpointUsed = state.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${state.lastCycleId ?? "cycle-0000"}-insight-gauntlet.json`;
+    const fundFound = fundGateResults.some(
+      (result) => result.notificationAllowed,
+    );
+    const report: InsightGauntletReport = withEvidenceHash({
+      kind: "insight_candidate_required_next_test_gauntlet" as const,
+      checkpointUsed,
+      nextCheckpointRef,
+      loadedInsightCandidateCount: candidates.length,
+      generatedTestCount: generatedTests.length,
+      selectedForExecutionCount: selectedCandidates.length,
+      topCandidateIds: selectedCandidates.map(
+        (candidate) => candidate.candidateId,
+      ),
+      ranking,
+      generatedTests,
+      executions,
+      promotionDecisions,
+      discoveryCandidatesCreated: promotionDecisions.filter(
+        (decision) => decision.promotedToDiscoveryCandidate,
+      ).length,
+      fundFound,
+      status: fundFound
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching" as const),
+      notificationSuppressed: !fundFound,
+      remainingBottleneck: fundFound
+        ? "none"
+        : "No selected InsightCandidate has dedicated nontrivial pattern evidence beyond pipeline, tool, or infrastructure success.",
+      artifactRefs: [
+        `${daemonArtifactRoot}/insight-gauntlet/latest.json`,
+        `${daemonArtifactRoot}/insight-gauntlet/ranking.json`,
+        `${daemonArtifactRoot}/insight-gauntlet/required-next-tests.json`,
+        `${daemonArtifactRoot}/insight-gauntlet/ledger.json`,
+        nextCheckpointRef,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "insight-gauntlet", "ranking.json"),
+      {
+        kind: "insight_candidate_ranking",
+        ranking,
+      },
+    );
+    await writeJson(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "insight-gauntlet",
+        "required-next-tests.json",
+      ),
+      {
+        kind: "insight_candidate_required_next_tests",
+        generatedTests,
+      },
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "insight-gauntlet", "ledger.json"),
+      {
+        kind: "insight_candidate_gauntlet_ledger",
+        loadedInsightCandidateCount: candidates.length,
+        selectedForExecutionCount: selectedCandidates.length,
+        promotionDecisions,
+        executions,
+        fundFound,
+        notificationSuppressed: !fundFound,
+      },
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "insight-gauntlet", "latest.json"),
+      report,
+    );
+    await writeJson(join(this.root, nextCheckpointRef), {
+      kind: "insight_gauntlet_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      checkpointUsed,
+      state,
+      reportRef: `${daemonArtifactRoot}/insight-gauntlet/latest.json`,
+      selectedCandidateIds: report.topCandidateIds,
+      promotionDecisions,
+      notificationSuppressed: report.notificationSuppressed,
+    });
+    await writeText(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "insight-gauntlet",
+        "INSIGHT_GAUNTLET_REPORT.md",
+      ),
+      insightGauntletMarkdown(report),
+    );
+    return report;
+  }
+
+  private gauntletRoot(): string {
+    return join(this.root, daemonArtifactRoot, "insight-gauntlet");
+  }
+
+  private async readInsightCandidates(): Promise<InsightCandidate[]> {
+    const candidateRoot = join(
+      this.root,
+      daemonArtifactRoot,
+      insightCandidateDir,
+    );
+    let files: string[];
+    try {
+      files = await readdir(candidateRoot);
+    } catch {
+      return [];
+    }
+    const candidates: InsightCandidate[] = [];
+    for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
+      const row = await readOptionalJson<unknown>(join(candidateRoot, file));
+      const candidate = insightCandidateFromUnknown(row);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async readParentCycle(
+    candidate: InsightCandidate,
+  ): Promise<Record<string, unknown> | null> {
+    const cycleRef = candidate.parentEvidenceRefs
+      .map((ref) => ref.split("#")[0] ?? ref)
+      .find((ref) =>
+        /^\.sovryn\/discovery-daemon\/search-cycles\/cycle-.+\.json$/.test(ref),
+      );
+    return cycleRef
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(this.root, cycleRef),
+        )
+      : null;
+  }
+
+  private promotionDecision(
+    candidate: InsightCandidate,
+    executions: InsightGauntletTestExecution[],
+  ): InsightGauntletPromotionDecision {
+    const promotionEvidence = promotionEvidenceFromExecutions(executions);
+    const updatedCandidate: InsightCandidate = {
+      ...candidate,
+      promotionEvidence,
+    };
+    const promotionEvaluation =
+      new InsightCandidatePromotionEvaluator().evaluate(updatedCandidate);
+    const discoveryCandidateId =
+      promotionEvaluation.eligibleForDiscoveryScoredEvaluation
+        ? `DISCOVERY-${normalizeCandidateIdPart(candidate.candidateId).slice(0, 64)}`
+        : null;
+    const fundCandidate =
+      discoveryCandidateId === null
+        ? null
+        : fundCandidateFromInsightGauntlet(
+            discoveryCandidateId,
+            updatedCandidate,
+            executions,
+          );
+    const fundGateResult = new FundGateEvaluator().evaluate(fundCandidate);
+    return withEvidenceHash({
+      kind: "insight_candidate_promotion_decision" as const,
+      candidateId: candidate.candidateId,
+      parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+      discoveryCandidateId,
+      promotedToDiscoveryCandidate: discoveryCandidateId !== null,
+      fundCandidateDraftRef:
+        discoveryCandidateId === null
+          ? null
+          : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(discoveryCandidateId)}.json`,
+      fundGateResult,
+      promotionEvaluation,
+      decision: fundGateResult.notificationAllowed
+        ? ("fund_found" as const)
+        : discoveryCandidateId !== null
+          ? ("discovery_candidate_created" as const)
+          : ("not_promoted" as const),
+      reason:
+        discoveryCandidateId === null
+          ? "Promotion blocked because at least one required next-test gate is still missing."
+          : "Discovery candidate was formed only after all InsightCandidate promotion gates had bound evidence refs.",
+    });
+  }
+
+  private async writeCandidateExecution(
+    candidate: InsightCandidate,
+    executions: InsightGauntletTestExecution[],
+    decision: InsightGauntletPromotionDecision,
+  ): Promise<void> {
+    const artifactRef = `${daemonArtifactRoot}/insight-gauntlet/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+    await writeJson(join(this.root, artifactRef), {
+      kind: "insight_candidate_gauntlet_result",
+      candidate,
+      executions,
+      promotionDecision: decision,
+      notificationSuppressed: !decision.fundGateResult.notificationAllowed,
+      fundFound: decision.fundGateResult.notificationAllowed,
+    });
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
   }
 }
 
@@ -4553,6 +4914,554 @@ function insightParentEvidenceRefs(input: {
   ]);
 }
 
+function rankInsightCandidate(
+  candidate: InsightCandidate,
+): InsightGauntletRank {
+  const scores = insightDomainScores(candidate.domain);
+  const evidenceCompleteness =
+    Math.min(candidate.parentEvidenceRefs.length, 50) / 50;
+  const totalScore = Number(
+    (
+      evidenceCompleteness * 30 +
+      scores.domainValue +
+      scores.testability +
+      scores.replayFeasibility +
+      scores.holdoutFeasibility +
+      scores.expectedScientificValue
+    ).toFixed(2),
+  );
+  return {
+    candidateId: candidate.candidateId,
+    parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+    domain: candidate.domain,
+    mechanismHypothesis: candidate.mechanismHypothesis,
+    evidenceCompleteness: Number((evidenceCompleteness * 30).toFixed(2)),
+    domainValue: scores.domainValue,
+    testability: scores.testability,
+    replayFeasibility: scores.replayFeasibility,
+    holdoutFeasibility: scores.holdoutFeasibility,
+    expectedScientificValue: scores.expectedScientificValue,
+    totalScore,
+    selectedForExecution: false,
+  };
+}
+
+type InsightDomainScore = {
+  domainValue: number;
+  testability: number;
+  replayFeasibility: number;
+  holdoutFeasibility: number;
+  expectedScientificValue: number;
+};
+
+function insightDomainScores(domain: DiscoveryDomain): InsightDomainScore {
+  const defaults = {
+    domainValue: 12,
+    testability: 11,
+    replayFeasibility: 11,
+    holdoutFeasibility: 10,
+    expectedScientificValue: 10,
+  };
+  const scores: Partial<Record<DiscoveryDomain, InsightDomainScore>> = {
+    computational_materials_property_data: {
+      domainValue: 18,
+      testability: 14,
+      replayFeasibility: 14,
+      holdoutFeasibility: 13,
+      expectedScientificValue: 17,
+    },
+    climate_energy_residuals: {
+      domainValue: 17,
+      testability: 14,
+      replayFeasibility: 14,
+      holdoutFeasibility: 13,
+      expectedScientificValue: 16,
+    },
+    scientific_public_data_reliability: {
+      domainValue: 16,
+      testability: 13,
+      replayFeasibility: 13,
+      holdoutFeasibility: 12,
+      expectedScientificValue: 15,
+    },
+    earth_observation_metadata_quality: {
+      domainValue: 15,
+      testability: 13,
+      replayFeasibility: 13,
+      holdoutFeasibility: 12,
+      expectedScientificValue: 14,
+    },
+    dataset_provenance_reliability: {
+      domainValue: 14,
+      testability: 14,
+      replayFeasibility: 13,
+      holdoutFeasibility: 12,
+      expectedScientificValue: 13,
+    },
+    safe_protein_structure_metadata: {
+      domainValue: 15,
+      testability: 12,
+      replayFeasibility: 12,
+      holdoutFeasibility: 11,
+      expectedScientificValue: 13,
+    },
+    public_transport_schedule_reliability: {
+      domainValue: 13,
+      testability: 14,
+      replayFeasibility: 13,
+      holdoutFeasibility: 12,
+      expectedScientificValue: 11,
+    },
+    open_government_data_consistency: {
+      domainValue: 12,
+      testability: 13,
+      replayFeasibility: 12,
+      holdoutFeasibility: 11,
+      expectedScientificValue: 10,
+    },
+    scientific_software_reproduction_mechanisms: {
+      domainValue: 8,
+      testability: 15,
+      replayFeasibility: 15,
+      holdoutFeasibility: 9,
+      expectedScientificValue: 7,
+    },
+    cross_domain_evaluation_fragility: {
+      domainValue: 14,
+      testability: 13,
+      replayFeasibility: 13,
+      holdoutFeasibility: 12,
+      expectedScientificValue: 13,
+    },
+  };
+  return scores[domain] ?? defaults;
+}
+
+function generateInsightGauntletTests(
+  candidate: InsightCandidate,
+): InsightGauntletTestPlan[] {
+  const base = {
+    candidateId: candidate.candidateId,
+    safeComputationalOnly: true as const,
+  };
+  return [
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "nontrivial_pattern_test" as const,
+      promotionGate: "nontrivial_pattern_beyond_pipeline_success",
+      purpose:
+        "Separate a bounded insight pattern from successful execution of the parent pipeline/tool/infrastructure path.",
+      method:
+        "Inspect parent cycle evidence for dedicated insight refs, measured residual/discrepancy evidence, or a bounded pattern artifact not reducible to route success.",
+      requiredEvidence:
+        "At least one nontrivial pattern ref that is not merely a pipeline, package, tool, gate, or runtime-success artifact.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "baseline_resistance_test" as const,
+      promotionGate: "baseline_resistance",
+      purpose:
+        "Check whether strong baselines fully explain the claimed pattern.",
+      method:
+        "Read the parent FundCandidate and cycle baseline fields and require strong baselines without baseline dominance.",
+      requiredEvidence:
+        "Parent cycle refs showing strong baseline execution and no baseline dominance.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "rival_discrimination_test" as const,
+      promotionGate: "rival_discriminating_test",
+      purpose:
+        "Check whether rival theories are weakened, scoped, or strengthened by the evidence.",
+      method:
+        "Read parent rival-theory pressure fields and mechanism outputs for at least one weakened or scope-limited rival.",
+      requiredEvidence:
+        "Rival pressure refs with comparisons executed and at least one rival weakened or scope-limited.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "holdout_feasibility_test" as const,
+      promotionGate: "holdout_path",
+      purpose:
+        "Check whether a post-freeze holdout path exists and supports the bounded claim.",
+      method:
+        "Read parent holdout results and require selected-after-freeze, fresh-after-freeze, executed holdouts, and support or a justified caveat.",
+      requiredEvidence:
+        "Holdout refs showing fresh post-freeze selection, execution, and support or a bounded caveat.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "replay_feasibility_test" as const,
+      promotionGate: "replay_path",
+      purpose:
+        "Check whether decisive evidence has a replay path or documented replay failure.",
+      method:
+        "Read parent replay results and require a fresh workspace attempt with decisive evidence replay or explicit replay-failure documentation.",
+      requiredEvidence:
+        "Replay refs with decisive evidence replayed, or a bounded replay-failure record.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "counterexample_search" as const,
+      promotionGate: "counterexample_path",
+      purpose:
+        "Search for counterexamples that collapse or narrow the candidate.",
+      method:
+        "Read parent counterexample results and require generated/executed counterexamples without dense collapse.",
+      requiredEvidence:
+        "Counterexample refs showing search breadth, executed checks, and no collapse of the bounded claim.",
+    },
+    {
+      ...base,
+      kind: "insight_candidate_required_next_test" as const,
+      testType: "proof_or_mechanism_pressure_test" as const,
+      promotionGate: "proof_or_mechanism_pressure_path",
+      purpose:
+        "Apply proof, refutation, or mechanism pressure appropriate to the route.",
+      method:
+        "Read parent proof/mechanism pressure and mechanism execution refs for a clear route and no fatal fake-proof/mechanism failure.",
+      requiredEvidence:
+        "Proof or mechanism refs showing selected tools invoked, downstream-consumable outputs, and no fatal pressure.",
+    },
+  ];
+}
+
+function executeInsightGauntletTests(input: {
+  candidate: InsightCandidate;
+  parentCycle: Record<string, unknown> | null;
+}): InsightGauntletTestExecution[] {
+  const { candidate, parentCycle } = input;
+  const parentRef = parentCycleRef(candidate);
+  const fundCandidate = isRecord(parentCycle?.fundCandidate)
+    ? parentCycle.fundCandidate
+    : {};
+  const holdout = isRecord(parentCycle?.holdoutResults)
+    ? parentCycle.holdoutResults
+    : {};
+  const replay = isRecord(parentCycle?.replayResults)
+    ? parentCycle.replayResults
+    : {};
+  const counterexamples = isRecord(parentCycle?.counterexampleResults)
+    ? parentCycle.counterexampleResults
+    : {};
+  const mechanismPressure = isRecord(parentCycle?.proofOrMechanismPressure)
+    ? parentCycle.proofOrMechanismPressure
+    : {};
+  const mechanismExecutions = Array.isArray(parentCycle?.mechanismExecutions)
+    ? parentCycle.mechanismExecutions.filter(isRecord)
+    : [];
+  const baseRef = `${daemonArtifactRoot}/insight-gauntlet/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+  const dedicatedInsightRefs = uniqueStrings([
+    ...stringArray(candidate.promotionEvidence.nontrivialPatternRefs),
+    ...stringArray(fundCandidate.insightEvidenceRefs),
+  ]).filter(
+    (ref) =>
+      !/\b(pipeline|package|tool|runtime|route|gate|preflight)\b/i.test(ref),
+  );
+  const allToolsInvoked = mechanismExecutions.some(
+    (execution) =>
+      execution.allSelectedToolsInvoked === true &&
+      execution.downstreamConsumable === true &&
+      Array.isArray(execution.outputArtifactRefs) &&
+      execution.outputArtifactRefs.length > 0,
+  );
+  return [
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "nontrivial_pattern_test",
+      promotionGate: "nontrivial_pattern_beyond_pipeline_success",
+      passed: dedicatedInsightRefs.length > 0,
+      evidenceRefs: dedicatedInsightRefs,
+      observation:
+        dedicatedInsightRefs.length > 0
+          ? "Dedicated nontrivial insight refs exist beyond parent pipeline success."
+          : "No dedicated nontrivial-pattern ref is bound; parent route success remains pipeline/infrastructure evidence only.",
+      caveats:
+        dedicatedInsightRefs.length > 0
+          ? []
+          : [
+              "Parent cycle fields may say nontrivial=true, but the gauntlet requires a separate insight evidence ref before discovery scoring.",
+            ],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "baseline_resistance_test",
+      promotionGate: "baseline_resistance",
+      passed:
+        fundCandidate.strongBaselinesExecuted === true &&
+        fundCandidate.baselineDominated !== true,
+      evidenceRefs: parentRef ? [`${parentRef}#fundCandidate.baseline`] : [],
+      observation:
+        fundCandidate.strongBaselinesExecuted === true &&
+        fundCandidate.baselineDominated !== true
+          ? "Parent cycle records strong baselines and no baseline dominance."
+          : "Baseline resistance is not established in the parent cycle.",
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "rival_discrimination_test",
+      promotionGate: "rival_discriminating_test",
+      passed:
+        fundCandidate.rivalComparisonsExecuted === true &&
+        fundCandidate.rivalWeakenedOrScopeLimited === true,
+      evidenceRefs: parentRef ? [`${parentRef}#proofOrMechanismPressure`] : [],
+      observation:
+        fundCandidate.rivalComparisonsExecuted === true &&
+        fundCandidate.rivalWeakenedOrScopeLimited === true
+          ? "Parent cycle records rival comparison and weakened or scope-limited rival pressure."
+          : "Rival discrimination is not established in the parent cycle.",
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "holdout_feasibility_test",
+      promotionGate: "holdout_path",
+      passed:
+        holdout.freshAfterFreeze === true &&
+        holdout.selectedAfterFreeze === true &&
+        Number(holdout.executedCount ?? 0) > 0 &&
+        (holdout.supported === true || Number(holdout.partials ?? 0) > 0),
+      evidenceRefs: parentRef ? [`${parentRef}#holdoutResults`] : [],
+      observation:
+        holdout.freshAfterFreeze === true &&
+        holdout.selectedAfterFreeze === true
+          ? "Parent cycle records a post-freeze holdout path."
+          : "A fresh post-freeze holdout path is not established.",
+      caveats:
+        holdout.supported === true
+          ? []
+          : ["Holdout path exists only as a caveated or partial support path."],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "replay_feasibility_test",
+      promotionGate: "replay_path",
+      passed:
+        replay.decisiveEvidenceReplayed === true &&
+        Number(replay.freshWorkspaceAttempts ?? 0) >= 1 &&
+        replay.decisiveUnreplayedClaims !== true,
+      evidenceRefs: parentRef ? [`${parentRef}#replayResults`] : [],
+      observation:
+        replay.decisiveEvidenceReplayed === true
+          ? "Parent cycle records decisive evidence replay with a fresh-workspace path."
+          : "Replay is missing or inconclusive.",
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "counterexample_search",
+      promotionGate: "counterexample_path",
+      passed:
+        Number(counterexamples.candidatesGenerated ?? 0) > 0 &&
+        Number(counterexamples.checksExecuted ?? 0) > 0 &&
+        counterexamples.dense !== true,
+      evidenceRefs: parentRef ? [`${parentRef}#counterexampleResults`] : [],
+      observation:
+        counterexamples.dense === true
+          ? "Counterexample pressure is dense enough to collapse the candidate."
+          : "Parent cycle counterexample pressure narrows without collapse.",
+      caveats:
+        counterexamples.narrowedWithoutCollapse === true
+          ? [
+              "Counterexamples narrowed scope; they do not establish insight by themselves.",
+            ]
+          : [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "proof_or_mechanism_pressure_test",
+      promotionGate: "proof_or_mechanism_pressure_path",
+      passed:
+        mechanismPressure.clear === true &&
+        mechanismPressure.fakeProofRejected === true &&
+        allToolsInvoked,
+      evidenceRefs: uniqueStrings([
+        ...(parentRef ? [`${parentRef}#proofOrMechanismPressure`] : []),
+        ...stringArray(mechanismPressure.mechanismExecutionRef),
+      ]),
+      observation:
+        mechanismPressure.clear === true && allToolsInvoked
+          ? "Parent cycle records clear mechanism pressure and downstream-consumable selected-tool execution."
+          : "Mechanism or proof pressure is not established.",
+      caveats: [],
+    }),
+  ];
+}
+
+function insightExecution(input: {
+  candidate: InsightCandidate;
+  baseRef: string;
+  testType: InsightGauntletTestType;
+  promotionGate: string;
+  passed: boolean;
+  evidenceRefs: string[];
+  observation: string;
+  caveats: string[];
+}): InsightGauntletTestExecution {
+  return withEvidenceHash({
+    kind: "insight_candidate_required_next_test_execution" as const,
+    candidateId: input.candidate.candidateId,
+    testType: input.testType,
+    promotionGate: input.promotionGate,
+    executed: true as const,
+    passed: input.passed,
+    artifactRef: `${input.baseRef}#${input.testType}`,
+    evidenceRefs: uniqueStrings(input.evidenceRefs).filter(publicSafeRef),
+    observation: input.observation,
+    caveats: input.caveats,
+  });
+}
+
+function promotionEvidenceFromExecutions(
+  executions: InsightGauntletTestExecution[],
+): InsightCandidatePromotionEvidence {
+  const refsFor = (testType: InsightGauntletTestType) =>
+    executions
+      .filter(
+        (execution) => execution.testType === testType && execution.passed,
+      )
+      .map((execution) => execution.artifactRef);
+  return {
+    nontrivialPatternRefs: refsFor("nontrivial_pattern_test"),
+    baselineResistanceRefs: refsFor("baseline_resistance_test"),
+    rivalDiscriminatingTestRefs: refsFor("rival_discrimination_test"),
+    holdoutPathRefs: refsFor("holdout_feasibility_test"),
+    replayPathRefs: refsFor("replay_feasibility_test"),
+    counterexamplePathRefs: refsFor("counterexample_search"),
+    proofOrMechanismPressureRefs: refsFor("proof_or_mechanism_pressure_test"),
+  };
+}
+
+function fundCandidateFromInsightGauntlet(
+  discoveryCandidateId: string,
+  candidate: InsightCandidate,
+  executions: InsightGauntletTestExecution[],
+): FundCandidate {
+  const refs = uniqueStrings(
+    executions.flatMap((execution) => execution.artifactRef),
+  );
+  return {
+    candidateId: discoveryCandidateId,
+    claim: candidate.exactNarrowClaim,
+    domain: candidate.domain,
+    requestedFundLabel: "externally_review_ready_candidate",
+    fundClass: "discovery_fund_candidate",
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: false,
+    insightEvidenceRefs:
+      candidate.promotionEvidence.nontrivialPatternRefs ?? [],
+    stableIdentity: true,
+    highImpactDomain: true,
+    plausibleScientificValue: true,
+    notToolReportProcessOnly: true,
+    nontrivial: true,
+    rivalTheoryCount: 3,
+    rivalComparisonsExecuted: true,
+    rivalWeakenedOrScopeLimited: true,
+    strongBaselinesExecuted: true,
+    baselineDominated: false,
+    counterexampleCandidatesGenerated: true,
+    counterexampleChecksExecuted: 1,
+    counterexampleDense: false,
+    predictionsFrozenBeforeExecution: true,
+    predictionsExecuted: 1,
+    nonObviousPredictions: 1,
+    freshHoldoutsAfterFreeze: true,
+    holdoutSupported: true,
+    decisiveEvidenceReplayed: true,
+    freshWorkspaceReplay: true,
+    decisiveUnreplayedClaims: false,
+    proofOrMechanismPressureClear: true,
+    killWeekComplete: false,
+    paperExists: false,
+    methodExists: false,
+    claimEvidenceBindingsExists: false,
+    reproduceExists: false,
+    limitationsExists: false,
+    noOverclaim: true,
+    predictionOutcomes: refs,
+    holdoutOutcomes: refsForGate(executions, "holdout_path"),
+    counterexampleOutcomes: refsForGate(executions, "counterexample_path"),
+    replayOutcomes: refsForGate(executions, "replay_path"),
+    remainingLimitations: [
+      "Insight gauntlet promotion still requires an external-review package, kill-week completion, and domain significance evidence before Fund notification.",
+    ],
+  };
+}
+
+function refsForGate(
+  executions: InsightGauntletTestExecution[],
+  promotionGate: string,
+): string[] {
+  return executions
+    .filter((execution) => execution.promotionGate === promotionGate)
+    .map((execution) => execution.artifactRef);
+}
+
+function parentCycleRef(candidate: InsightCandidate): string | null {
+  return (
+    candidate.parentEvidenceRefs
+      .map((ref) => ref.split("#")[0] ?? ref)
+      .find((ref) =>
+        /^\.sovryn\/discovery-daemon\/search-cycles\/cycle-.+\.json$/.test(ref),
+      ) ?? null
+  );
+}
+
+function insightCandidateFromUnknown(value: unknown): InsightCandidate | null {
+  const candidate =
+    isRecord(value) && isRecord(value.candidate) ? value.candidate : value;
+  if (!isRecord(candidate)) return null;
+  if (candidate.kind !== "insight_candidate") return null;
+  if (candidate.fundClass !== "insight_candidate") return null;
+  if (typeof candidate.candidateId !== "string") return null;
+  if (typeof candidate.parentPipelineCandidateId !== "string") return null;
+  if (!Array.isArray(candidate.parentEvidenceRefs)) return null;
+  if (!discoveryDaemonDomains().includes(candidate.domain as DiscoveryDomain)) {
+    return null;
+  }
+  return candidate as InsightCandidate;
+}
+
+function insightGauntletMarkdown(report: InsightGauntletReport): string {
+  const rows = report.promotionDecisions.map(
+    (decision) =>
+      `- ${decision.candidateId}: ${decision.decision}; failed gates: ${decision.promotionEvaluation.failedGates.join(", ") || "none"}`,
+  );
+  return [
+    "# Insight Candidate Required-Next-Test Gauntlet",
+    "",
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `InsightCandidates loaded: ${report.loadedInsightCandidateCount}.`,
+    `Top candidates executed: ${report.topCandidateIds.join(", ") || "none"}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Promotion Decisions",
+    "",
+    ...(rows.length > 0 ? rows : ["- none"]),
+    "",
+    "## Remaining Bottleneck",
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
 function deathCauseFromCorpusSeed(seed: CorpusSeed): DeathCause {
   const combined = [
     seed.candidateStatus,
@@ -6665,6 +7574,15 @@ export class AutonomousDiscoveryDaemonService {
     return report;
   }
 
+  async insightGauntlet(
+    options: { top?: number } = {},
+  ): Promise<InsightGauntletReport> {
+    await this.ensureInitialized();
+    return new InsightCandidateRequiredNextTestGauntlet(this.root).run({
+      top: options.top ?? 3,
+    });
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -8177,6 +9095,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, insightCandidateDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, "insight-gauntlet"), {
       recursive: true,
     });
   }

@@ -70,6 +70,7 @@ const commands = [
   "hard-seeds",
   "hard-seed-generate",
   "hard-seed-audit",
+  "insight-gauntlet",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -256,6 +257,114 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function writeInsightCandidateFixture(
+  root: string,
+  input: {
+    cycleId: string;
+    parentPipelineCandidateId: string;
+    domain: InsightCandidate["domain"];
+    mechanismHypothesis: string;
+    parentEvidenceRefCount: number;
+  },
+): Promise<InsightCandidate> {
+  const cycleRef = `${daemonRoot}/search-cycles/${input.cycleId}.json`;
+  await mkdir(join(root, daemonRoot, "search-cycles"), { recursive: true });
+  await writeFile(
+    join(root, cycleRef),
+    JSON.stringify(
+      {
+        kind: "silent_search_cycle",
+        cycleId: input.cycleId,
+        candidateId: input.parentPipelineCandidateId,
+        domain: input.domain,
+        fundCandidate: {
+          candidateId: input.parentPipelineCandidateId,
+          strongBaselinesExecuted: true,
+          baselineDominated: false,
+          rivalComparisonsExecuted: true,
+          rivalWeakenedOrScopeLimited: true,
+          insightEvidenceRefs: [],
+        },
+        holdoutResults: {
+          freshAfterFreeze: true,
+          selectedAfterFreeze: true,
+          executedCount: 4,
+          supported: true,
+          partials: 0,
+        },
+        replayResults: {
+          attempts: 2,
+          freshWorkspaceAttempts: 1,
+          decisiveEvidenceReplayed: true,
+          decisiveUnreplayedClaims: false,
+        },
+        counterexampleResults: {
+          candidatesGenerated: 8,
+          checksExecuted: 6,
+          dense: false,
+          narrowedWithoutCollapse: true,
+        },
+        proofOrMechanismPressure: {
+          clear: true,
+          fakeProofRejected: true,
+          mechanismExecutionRef: `${daemonRoot}/mechanism-executions/${input.cycleId}.json`,
+        },
+        mechanismExecutions: [
+          {
+            allSelectedToolsInvoked: true,
+            downstreamConsumable: true,
+            outputArtifactRefs: [
+              `${daemonRoot}/mechanism-executions/${input.cycleId}.json`,
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  const parentEvidenceRefs = [
+    cycleRef,
+    `${cycleRef}#fundCandidate`,
+    `${cycleRef}#holdoutResults`,
+    `${cycleRef}#replayResults`,
+    `${cycleRef}#counterexampleResults`,
+    `${cycleRef}#proofOrMechanismPressure`,
+    "https://example.org/public-insight-source",
+  ];
+  while (parentEvidenceRefs.length < input.parentEvidenceRefCount) {
+    parentEvidenceRefs.push(
+      `https://example.org/public-insight-source-${parentEvidenceRefs.length}`,
+    );
+  }
+  const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+    claim: `Insight fixture for ${input.parentPipelineCandidateId} remains narrow and bounded to safe public computational evidence.`,
+    domain: input.domain,
+    mechanism: input.mechanismHypothesis,
+    evidenceScope: `${input.parentPipelineCandidateId} bounded evidence scope`,
+    fundClass: "insight_candidate",
+  });
+  const derivation = await new InsightCandidateDeriver(root).derive({
+    cycleId: input.cycleId,
+    parentPipelineCandidateId: input.parentPipelineCandidateId,
+    parentClaim: `Pipeline evidence for ${input.parentPipelineCandidateId}`,
+    parentFundClass: "pipeline_capability_verified",
+    domain: input.domain,
+    mechanismHypothesis: input.mechanismHypothesis,
+    evidenceScope: `${input.parentPipelineCandidateId} bounded evidence scope`,
+    parentEvidenceRefs,
+    sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: input.parentPipelineCandidateId,
+      existing: null,
+      next: canonicalClaim,
+    }),
+    ledger: new CandidateIdentityLedger(),
+  });
+  assert.ok(derivation.candidate);
+  return derivation.candidate;
 }
 
 async function findCycleByFreshVariant(
@@ -1433,6 +1542,103 @@ test("InsightCandidate promotion requires a nontrivial pattern beyond pipeline s
   );
 });
 
+test("InsightCandidate gauntlet ranks, executes top candidates, and blocks promotion without nontrivial pattern evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0001",
+    parentPipelineCandidateId: "PIPELINE-MATERIALS",
+    domain: "computational_materials_property_data",
+    mechanismHypothesis: "materials_property_data_external-review-ready",
+    parentEvidenceRefCount: 12,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0002",
+    parentPipelineCandidateId: "PIPELINE-SCIPY",
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanismHypothesis: "repo_package_reproduction_external-review-ready",
+    parentEvidenceRefCount: 10,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0003",
+    parentPipelineCandidateId: "PIPELINE-NREL",
+    domain: "climate_energy_residuals",
+    mechanismHypothesis: "climate_energy_public_data_external-review-ready",
+    parentEvidenceRefCount: 11,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0004",
+    parentPipelineCandidateId: "PIPELINE-GTFS",
+    domain: "public_transport_schedule_reliability",
+    mechanismHypothesis: "public_transport_schedule_external-review-ready",
+    parentEvidenceRefCount: 9,
+  });
+
+  const report = await service.insightGauntlet({ top: 3 });
+  assert.equal(report.kind, "insight_candidate_required_next_test_gauntlet");
+  assert.equal(report.loadedInsightCandidateCount, 4);
+  assert.equal(report.generatedTestCount, 28);
+  assert.equal(report.selectedForExecutionCount, 3);
+  assert.equal(report.executions.length, 21);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.status, "continue_searching");
+  assert.equal(report.notificationSuppressed, true);
+  assert.equal(
+    report.promotionDecisions.every(
+      (decision) => decision.decision === "not_promoted",
+    ),
+    true,
+  );
+  assert.equal(
+    report.promotionDecisions.every((decision) =>
+      decision.promotionEvaluation.failedGates.includes(
+        "nontrivial_pattern_beyond_pipeline_success",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "insight-gauntlet", "latest.json")),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon insight-gauntlet CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0001",
+    parentPipelineCandidateId: "PIPELINE-NCEI",
+    domain: "scientific_public_data_reliability",
+    mechanismHypothesis:
+      "scientific_public_data_reliability_external-review-ready",
+    parentEvidenceRefCount: 8,
+  });
+  const response = await executeCli(
+    ["discover-daemon", "insight-gauntlet", "--top", "1", "--json"],
+    root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "insight_candidate_required_next_test_gauntlet",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).selectedForExecutionCount,
+    1,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2043,6 +2249,11 @@ const cliScenarios: {
     name: "hard-seed-audit",
     args: ["discover-daemon", "hard-seed-audit", "--json"],
     expectedKind: "hard_seed_audit",
+  },
+  {
+    name: "insight-gauntlet",
+    args: ["discover-daemon", "insight-gauntlet", "--json"],
+    expectedKind: "insight_candidate_required_next_test_gauntlet",
   },
   {
     name: "cycle",

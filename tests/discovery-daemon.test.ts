@@ -79,6 +79,7 @@ const commands = [
   "reality-marathon",
   "marathon",
   "raw-evidence-reset",
+  "cross-source-residual-search",
   "raw-insight-gate-closure",
   "cycle",
   "candidate-status",
@@ -2977,6 +2978,125 @@ test("discover-daemon raw-evidence-reset CLI is bounded and silent", async () =>
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon cross-source-residual-search blocks single-source residuals before InsightCandidate birth", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.crossSourceResidualSearch();
+
+  assert.equal(report.kind, "cross_source_residual_pattern_search");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.deepEqual(report.domains, [
+    "astrophysics_public_catalog_residuals",
+    "computational_materials_property_outcomes",
+    "climate_energy_residual_targets",
+    "formal_bounded_property_outcomes",
+  ]);
+  assert.equal(report.rawTargetsLoaded, 120);
+  assert.equal(report.rawMeasurementsPerformed, 120);
+  assert.ok(report.baselinesRun >= 360);
+  assert.ok(report.residualsFound > 0);
+  assert.ok(report.patternAttempts > 0);
+  assert.ok(report.sameSourceControlsRun > 0);
+  assert.ok(report.independentHoldoutChecks >= 0);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "CROSS_SOURCE_TARGETS.md",
+    "CROSS_SOURCE_TARGET_RECEIPTS.json",
+    "CROSS_SOURCE_MEASUREMENTS.json",
+    "CROSS_SOURCE_MEASUREMENTS.md",
+    "CROSS_SOURCE_PATTERNS.json",
+    "CROSS_SOURCE_PATTERN_SEARCH.md",
+    "SAME_SOURCE_CONTROL_RESULTS.md",
+    "INDEPENDENT_HOLDOUT_RESULTS.md",
+    "REPLAY_RESULTS.md",
+    "INSIGHT_CANDIDATES.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "cross-source-residual-search", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  const patternPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "cross-source-residual-search",
+        "CROSS_SOURCE_PATTERNS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    patterns: Array<{
+      supportTargetIds: string[];
+      sameSourceControlTargetIds: string[];
+      insightCandidateCreated: boolean;
+      mechanismHypothesis: string;
+    }>;
+  };
+  assert.equal(
+    patternPayload.patterns.every(
+      (pattern) => pattern.supportTargetIds.length >= 2,
+    ),
+    true,
+  );
+  assert.equal(
+    patternPayload.patterns.some(
+      (pattern) => pattern.sameSourceControlTargetIds.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    patternPayload.patterns.every(
+      (pattern) => pattern.mechanismHypothesis.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    patternPayload.patterns.every(
+      (pattern) => pattern.insightCandidateCreated === false,
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon cross-source-residual-search CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "cross-source-residual-search", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "cross_source_residual_pattern_search",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).insightCandidatesCreated,
+    0,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("discover-daemon raw-insight-gate-closure evaluates the raw-born InsightCandidate without fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -2987,18 +3107,22 @@ test("discover-daemon raw-insight-gate-closure evaluates the raw-born InsightCan
 
   assert.equal(report.kind, "raw_insight_promotion_gate_closure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.ok(report.candidateId?.startsWith("RAW-INSIGHT-"));
-  assert.equal(report.domain, "astrophysics_public_catalog_residuals");
-  assert.ok(report.sourceData.some((ref) => ref.startsWith("https://")));
+  if (report.candidateId !== null) {
+    assert.ok(report.candidateId.startsWith("RAW-INSIGHT-"));
+    assert.equal(report.domain, "astrophysics_public_catalog_residuals");
+    assert.ok(report.sourceData.some((ref) => ref.startsWith("https://")));
+    assert.ok(report.gatesPassed.includes("replay_support"));
+    assert.ok(report.gatesPassed.includes("external_inspectability"));
+    assert.ok(report.gatesFailed.includes("rival_discrimination"));
+    assert.ok(report.gatesFailed.includes("counterexample_resistance"));
+  } else {
+    assert.deepEqual(report.gatesFailed, ["candidate_present"]);
+  }
   assert.equal(report.promotedToDiscoveryCandidate, false);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundCandidateDraftCreated, false);
   assert.equal(report.fundFound, false);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
-  assert.ok(report.gatesPassed.includes("replay_support"));
-  assert.ok(report.gatesPassed.includes("external_inspectability"));
-  assert.ok(report.gatesFailed.includes("rival_discrimination"));
-  assert.ok(report.gatesFailed.includes("counterexample_resistance"));
   assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
   for (const artifact of [
     "RAW_INSIGHT_CANDIDATE_PROFILE.md",

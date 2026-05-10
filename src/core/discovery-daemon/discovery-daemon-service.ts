@@ -919,6 +919,33 @@ export type RawInsightPromotionGateClosureReport = {
   evidenceHash: string;
 };
 
+export type CrossSourceResidualPatternSearchReport = {
+  kind: "cross_source_residual_pattern_search";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  domains: ExternalRawEvidenceDomain[];
+  rawTargetsLoaded: number;
+  rawMeasurementsPerformed: number;
+  baselinesRun: number;
+  residualsFound: number;
+  patternAttempts: number;
+  sameSourceControlsRun: number;
+  independentHoldoutChecks: number;
+  replayRecomputeChecks: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  killedAsOrdinaryVariation: number;
+  killedByNoCrossSupport: number;
+  killedByHoldout: number;
+  killedByReplay: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3834,6 +3861,7 @@ type SignalHoldoutAssessment = {
 type ExternalRawEvidenceDomain =
   | "computational_materials_property_outcomes"
   | "astrophysics_public_catalog_residuals"
+  | "climate_energy_residual_targets"
   | "formal_bounded_property_outcomes";
 
 type ExternalRawTarget = {
@@ -3914,6 +3942,35 @@ type RawInsightGateClosureDecision = {
   killed: boolean;
   killReason: string;
   reason: string;
+};
+
+type CrossSourceResidualPattern = {
+  patternId: string;
+  domain: ExternalRawEvidenceDomain;
+  direction: "positive" | "negative";
+  measuredVariable: string;
+  targetOutcome: string;
+  supportTargetIds: string[];
+  supportPartitions: string[];
+  supportSourceFamilies: string[];
+  sameSourceControlTargetIds: string[];
+  independentHoldoutTargetIds: string[];
+  replayTargetIds: string[];
+  residualMean: number;
+  mechanismHypothesis: string;
+  exactClaim: string;
+  independentSupport: boolean;
+  sameSourceControlsPassed: boolean;
+  independentHoldoutAvailable: boolean;
+  replaySucceeded: boolean;
+  insightCandidateCreated: boolean;
+  killed: boolean;
+  killReason:
+    | "none"
+    | "no_cross_source_or_partition_support"
+    | "ordinary_population_catalog_variation"
+    | "holdout_not_supported"
+    | "replay_failed";
 };
 
 export class RealityBoundDiscoveryMarathon {
@@ -6539,15 +6596,19 @@ function externalRawTargetForDomain(
     measuredVariable:
       domain === "computational_materials_property_outcomes"
         ? "band_gap_ev"
-        : domain === "astrophysics_public_catalog_residuals"
-          ? "photometric_distance_modulus_residual"
-          : "bounded_property_violation_margin",
+        : domain === "climate_energy_residual_targets"
+          ? "appliances_wh"
+          : domain === "astrophysics_public_catalog_residuals"
+            ? "photometric_distance_modulus_residual"
+            : "bounded_property_violation_margin",
     targetOutcome:
       domain === "computational_materials_property_outcomes"
         ? "material property residual after composition and density baselines"
-        : domain === "astrophysics_public_catalog_residuals"
-          ? "catalog residual after color, parallax, and cadence baselines"
-          : "formal property residual after size, density, and parity baselines",
+        : domain === "climate_energy_residual_targets"
+          ? "appliance energy residual after weather and time baselines"
+          : domain === "astrophysics_public_catalog_residuals"
+            ? "catalog residual after color, parallax, and cadence baselines"
+            : "formal property residual after size, density, and parity baselines",
     rawValues,
   });
 }
@@ -6739,6 +6800,29 @@ function externalRawValuesForDomain(
       distanceModulusResidual: Number((baseline + residual).toFixed(3)),
     };
   }
+  if (domain === "climate_energy_residual_targets") {
+    const hour = ordinal % 24;
+    const outsideTemperatureC = Number((4 + (ordinal % 14) * 1.35).toFixed(3));
+    const outsideHumidity = Number((38 + (ordinal % 19) * 1.7).toFixed(3));
+    const windspeed = Number((1.2 + (ordinal % 8) * 0.55).toFixed(3));
+    const visibility = Number((22 + (ordinal % 16) * 1.8).toFixed(3));
+    const baseline =
+      38 +
+      Math.max(0, 17 - outsideTemperatureC) * 2.7 +
+      outsideHumidity * 0.62 +
+      windspeed * 3.2 +
+      (hour >= 18 ? 32 : 0);
+    const residual = externalRawResidualSignal(ordinal, 34);
+    return {
+      date: `2016-01-${String(1 + (ordinal % 28)).padStart(2, "0")} ${String(hour).padStart(2, "0")}:00:00`,
+      hour,
+      appliancesWh: Number((baseline + residual).toFixed(3)),
+      outsideTemperatureC,
+      outsideHumidity,
+      windspeed,
+      visibility,
+    };
+  }
   const nodeCount = 8 + (ordinal % 17);
   const edgeCount = Math.floor(nodeCount * (1.3 + (ordinal % 5) * 0.2));
   const density = Number(
@@ -6771,6 +6855,9 @@ function externalRawSourceUrl(
   }
   if (domain === "astrophysics_public_catalog_residuals") {
     return `https://gea.esac.esa.int/archive/raw-reset-slice-${ordinal}`;
+  }
+  if (domain === "climate_energy_residual_targets") {
+    return `https://archive.ics.uci.edu/ml/machine-learning-databases/00374/energydata_complete.csv#fallback-row-${ordinal}`;
   }
   return `formal-generator://bounded-property/raw-reset-family-${ordinal}`;
 }
@@ -6812,6 +6899,9 @@ function externalRawMeasuredOutcome(target: ExternalRawTarget): number {
       return Number(target.rawValues.planetRadiusEarth ?? 0);
     }
     return Number(target.rawValues.distanceModulusResidual ?? 0);
+  }
+  if (target.domain === "climate_energy_residual_targets") {
+    return Number(target.rawValues.appliancesWh ?? 0);
   }
   return Number(target.rawValues.propertyValue ?? 0);
 }
@@ -6880,6 +6970,36 @@ function externalRawBaselines(
     ];
     return predictions.map((row) => externalRawBaselineRow(target, row));
   }
+  if (target.domain === "climate_energy_residual_targets") {
+    const hour = Number(target.rawValues.hour ?? 0);
+    const outsideTemperature = Number(
+      target.rawValues.outsideTemperatureC ?? 0,
+    );
+    const outsideHumidity = Number(target.rawValues.outsideHumidity ?? 0);
+    const windspeed = Number(target.rawValues.windspeed ?? 0);
+    const visibility = Number(target.rawValues.visibility ?? 0);
+    const predictions = [
+      {
+        baseline: "weather_load_rule",
+        prediction:
+          42 +
+          Math.max(0, 17 - outsideTemperature) * 2.4 +
+          outsideHumidity * 0.58,
+      },
+      {
+        baseline: "time_of_day_rule",
+        prediction:
+          58 +
+          (hour >= 6 && hour <= 9 ? 28 : 0) +
+          (hour >= 18 && hour <= 23 ? 36 : 0),
+      },
+      {
+        baseline: "wind_visibility_rule",
+        prediction: 48 + windspeed * 4.2 + Math.max(0, 45 - visibility) * 0.9,
+      },
+    ];
+    return predictions.map((row) => externalRawBaselineRow(target, row));
+  }
   const nodeCount = Number(target.rawValues.nodeCount ?? 0);
   const edgeCount = Number(target.rawValues.edgeCount ?? 0);
   const density = Number(target.rawValues.density ?? 0);
@@ -6920,6 +7040,7 @@ function externalRawResidualThreshold(
 ): number {
   if (domain === "computational_materials_property_outcomes") return 0.48;
   if (domain === "astrophysics_public_catalog_residuals") return 0.58;
+  if (domain === "climate_energy_residual_targets") return 70;
   return 0.38;
 }
 
@@ -7166,6 +7287,594 @@ function externalRawFundGateMarkdown(
 
 function externalRawNextCheckpointMarkdown(
   report: ExternalRawEvidenceSourceResetReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+export class CrossSourceResidualPatternSearch {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<CrossSourceResidualPatternSearchReport> {
+    await mkdir(this.searchRoot(), { recursive: true });
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    const checkpointUsed = state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const targets = await crossSourceResidualTargets();
+    const measurements = targets.map(externalRawMeasurementForTarget);
+    const residualMeasurements = measurements.filter(
+      (measurement) => measurement.residualCandidateAttempted,
+    );
+    const patterns = crossSourceResidualPatterns(targets, measurements);
+    const insightPatterns = patterns.filter(
+      (pattern) => pattern.insightCandidateCreated,
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/cross-source-residual-search-continue-searching.json`;
+    const report: CrossSourceResidualPatternSearchReport = withEvidenceHash({
+      kind: "cross_source_residual_pattern_search" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      domains: crossSourceResidualDomains(),
+      rawTargetsLoaded: targets.length,
+      rawMeasurementsPerformed: measurements.length,
+      baselinesRun: measurements.reduce(
+        (sum, measurement) => sum + measurement.baselinePredictions.length,
+        0,
+      ),
+      residualsFound: residualMeasurements.length,
+      patternAttempts: patterns.length,
+      sameSourceControlsRun: patterns.reduce(
+        (sum, pattern) => sum + pattern.sameSourceControlTargetIds.length,
+        0,
+      ),
+      independentHoldoutChecks: patterns.reduce(
+        (sum, pattern) => sum + pattern.independentHoldoutTargetIds.length,
+        0,
+      ),
+      replayRecomputeChecks: patterns.reduce(
+        (sum, pattern) => sum + pattern.replayTargetIds.length,
+        0,
+      ),
+      insightCandidatesCreated: insightPatterns.length,
+      discoveryCandidatesCreated: 0,
+      killedAsOrdinaryVariation: patterns.filter(
+        (pattern) =>
+          pattern.killReason === "ordinary_population_catalog_variation",
+      ).length,
+      killedByNoCrossSupport: patterns.filter(
+        (pattern) =>
+          pattern.killReason === "no_cross_source_or_partition_support",
+      ).length,
+      killedByHoldout: patterns.filter(
+        (pattern) => pattern.killReason === "holdout_not_supported",
+      ).length,
+      killedByReplay: patterns.filter(
+        (pattern) => pattern.killReason === "replay_failed",
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        insightPatterns.length === 0
+          ? "Residual recurrence was checked before InsightCandidate birth; no pattern survived same-source controls, independent holdout, and replay pressure."
+          : "Cross-source residual patterns reached InsightCandidate birth, but no DiscoveryCandidate or FundCandidateDraft passed protected promotion gates.",
+      artifactRefs: crossSourceResidualArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({ report, targets, measurements, patterns });
+    return report;
+  }
+
+  private searchRoot(): string {
+    return join(this.root, daemonArtifactRoot, "cross-source-residual-search");
+  }
+
+  private async writeArtifacts(input: {
+    report: CrossSourceResidualPatternSearchReport;
+    targets: ExternalRawTarget[];
+    measurements: ExternalRawMeasurement[];
+    patterns: CrossSourceResidualPattern[];
+  }): Promise<void> {
+    const root = this.searchRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "CROSS_SOURCE_TARGET_RECEIPTS.json"), {
+      kind: "cross_source_target_receipts",
+      generatedAt: nowIso(),
+      targetCount: input.targets.length,
+      targets: input.targets,
+      evidenceHash: hashEvidence(input.targets),
+    });
+    await writeJson(join(root, "CROSS_SOURCE_MEASUREMENTS.json"), {
+      kind: "cross_source_measurements",
+      generatedAt: nowIso(),
+      measurementCount: input.measurements.length,
+      measurements: input.measurements,
+      evidenceHash: hashEvidence(input.measurements),
+    });
+    await writeJson(join(root, "CROSS_SOURCE_PATTERNS.json"), {
+      kind: "cross_source_residual_patterns",
+      generatedAt: nowIso(),
+      patternCount: input.patterns.length,
+      patterns: input.patterns,
+      evidenceHash: hashEvidence(input.patterns),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "cross_source_residual_search_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      reportRef: `${daemonArtifactRoot}/cross-source-residual-search/latest.json`,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "CROSS_SOURCE_TARGETS.md"),
+      crossSourceTargetsMarkdown(input.targets),
+    );
+    await writeText(
+      join(root, "CROSS_SOURCE_MEASUREMENTS.md"),
+      crossSourceMeasurementsMarkdown(input.measurements),
+    );
+    await writeText(
+      join(root, "CROSS_SOURCE_PATTERN_SEARCH.md"),
+      crossSourcePatternsMarkdown(input.patterns),
+    );
+    await writeText(
+      join(root, "SAME_SOURCE_CONTROL_RESULTS.md"),
+      crossSourceControlsMarkdown(input.patterns),
+    );
+    await writeText(
+      join(root, "INDEPENDENT_HOLDOUT_RESULTS.md"),
+      crossSourceHoldoutsMarkdown(input.patterns),
+    );
+    await writeText(
+      join(root, "REPLAY_RESULTS.md"),
+      crossSourceReplayMarkdown(input.patterns),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATES.md"),
+      crossSourceInsightCandidatesMarkdown(input.patterns),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      crossSourceFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      crossSourceNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function crossSourceResidualDomains(): ExternalRawEvidenceDomain[] {
+  return [
+    "astrophysics_public_catalog_residuals",
+    "computational_materials_property_outcomes",
+    "climate_energy_residual_targets",
+    "formal_bounded_property_outcomes",
+  ];
+}
+
+async function crossSourceResidualTargets(): Promise<ExternalRawTarget[]> {
+  const [materialsTargets, astrophysicsTargets, climateTargets] =
+    await Promise.all([
+      externalRawMaterialsTargets(),
+      externalRawAstrophysicsTargets(),
+      externalRawClimateEnergyTargets(),
+    ]);
+  const formalTargets = Array.from({ length: 30 }, (_, index) =>
+    externalRawTargetForDomain("formal_bounded_property_outcomes", index),
+  );
+  return [
+    ...externalRawPadTargets(
+      "astrophysics_public_catalog_residuals",
+      astrophysicsTargets,
+    ),
+    ...externalRawPadTargets(
+      "computational_materials_property_outcomes",
+      materialsTargets,
+    ),
+    ...externalRawPadTargets("climate_energy_residual_targets", climateTargets),
+    ...formalTargets,
+  ];
+}
+
+async function externalRawClimateEnergyTargets(): Promise<ExternalRawTarget[]> {
+  const sourceUrl =
+    "https://archive.ics.uci.edu/ml/machine-learning-databases/00374/energydata_complete.csv";
+  const fetched = await externalRawFetchText(sourceUrl);
+  if (!fetched) return [];
+  const rows = externalRawParseCsv(fetched.text);
+  return rows
+    .filter((row) =>
+      [
+        "date",
+        "Appliances",
+        "T_out",
+        "RH_out",
+        "Windspeed",
+        "Visibility",
+      ].every((field) => row[field] !== undefined && row[field] !== ""),
+    )
+    .filter((row) =>
+      ["Appliances", "T_out", "RH_out", "Windspeed", "Visibility"].every(
+        (field) => Number.isFinite(Number(row[field])),
+      ),
+    )
+    .slice(0, 30)
+    .map((row, index) => {
+      const targetId = externalRawTargetId(
+        "climate_energy_residual_targets",
+        index + 1,
+      );
+      const date = String(row.date);
+      const hourMatch = date.match(/\s(\d{2}):/);
+      const hour = hourMatch ? Number(hourMatch[1]) : index % 24;
+      const rawValues: Record<string, number | string | boolean> = {
+        date,
+        hour,
+        appliancesWh: Number(row.Appliances),
+        outsideTemperatureC: Number(row.T_out),
+        outsideHumidity: Number(row.RH_out),
+        windspeed: Number(row.Windspeed),
+        visibility: Number(row.Visibility),
+      };
+      return externalRawTargetFromValues({
+        targetId,
+        domain: "climate_energy_residual_targets",
+        sourceUrl: `${sourceUrl}#row-${index + 1}`,
+        sourceKind: "fresh_public_raw_data",
+        sourceLoadStatus: "fetched",
+        sourceReceiptId: `UCI-APPLIANCES-ENERGY-${String(index + 1).padStart(2, "0")}`,
+        sourceReceipt: fetched.receipt,
+        loaderCheckCommand:
+          "fetch UCI appliances energy CSV; parse appliance energy and outside weather fields; compute simple energy residual baselines",
+        measuredVariable: "appliances_wh",
+        targetOutcome:
+          "appliance energy residual after outside weather and time baselines",
+        rawValues,
+      });
+    });
+}
+
+function crossSourceResidualPatterns(
+  targets: ExternalRawTarget[],
+  measurements: ExternalRawMeasurement[],
+): CrossSourceResidualPattern[] {
+  const targetById = new Map(
+    targets.map((target) => [target.targetId, target]),
+  );
+  const residuals = measurements
+    .filter((measurement) => measurement.residualCandidateAttempted)
+    .filter((measurement) => Math.abs(measurement.residual) > 0)
+    .sort(
+      (left, right) =>
+        left.domain.localeCompare(right.domain) ||
+        Math.sign(left.residual) - Math.sign(right.residual) ||
+        Math.abs(right.residual) - Math.abs(left.residual),
+    );
+  const patterns: CrossSourceResidualPattern[] = [];
+  for (const domain of crossSourceResidualDomains()) {
+    for (const direction of ["positive", "negative"] as const) {
+      const directional = residuals.filter(
+        (measurement) =>
+          measurement.domain === domain &&
+          (direction === "positive"
+            ? measurement.residual > 0
+            : measurement.residual < 0),
+      );
+      if (directional.length < 2) continue;
+      const support = directional.slice(0, 4);
+      const supportTargets = support
+        .map((measurement) => targetById.get(measurement.targetId))
+        .filter((target): target is ExternalRawTarget => target !== undefined);
+      const supportPartitions = uniqueStrings(
+        supportTargets.map(crossSourcePartitionKey),
+      );
+      const supportSourceFamilies = uniqueStrings(
+        supportTargets.map(crossSourceFamilyKey),
+      );
+      const controls = directional
+        .slice(4)
+        .filter(
+          (measurement) =>
+            Math.abs(measurement.residual) >=
+            externalRawResidualThreshold(domain) * 1.05,
+        )
+        .slice(0, 6);
+      const holdouts = directional
+        .slice(4)
+        .filter((measurement) => {
+          const target = targetById.get(measurement.targetId);
+          return (
+            target !== undefined &&
+            !supportPartitions.includes(crossSourcePartitionKey(target)) &&
+            Math.abs(measurement.residual) >=
+              externalRawResidualThreshold(domain) * 1.2
+          );
+        })
+        .slice(0, 3);
+      const replays = support.filter((measurement) => {
+        const target = targetById.get(measurement.targetId);
+        if (!target) return false;
+        const replay = externalRawMeasurementForTarget(target);
+        return (
+          replay.measuredOutcome === measurement.measuredOutcome &&
+          replay.baselineMedian === measurement.baselineMedian &&
+          replay.residual === measurement.residual
+        );
+      });
+      const independentSupport =
+        supportSourceFamilies.length >= 2 || supportPartitions.length >= 2;
+      const sameSourceControlsPassed =
+        controls.length === 0 || supportSourceFamilies.length >= 2;
+      const independentHoldoutAvailable = holdouts.length > 0;
+      const replaySucceeded = replays.length === support.length;
+      const killed =
+        !independentSupport ||
+        !sameSourceControlsPassed ||
+        !independentHoldoutAvailable ||
+        !replaySucceeded;
+      const killReason: CrossSourceResidualPattern["killReason"] =
+        !independentSupport
+          ? "no_cross_source_or_partition_support"
+          : !sameSourceControlsPassed
+            ? "ordinary_population_catalog_variation"
+            : !independentHoldoutAvailable
+              ? "holdout_not_supported"
+              : !replaySucceeded
+                ? "replay_failed"
+                : "none";
+      const target = supportTargets[0];
+      const measuredVariable = target?.measuredVariable ?? "measured_outcome";
+      const targetOutcome =
+        target?.targetOutcome ?? "raw residual target outcome";
+      const residualMean = Number(
+        (
+          support.reduce((sum, measurement) => sum + measurement.residual, 0) /
+          support.length
+        ).toFixed(3),
+      );
+      const patternId = `XSR-${normalizeCandidateIdPart(domain)}-${direction.toUpperCase()}`;
+      const mechanismHypothesis = `${direction} residual recurrence in ${measuredVariable} must remain after source-family controls and independent ${domain} partitions`;
+      patterns.push({
+        patternId,
+        domain,
+        direction,
+        measuredVariable,
+        targetOutcome,
+        supportTargetIds: support.map((measurement) => measurement.targetId),
+        supportPartitions,
+        supportSourceFamilies,
+        sameSourceControlTargetIds: controls.map(
+          (measurement) => measurement.targetId,
+        ),
+        independentHoldoutTargetIds: holdouts.map(
+          (measurement) => measurement.targetId,
+        ),
+        replayTargetIds: replays.map((measurement) => measurement.targetId),
+        residualMean,
+        mechanismHypothesis,
+        exactClaim: `${domain} shows a ${direction} residual recurrence in ${measuredVariable} across ${support.length} raw targets with mean residual ${residualMean}; this is only InsightCandidate-eligible if same-source controls, holdout, and replay all survive.`,
+        independentSupport,
+        sameSourceControlsPassed,
+        independentHoldoutAvailable,
+        replaySucceeded,
+        insightCandidateCreated: !killed,
+        killed,
+        killReason,
+      });
+    }
+  }
+  return patterns;
+}
+
+function crossSourceFamilyKey(target: ExternalRawTarget): string {
+  if (target.domain === "computational_materials_property_outcomes") {
+    return target.sourceUrl.includes("huggingface.co")
+      ? "matbench_expt_gap"
+      : "materials_fallback_recipe";
+  }
+  if (target.domain === "astrophysics_public_catalog_residuals") {
+    return target.sourceUrl.includes("exoplanetarchive")
+      ? "nasa_exoplanet_archive_pscomppars"
+      : "synthetic_gaia_like_recipe";
+  }
+  if (target.domain === "climate_energy_residual_targets") {
+    return target.sourceUrl.includes("archive.ics.uci.edu")
+      ? "uci_appliances_energy"
+      : "climate_energy_fallback_recipe";
+  }
+  return String(target.rawValues.formalFamily ?? "bounded_formal_generator");
+}
+
+function crossSourcePartitionKey(target: ExternalRawTarget): string {
+  if (target.domain === "computational_materials_property_outcomes") {
+    return [
+      "elements",
+      Math.floor(Number(target.rawValues.elementCount ?? 0) / 2),
+      target.rawValues.transitionMetal === true ? "tm" : "non_tm",
+    ].join("-");
+  }
+  if (target.domain === "astrophysics_public_catalog_residuals") {
+    if (target.rawValues.planetName !== undefined) {
+      const planetName = String(target.rawValues.planetName);
+      return `planet-family-${planetName.split("-")[0] || "unknown"}`;
+    }
+    return `cadence-${Math.floor(Number(target.rawValues.cadence ?? 0) / 3)}`;
+  }
+  if (target.domain === "climate_energy_residual_targets") {
+    return `hour-block-${Math.floor(Number(target.rawValues.hour ?? 0) / 6)}`;
+  }
+  return `formal-density-${Math.floor(Number(target.rawValues.density ?? 0) * 10)}`;
+}
+
+function crossSourceResidualArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/cross-source-residual-search`;
+  return [
+    `${root}/CROSS_SOURCE_TARGETS.md`,
+    `${root}/CROSS_SOURCE_TARGET_RECEIPTS.json`,
+    `${root}/CROSS_SOURCE_MEASUREMENTS.json`,
+    `${root}/CROSS_SOURCE_MEASUREMENTS.md`,
+    `${root}/CROSS_SOURCE_PATTERNS.json`,
+    `${root}/CROSS_SOURCE_PATTERN_SEARCH.md`,
+    `${root}/SAME_SOURCE_CONTROL_RESULTS.md`,
+    `${root}/INDEPENDENT_HOLDOUT_RESULTS.md`,
+    `${root}/REPLAY_RESULTS.md`,
+    `${root}/INSIGHT_CANDIDATES.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function crossSourceTargetsMarkdown(targets: ExternalRawTarget[]): string {
+  return [
+    "# Cross-Source Raw Targets",
+    "",
+    `Raw/formal targets loaded: ${targets.length}.`,
+    "",
+    "| Target | Domain | Family | Partition | Source | Load status | Measured variable |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...targets.map(
+      (target) =>
+        `| ${target.targetId} | ${target.domain} | ${crossSourceFamilyKey(target)} | ${crossSourcePartitionKey(target)} | ${target.sourceUrl} | ${target.sourceLoadStatus} | ${target.measuredVariable} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourceMeasurementsMarkdown(
+  measurements: ExternalRawMeasurement[],
+): string {
+  return [
+    "# Cross-Source Measurements",
+    "",
+    `Measurements performed: ${measurements.length}.`,
+    "",
+    "| Target | Domain | Outcome | Baseline median | Residual | Residual attempted |",
+    "| --- | --- | ---: | ---: | ---: | --- |",
+    ...measurements.map(
+      (measurement) =>
+        `| ${measurement.targetId} | ${measurement.domain} | ${measurement.measuredOutcome} | ${measurement.baselineMedian} | ${measurement.residual} | ${String(measurement.residualCandidateAttempted)} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourcePatternsMarkdown(
+  patterns: CrossSourceResidualPattern[],
+): string {
+  return [
+    "# Cross-Source Pattern Search",
+    "",
+    `Pattern attempts: ${patterns.length}.`,
+    "",
+    "| Pattern | Domain | Direction | Support | Families | Partitions | Mean residual | InsightCandidate | Kill reason |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+    ...patterns.map(
+      (pattern) =>
+        `| ${pattern.patternId} | ${pattern.domain} | ${pattern.direction} | ${pattern.supportTargetIds.length} | ${pattern.supportSourceFamilies.length} | ${pattern.supportPartitions.length} | ${pattern.residualMean} | ${String(pattern.insightCandidateCreated)} | ${pattern.killReason} |`,
+    ),
+    "",
+    "Single-row residuals are not listed as InsightCandidates; each pattern attempt required at least two residual-bearing targets before birth checks.",
+  ].join("\n");
+}
+
+function crossSourceControlsMarkdown(
+  patterns: CrossSourceResidualPattern[],
+): string {
+  return [
+    "# Same-Source Control Results",
+    "",
+    "| Pattern | Same-source controls | Passed | Decision |",
+    "| --- | ---: | --- | --- |",
+    ...patterns.map(
+      (pattern) =>
+        `| ${pattern.patternId} | ${pattern.sameSourceControlTargetIds.length} | ${String(pattern.sameSourceControlsPassed)} | ${pattern.killReason === "ordinary_population_catalog_variation" ? "killed as ordinary population/catalog variation" : "not killed by same-source controls"} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourceHoldoutsMarkdown(
+  patterns: CrossSourceResidualPattern[],
+): string {
+  return [
+    "# Independent Holdout Results",
+    "",
+    "| Pattern | Holdout targets | Independent holdout available |",
+    "| --- | ---: | --- |",
+    ...patterns.map(
+      (pattern) =>
+        `| ${pattern.patternId} | ${pattern.independentHoldoutTargetIds.length} | ${String(pattern.independentHoldoutAvailable)} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourceReplayMarkdown(
+  patterns: CrossSourceResidualPattern[],
+): string {
+  return [
+    "# Replay Results",
+    "",
+    "| Pattern | Support targets | Replayed support targets | Replay succeeded |",
+    "| --- | ---: | ---: | --- |",
+    ...patterns.map(
+      (pattern) =>
+        `| ${pattern.patternId} | ${pattern.supportTargetIds.length} | ${pattern.replayTargetIds.length} | ${String(pattern.replaySucceeded)} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourceInsightCandidatesMarkdown(
+  patterns: CrossSourceResidualPattern[],
+): string {
+  const insights = patterns.filter(
+    (pattern) => pattern.insightCandidateCreated,
+  );
+  return [
+    "# InsightCandidates",
+    "",
+    `InsightCandidates created: ${insights.length}.`,
+    "",
+    insights.length === 0
+      ? "No cross-source residual pattern survived recurrence, same-source controls, independent holdout, and replay pressure before InsightCandidate birth."
+      : insights
+          .map(
+            (pattern) =>
+              `- ${pattern.patternId}: ${pattern.exactClaim} Mechanism hypothesis: ${pattern.mechanismHypothesis}.`,
+          )
+          .join("\n"),
+  ].join("\n");
+}
+
+function crossSourceFundGateMarkdown(
+  report: CrossSourceResidualPatternSearchReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FUND_FOUND.md or fund-candidate.json is written unless a discovery-scored candidate passes the full Fund Gate.",
+  ].join("\n");
+}
+
+function crossSourceNextCheckpointMarkdown(
+  report: CrossSourceResidualPatternSearchReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -15745,6 +16454,11 @@ export class AutonomousDiscoveryDaemonService {
   async rawEvidenceReset(): Promise<ExternalRawEvidenceSourceResetReport> {
     await this.ensureInitialized();
     return new ExternalRawEvidenceSourceReset(this.root).run();
+  }
+
+  async crossSourceResidualSearch(): Promise<CrossSourceResidualPatternSearchReport> {
+    await this.ensureInitialized();
+    return new CrossSourceResidualPatternSearch(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

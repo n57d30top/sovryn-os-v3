@@ -2646,6 +2646,67 @@ test("discover-daemon marathon remaining strict closure handles holdout and insp
   );
 });
 
+test("discover-daemon marathon signal-quality tournament tests yield-eligible candidates without fake Fund", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.marathon();
+  await service.marathonDepthGauntlet();
+
+  const report = await service.marathonSignalQualityTournament();
+
+  assert.equal(report.kind, "scientific_signal_quality_tournament");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.ok(report.candidatesLoaded >= 20);
+  assert.equal(report.top20CandidateIds.length, 20);
+  assert.equal(report.top5CandidateIds.length, 5);
+  assert.equal(report.top20TestsExecuted, 140);
+  assert.ok(report.top5DeepChecksExecuted >= 35);
+  assert.equal(
+    report.candidatesKilledByBaseline +
+      report.candidatesKilledByRivalTheory +
+      report.candidatesKilledByHoldout +
+      report.candidatesKilledByCounterexample +
+      report.candidatesKilledByReplay +
+      report.candidatesKilledByMechanismProof,
+    20,
+  );
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "YIELD_ELIGIBLE_CANDIDATES.md",
+    "SIGNAL_QUALITY_SCORECARD.json",
+    "SIGNAL_QUALITY_RANKING.md",
+    "TOP20_SIGNAL_TESTS.md",
+    "TOP5_DEEP_SIGNAL_VALIDATION.md",
+    "PROMOTION_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(
+        join(
+          root,
+          daemonRoot,
+          "marathon",
+          "signal-quality-tournament",
+          artifact,
+        ),
+      ),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon marathon gate-closure-autopsy CLI is bounded and silent", async () => {
   const root = await tempRoot();
   await writeRealityCorpusFixture(root, 720);
@@ -2764,6 +2825,41 @@ test("discover-daemon marathon remaining-strict-closure CLI is bounded and silen
     "remaining_strict_candidate_closure",
   );
   assert.equal((response.data as Record<string, unknown>).candidatesTested, 5);
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon marathon signal-quality CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  assert.equal(
+    (await executeCli(["discover-daemon", "marathon", "--json"], root)).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "depth-gauntlet", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+
+  const response = await executeCli(
+    ["discover-daemon", "marathon", "signal-quality", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "scientific_signal_quality_tournament",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).top20TestsExecuted,
+    140,
+  );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

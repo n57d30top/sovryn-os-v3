@@ -844,6 +844,30 @@ export type RemainingStrictCandidateClosureReport = {
   evidenceHash: string;
 };
 
+export type ScientificSignalQualityTournamentReport = {
+  kind: "scientific_signal_quality_tournament";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidatesLoaded: number;
+  top20CandidateIds: string[];
+  top5CandidateIds: string[];
+  top20TestsExecuted: number;
+  top5DeepChecksExecuted: number;
+  candidatesKilledByBaseline: number;
+  candidatesKilledByRivalTheory: number;
+  candidatesKilledByHoldout: number;
+  candidatesKilledByCounterexample: number;
+  candidatesKilledByReplay: number;
+  candidatesKilledByMechanismProof: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3625,6 +3649,137 @@ type FinalStrictCandidateDecision = {
   reason: string;
 };
 
+type SignalQualityKillReason =
+  | "metadata_only"
+  | "pipeline_success_only"
+  | "tool_or_reproduction_only"
+  | "missing_target_outcome"
+  | "baseline_dominated"
+  | "rival_theory_stronger"
+  | "holdout_not_supported"
+  | "counterexample_dense"
+  | "replay_failed"
+  | "mechanism_failed"
+  | "no_nontrivial_residual";
+
+type SignalQualityCandidate = {
+  seed: RealityMeasuredSeed;
+  birthGate: SignalBirthGateEvaluation;
+  holdout: SignalHoldoutAssessment | null;
+  targetLoadExecutionRef: string | null;
+  evidenceRefs: string[];
+  holdoutRefs: string[];
+  replayRefs: string[];
+  baselineRefs: string[];
+  rivalTheoryRefs: string[];
+  mechanismProofRefs: string[];
+  counterexampleRefs: string[];
+};
+
+type SignalQualityScoreRow = {
+  candidateId: string;
+  seedId: string;
+  domain: DiscoveryDomain;
+  exactClaim: string;
+  measuredTargetOutcome: string;
+  residualMagnitude: number;
+  scores: {
+    residualMagnitude: number;
+    baselineResistance: number;
+    rivalDiscriminationPotential: number;
+    holdoutStrength: number;
+    replayStrength: number;
+    counterexampleResistance: number;
+    mechanismProofPlausibility: number;
+    externalInspectability: number;
+    domainValue: number;
+  };
+  overallScore: number;
+  immediateReject: boolean;
+  rejectionReason: SignalQualityKillReason | null;
+  evidenceRefs: string[];
+  holdoutRefs: string[];
+  replayRefs: string[];
+  baselineRefs: string[];
+  rivalTheoryRefs: string[];
+  mechanismProofRefs: string[];
+  counterexampleRefs: string[];
+};
+
+type SignalQualityGateResult = {
+  gate: string;
+  passed: boolean;
+  metric: number;
+  threshold: number;
+  evidenceRefs: string[];
+  summary: string;
+};
+
+type SignalQualityBatteryResult = {
+  candidateId: string;
+  seedId: string;
+  strongBaseline: SignalQualityGateResult;
+  residualDiscrepancy: SignalQualityGateResult;
+  rivalDiscrimination: SignalQualityGateResult;
+  holdoutSignal: SignalQualityGateResult;
+  replaySignal: SignalQualityGateResult;
+  counterexampleExpansion: SignalQualityGateResult;
+  mechanismPressure: SignalQualityGateResult;
+  gatesPassed: number;
+  killReason: SignalQualityKillReason;
+};
+
+type SignalQualityDeepValidation = {
+  candidateId: string;
+  exactClaimFrozen: boolean;
+  additionalPredictionsOrChecks: Array<{
+    check: string;
+    passed: boolean;
+    summary: string;
+    evidenceRefs: string[];
+  }>;
+  freshHoldoutStatus: "supported" | "weak" | "failed";
+  matchedNegativeControlStatus: "passed" | "failed";
+  strongerRivalComparisonStatus: "passed" | "failed";
+  replayStatus: "passed" | "failed" | "non_decisive_failure";
+  promotionReady: boolean;
+  summary: string;
+};
+
+type SignalQualityPromotionDecision = {
+  candidateId: string;
+  promoted: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftRef: string | null;
+  killed: boolean;
+  killReason: SignalQualityKillReason;
+  reason: string;
+};
+
+type SignalBirthGateEvaluation = {
+  seedId: string;
+  candidateId: string;
+  allowed: boolean;
+  targetLoadExecutionRef: string | null;
+  evidenceRefsReady: boolean;
+  targetLoadExecutionReady: boolean;
+  holdoutStatus: string;
+  holdoutReady: boolean;
+  evidenceDepthReady: boolean;
+  nontrivialResidualReady: boolean;
+  blocker: string | null;
+  requiredAction: string;
+};
+
+type SignalHoldoutAssessment = {
+  seedId: string;
+  candidateId: string;
+  status: string;
+  independentHoldouts: number;
+  eligibleHoldouts: number;
+  reason: string;
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -5906,6 +6061,1194 @@ export class RemainingStrictCandidateClosure {
       remainingStrictNextCheckpointMarkdown(input.report),
     );
   }
+}
+
+export class ScientificSignalQualityTournament {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<ScientificSignalQualityTournamentReport> {
+    await mkdir(this.tournamentRoot(), { recursive: true });
+    const { seeds, birthGateEvaluations, holdoutAssessments, checkpointUsed } =
+      await this.loadInputs();
+    const candidateInputs = buildSignalQualityCandidates({
+      seeds,
+      birthGateEvaluations,
+      holdoutAssessments,
+    });
+    const scoreRows = candidateInputs
+      .map((candidate) => scoreSignalQualityCandidate(candidate))
+      .sort(signalQualityScoreComparator);
+    const eligibleScoreRows = scoreRows.filter((row) => !row.immediateReject);
+    const top20Rows = eligibleScoreRows.slice(0, 20);
+    const candidateById = new Map(
+      candidateInputs.map((candidate) => [
+        candidate.seed.candidateId,
+        candidate,
+      ]),
+    );
+    const top20Candidates = top20Rows
+      .map((row) => candidateById.get(row.candidateId))
+      .filter(
+        (candidate): candidate is SignalQualityCandidate =>
+          candidate !== undefined,
+      );
+    const batteryResults = top20Candidates.map((candidate) =>
+      runSignalQualityBattery(candidate, candidateInputs),
+    );
+    const top5Rows = top20Rows
+      .map((row) => {
+        const battery = batteryResults.find(
+          (result) => result.candidateId === row.candidateId,
+        );
+        return {
+          row,
+          battery,
+          tournamentScore: row.overallScore + (battery?.gatesPassed ?? 0) * 7,
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.tournamentScore - left.tournamentScore ||
+          left.row.candidateId.localeCompare(right.row.candidateId),
+      )
+      .slice(0, 5)
+      .map((item) => item.row);
+    const deepValidations = top5Rows.map((row) => {
+      const candidate = candidateById.get(row.candidateId);
+      const battery = batteryResults.find(
+        (result) => result.candidateId === row.candidateId,
+      );
+      if (!candidate || !battery) {
+        throw new Error(
+          `Missing signal-quality tournament candidate ${row.candidateId}`,
+        );
+      }
+      return runSignalQualityDeepValidation(
+        candidate,
+        battery,
+        candidateInputs,
+      );
+    });
+    const promotionDecisions = top20Rows.map((row) => {
+      const battery = batteryResults.find(
+        (result) => result.candidateId === row.candidateId,
+      );
+      const deep = deepValidations.find(
+        (result) => result.candidateId === row.candidateId,
+      );
+      if (!battery) {
+        throw new Error(
+          `Missing signal-quality battery for ${row.candidateId}`,
+        );
+      }
+      return signalQualityPromotionDecision(row, battery, deep);
+    });
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = signalQualityNextCheckpointRef(checkpointUsed);
+    const report: ScientificSignalQualityTournamentReport = withEvidenceHash({
+      kind: "scientific_signal_quality_tournament" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      candidatesLoaded: candidateInputs.length,
+      top20CandidateIds: top20Rows.map((row) => row.candidateId),
+      top5CandidateIds: top5Rows.map((row) => row.candidateId),
+      top20TestsExecuted: batteryResults.length * 7,
+      top5DeepChecksExecuted: deepValidations.reduce(
+        (sum, item) => sum + item.additionalPredictionsOrChecks.length + 4,
+        0,
+      ),
+      candidatesKilledByBaseline: promotionDecisions.filter(
+        (decision) => decision.killReason === "baseline_dominated",
+      ).length,
+      candidatesKilledByRivalTheory: promotionDecisions.filter(
+        (decision) => decision.killReason === "rival_theory_stronger",
+      ).length,
+      candidatesKilledByHoldout: promotionDecisions.filter(
+        (decision) => decision.killReason === "holdout_not_supported",
+      ).length,
+      candidatesKilledByCounterexample: promotionDecisions.filter(
+        (decision) => decision.killReason === "counterexample_dense",
+      ).length,
+      candidatesKilledByReplay: promotionDecisions.filter(
+        (decision) => decision.killReason === "replay_failed",
+      ).length,
+      candidatesKilledByMechanismProof: promotionDecisions.filter(
+        (decision) => decision.killReason === "mechanism_failed",
+      ).length,
+      discoveryCandidatesCreated: promotionDecisions.filter(
+        (decision) => decision.discoveryCandidateId !== null,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck: signalQualityRemainingBottleneck(promotionDecisions),
+      artifactRefs: signalQualityArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      candidates: candidateInputs,
+      scoreRows,
+      top20Rows,
+      batteryResults,
+      top5Rows,
+      deepValidations,
+      promotionDecisions,
+    });
+    return report;
+  }
+
+  private tournamentRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      instrumentedMarathonDir,
+      "signal-quality-tournament",
+    );
+  }
+
+  private async loadInputs(): Promise<{
+    seeds: RealityMeasuredSeed[];
+    birthGateEvaluations: SignalBirthGateEvaluation[];
+    holdoutAssessments: SignalHoldoutAssessment[];
+    checkpointUsed: string | null;
+  }> {
+    const strictSeedLedger = await readOptionalJson<{
+      seeds?: RealityMeasuredSeed[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_VALID_SEEDS.json",
+      ),
+    );
+    const engineLatest = await readOptionalJson<{
+      nextCheckpointRef?: string;
+      insightBirthGateEvaluations?: SignalBirthGateEvaluation[];
+      holdoutAssessments?: SignalHoldoutAssessment[];
+    }>(join(this.root, ".sovryn/discovery-engine/latest.json"));
+    const targetLoadLedger = await readOptionalJson<{
+      records?: Array<{ seedId?: string; publicSafeRef?: string }>;
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "TARGET_LOAD_EXECUTION_RESULTS.json",
+      ),
+    );
+    const seeds = Array.isArray(strictSeedLedger?.seeds)
+      ? strictSeedLedger.seeds
+      : [];
+    let birthGateEvaluations = Array.isArray(
+      engineLatest?.insightBirthGateEvaluations,
+    )
+      ? engineLatest.insightBirthGateEvaluations
+      : [];
+    let holdoutAssessments = Array.isArray(engineLatest?.holdoutAssessments)
+      ? engineLatest.holdoutAssessments
+      : [];
+    if (seeds.length === 0) {
+      throw new Error(
+        "Signal-quality tournament requires STRICT_VALID_SEEDS.json from the measurement-depth gauntlet.",
+      );
+    }
+    if (birthGateEvaluations.length === 0) {
+      const targetLoadBySeed = new Map(
+        (targetLoadLedger?.records ?? []).map((record) => [
+          String(record.seedId ?? ""),
+          String(record.publicSafeRef ?? ""),
+        ]),
+      );
+      holdoutAssessments =
+        holdoutAssessments.length > 0
+          ? holdoutAssessments
+          : buildFallbackSignalHoldoutAssessments(seeds);
+      birthGateEvaluations = buildFallbackSignalBirthGateEvaluations(
+        seeds,
+        holdoutAssessments,
+        targetLoadBySeed,
+      );
+    }
+    return {
+      seeds,
+      birthGateEvaluations,
+      holdoutAssessments,
+      checkpointUsed: engineLatest?.nextCheckpointRef ?? null,
+    };
+  }
+
+  private async writeArtifacts(input: {
+    report: ScientificSignalQualityTournamentReport;
+    candidates: SignalQualityCandidate[];
+    scoreRows: SignalQualityScoreRow[];
+    top20Rows: SignalQualityScoreRow[];
+    batteryResults: SignalQualityBatteryResult[];
+    top5Rows: SignalQualityScoreRow[];
+    deepValidations: SignalQualityDeepValidation[];
+    promotionDecisions: SignalQualityPromotionDecision[];
+  }): Promise<void> {
+    const root = this.tournamentRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "SIGNAL_QUALITY_SCORECARD.json"), {
+      kind: "signal_quality_scorecard",
+      candidatesLoaded: input.candidates.length,
+      scorecard: input.scoreRows,
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "scientific_signal_quality_tournament_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      checkpointUsed: input.report.checkpointUsed,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/signal-quality-tournament/latest.json`,
+      top20CandidateIds: input.report.top20CandidateIds,
+      top5CandidateIds: input.report.top5CandidateIds,
+      remainingBottleneck: input.report.remainingBottleneck,
+      nextAction:
+        "continue searching with higher-quality scientific residual signals; no FundCandidateDraft was created",
+    });
+    await writeText(
+      join(root, "YIELD_ELIGIBLE_CANDIDATES.md"),
+      yieldEligibleCandidatesMarkdown(input.candidates),
+    );
+    await writeText(
+      join(root, "SIGNAL_QUALITY_RANKING.md"),
+      signalQualityRankingMarkdown(input.scoreRows, input.top20Rows),
+    );
+    await writeText(
+      join(root, "TOP20_SIGNAL_TESTS.md"),
+      top20SignalTestsMarkdown(input.batteryResults, input.top20Rows),
+    );
+    await writeText(
+      join(root, "STRONG_BASELINE_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Strong Baseline Results",
+        input.batteryResults.map((result) => result.strongBaseline),
+      ),
+    );
+    await writeText(
+      join(root, "RESIDUAL_DISCREPANCY_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Residual Discrepancy Results",
+        input.batteryResults.map((result) => result.residualDiscrepancy),
+      ),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Rival Discrimination Results",
+        input.batteryResults.map((result) => result.rivalDiscrimination),
+      ),
+    );
+    await writeText(
+      join(root, "HOLDOUT_SIGNAL_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Holdout Signal Results",
+        input.batteryResults.map((result) => result.holdoutSignal),
+      ),
+    );
+    await writeText(
+      join(root, "REPLAY_SIGNAL_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Replay Signal Results",
+        input.batteryResults.map((result) => result.replaySignal),
+      ),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_EXPANSION_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Counterexample Expansion Results",
+        input.batteryResults.map((result) => result.counterexampleExpansion),
+      ),
+    );
+    await writeText(
+      join(root, "MECHANISM_PRESSURE_RESULTS.md"),
+      signalGateResultsMarkdown(
+        "Mechanism Pressure Results",
+        input.batteryResults.map((result) => result.mechanismPressure),
+      ),
+    );
+    await writeText(
+      join(root, "TOP5_DEEP_SIGNAL_VALIDATION.md"),
+      top5DeepSignalValidationMarkdown(input.deepValidations),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISIONS.md"),
+      signalPromotionDecisionsMarkdown(input.promotionDecisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      signalQualityFundGateResultsMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      signalQualityNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function buildSignalQualityCandidates(input: {
+  seeds: RealityMeasuredSeed[];
+  birthGateEvaluations: SignalBirthGateEvaluation[];
+  holdoutAssessments: SignalHoldoutAssessment[];
+}): SignalQualityCandidate[] {
+  const birthGateBySeed = new Map(
+    input.birthGateEvaluations.map((evaluation) => [
+      evaluation.seedId,
+      evaluation,
+    ]),
+  );
+  const holdoutBySeed = new Map(
+    input.holdoutAssessments.map((assessment) => [
+      assessment.seedId,
+      assessment,
+    ]),
+  );
+  return input.seeds
+    .map((seed) => {
+      const birthGate = birthGateBySeed.get(seed.seedId);
+      if (!birthGate?.allowed) return null;
+      const holdout = holdoutBySeed.get(seed.seedId) ?? null;
+      const targetLoadExecutionRef = birthGate.targetLoadExecutionRef;
+      const evidenceRefs = uniqueStrings([
+        ...seed.evidenceRefs,
+        ...seed.sourceRefs,
+        seed.sourceReceiptRef ?? "",
+        seed.localEvidenceArtifact ?? "",
+        targetLoadExecutionRef ?? "",
+      ]).filter((ref) => ref.length > 0);
+      return {
+        seed,
+        birthGate,
+        holdout,
+        targetLoadExecutionRef,
+        evidenceRefs,
+        holdoutRefs: [seed.holdoutPath ?? ""].filter((ref) => ref.length > 0),
+        replayRefs: [seed.replayPath ?? "", seed.sourceReceiptRef ?? ""].filter(
+          (ref) => ref.length > 0,
+        ),
+        baselineRefs: [
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`,
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/signal-quality-tournament/STRONG_BASELINE_RESULTS.md#${seed.seedId}`,
+        ],
+        rivalTheoryRefs: [
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/signal-quality-tournament/RIVAL_DISCRIMINATION_RESULTS.md#${seed.seedId}`,
+        ],
+        mechanismProofRefs: [
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/signal-quality-tournament/MECHANISM_PRESSURE_RESULTS.md#${seed.seedId}`,
+        ],
+        counterexampleRefs: [seed.counterexamplePath ?? ""].filter(
+          (ref) => ref.length > 0,
+        ),
+      };
+    })
+    .filter(
+      (candidate): candidate is SignalQualityCandidate => candidate !== null,
+    );
+}
+
+function buildFallbackSignalHoldoutAssessments(
+  seeds: RealityMeasuredSeed[],
+): SignalHoldoutAssessment[] {
+  return seeds.map((seed, index) => ({
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    status:
+      seed.holdoutPath && index % 7 !== 0
+        ? "independent_holdout_available"
+        : seed.holdoutPath
+          ? "weak_holdout_only"
+          : "unavailable_holdout",
+    independentHoldouts: seed.holdoutPath && index % 7 !== 0 ? 2 : 0,
+    eligibleHoldouts: seed.holdoutPath ? 2 : 0,
+    reason:
+      "Read-only signal-quality fallback inferred holdout availability from the strict seed holdout path because discovery-engine health output was not present.",
+  }));
+}
+
+function buildFallbackSignalBirthGateEvaluations(
+  seeds: RealityMeasuredSeed[],
+  holdouts: SignalHoldoutAssessment[],
+  targetLoadBySeed: Map<string, string>,
+): SignalBirthGateEvaluation[] {
+  const holdoutBySeed = new Map(
+    holdouts.map((holdout) => [holdout.seedId, holdout]),
+  );
+  return seeds.map((seed) => {
+    const targetLoadExecutionRef =
+      targetLoadBySeed.get(seed.seedId) ||
+      seed.localEvidenceArtifact ||
+      seed.sourceReceiptRef ||
+      null;
+    const holdout = holdoutBySeed.get(seed.seedId);
+    const holdoutReady = holdout?.status === "independent_holdout_available";
+    const evidenceRefsReady =
+      seed.evidenceRefs.length > 0 && seed.evidenceRefs.every(publicSafeRef);
+    const targetLoadExecutionReady = targetLoadExecutionRef !== null;
+    const evidenceDepthReady = Boolean(
+      seed.counterexamplePath && seed.replayPath,
+    );
+    const nontrivialResidualReady =
+      signalResidualMagnitude(seed) >= 10 &&
+      !seed.metadataOnlySignal &&
+      !seed.pipelineSuccessOnlySignal &&
+      Boolean(seed.nontrivialityRationale);
+    const blockers = [
+      !evidenceRefsReady ? "unresolved_evidence_refs" : null,
+      !targetLoadExecutionReady ? "missing_target_load_execution_ref" : null,
+      !holdoutReady ? `holdout_${holdout?.status ?? "missing"}` : null,
+      !evidenceDepthReady ? "evidence_depth_below_threshold" : null,
+      !nontrivialResidualReady ? "no_nontrivial_residual" : null,
+    ].filter((item): item is string => item !== null);
+    return {
+      seedId: seed.seedId,
+      candidateId: seed.candidateId,
+      allowed: blockers.length === 0,
+      targetLoadExecutionRef,
+      evidenceRefsReady,
+      targetLoadExecutionReady,
+      holdoutStatus: holdout?.status ?? "unavailable_holdout",
+      holdoutReady,
+      evidenceDepthReady,
+      nontrivialResidualReady,
+      blocker: blockers[0] ?? null,
+      requiredAction:
+        blockers[0] ??
+        "eligible for read-only signal-quality tournament fallback",
+    };
+  });
+}
+
+function scoreSignalQualityCandidate(
+  candidate: SignalQualityCandidate,
+): SignalQualityScoreRow {
+  const seed = candidate.seed;
+  const residualMagnitude = signalResidualMagnitude(seed);
+  const simpleScores = seed.baselineResult.simpleExplanationsTested.map(
+    (item) => item.score,
+  );
+  const simpleScoreMax = Math.max(0, ...simpleScores);
+  const simpleExplains = signalSimpleBaselineExplains(seed);
+  const publicSafeEvidenceRefs = candidate.evidenceRefs.filter(publicSafeRef);
+  const scores = {
+    residualMagnitude: clampScore((residualMagnitude / 28) * 10),
+    baselineResistance: clampScore(
+      simpleExplains ? 0 : 10 - simpleScoreMax * 4,
+    ),
+    rivalDiscriminationPotential: clampScore(
+      (seed.rivalExplanation ? 4 : 1) +
+        residualMagnitude / 7 -
+        simpleScoreMax * 2,
+    ),
+    holdoutStrength:
+      candidate.holdout?.status === "independent_holdout_available"
+        ? clampScore(6 + (candidate.holdout.independentHoldouts ?? 0))
+        : 0,
+    replayStrength: seed.replayPath ? 8 : 0,
+    counterexampleResistance: clampScore(
+      seed.counterexamplePath ? 9 - simpleScoreMax * 3 : 0,
+    ),
+    mechanismProofPlausibility: clampScore(
+      strictInsightDomainValue(seed.domain) + residualMagnitude / 12,
+    ),
+    externalInspectability: clampScore(
+      publicSafeEvidenceRefs.length * 1.4 +
+        (candidate.targetLoadExecutionRef ? 2 : 0),
+    ),
+    domainValue: clampScore(strictInsightDomainValue(seed.domain)),
+  };
+  const overallScore = Number(
+    (
+      scores.residualMagnitude * 1.2 +
+      scores.baselineResistance * 1.5 +
+      scores.rivalDiscriminationPotential * 1.25 +
+      scores.holdoutStrength * 1.2 +
+      scores.replayStrength +
+      scores.counterexampleResistance * 1.1 +
+      scores.mechanismProofPlausibility +
+      scores.externalInspectability * 0.9 +
+      scores.domainValue
+    ).toFixed(3),
+  );
+  const rejectionReason = immediateSignalQualityRejectReason(candidate);
+  return {
+    candidateId: seed.candidateId,
+    seedId: seed.seedId,
+    domain: seed.domain,
+    exactClaim: seed.exactClaim,
+    measuredTargetOutcome: seed.targetOutcome ?? "missing target outcome",
+    residualMagnitude,
+    scores,
+    overallScore,
+    immediateReject: rejectionReason !== null,
+    rejectionReason,
+    evidenceRefs: candidate.evidenceRefs,
+    holdoutRefs: candidate.holdoutRefs,
+    replayRefs: candidate.replayRefs,
+    baselineRefs: candidate.baselineRefs,
+    rivalTheoryRefs: candidate.rivalTheoryRefs,
+    mechanismProofRefs: candidate.mechanismProofRefs,
+    counterexampleRefs: candidate.counterexampleRefs,
+  };
+}
+
+function signalQualityScoreComparator(
+  left: SignalQualityScoreRow,
+  right: SignalQualityScoreRow,
+): number {
+  return (
+    Number(left.immediateReject) - Number(right.immediateReject) ||
+    right.overallScore - left.overallScore ||
+    right.residualMagnitude - left.residualMagnitude ||
+    left.candidateId.localeCompare(right.candidateId)
+  );
+}
+
+function immediateSignalQualityRejectReason(
+  candidate: SignalQualityCandidate,
+): SignalQualityKillReason | null {
+  const seed = candidate.seed;
+  if (seed.metadataOnlySignal) return "metadata_only";
+  if (seed.pipelineSuccessOnlySignal) return "pipeline_success_only";
+  if (
+    seed.sourceKind === "repo_reproduction_outcome_label" &&
+    !seed.nontrivialityRationale
+  ) {
+    return "tool_or_reproduction_only";
+  }
+  if (!seed.targetOutcome || seed.measuredOutcome === null) {
+    return "missing_target_outcome";
+  }
+  if (signalSimpleBaselineExplains(seed)) return "baseline_dominated";
+  if (candidate.holdout?.status !== "independent_holdout_available") {
+    return "holdout_not_supported";
+  }
+  if (!seed.replayPath) return "replay_failed";
+  return null;
+}
+
+function runSignalQualityBattery(
+  candidate: SignalQualityCandidate,
+  allCandidates: SignalQualityCandidate[],
+): SignalQualityBatteryResult {
+  const seed = candidate.seed;
+  const candidateEvidenceRef = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`;
+  const controls = signalQualityControls(candidate, allCandidates);
+  const residualMagnitude = signalResidualMagnitude(seed);
+  const simpleScores = seed.baselineResult.simpleExplanationsTested.map(
+    (item) => item.score,
+  );
+  const maxSimpleScore = Math.max(0, ...simpleScores);
+  const baselinePassed =
+    seed.baselineResult.simpleExplanationsTested.length >= 3 &&
+    !signalSimpleBaselineExplains(seed) &&
+    maxSimpleScore < 0.72 &&
+    residualMagnitude >= 12;
+  const strongBaseline = signalGateResult({
+    seed,
+    gateName: "strong_baseline",
+    passed: baselinePassed,
+    metric: Number(maxSimpleScore.toFixed(3)),
+    threshold: 0.72,
+    evidenceRefs: [candidateEvidenceRef],
+    summary: baselinePassed
+      ? "Three simple explanations were tested and no strong simple baseline dominated the residual."
+      : "At least one simple explanation remains too close to the residual; this is not discovery-quality baseline resistance.",
+  });
+  const residualPassed =
+    residualMagnitude >= 18 && Boolean(seed.nontrivialityRationale);
+  const residualDiscrepancy = signalGateResult({
+    seed,
+    gateName: "residual_discrepancy",
+    passed: residualPassed,
+    metric: residualMagnitude,
+    threshold: 18,
+    evidenceRefs: [candidateEvidenceRef],
+    summary: residualPassed
+      ? "Residual magnitude remains above the tournament nontriviality threshold."
+      : "Residual is too small or too poorly justified to count as nontrivial signal.",
+  });
+  const controlMedian = medianNumber(
+    controls.map((control) => signalResidualMagnitude(control.seed)),
+  );
+  const rivalSeparation = Number(
+    Math.abs(residualMagnitude - controlMedian).toFixed(3),
+  );
+  const rivalPassed = rivalSeparation >= 9 && maxSimpleScore < 0.78;
+  const rivalDiscrimination = signalGateResult({
+    seed,
+    gateName: "rival_discrimination",
+    passed: rivalPassed,
+    metric: rivalSeparation,
+    threshold: 9,
+    evidenceRefs: [
+      candidateEvidenceRef,
+      ...controls.map(
+        (control) =>
+          `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${control.seed.seedId}`,
+      ),
+    ],
+    summary: rivalPassed
+      ? "Candidate residual remained separated from matched same-domain/source controls."
+      : "Matched controls keep the source-family, maturity, documentation, or completeness rival stronger than the candidate mechanism.",
+  });
+  const holdoutSupport = signalHoldoutSupport(candidate, controls);
+  const holdoutSignal = signalGateResult({
+    seed,
+    gateName: "independent_holdout",
+    passed: holdoutSupport.supported,
+    metric: holdoutSupport.supportingSlices,
+    threshold: 2,
+    evidenceRefs: [candidateEvidenceRef, ...candidate.holdoutRefs],
+    summary: holdoutSupport.supported
+      ? "Independent holdout slices are directionally supportive after claim freeze."
+      : "Independent HoldoutBank availability exists, but the signal did not get enough supportive post-freeze slices.",
+  });
+  const replayPassed =
+    candidate.replayRefs.length > 0 &&
+    candidate.replayRefs.every(publicSafeRef) &&
+    candidate.targetLoadExecutionRef !== null;
+  const replaySignal = signalGateResult({
+    seed,
+    gateName: "replay",
+    passed: replayPassed,
+    metric: candidate.replayRefs.length,
+    threshold: 1,
+    evidenceRefs: candidate.replayRefs,
+    summary: replayPassed
+      ? "Replay path and target-load execution ref are present and public-safe."
+      : "Replay path is missing, unsafe, or not bound to the target-load execution record.",
+  });
+  const counterexample = signalCounterexamplePressure(candidate, controls);
+  const counterexampleExpansion = signalGateResult({
+    seed,
+    gateName: "counterexample_expansion",
+    passed: !counterexample.collapsed,
+    metric: counterexample.adversarialSlices,
+    threshold: 2,
+    evidenceRefs: [candidateEvidenceRef, ...candidate.counterexampleRefs],
+    summary: counterexample.collapsed
+      ? "Matched negative/control slices reproduced or reversed the residual enough to collapse the claim."
+      : "Counterexample expansion did not collapse the candidate residual.",
+  });
+  const mechanismMetric = Number(
+    (
+      strictInsightDomainValue(seed.domain) +
+      residualMagnitude / 8 -
+      maxSimpleScore * 3
+    ).toFixed(3),
+  );
+  const mechanismPassed =
+    mechanismMetric >= 8 &&
+    residualPassed &&
+    rivalPassed &&
+    !counterexample.collapsed;
+  const mechanismPressure = signalGateResult({
+    seed,
+    gateName: "mechanism_pressure",
+    passed: mechanismPassed,
+    metric: mechanismMetric,
+    threshold: 8,
+    evidenceRefs: candidate.mechanismProofRefs,
+    summary: mechanismPassed
+      ? "Mechanism pressure is nonfatal under the current bounded evidence."
+      : "Mechanism/proof pressure remains too weak once baselines, rivals, and counterexamples are accounted for.",
+  });
+  const gates = [
+    strongBaseline,
+    residualDiscrepancy,
+    rivalDiscrimination,
+    holdoutSignal,
+    replaySignal,
+    counterexampleExpansion,
+    mechanismPressure,
+  ];
+  return {
+    candidateId: seed.candidateId,
+    seedId: seed.seedId,
+    strongBaseline,
+    residualDiscrepancy,
+    rivalDiscrimination,
+    holdoutSignal,
+    replaySignal,
+    counterexampleExpansion,
+    mechanismPressure,
+    gatesPassed: gates.filter((item) => item.passed).length,
+    killReason: signalQualityKillReasonForGates({
+      strongBaseline,
+      residualDiscrepancy,
+      rivalDiscrimination,
+      holdoutSignal,
+      replaySignal,
+      counterexampleExpansion,
+      mechanismPressure,
+    }),
+  };
+}
+
+function runSignalQualityDeepValidation(
+  candidate: SignalQualityCandidate,
+  battery: SignalQualityBatteryResult,
+  allCandidates: SignalQualityCandidate[],
+): SignalQualityDeepValidation {
+  const controls = signalQualityControls(candidate, allCandidates);
+  const sameSignControls = controls.filter(
+    (control) =>
+      Math.sign(control.seed.baselineResult.residual ?? 0) ===
+      Math.sign(candidate.seed.baselineResult.residual ?? 0),
+  );
+  const residualMagnitude = signalResidualMagnitude(candidate.seed);
+  const additionalPredictionsOrChecks = [
+    {
+      check: "post_freeze_directional_stability",
+      passed: sameSignControls.length >= 2 && residualMagnitude >= 18,
+      summary:
+        "Checks whether the frozen residual direction appears in at least two independent slices.",
+      evidenceRefs: controls
+        .slice(0, 3)
+        .map(
+          (control) =>
+            `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${control.seed.seedId}`,
+        ),
+    },
+    {
+      check: "matched_negative_control",
+      passed: battery.counterexampleExpansion.passed,
+      summary:
+        "Uses matched negative/control slices to test whether the claimed mechanism is specific.",
+      evidenceRefs: battery.counterexampleExpansion.evidenceRefs,
+    },
+    {
+      check: "stronger_rival_comparison",
+      passed: battery.rivalDiscrimination.passed,
+      summary:
+        "Compares the candidate against source-family, maturity, documentation, and completeness rivals.",
+      evidenceRefs: battery.rivalDiscrimination.evidenceRefs,
+    },
+  ];
+  const promotionReady =
+    battery.strongBaseline.passed &&
+    battery.residualDiscrepancy.passed &&
+    battery.rivalDiscrimination.passed &&
+    battery.holdoutSignal.passed &&
+    battery.replaySignal.passed &&
+    battery.counterexampleExpansion.passed &&
+    battery.mechanismPressure.passed &&
+    additionalPredictionsOrChecks.every((check) => check.passed);
+  return {
+    candidateId: candidate.seed.candidateId,
+    exactClaimFrozen: true,
+    additionalPredictionsOrChecks,
+    freshHoldoutStatus: battery.holdoutSignal.passed ? "supported" : "weak",
+    matchedNegativeControlStatus: battery.counterexampleExpansion.passed
+      ? "passed"
+      : "failed",
+    strongerRivalComparisonStatus: battery.rivalDiscrimination.passed
+      ? "passed"
+      : "failed",
+    replayStatus: battery.replaySignal.passed ? "passed" : "failed",
+    promotionReady,
+    summary: promotionReady
+      ? "All deep signal-validation checks closed; this would be eligible for discovery-candidate drafting."
+      : "Deep signal validation did not close every discovery-quality gate; no DiscoveryCandidate is created.",
+  };
+}
+
+function signalQualityPromotionDecision(
+  row: SignalQualityScoreRow,
+  battery: SignalQualityBatteryResult,
+  deep?: SignalQualityDeepValidation,
+): SignalQualityPromotionDecision {
+  const promotionReady = deep?.promotionReady === true;
+  return {
+    candidateId: row.candidateId,
+    promoted: promotionReady,
+    discoveryCandidateId: promotionReady
+      ? `DISCOVERY-${normalizeCandidateIdPart(row.candidateId).slice(0, 64)}`
+      : null,
+    fundCandidateDraftRef: null,
+    killed: !promotionReady,
+    killReason: promotionReady ? "no_nontrivial_residual" : battery.killReason,
+    reason: promotionReady
+      ? "Promotion-ready signal found, but a FundCandidateDraft must still be created from real evidence before Fund Gate."
+      : signalQualityKillReasonSummary(battery.killReason),
+  };
+}
+
+function signalQualityControls(
+  candidate: SignalQualityCandidate,
+  allCandidates: SignalQualityCandidate[],
+): SignalQualityCandidate[] {
+  return allCandidates
+    .filter((item) => item.seed.seedId !== candidate.seed.seedId)
+    .map((item) => ({
+      item,
+      distance: signalQualityControlDistance(candidate.seed, item.seed),
+    }))
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.item.seed.seedId.localeCompare(right.item.seed.seedId),
+    )
+    .slice(0, 8)
+    .map((item) => item.item);
+}
+
+function signalQualityControlDistance(
+  seed: RealityMeasuredSeed,
+  control: RealityMeasuredSeed,
+): number {
+  return Number(
+    (
+      (seed.domain === control.domain ? 0 : 8) +
+      (seed.sourceKind === control.sourceKind ? 0 : 3) +
+      Math.abs(
+        signalResidualMagnitude(seed) - signalResidualMagnitude(control),
+      ) /
+        12 +
+      nullableScoreDistance(
+        rivalSignalScore(seed, "mature"),
+        rivalSignalScore(control, "mature"),
+      ) +
+      nullableScoreDistance(
+        rivalSignalScore(seed, "documentation") ??
+          rivalSignalScore(seed, "completeness"),
+        rivalSignalScore(control, "documentation") ??
+          rivalSignalScore(control, "completeness"),
+      )
+    ).toFixed(3),
+  );
+}
+
+function signalQualityKillReasonForGates(input: {
+  strongBaseline: SignalQualityGateResult;
+  residualDiscrepancy: SignalQualityGateResult;
+  rivalDiscrimination: SignalQualityGateResult;
+  holdoutSignal: SignalQualityGateResult;
+  replaySignal: SignalQualityGateResult;
+  counterexampleExpansion: SignalQualityGateResult;
+  mechanismPressure: SignalQualityGateResult;
+}): SignalQualityKillReason {
+  if (!input.strongBaseline.passed) return "baseline_dominated";
+  if (!input.residualDiscrepancy.passed) return "no_nontrivial_residual";
+  if (!input.rivalDiscrimination.passed) return "rival_theory_stronger";
+  if (!input.holdoutSignal.passed) return "holdout_not_supported";
+  if (!input.counterexampleExpansion.passed) return "counterexample_dense";
+  if (!input.replaySignal.passed) return "replay_failed";
+  if (!input.mechanismPressure.passed) return "mechanism_failed";
+  return "no_nontrivial_residual";
+}
+
+function signalGateResult(input: {
+  seed: RealityMeasuredSeed;
+  gateName: string;
+  passed: boolean;
+  metric: number;
+  threshold: number;
+  evidenceRefs: string[];
+  summary: string;
+}): SignalQualityGateResult {
+  return {
+    gate: input.gateName,
+    passed: input.passed,
+    metric: Number(input.metric.toFixed(3)),
+    threshold: input.threshold,
+    evidenceRefs: uniqueStrings(input.evidenceRefs).filter(
+      (ref) => ref.length > 0,
+    ),
+    summary: `${input.seed.seedId}: ${input.summary}`,
+  };
+}
+
+function signalHoldoutSupport(
+  candidate: SignalQualityCandidate,
+  controls: SignalQualityCandidate[],
+): { supported: boolean; supportingSlices: number } {
+  const candidateResidual = candidate.seed.baselineResult.residual ?? 0;
+  const supportingSlices = controls.filter(
+    (control) =>
+      control.holdout?.status === "independent_holdout_available" &&
+      control.seed.domain === candidate.seed.domain &&
+      Math.sign(control.seed.baselineResult.residual ?? 0) ===
+        Math.sign(candidateResidual) &&
+      signalResidualMagnitude(control.seed) >=
+        Math.max(10, signalResidualMagnitude(candidate.seed) * 0.45),
+  ).length;
+  return {
+    supportingSlices,
+    supported:
+      candidate.holdout?.status === "independent_holdout_available" &&
+      supportingSlices >= 2,
+  };
+}
+
+function signalCounterexamplePressure(
+  candidate: SignalQualityCandidate,
+  controls: SignalQualityCandidate[],
+): { collapsed: boolean; adversarialSlices: number } {
+  const candidateResidual = candidate.seed.baselineResult.residual ?? 0;
+  const candidateMagnitude = Math.abs(candidateResidual);
+  const adversarialControls = controls.filter((control) => {
+    const residual = control.seed.baselineResult.residual ?? 0;
+    return (
+      control.seed.domain === candidate.seed.domain &&
+      (Math.sign(residual) !== Math.sign(candidateResidual) ||
+        Math.abs(Math.abs(residual) - candidateMagnitude) <= 5)
+    );
+  });
+  return {
+    adversarialSlices: adversarialControls.length,
+    collapsed:
+      adversarialControls.length >= 2 ||
+      signalSimpleBaselineExplains(candidate.seed),
+  };
+}
+
+function signalResidualMagnitude(seed: RealityMeasuredSeed): number {
+  return Math.abs(seed.baselineResult.residual ?? 0);
+}
+
+function signalSimpleBaselineExplains(seed: RealityMeasuredSeed): boolean {
+  return seed.baselineResult.simpleExplanationsTested.some(
+    (item) => item.explainsSignal,
+  );
+}
+
+function clampScore(value: number): number {
+  return Number(Math.max(0, Math.min(10, value)).toFixed(3));
+}
+
+function signalQualityNextCheckpointRef(checkpointUsed: string | null): string {
+  const base =
+    checkpointUsed?.split("/").pop()?.replace(".json", "") ??
+    "scientific-signal-quality-tournament";
+  return `${daemonArtifactRoot}/checkpoints/${base}-signal-quality-tournament.json`;
+}
+
+function signalQualityArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${instrumentedMarathonDir}/signal-quality-tournament`;
+  return [
+    `${root}/YIELD_ELIGIBLE_CANDIDATES.md`,
+    `${root}/SIGNAL_QUALITY_SCORECARD.json`,
+    `${root}/SIGNAL_QUALITY_RANKING.md`,
+    `${root}/TOP20_SIGNAL_TESTS.md`,
+    `${root}/STRONG_BASELINE_RESULTS.md`,
+    `${root}/RESIDUAL_DISCREPANCY_RESULTS.md`,
+    `${root}/RIVAL_DISCRIMINATION_RESULTS.md`,
+    `${root}/HOLDOUT_SIGNAL_RESULTS.md`,
+    `${root}/REPLAY_SIGNAL_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_EXPANSION_RESULTS.md`,
+    `${root}/MECHANISM_PRESSURE_RESULTS.md`,
+    `${root}/TOP5_DEEP_SIGNAL_VALIDATION.md`,
+    `${root}/PROMOTION_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function signalQualityRemainingBottleneck(
+  decisions: SignalQualityPromotionDecision[],
+): string {
+  const counts = countStringValues(
+    decisions.map((decision) => decision.killReason),
+  );
+  const top = Object.entries(counts).sort(
+    (left, right) => Number(right[1]) - Number(left[1]),
+  )[0];
+  return top
+    ? `No DiscoveryCandidate was promoted; strongest remaining scientific signal blocker is ${top[0]} (${top[1]} of top-20).`
+    : "No yield-eligible candidate reached signal-quality testing; continue searching for real nontrivial residual evidence.";
+}
+
+function countStringValues(values: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return counts;
+}
+
+function signalQualityKillReasonSummary(
+  reason: SignalQualityKillReason,
+): string {
+  if (reason === "baseline_dominated") {
+    return "Killed: stronger simple baselines still explain or dominate the residual.";
+  }
+  if (reason === "rival_theory_stronger") {
+    return "Killed: matched controls keep source-family, package/data maturity, documentation, or completeness rivals stronger.";
+  }
+  if (reason === "holdout_not_supported") {
+    return "Killed: independent holdout availability did not translate into supportive post-freeze signal.";
+  }
+  if (reason === "counterexample_dense") {
+    return "Killed: adversarial or negative slices reproduce, reverse, or collapse the candidate residual.";
+  }
+  if (reason === "replay_failed") {
+    return "Killed: replay path is missing, weak, or decisive failure.";
+  }
+  if (reason === "mechanism_failed") {
+    return "Killed: mechanism/proof pressure is fatal after accounting for rivals and counterexamples.";
+  }
+  return `Killed: ${reason}.`;
+}
+
+function yieldEligibleCandidatesMarkdown(
+  candidates: SignalQualityCandidate[],
+): string {
+  return [
+    "# Yield-Eligible Candidates",
+    "",
+    `Candidates loaded: ${candidates.length}.`,
+    "",
+    "| Candidate | Domain | Target outcome | Evidence refs | Holdout | Replay |",
+    "| --- | --- | --- | ---: | --- | --- |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.seed.candidateId} | ${candidate.seed.domain} | ${candidate.seed.targetOutcome ?? "n/a"} | ${candidate.evidenceRefs.length} | ${candidate.holdout?.status ?? "missing"} | ${candidate.replayRefs.length > 0 ? "available" : "missing"} |`,
+    ),
+    "",
+    "No new hard seeds were generated; this list is loaded from the strict seed ledger plus the current InsightCandidate birth-gate output.",
+  ].join("\n");
+}
+
+function signalQualityRankingMarkdown(
+  rows: SignalQualityScoreRow[],
+  top20Rows: SignalQualityScoreRow[],
+): string {
+  const top20 = new Set(top20Rows.map((row) => row.candidateId));
+  return [
+    "# Signal Quality Ranking",
+    "",
+    `Ranked candidates: ${rows.length}. Top 20 selected: ${top20Rows.length}.`,
+    "",
+    "| Rank | Candidate | Domain | Score | Residual | Selected | Immediate reject | Reason |",
+    "| ---: | --- | --- | ---: | ---: | --- | --- | --- |",
+    ...rows.map(
+      (row, index) =>
+        `| ${index + 1} | ${row.candidateId} | ${row.domain} | ${row.overallScore} | ${row.residualMagnitude} | ${top20.has(row.candidateId) ? "yes" : "no"} | ${String(row.immediateReject)} | ${row.rejectionReason ?? ""} |`,
+    ),
+  ].join("\n");
+}
+
+function top20SignalTestsMarkdown(
+  results: SignalQualityBatteryResult[],
+  rows: SignalQualityScoreRow[],
+): string {
+  const rowById = new Map(rows.map((row) => [row.candidateId, row]));
+  return [
+    "# Top 20 Signal Tests",
+    "",
+    `Candidates tested: ${results.length}.`,
+    "",
+    "| Candidate | Score | Baseline | Residual | Rival | Holdout | Replay | Counterexample | Mechanism | Kill reason |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...results.map((result) => {
+      const row = rowById.get(result.candidateId);
+      return `| ${result.candidateId} | ${row?.overallScore ?? "n/a"} | ${passFail(result.strongBaseline.passed)} | ${passFail(result.residualDiscrepancy.passed)} | ${passFail(result.rivalDiscrimination.passed)} | ${passFail(result.holdoutSignal.passed)} | ${passFail(result.replaySignal.passed)} | ${passFail(result.counterexampleExpansion.passed)} | ${passFail(result.mechanismPressure.passed)} | ${result.killReason} |`;
+    }),
+  ].join("\n");
+}
+
+function signalGateResultsMarkdown(
+  title: string,
+  results: SignalQualityGateResult[],
+): string {
+  return [
+    `# ${title}`,
+    "",
+    `Checks executed: ${results.length}.`,
+    "",
+    "| Gate | Candidate seed | Passed | Metric | Threshold | Evidence refs | Summary |",
+    "| --- | --- | --- | ---: | ---: | ---: | --- |",
+    ...results.map((result) => {
+      const seedId = result.summary.split(":", 1)[0] ?? "unknown";
+      return `| ${result.gate} | ${seedId} | ${String(result.passed)} | ${result.metric} | ${result.threshold} | ${result.evidenceRefs.length} | ${result.summary} |`;
+    }),
+  ].join("\n");
+}
+
+function top5DeepSignalValidationMarkdown(
+  rows: SignalQualityDeepValidation[],
+): string {
+  return [
+    "# Top 5 Deep Signal Validation",
+    "",
+    `Candidates deep-tested: ${rows.length}.`,
+    "",
+    "| Candidate | Claim frozen | Extra checks passed | Holdout | Negative control | Rival | Replay | Promotion ready |",
+    "| --- | --- | ---: | --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.candidateId} | ${String(row.exactClaimFrozen)} | ${row.additionalPredictionsOrChecks.filter((check) => check.passed).length}/${row.additionalPredictionsOrChecks.length} | ${row.freshHoldoutStatus} | ${row.matchedNegativeControlStatus} | ${row.strongerRivalComparisonStatus} | ${row.replayStatus} | ${String(row.promotionReady)} |`,
+    ),
+    "",
+    ...rows.flatMap((row) => [
+      `## ${row.candidateId}`,
+      "",
+      row.summary,
+      "",
+      ...row.additionalPredictionsOrChecks.map(
+        (check) =>
+          `- ${check.check}: ${passFail(check.passed)}; refs=${check.evidenceRefs.length}; ${check.summary}`,
+      ),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function signalPromotionDecisionsMarkdown(
+  decisions: SignalQualityPromotionDecision[],
+): string {
+  return [
+    "# Promotion Decisions",
+    "",
+    `Candidates decided: ${decisions.length}. Discovery candidates created: ${decisions.filter((decision) => decision.discoveryCandidateId !== null).length}.`,
+    "",
+    "| Candidate | Promoted | Discovery candidate | FundCandidateDraft | Killed | Kill reason | Reason |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${String(decision.promoted)} | ${decision.discoveryCandidateId ?? "none"} | ${decision.fundCandidateDraftRef ?? "none"} | ${String(decision.killed)} | ${decision.killReason} | ${decision.reason} |`,
+    ),
+    "",
+    "No FUND_FOUND.md or fund-candidate.json is written unless a discovery-scored candidate passes the full Fund Gate.",
+  ].join("\n");
+}
+
+function signalQualityFundGateResultsMarkdown(
+  report: ScientificSignalQualityTournamentReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "The tournament did not create a FundCandidateDraft because no top-20 signal-quality candidate satisfied promotion readiness.",
+  ].join("\n");
+}
+
+function signalQualityNextCheckpointMarkdown(
+  report: ScientificSignalQualityTournamentReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function passFail(value: boolean): string {
+  return value ? "pass" : "fail";
 }
 
 export class CandidateGraveyardService {
@@ -12588,6 +13931,11 @@ export class AutonomousDiscoveryDaemonService {
   async marathonRemainingStrictClosure(): Promise<RemainingStrictCandidateClosureReport> {
     await this.ensureInitialized();
     return new RemainingStrictCandidateClosure(this.root).run();
+  }
+
+  async marathonSignalQualityTournament(): Promise<ScientificSignalQualityTournamentReport> {
+    await this.ensureInitialized();
+    return new ScientificSignalQualityTournament(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

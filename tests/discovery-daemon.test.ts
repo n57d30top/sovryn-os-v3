@@ -81,6 +81,7 @@ const commands = [
   "raw-evidence-reset",
   "cross-source-residual-search",
   "generative-experiments",
+  "tool-expansion",
   "raw-insight-gate-closure",
   "cycle",
   "candidate-status",
@@ -3228,6 +3229,167 @@ test("discover-daemon generative-experiments CLI is bounded and silent", async (
   assert.equal(
     (response.data as Record<string, unknown>).insightCandidatesCreated,
     0,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon tool-expansion provisions domain instruments and creates measurement hard seeds without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.toolExpansion();
+
+  assert.equal(report.kind, "discovery_tool_expansion");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.deepEqual(report.domainsCovered, [
+    "computational_materials",
+    "astrophysics",
+    "climate_energy",
+    "formal_math_proof",
+    "benchmark_methodology",
+    "scientific_software_reproduction",
+  ]);
+  assert.ok(report.toolsIdentified >= 18);
+  assert.ok(report.toolsProvisioned >= 15);
+  assert.ok(report.toolsUnavailableOrDeferred >= 2);
+  assert.equal(report.capabilityCardsCreated, report.toolsProvisioned);
+  assert.equal(report.evidencePipelinesBuilt, 6);
+  assert.equal(report.publicTargetsMeasured, 6);
+  assert.equal(report.hardSeedsGenerated, 6);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "DOMAIN_TOOL_NEEDS.md",
+    "DOMAIN_TOOL_NEEDS.json",
+    "SAFE_INSTALLABLE_TOOLS.md",
+    "SAFE_INSTALLABLE_TOOLS.json",
+    "TOOL_PROVISIONING_EVIDENCE.json",
+    "TOOL_CAPABILITY_CARDS.md",
+    "TOOL_CAPABILITY_CARDS.json",
+    "DOMAIN_EVIDENCE_PIPELINES.md",
+    "DOMAIN_EVIDENCE_PIPELINES.json",
+    "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.md",
+    "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "tool-expansion", artifact)),
+      true,
+      artifact,
+    );
+  }
+  const pipelinePayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "tool-expansion",
+        "DOMAIN_EVIDENCE_PIPELINES.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    pipelines: Array<{
+      tools: string[];
+      producedArtifact: string;
+      hardSeedCreated: boolean;
+      measuredVariable: string;
+    }>;
+  };
+  assert.equal(pipelinePayload.pipelines.length, 6);
+  assert.equal(
+    pipelinePayload.pipelines.every((pipeline) => pipeline.hardSeedCreated),
+    true,
+  );
+  assert.equal(
+    new Set(pipelinePayload.pipelines.flatMap((pipeline) => pipeline.tools))
+      .size >= 12,
+    true,
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("pymatgen"),
+    ),
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("astropy"),
+    ),
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("xarray"),
+    ),
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("z3-solver"),
+    ),
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("openml"),
+    ),
+  );
+  assert.ok(
+    pipelinePayload.pipelines.some((pipeline) =>
+      pipeline.tools.includes("pytest"),
+    ),
+  );
+  for (const pipeline of pipelinePayload.pipelines) {
+    assert.ok(pipeline.measuredVariable.length > 0);
+    assert.equal(await exists(join(root, pipeline.producedArtifact)), true);
+  }
+  const hardSeedPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "tool-expansion",
+        "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json",
+      ),
+      "utf8",
+    ),
+  ) as { hardSeeds: Array<{ sourceRefs: string[]; toolRefs: string[] }> };
+  assert.equal(hardSeedPayload.hardSeeds.length, 6);
+  assert.equal(
+    hardSeedPayload.hardSeeds.every(
+      (seed) => seed.sourceRefs.length >= 2 && seed.toolRefs.length >= 2,
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon tool-expansion CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "tool-expansion", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "discovery_tool_expansion",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).evidencePipelinesBuilt,
+    6,
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).hardSeedsGenerated,
+    6,
   );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);

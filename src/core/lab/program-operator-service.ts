@@ -71,6 +71,138 @@ const PROGRAMS: ProgramDefinition[] = [
     exampleTasks: ["graph-smoke"],
   },
   {
+    programName: "pymatgen",
+    version: "2025.1.fixture",
+    category: "computational materials",
+    capabilities: [
+      "composition_descriptors",
+      "formula_parsing",
+      "materials_property_feature_extraction",
+    ],
+    exampleTasks: ["composition-feature-smoke"],
+  },
+  {
+    programName: "matminer",
+    version: "0.9.fixture",
+    category: "computational materials",
+    capabilities: [
+      "materials_featurization",
+      "matbench_style_feature_table",
+      "composition_baseline_features",
+    ],
+    exampleTasks: ["materials-featurization-smoke"],
+  },
+  {
+    programName: "ase",
+    version: "3.23.fixture",
+    category: "atomistic simulation",
+    capabilities: [
+      "structure_io",
+      "atomistic_geometry_descriptors",
+      "safe_toy_calculator",
+    ],
+    exampleTasks: ["structure-geometry-smoke"],
+  },
+  {
+    programName: "astropy",
+    version: "6.1.fixture",
+    category: "astrophysics",
+    capabilities: [
+      "unit_aware_catalog_tables",
+      "coordinate_transforms",
+      "time_series_summary",
+    ],
+    exampleTasks: ["catalog-coordinate-smoke"],
+  },
+  {
+    programName: "astroquery",
+    version: "0.4.fixture",
+    category: "astrophysics catalog access",
+    capabilities: [
+      "public_catalog_query_planning",
+      "source_receipt_capture",
+      "catalog_metadata_normalization",
+    ],
+    exampleTasks: ["catalog-query-smoke"],
+  },
+  {
+    programName: "xarray",
+    version: "2025.1.fixture",
+    category: "climate / labeled arrays",
+    capabilities: [
+      "labeled_multidimensional_arrays",
+      "climate_grid_slice_summary",
+      "coordinate_aligned_residuals",
+    ],
+    exampleTasks: ["climate-grid-smoke"],
+  },
+  {
+    programName: "netcdf4",
+    version: "1.7.fixture",
+    category: "climate / netCDF",
+    capabilities: [
+      "netcdf_metadata_validation",
+      "dimension_variable_checks",
+      "public_grid_file_receipts",
+    ],
+    exampleTasks: ["netcdf-metadata-smoke"],
+  },
+  {
+    programName: "statsmodels",
+    version: "0.14.fixture",
+    category: "statistical modeling",
+    capabilities: [
+      "ols_baseline_models",
+      "time_series_diagnostics",
+      "residual_autocorrelation_checks",
+    ],
+    exampleTasks: ["ols-baseline-smoke"],
+  },
+  {
+    programName: "openml",
+    version: "0.15.fixture",
+    category: "benchmark methodology",
+    capabilities: [
+      "benchmark_dataset_metadata",
+      "task_split_receipts",
+      "benchmark_result_context",
+    ],
+    exampleTasks: ["benchmark-metadata-smoke"],
+  },
+  {
+    programName: "xgboost",
+    version: "2.1.fixture",
+    category: "benchmark methodology",
+    capabilities: [
+      "gradient_boosted_baseline",
+      "tabular_performance_delta",
+      "feature_importance_probe",
+    ],
+    exampleTasks: ["boosted-baseline-smoke"],
+  },
+  {
+    programName: "pytest",
+    version: "8.3.fixture",
+    category: "scientific software reproduction",
+    capabilities: [
+      "test_outcome_capture",
+      "example_replay_status",
+      "runtime_failure_classification",
+    ],
+    exampleTasks: ["test-replay-smoke"],
+  },
+  {
+    programName: "tox",
+    version: "4.20.fixture",
+    category: "scientific software reproduction",
+    capabilities: [
+      "environment_matrix_planning",
+      "reproduction_environment_summary",
+      "dependency_behavior_probe",
+    ],
+    exampleTasks: ["environment-matrix-smoke"],
+  },
+  {
     programName: "lean",
     version: "unavailable",
     category: "optional formal proof",
@@ -401,6 +533,109 @@ export class ProgramOperatorService {
         edges: 4,
         shortestPath: ["source", "candidate", "validation"],
         degreeCentrality: { candidate: 0.67 },
+      };
+    }
+    if (programName === "pymatgen") {
+      return {
+        passed: taskId === "composition-feature-smoke",
+        formula: "Fe2O3",
+        elementCount: 2,
+        totalAtoms: 5,
+        reducedFormula: "Fe2O3",
+        descriptorVector: { transitionMetalFraction: 0.4, oxygenFraction: 0.6 },
+      };
+    }
+    if (programName === "matminer") {
+      return {
+        passed: taskId === "materials-featurization-smoke",
+        rows: 4,
+        generatedFeatures: [
+          "stoichiometry_l2_norm",
+          "element_property_mean",
+          "valence_orbital_fraction",
+        ],
+        baselineFeatureReady: true,
+      };
+    }
+    if (programName === "ase") {
+      return {
+        passed: taskId === "structure-geometry-smoke",
+        atoms: 4,
+        centerOfMass: [0.5, 0.5, 0.5],
+        pairDistanceSummary: { min: 1, max: 1.73, mean: 1.24 },
+      };
+    }
+    if (programName === "astropy") {
+      return {
+        passed: taskId === "catalog-coordinate-smoke",
+        rows: 5,
+        unitsValidated: true,
+        coordinateFrame: "icrs",
+        residualColumn: "radius_residual",
+      };
+    }
+    if (programName === "astroquery") {
+      return {
+        passed: taskId === "catalog-query-smoke",
+        publicCatalog: "NASA Exoplanet Archive fixture receipt",
+        queryPlanned: true,
+        sourceReceiptCaptured: true,
+      };
+    }
+    if (programName === "xarray") {
+      return {
+        passed: taskId === "climate-grid-smoke",
+        dimensions: { time: 4, latitude: 2, longitude: 2 },
+        coordinateAligned: true,
+        gridMean: 12.4,
+      };
+    }
+    if (programName === "netcdf4") {
+      return {
+        passed: taskId === "netcdf-metadata-smoke",
+        dimensionsValidated: ["time", "lat", "lon"],
+        variablesValidated: ["temperature", "load"],
+        globalAttributesPresent: true,
+      };
+    }
+    if (programName === "statsmodels") {
+      return {
+        passed: taskId === "ols-baseline-smoke",
+        model: "ols-fixture",
+        coefficients: { intercept: 1.2, predictor: 0.31 },
+        residualStdError: 0.42,
+      };
+    }
+    if (programName === "openml") {
+      return {
+        passed: taskId === "benchmark-metadata-smoke",
+        taskId: 31,
+        splitReceiptCaptured: true,
+        outcomeMetric: "accuracy_delta",
+      };
+    }
+    if (programName === "xgboost") {
+      return {
+        passed: taskId === "boosted-baseline-smoke",
+        model: "gradient-boosted-fixture",
+        baselineDelta: 0.03,
+        featureImportanceProbe: true,
+      };
+    }
+    if (programName === "pytest") {
+      return {
+        passed: taskId === "test-replay-smoke",
+        testsCollected: 8,
+        testsPassed: 7,
+        failuresClassified: ["optional_dependency_missing"],
+      };
+    }
+    if (programName === "tox") {
+      return {
+        passed: taskId === "environment-matrix-smoke",
+        environmentsPlanned: ["py310", "py311"],
+        matrixReplayReady: true,
+        hostMutationRequired: false,
       };
     }
     return { passed: false, error: "unknown_program_task" };

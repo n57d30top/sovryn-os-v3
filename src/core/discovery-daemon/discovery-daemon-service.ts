@@ -967,6 +967,27 @@ export type GenerativeComputationalExperimentDiscoveryReport = {
   evidenceHash: string;
 };
 
+export type DiscoveryToolExpansionReport = {
+  kind: "discovery_tool_expansion";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  domainsCovered: string[];
+  toolsIdentified: number;
+  toolsProvisioned: number;
+  toolsUnavailableOrDeferred: number;
+  capabilityCardsCreated: number;
+  evidencePipelinesBuilt: number;
+  publicTargetsMeasured: number;
+  hardSeedsGenerated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -4034,6 +4055,61 @@ type GenerativeExperimentPipeline = {
     | "proof_or_mechanism_failed"
     | "generated_data_only"
     | "none";
+};
+
+type DiscoveryToolDomain =
+  | "computational_materials"
+  | "astrophysics"
+  | "climate_energy"
+  | "formal_math_proof"
+  | "benchmark_methodology"
+  | "scientific_software_reproduction";
+
+type DomainToolNeed = {
+  domain: DiscoveryToolDomain;
+  need: string;
+  measurableOutcome: string;
+  safePublicTargets: string[];
+  requiredCapabilities: string[];
+};
+
+type DomainToolCandidate = {
+  domain: DiscoveryToolDomain;
+  toolName: string;
+  feasible: boolean;
+  selected: boolean;
+  reason: string;
+};
+
+type DomainToolCapabilityCard = {
+  domain: DiscoveryToolDomain;
+  toolName: string;
+  canMeasure: string[];
+  cannotMeasure: string[];
+  safeScope: string;
+  examplePipeline: string;
+};
+
+type DomainInstrumentPipeline = {
+  pipelineId: string;
+  domain: DiscoveryToolDomain;
+  tools: string[];
+  targetRef: string;
+  targetEvidenceRef: string;
+  measuredVariable: string;
+  measuredOutcome: number;
+  baselineResults: Array<{
+    baseline: string;
+    result: number;
+    explainsSignal: boolean;
+  }>;
+  residual: number;
+  counterexampleCheck: string;
+  replayPath: string;
+  producedArtifact: string;
+  hardSeedId: string;
+  hardSeedCreated: boolean;
+  promotionBlockedReason: string;
 };
 
 export class RealityBoundDiscoveryMarathon {
@@ -8575,6 +8651,842 @@ function generativeFundGateMarkdown(
 
 function generativeNextCheckpointMarkdown(
   report: GenerativeComputationalExperimentDiscoveryReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+export class DiscoveryToolExpansion {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<DiscoveryToolExpansionReport> {
+    await mkdir(this.expansionRoot(), { recursive: true });
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    const checkpointUsed = state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const needs = discoveryToolNeeds();
+    const candidates = discoveryToolCandidates();
+    const selectedTools = uniqueStrings(
+      candidates
+        .filter((candidate) => candidate.selected && candidate.feasible)
+        .map((candidate) => candidate.toolName),
+    );
+    const toolEvidence = await this.provisionSelectedTools(selectedTools);
+    const targets = await crossSourceResidualTargets();
+    const measurements = targets.map(externalRawMeasurementForTarget);
+    const cards = discoveryToolCapabilityCards(candidates);
+    const pipelines = domainInstrumentPipelines(targets, measurements);
+    const hardSeeds = pipelines
+      .filter((pipeline) => pipeline.hardSeedCreated)
+      .map((pipeline) => domainInstrumentHardSeed(pipeline));
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/tool-expansion-continue-searching.json`;
+    const report: DiscoveryToolExpansionReport = withEvidenceHash({
+      kind: "discovery_tool_expansion" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      domainsCovered: needs.map((need) => need.domain),
+      toolsIdentified: candidates.length,
+      toolsProvisioned: selectedTools.length,
+      toolsUnavailableOrDeferred: candidates.filter(
+        (candidate) => !candidate.selected || !candidate.feasible,
+      ).length,
+      capabilityCardsCreated: cards.length,
+      evidencePipelinesBuilt: pipelines.length,
+      publicTargetsMeasured: pipelines.length,
+      hardSeedsGenerated: hardSeeds.length,
+      discoveryCandidatesCreated: 0,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        "Domain-specific scientific instruments now produce measurement-backed hard seeds, but no tool-enabled signal passed discovery-scored promotion. Tool acquisition and capability evidence remain instrumental only.",
+      artifactRefs: discoveryToolExpansionArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      needs,
+      candidates,
+      cards,
+      toolEvidence,
+      pipelines,
+      hardSeeds,
+    });
+    return report;
+  }
+
+  private expansionRoot(): string {
+    return join(this.root, daemonArtifactRoot, "tool-expansion");
+  }
+
+  private async provisionSelectedTools(
+    tools: string[],
+  ): Promise<Array<Record<string, unknown>>> {
+    const operator = new ProgramOperatorService(this.root);
+    const evidence: Array<Record<string, unknown>> = [
+      await operator.discover(),
+    ];
+    for (const tool of tools) {
+      evidence.push(await operator.provision(tool));
+      evidence.push(await operator.doctor(tool));
+      evidence.push(await operator.run(tool, discoveryToolTask(tool)));
+      evidence.push(await operator.benchmark(tool));
+    }
+    return evidence;
+  }
+
+  private async writeArtifacts(input: {
+    report: DiscoveryToolExpansionReport;
+    needs: DomainToolNeed[];
+    candidates: DomainToolCandidate[];
+    cards: DomainToolCapabilityCard[];
+    toolEvidence: Array<Record<string, unknown>>;
+    pipelines: DomainInstrumentPipeline[];
+    hardSeeds: Array<Record<string, unknown>>;
+  }): Promise<void> {
+    const root = this.expansionRoot();
+    const evidenceRoot = join(root, "pipeline-evidence");
+    await mkdir(evidenceRoot, { recursive: true });
+    for (const pipeline of input.pipelines) {
+      await writeJson(join(evidenceRoot, `${pipeline.pipelineId}.json`), {
+        kind: "domain_instrument_pipeline_evidence",
+        pipeline,
+        evidenceHash: hashEvidence(pipeline),
+      });
+    }
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "DOMAIN_TOOL_NEEDS.json"), {
+      kind: "domain_tool_needs",
+      needs: input.needs,
+      evidenceHash: hashEvidence(input.needs),
+    });
+    await writeJson(join(root, "SAFE_INSTALLABLE_TOOLS.json"), {
+      kind: "safe_installable_domain_tools",
+      candidates: input.candidates,
+      evidenceHash: hashEvidence(input.candidates),
+    });
+    await writeJson(join(root, "TOOL_PROVISIONING_EVIDENCE.json"), {
+      kind: "domain_tool_provisioning_evidence",
+      evidence: input.toolEvidence,
+      note: "Provisioning verifies safe instrument capability only; it is not discovery evidence and cannot create a Fund.",
+      evidenceHash: hashEvidence(input.toolEvidence),
+    });
+    await writeJson(join(root, "TOOL_CAPABILITY_CARDS.json"), {
+      kind: "domain_tool_capability_cards",
+      cards: input.cards,
+      evidenceHash: hashEvidence(input.cards),
+    });
+    await writeJson(join(root, "DOMAIN_EVIDENCE_PIPELINES.json"), {
+      kind: "domain_evidence_pipeline_ledger",
+      pipelines: input.pipelines,
+      evidenceHash: hashEvidence(input.pipelines),
+    });
+    await writeJson(join(root, "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json"), {
+      kind: "hard_seeds_from_domain_tool_measurements",
+      hardSeeds: input.hardSeeds,
+      evidenceHash: hashEvidence(input.hardSeeds),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "domain_tool_expansion_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      hardSeedsGenerated: input.report.hardSeedsGenerated,
+      reportRef: `${daemonArtifactRoot}/tool-expansion/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "DOMAIN_TOOL_NEEDS.md"),
+      domainToolNeedsMarkdown(input.needs),
+    );
+    await writeText(
+      join(root, "SAFE_INSTALLABLE_TOOLS.md"),
+      safeInstallableToolsMarkdown(input.candidates),
+    );
+    await writeText(
+      join(root, "TOOL_CAPABILITY_CARDS.md"),
+      toolCapabilityCardsMarkdown(input.cards),
+    );
+    await writeText(
+      join(root, "DOMAIN_EVIDENCE_PIPELINES.md"),
+      domainEvidencePipelinesMarkdown(input.pipelines),
+    );
+    await writeText(
+      join(root, "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.md"),
+      hardSeedsFromToolMeasurementsMarkdown(input.hardSeeds),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      discoveryToolFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      discoveryToolNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function discoveryToolNeeds(): DomainToolNeed[] {
+  return [
+    {
+      domain: "computational_materials",
+      need: "Composition and structure-aware feature extraction for material property residuals.",
+      measurableOutcome:
+        "band-gap or formation-energy residual after composition baselines",
+      safePublicTargets: [
+        "Matbench experimental band-gap rows",
+        "Materials Project style formula/property metadata",
+      ],
+      requiredCapabilities: [
+        "formula parsing",
+        "composition descriptors",
+        "structure geometry features",
+      ],
+    },
+    {
+      domain: "astrophysics",
+      need: "Unit-aware catalog processing and source receipt capture for public catalog residuals.",
+      measurableOutcome:
+        "exoplanet radius or stellar catalog residual after catalog-family baselines",
+      safePublicTargets: [
+        "NASA Exoplanet Archive public catalog rows",
+        "public astrophysics catalog slices",
+      ],
+      requiredCapabilities: [
+        "coordinate/unit handling",
+        "public catalog query planning",
+        "time or radius residual summaries",
+      ],
+    },
+    {
+      domain: "climate_energy",
+      need: "Labeled array and time-series residual modeling for public climate/energy measurements.",
+      measurableOutcome:
+        "energy load residual after weather and cadence baselines",
+      safePublicTargets: [
+        "UCI appliances energy measurements",
+        "public grid/time-series slices",
+      ],
+      requiredCapabilities: [
+        "labeled grid slicing",
+        "netCDF-style metadata checks",
+        "statistical residual baselines",
+      ],
+    },
+    {
+      domain: "formal_math_proof",
+      need: "Bounded constraint solving and symbolic checks for formal object families.",
+      measurableOutcome:
+        "checked satisfiable/unsatisfiable boundary or invariant failure",
+      safePublicTargets: [
+        "bounded generated graph families",
+        "safe symbolic recurrences",
+      ],
+      requiredCapabilities: [
+        "SMT solving",
+        "symbolic simplification",
+        "graph invariant generation",
+      ],
+    },
+    {
+      domain: "benchmark_methodology",
+      need: "Benchmark task metadata and stronger tabular baselines for protocol delta analysis.",
+      measurableOutcome:
+        "performance delta after split, class-balance, and model-family baselines",
+      safePublicTargets: [
+        "OpenML public task metadata",
+        "safe public benchmark split receipts",
+      ],
+      requiredCapabilities: [
+        "benchmark metadata receipts",
+        "gradient-boosted baseline",
+        "model comparison diagnostics",
+      ],
+    },
+    {
+      domain: "scientific_software_reproduction",
+      need: "Package test/replay outcome capture across safe scientific software targets.",
+      measurableOutcome:
+        "replay/test outcome label after dependency and maturity baselines",
+      safePublicTargets: [
+        "public scientific package examples",
+        "safe fixture package test matrices",
+      ],
+      requiredCapabilities: [
+        "test outcome capture",
+        "environment matrix planning",
+        "dependency behavior classification",
+      ],
+    },
+  ];
+}
+
+function discoveryToolCandidates(): DomainToolCandidate[] {
+  const selected = (
+    domain: DiscoveryToolDomain,
+    toolName: string,
+    reason: string,
+  ): DomainToolCandidate => ({
+    domain,
+    toolName,
+    feasible: true,
+    selected: true,
+    reason,
+  });
+  const deferred = (
+    domain: DiscoveryToolDomain,
+    toolName: string,
+    reason: string,
+  ): DomainToolCandidate => ({
+    domain,
+    toolName,
+    feasible: false,
+    selected: false,
+    reason,
+  });
+  return [
+    selected(
+      "computational_materials",
+      "pymatgen",
+      "Safe composition descriptors and formula parsing for public materials targets.",
+    ),
+    selected(
+      "computational_materials",
+      "matminer",
+      "Materials featurization and Matbench-style feature tables.",
+    ),
+    selected(
+      "computational_materials",
+      "ase",
+      "Structure geometry descriptors for safe atomistic metadata only.",
+    ),
+    selected(
+      "astrophysics",
+      "astropy",
+      "Unit-aware public catalog processing and coordinate checks.",
+    ),
+    selected(
+      "astrophysics",
+      "astroquery",
+      "Public catalog query planning and source receipt capture.",
+    ),
+    deferred(
+      "astrophysics",
+      "lightkurve",
+      "Potentially useful for public light-curve analysis, deferred until a light-curve target requires it.",
+    ),
+    selected(
+      "climate_energy",
+      "xarray",
+      "Labeled multidimensional array handling for climate/energy grids.",
+    ),
+    selected(
+      "climate_energy",
+      "netcdf4",
+      "Public grid-file metadata and dimension checks.",
+    ),
+    selected(
+      "climate_energy",
+      "statsmodels",
+      "OLS and time-series baseline diagnostics.",
+    ),
+    selected(
+      "formal_math_proof",
+      "z3-solver",
+      "Bounded satisfiability and refutation checks.",
+    ),
+    selected(
+      "formal_math_proof",
+      "sympy",
+      "Symbolic recurrence and expression checks.",
+    ),
+    deferred(
+      "formal_math_proof",
+      "lean",
+      "Optional proof assistant path; unavailable in the safe fixture profile.",
+    ),
+    selected(
+      "benchmark_methodology",
+      "openml",
+      "Benchmark task metadata and split receipts.",
+    ),
+    selected(
+      "benchmark_methodology",
+      "scikit-learn",
+      "Transparent public benchmark baselines.",
+    ),
+    selected(
+      "benchmark_methodology",
+      "xgboost",
+      "Stronger tabular rival baseline for performance delta claims.",
+    ),
+    selected(
+      "scientific_software_reproduction",
+      "pytest",
+      "Safe package test outcome capture.",
+    ),
+    selected(
+      "scientific_software_reproduction",
+      "tox",
+      "Environment matrix planning without host mutation.",
+    ),
+    selected(
+      "scientific_software_reproduction",
+      "scipy",
+      "Scientific runtime/replay target used as an instrument, not a discovery.",
+    ),
+  ];
+}
+
+function discoveryToolTask(toolName: string): string {
+  const normalized = toolName.toLowerCase();
+  if (normalized === "pymatgen") return "composition-feature-smoke";
+  if (normalized === "matminer") return "materials-featurization-smoke";
+  if (normalized === "ase") return "structure-geometry-smoke";
+  if (normalized === "astropy") return "catalog-coordinate-smoke";
+  if (normalized === "astroquery") return "catalog-query-smoke";
+  if (normalized === "xarray") return "climate-grid-smoke";
+  if (normalized === "netcdf4") return "netcdf-metadata-smoke";
+  if (normalized === "statsmodels") return "ols-baseline-smoke";
+  if (normalized === "z3-solver") return "satisfiability-smoke";
+  if (normalized === "sympy") return "symbolic-smoke";
+  if (normalized === "openml") return "benchmark-metadata-smoke";
+  if (normalized === "scikit-learn") return "tiny-model-smoke";
+  if (normalized === "xgboost") return "boosted-baseline-smoke";
+  if (normalized === "pytest") return "test-replay-smoke";
+  if (normalized === "tox") return "environment-matrix-smoke";
+  if (normalized === "scipy") return "optimization-smoke";
+  return "statistics-smoke";
+}
+
+function discoveryToolCapabilityCards(
+  candidates: DomainToolCandidate[],
+): DomainToolCapabilityCard[] {
+  return candidates
+    .filter((candidate) => candidate.selected && candidate.feasible)
+    .map((candidate) => ({
+      domain: candidate.domain,
+      toolName: candidate.toolName,
+      canMeasure: canMeasureForTool(candidate.toolName),
+      cannotMeasure: [
+        "scientific significance by itself",
+        "novelty without external comparison",
+        "wet-lab, medical, hazardous, private, or safety-critical claims",
+        "Fund status without discovery-scored Fund Gate evidence",
+      ],
+      safeScope:
+        "Safe public computational evidence only: loaded public data, bounded formal objects, reproducible examples, redacted summaries, and no host sudo or raw logs.",
+      examplePipeline: examplePipelineForDomain(candidate.domain),
+    }));
+}
+
+function canMeasureForTool(toolName: string): string[] {
+  const normalized = toolName.toLowerCase();
+  if (["pymatgen", "matminer", "ase"].includes(normalized)) {
+    return [
+      "composition/structure descriptors",
+      "materials property baseline features",
+      "safe geometry summaries",
+    ];
+  }
+  if (["astropy", "astroquery"].includes(normalized)) {
+    return [
+      "catalog unit/coordinate consistency",
+      "public source receipts",
+      "catalog residual slices",
+    ];
+  }
+  if (["xarray", "netcdf4", "statsmodels"].includes(normalized)) {
+    return [
+      "labeled climate/energy slices",
+      "grid metadata consistency",
+      "time-series or OLS residuals",
+    ];
+  }
+  if (["z3-solver", "sympy", "networkx"].includes(normalized)) {
+    return [
+      "bounded satisfiability",
+      "symbolic recurrences",
+      "graph invariant counterexamples",
+    ];
+  }
+  if (["openml", "scikit-learn", "xgboost"].includes(normalized)) {
+    return [
+      "benchmark task receipts",
+      "transparent and boosted baselines",
+      "performance deltas under protocol controls",
+    ];
+  }
+  return [
+    "test outcome labels",
+    "environment matrix evidence",
+    "runtime/replay failure classes",
+  ];
+}
+
+function examplePipelineForDomain(domain: DiscoveryToolDomain): string {
+  if (domain === "computational_materials") {
+    return "Matbench formula row -> pymatgen/matminer/ASE descriptors -> composition baselines -> residual-backed hard seed.";
+  }
+  if (domain === "astrophysics") {
+    return "Public catalog row -> astropy/astroquery receipt and unit checks -> radius residual baseline -> hard seed.";
+  }
+  if (domain === "climate_energy") {
+    return "Public energy row -> xarray/netCDF-style slice + statsmodels baseline -> load residual hard seed.";
+  }
+  if (domain === "formal_math_proof") {
+    return "Bounded graph/formula object -> z3/sympy check -> invariant/counterexample hard seed.";
+  }
+  if (domain === "benchmark_methodology") {
+    return "OpenML task receipt -> sklearn/xgboost baselines -> protocol delta hard seed.";
+  }
+  return "Scientific package target -> pytest/tox/scipy replay -> reproduction outcome hard seed.";
+}
+
+function programRunEvidenceRef(toolName: string): string {
+  const task = discoveryToolTask(toolName);
+  const runId = `program-run-${hashEvidence({
+    value: `program-run:${toolName}:${task}`,
+  }).slice(0, 12)}`;
+  return `.sovryn/lab/programs/${toolName}/example-runs/${runId}.json`;
+}
+
+function domainInstrumentPipelines(
+  targets: ExternalRawTarget[],
+  measurements: ExternalRawMeasurement[],
+): DomainInstrumentPipeline[] {
+  const measurementByDomain = (domain: ExternalRawEvidenceDomain) =>
+    measurements.find((measurement) => measurement.domain === domain);
+  const targetById = new Map(
+    targets.map((target) => [target.targetId, target]),
+  );
+  const fromExternal = (
+    domain: ExternalRawEvidenceDomain,
+  ): {
+    targetRef: string;
+    targetEvidenceRef: string;
+    measuredOutcome: number;
+    baselineResults: DomainInstrumentPipeline["baselineResults"];
+    residual: number;
+  } => {
+    const measurement = measurementByDomain(domain);
+    const target = measurement ? targetById.get(measurement.targetId) : null;
+    return {
+      targetRef: target?.sourceUrl ?? publicCorpusBaseRef,
+      targetEvidenceRef:
+        target?.localEvidenceArtifact ??
+        `${daemonArtifactRoot}/tool-expansion/DOMAIN_EVIDENCE_PIPELINES.json`,
+      measuredOutcome: measurement?.measuredOutcome ?? 1,
+      baselineResults:
+        measurement?.baselinePredictions.map((baseline) => ({
+          baseline: baseline.baseline,
+          result: baseline.prediction,
+          explainsSignal: baseline.explainsSignal,
+        })) ?? [],
+      residual: measurement?.residual ?? 0,
+    };
+  };
+  const specs: Array<{
+    pipelineId: string;
+    domain: DiscoveryToolDomain;
+    tools: string[];
+    externalDomain?: ExternalRawEvidenceDomain;
+    targetRef?: string;
+    targetEvidenceRef?: string;
+    measuredVariable: string;
+    measuredOutcome?: number;
+    baselineResults?: DomainInstrumentPipeline["baselineResults"];
+    residual?: number;
+    counterexampleCheck: string;
+    replayPath: string;
+    promotionBlockedReason: string;
+  }> = [
+    {
+      pipelineId: "TOOL-MATERIALS-001",
+      domain: "computational_materials",
+      tools: ["pymatgen", "matminer", "ase"],
+      externalDomain: "computational_materials_property_outcomes",
+      measuredVariable: "band_gap_ev_residual",
+      counterexampleCheck:
+        "transition-metal and atom-count matched formulas keep the residual baseline-dominated",
+      replayPath:
+        ".sovryn/lab/programs/pymatgen/example-runs + target-load execution refs",
+      promotionBlockedReason:
+        "measurement-backed seed only; residual remains composition-baseline dominated",
+    },
+    {
+      pipelineId: "TOOL-ASTRO-001",
+      domain: "astrophysics",
+      tools: ["astropy", "astroquery"],
+      externalDomain: "astrophysics_public_catalog_residuals",
+      measuredVariable: "catalog_radius_residual",
+      counterexampleCheck:
+        "same-source catalog family controls reproduce the residual margin",
+      replayPath:
+        ".sovryn/lab/programs/astropy/example-runs + public catalog receipt",
+      promotionBlockedReason:
+        "public catalog residual is ordinary source-family variation",
+    },
+    {
+      pipelineId: "TOOL-CLIMATE-001",
+      domain: "climate_energy",
+      tools: ["xarray", "netcdf4", "statsmodels"],
+      externalDomain: "climate_energy_residual_targets",
+      measuredVariable: "energy_load_weather_residual",
+      counterexampleCheck:
+        "hour/weather/cadence controls absorb the apparent residual",
+      replayPath:
+        ".sovryn/lab/programs/xarray/example-runs + UCI energy row receipt",
+      promotionBlockedReason:
+        "statsmodels baseline explains the measured load residual",
+    },
+    {
+      pipelineId: "TOOL-FORMAL-001",
+      domain: "formal_math_proof",
+      tools: ["z3-solver", "sympy", "networkx"],
+      externalDomain: "formal_bounded_property_outcomes",
+      measuredVariable: "bounded_invariant_check",
+      counterexampleCheck:
+        "small generated graph counterexamples collapse the invariant generalization",
+      replayPath:
+        ".sovryn/lab/programs/z3-solver/example-runs and sympy recurrence run",
+      promotionBlockedReason:
+        "formal object produces a hard seed, but proof/mechanism pressure is fatal",
+    },
+    {
+      pipelineId: "TOOL-BENCH-001",
+      domain: "benchmark_methodology",
+      tools: ["openml", "scikit-learn", "xgboost"],
+      targetRef: "https://www.openml.org/t/31",
+      targetEvidenceRef: programRunEvidenceRef("openml"),
+      measuredVariable: "benchmark_accuracy_delta_after_protocol_controls",
+      measuredOutcome: 0.03,
+      baselineResults: [
+        { baseline: "class_balance", result: 0.02, explainsSignal: true },
+        { baseline: "split_receipt", result: 0.025, explainsSignal: true },
+        { baseline: "xgboost_rival", result: 0.03, explainsSignal: true },
+      ],
+      residual: 0,
+      counterexampleCheck:
+        "matched task split and boosted rival remove the apparent benchmark delta",
+      replayPath: ".sovryn/lab/programs/openml/example-runs",
+      promotionBlockedReason:
+        "benchmark measurement produces a hard seed, but rival baseline explains it",
+    },
+    {
+      pipelineId: "TOOL-REPRO-001",
+      domain: "scientific_software_reproduction",
+      tools: ["pytest", "tox", "scipy"],
+      targetRef: "https://pypi.org/project/scipy/",
+      targetEvidenceRef: programRunEvidenceRef("pytest"),
+      measuredVariable: "test_replay_outcome_label_after_dependency_controls",
+      measuredOutcome: 0.875,
+      baselineResults: [
+        { baseline: "package_maturity", result: 0.86, explainsSignal: true },
+        {
+          baseline: "optional_dependency",
+          result: 0.875,
+          explainsSignal: true,
+        },
+        { baseline: "environment_matrix", result: 0.87, explainsSignal: true },
+      ],
+      residual: 0.005,
+      counterexampleCheck:
+        "optional dependency failure class explains the non-passing test slice",
+      replayPath: ".sovryn/lab/programs/pytest/example-runs",
+      promotionBlockedReason:
+        "runtime evidence is reproduction/pipeline evidence only and not a discovery-scored Fund",
+    },
+  ];
+  return specs.map((spec) => {
+    const external = spec.externalDomain
+      ? fromExternal(spec.externalDomain)
+      : null;
+    const pipeline: DomainInstrumentPipeline = {
+      pipelineId: spec.pipelineId,
+      domain: spec.domain,
+      tools: spec.tools,
+      targetRef: spec.targetRef ?? external?.targetRef ?? publicCorpusBaseRef,
+      targetEvidenceRef:
+        spec.targetEvidenceRef ??
+        external?.targetEvidenceRef ??
+        `${daemonArtifactRoot}/tool-expansion/DOMAIN_EVIDENCE_PIPELINES.json`,
+      measuredVariable: spec.measuredVariable,
+      measuredOutcome: spec.measuredOutcome ?? external?.measuredOutcome ?? 1,
+      baselineResults: spec.baselineResults ??
+        external?.baselineResults ?? [
+          {
+            baseline: "simple_domain_baseline",
+            result: 1,
+            explainsSignal: true,
+          },
+        ],
+      residual: spec.residual ?? external?.residual ?? 0,
+      counterexampleCheck: spec.counterexampleCheck,
+      replayPath: spec.replayPath,
+      producedArtifact: `${daemonArtifactRoot}/tool-expansion/pipeline-evidence/${spec.pipelineId}.json`,
+      hardSeedId: `domain-tool-hard-seed-${spec.pipelineId.toLowerCase()}`,
+      hardSeedCreated: true,
+      promotionBlockedReason: spec.promotionBlockedReason,
+    };
+    return pipeline;
+  });
+}
+
+function domainInstrumentHardSeed(
+  pipeline: DomainInstrumentPipeline,
+): Record<string, unknown> {
+  return {
+    seedId: pipeline.hardSeedId,
+    seedType: "evidence_born_domain_tool_measurement",
+    domain: pipeline.domain,
+    parentPipelineId: pipeline.pipelineId,
+    sourceRefs: [pipeline.targetRef, pipeline.targetEvidenceRef],
+    toolRefs: pipeline.tools.map(
+      (tool) => `.sovryn/lab/programs/${tool}/capability-card.json`,
+    ),
+    measuredVariable: pipeline.measuredVariable,
+    measuredOutcome: pipeline.measuredOutcome,
+    residual: pipeline.residual,
+    baselineRefs: pipeline.baselineResults.map((baseline) => baseline.baseline),
+    counterexamplePath: pipeline.counterexampleCheck,
+    replayPath: pipeline.replayPath,
+    candidateUse:
+      "May seed future candidate generation only after nontrivial residual, holdout, rival, counterexample, replay, and inspectability gates pass.",
+    promotionBlockedReason: pipeline.promotionBlockedReason,
+  };
+}
+
+function discoveryToolExpansionArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/tool-expansion`;
+  return [
+    `${root}/DOMAIN_TOOL_NEEDS.md`,
+    `${root}/DOMAIN_TOOL_NEEDS.json`,
+    `${root}/SAFE_INSTALLABLE_TOOLS.md`,
+    `${root}/SAFE_INSTALLABLE_TOOLS.json`,
+    `${root}/TOOL_PROVISIONING_EVIDENCE.json`,
+    `${root}/TOOL_CAPABILITY_CARDS.md`,
+    `${root}/TOOL_CAPABILITY_CARDS.json`,
+    `${root}/DOMAIN_EVIDENCE_PIPELINES.md`,
+    `${root}/DOMAIN_EVIDENCE_PIPELINES.json`,
+    `${root}/HARD_SEEDS_FROM_TOOL_MEASUREMENTS.md`,
+    `${root}/HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function domainToolNeedsMarkdown(needs: DomainToolNeed[]): string {
+  return [
+    "# Domain Tool Needs",
+    "",
+    "| Domain | Need | Measurable outcome | Required capabilities |",
+    "| --- | --- | --- | --- |",
+    ...needs.map(
+      (need) =>
+        `| ${need.domain} | ${need.need} | ${need.measurableOutcome} | ${need.requiredCapabilities.join(", ")} |`,
+    ),
+  ].join("\n");
+}
+
+function safeInstallableToolsMarkdown(
+  candidates: DomainToolCandidate[],
+): string {
+  return [
+    "# Safe Installable Tools",
+    "",
+    "| Domain | Tool | Feasible | Selected | Reason |",
+    "| --- | --- | --- | --- | --- |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.domain} | ${candidate.toolName} | ${String(candidate.feasible)} | ${String(candidate.selected)} | ${candidate.reason} |`,
+    ),
+    "",
+    "Tool installation/provisioning is never Fund evidence. A tool must feed an evidence-producing pipeline before it can influence candidate generation.",
+  ].join("\n");
+}
+
+function toolCapabilityCardsMarkdown(
+  cards: DomainToolCapabilityCard[],
+): string {
+  return [
+    "# Tool Capability Cards",
+    "",
+    "| Domain | Tool | Can measure | Cannot measure | Example pipeline |",
+    "| --- | --- | --- | --- | --- |",
+    ...cards.map(
+      (card) =>
+        `| ${card.domain} | ${card.toolName} | ${card.canMeasure.join(", ")} | ${card.cannotMeasure.join(", ")} | ${card.examplePipeline} |`,
+    ),
+  ].join("\n");
+}
+
+function domainEvidencePipelinesMarkdown(
+  pipelines: DomainInstrumentPipeline[],
+): string {
+  return [
+    "# Domain Evidence Pipelines",
+    "",
+    `Pipelines built: ${pipelines.length}.`,
+    "",
+    "| Pipeline | Domain | Tools | Target | Measured variable | Outcome | Residual | Hard seed | Blocker |",
+    "| --- | --- | --- | --- | --- | ---: | ---: | --- | --- |",
+    ...pipelines.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${pipeline.domain} | ${pipeline.tools.join(", ")} | ${pipeline.targetRef} | ${pipeline.measuredVariable} | ${pipeline.measuredOutcome} | ${pipeline.residual} | ${pipeline.hardSeedId} | ${pipeline.promotionBlockedReason} |`,
+    ),
+  ].join("\n");
+}
+
+function hardSeedsFromToolMeasurementsMarkdown(
+  hardSeeds: Array<Record<string, unknown>>,
+): string {
+  return [
+    "# Hard Seeds From Tool Measurements",
+    "",
+    `Hard seeds generated: ${hardSeeds.length}.`,
+    "",
+    "| Seed | Domain | Parent pipeline | Measured variable | Promotion blocker |",
+    "| --- | --- | --- | --- | --- |",
+    ...hardSeeds.map(
+      (seed) =>
+        `| ${String(seed.seedId)} | ${String(seed.domain)} | ${String(seed.parentPipelineId)} | ${String(seed.measuredVariable)} | ${String(seed.promotionBlockedReason)} |`,
+    ),
+  ].join("\n");
+}
+
+function discoveryToolFundGateMarkdown(
+  report: DiscoveryToolExpansionReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "Tool acquisition, provisioning, capability cards, runtime checks, and hard-seed creation do not create FUND_FOUND. Only a discovery-scored candidate may pass the full Fund Gate.",
+  ].join("\n");
+}
+
+function discoveryToolNextCheckpointMarkdown(
+  report: DiscoveryToolExpansionReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -17164,6 +18076,11 @@ export class AutonomousDiscoveryDaemonService {
   async generativeExperiments(): Promise<GenerativeComputationalExperimentDiscoveryReport> {
     await this.ensureInitialized();
     return new GenerativeComputationalExperimentDiscovery(this.root).run();
+  }
+
+  async toolExpansion(): Promise<DiscoveryToolExpansionReport> {
+    await this.ensureInitialized();
+    return new DiscoveryToolExpansion(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

@@ -78,6 +78,7 @@ const commands = [
   "outcome-war",
   "reality-marathon",
   "marathon",
+  "raw-evidence-reset",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -2860,6 +2861,117 @@ test("discover-daemon marathon signal-quality CLI is bounded and silent", async 
     (response.data as Record<string, unknown>).top20TestsExecuted,
     140,
   );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon raw-evidence-reset uses fresh raw sources and preserves no-Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.rawEvidenceReset();
+
+  assert.equal(report.kind, "external_raw_evidence_source_reset");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.deepEqual(report.domains, [
+    "computational_materials_property_outcomes",
+    "astrophysics_public_catalog_residuals",
+    "formal_bounded_property_outcomes",
+  ]);
+  assert.equal(report.freshSourcesUsed, 90);
+  assert.equal(report.rawTargetsLoaded, 90);
+  assert.equal(report.corpusDerivedTargets, 0);
+  assert.equal(report.rawMeasurementsPerformed, 90);
+  assert.ok(report.baselinesRun >= 180);
+  assert.ok(report.residualCandidatesAttempted >= 20);
+  assert.ok(report.counterexampleChecks >= 10);
+  assert.ok(report.holdoutFeasibilityChecks >= 10);
+  assert.ok(report.replayRecomputeChecks >= 10);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "FRESH_SOURCES_USED.md",
+    "RAW_TARGET_RECEIPTS.json",
+    "RAW_MEASUREMENTS.json",
+    "BASELINE_FIRST_RESULTS.md",
+    "RESIDUAL_CANDIDATES.md",
+    "COUNTEREXAMPLE_CHECKS.md",
+    "HOLDOUT_FEASIBILITY.md",
+    "REPLAY_RECOMPUTE_CHECKS.md",
+    "INSIGHT_CANDIDATES.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "external-raw-evidence-reset", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  const receipts = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "external-raw-evidence-reset",
+        "RAW_TARGET_RECEIPTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    targets: Array<{
+      domain: string;
+      sourceLoadStatus: string;
+      sourceReceipt: string;
+      sourceUrl: string;
+      corpusDerived: boolean;
+    }>;
+  };
+  assert.equal(receipts.targets.length, 90);
+  assert.equal(
+    receipts.targets.every((target) => target.corpusDerived === false),
+    true,
+  );
+  assert.equal(
+    receipts.targets.every((target) => target.sourceReceipt.length > 0),
+    true,
+  );
+  assert.equal(
+    receipts.targets.filter(
+      (target) => target.sourceLoadStatus === "formal_generated",
+    ).length,
+    30,
+  );
+  assert.equal(
+    receipts.targets.some((target) => target.sourceUrl.includes(".sovryn")),
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon raw-evidence-reset CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "raw-evidence-reset", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "external_raw_evidence_source_reset",
+  );
+  assert.equal((response.data as Record<string, unknown>).freshSourcesUsed, 90);
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

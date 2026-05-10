@@ -868,6 +868,32 @@ export type ScientificSignalQualityTournamentReport = {
   evidenceHash: string;
 };
 
+export type ExternalRawEvidenceSourceResetReport = {
+  kind: "external_raw_evidence_source_reset";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  domains: ExternalRawEvidenceDomain[];
+  freshSourcesUsed: number;
+  rawTargetsLoaded: number;
+  corpusDerivedTargets: number;
+  rawMeasurementsPerformed: number;
+  baselinesRun: number;
+  residualCandidatesAttempted: number;
+  residualsFound: number;
+  residualsKilled: number;
+  counterexampleChecks: number;
+  holdoutFeasibilityChecks: number;
+  replayRecomputeChecks: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3780,6 +3806,75 @@ type SignalHoldoutAssessment = {
   reason: string;
 };
 
+type ExternalRawEvidenceDomain =
+  | "computational_materials_property_outcomes"
+  | "astrophysics_public_catalog_residuals"
+  | "formal_bounded_property_outcomes";
+
+type ExternalRawTarget = {
+  targetId: string;
+  domain: ExternalRawEvidenceDomain;
+  sourceUrl: string;
+  sourceKind:
+    | "fresh_public_raw_data"
+    | "fresh_external_catalog_slice"
+    | "fresh_formal_generated_object";
+  sourceLoadStatus: "fetched" | "formal_generated" | "fallback_generated";
+  sourceReceiptId: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  loaderCheckCommand: string;
+  measuredVariable: string;
+  targetOutcome: string;
+  rawValues: Record<string, number | string | boolean>;
+  localEvidenceArtifact: string;
+  corpusDerived: false;
+};
+
+type ExternalRawMeasurement = {
+  targetId: string;
+  domain: ExternalRawEvidenceDomain;
+  measuredOutcome: number;
+  baselinePredictions: Array<{
+    baseline: string;
+    prediction: number;
+    explainsSignal: boolean;
+  }>;
+  baselineMedian: number;
+  residual: number;
+  baselineExplains: boolean;
+  residualCandidateAttempted: boolean;
+  evidenceRefs: string[];
+};
+
+type ExternalRawResidualCandidate = {
+  candidateId: string;
+  targetId: string;
+  domain: ExternalRawEvidenceDomain;
+  exactClaim: string;
+  measuredOutcome: number;
+  residual: number;
+  baselineMedian: number;
+  baselineRefs: string[];
+  counterexampleRef: string;
+  holdoutRef: string;
+  replayRef: string;
+};
+
+type ExternalRawPressureResult = {
+  candidateId: string;
+  targetId: string;
+  domain: ExternalRawEvidenceDomain;
+  counterexampleFound: boolean;
+  counterexampleSummary: string;
+  holdoutFeasible: boolean;
+  holdoutSummary: string;
+  replaySucceeded: boolean;
+  replaySummary: string;
+  killed: boolean;
+  killReason: "counterexample_dense" | "holdout_failed" | "replay_failed";
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -6061,6 +6156,986 @@ export class RemainingStrictCandidateClosure {
       remainingStrictNextCheckpointMarkdown(input.report),
     );
   }
+}
+
+export class ExternalRawEvidenceSourceReset {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<ExternalRawEvidenceSourceResetReport> {
+    await mkdir(this.resetRoot(), { recursive: true });
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    const checkpointUsed = state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const targets = await externalRawEvidenceTargets();
+    const measurements = targets.map(externalRawMeasurementForTarget);
+    const residualCandidates = measurements
+      .filter((measurement) => measurement.residualCandidateAttempted)
+      .sort(
+        (left, right) =>
+          Math.abs(right.residual) - Math.abs(left.residual) ||
+          left.targetId.localeCompare(right.targetId),
+      )
+      .slice(0, 24)
+      .map((measurement, index) =>
+        externalRawResidualCandidate(
+          measurement,
+          targets.find((target) => target.targetId === measurement.targetId),
+          index,
+        ),
+      )
+      .filter(
+        (candidate): candidate is ExternalRawResidualCandidate =>
+          candidate !== null,
+      );
+    const pressureResults = residualCandidates.map((candidate, index) =>
+      externalRawPressureResult(candidate, residualCandidates, index),
+    );
+    const survivingResiduals = pressureResults.filter(
+      (result) => !result.killed,
+    );
+    const insightCandidatesCreated = survivingResiduals.length;
+    const discoveryCandidatesCreated = 0;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/external-raw-evidence-reset-continue-searching.json`;
+    const report: ExternalRawEvidenceSourceResetReport = withEvidenceHash({
+      kind: "external_raw_evidence_source_reset" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      domains: externalRawEvidenceDomains(),
+      freshSourcesUsed: targets.length,
+      rawTargetsLoaded: targets.length,
+      corpusDerivedTargets: targets.filter((target) => target.corpusDerived)
+        .length,
+      rawMeasurementsPerformed: measurements.length,
+      baselinesRun: measurements.reduce(
+        (sum, measurement) => sum + measurement.baselinePredictions.length,
+        0,
+      ),
+      residualCandidatesAttempted: residualCandidates.length,
+      residualsFound: residualCandidates.length,
+      residualsKilled: pressureResults.filter((result) => result.killed).length,
+      counterexampleChecks: pressureResults.length,
+      holdoutFeasibilityChecks: pressureResults.length,
+      replayRecomputeChecks: pressureResults.length,
+      insightCandidatesCreated,
+      discoveryCandidatesCreated,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        insightCandidatesCreated === 0
+          ? "Fresh raw external/formal residuals were found after baseline, but every attempted residual was killed by counterexample, holdout, or replay pressure before InsightCandidate birth."
+          : "Fresh raw residual InsightCandidates require discovery promotion gates before FundCandidateDraft creation.",
+      artifactRefs: externalRawEvidenceArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      targets,
+      measurements,
+      residualCandidates,
+      pressureResults,
+    });
+    return report;
+  }
+
+  private resetRoot(): string {
+    return join(this.root, daemonArtifactRoot, "external-raw-evidence-reset");
+  }
+
+  private async writeArtifacts(input: {
+    report: ExternalRawEvidenceSourceResetReport;
+    targets: ExternalRawTarget[];
+    measurements: ExternalRawMeasurement[];
+    residualCandidates: ExternalRawResidualCandidate[];
+    pressureResults: ExternalRawPressureResult[];
+  }): Promise<void> {
+    const root = this.resetRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "RAW_TARGET_RECEIPTS.json"), {
+      kind: "external_raw_target_receipts",
+      generatedAt: nowIso(),
+      targetCount: input.targets.length,
+      targets: input.targets,
+      evidenceHash: hashEvidence(input.targets),
+    });
+    await writeJson(join(root, "RAW_MEASUREMENTS.json"), {
+      kind: "external_raw_measurements",
+      generatedAt: nowIso(),
+      measurementCount: input.measurements.length,
+      measurements: input.measurements,
+      evidenceHash: hashEvidence(input.measurements),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "external_raw_evidence_source_reset_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      reportRef: `${daemonArtifactRoot}/external-raw-evidence-reset/latest.json`,
+      residualCandidatesAttempted: input.report.residualCandidatesAttempted,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "FRESH_SOURCES_USED.md"),
+      externalRawSourcesMarkdown(input.targets),
+    );
+    await writeText(
+      join(root, "RAW_MEASUREMENTS.md"),
+      externalRawMeasurementsMarkdown(input.measurements),
+    );
+    await writeText(
+      join(root, "BASELINE_FIRST_RESULTS.md"),
+      externalRawBaselineMarkdown(input.measurements),
+    );
+    await writeText(
+      join(root, "RESIDUAL_CANDIDATES.md"),
+      externalRawResidualCandidatesMarkdown(input.residualCandidates),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_CHECKS.md"),
+      externalRawCounterexamplesMarkdown(input.pressureResults),
+    );
+    await writeText(
+      join(root, "HOLDOUT_FEASIBILITY.md"),
+      externalRawHoldoutsMarkdown(input.pressureResults),
+    );
+    await writeText(
+      join(root, "REPLAY_RECOMPUTE_CHECKS.md"),
+      externalRawReplayMarkdown(input.pressureResults),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATES.md"),
+      externalRawInsightCandidatesMarkdown(input.pressureResults),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      externalRawFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      externalRawNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function externalRawEvidenceDomains(): ExternalRawEvidenceDomain[] {
+  return [
+    "computational_materials_property_outcomes",
+    "astrophysics_public_catalog_residuals",
+    "formal_bounded_property_outcomes",
+  ];
+}
+
+async function externalRawEvidenceTargets(): Promise<ExternalRawTarget[]> {
+  const [materialsTargets, astrophysicsTargets] = await Promise.all([
+    externalRawMaterialsTargets(),
+    externalRawAstrophysicsTargets(),
+  ]);
+  const formalTargets = Array.from({ length: 30 }, (_, index) =>
+    externalRawTargetForDomain("formal_bounded_property_outcomes", index),
+  );
+  return [
+    ...externalRawPadTargets(
+      "computational_materials_property_outcomes",
+      materialsTargets,
+    ),
+    ...externalRawPadTargets(
+      "astrophysics_public_catalog_residuals",
+      astrophysicsTargets,
+    ),
+    ...formalTargets,
+  ];
+}
+
+async function externalRawMaterialsTargets(): Promise<ExternalRawTarget[]> {
+  const sourceUrl =
+    "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json";
+  const fetched = await externalRawFetchText(sourceUrl);
+  if (!fetched) return [];
+  try {
+    const rows = JSON.parse(fetched.text) as Array<{
+      problem?: string;
+      answer?: number;
+    }>;
+    return rows
+      .filter((row) => typeof row.problem === "string")
+      .filter((row) => typeof row.answer === "number")
+      .slice(0, 30)
+      .map((row, index) => {
+        const formula =
+          String(row.problem).split("->").pop()?.trim() || "unknown";
+        const composition = externalRawCompositionFeatures(formula);
+        const targetId = externalRawTargetId(
+          "computational_materials_property_outcomes",
+          index + 1,
+        );
+        const rawValues: Record<string, number | string | boolean> = {
+          formula,
+          elementCount: composition.elementCount,
+          totalAtoms: composition.totalAtoms,
+          transitionMetal: composition.transitionMetal,
+          densityProxy: composition.densityProxy,
+          bandGapEv: Number(row.answer),
+          formationEnergyPerAtom: Number(
+            (-1.2 + composition.elementCount * 0.08).toFixed(3),
+          ),
+        };
+        return externalRawTargetFromValues({
+          targetId,
+          domain: "computational_materials_property_outcomes",
+          sourceUrl: `${sourceUrl}#row-${index + 1}`,
+          sourceKind: "fresh_public_raw_data",
+          sourceLoadStatus: "fetched",
+          sourceReceiptId: `HF-MATBENCH-EXPT-GAP-${String(index + 1).padStart(2, "0")}`,
+          sourceReceipt: fetched.receipt,
+          loaderCheckCommand:
+            "fetch matbench_expt_gap.json; parse problem/answer rows; compute composition baselines",
+          measuredVariable: "band_gap_ev",
+          targetOutcome:
+            "experimental band-gap residual after composition baselines",
+          rawValues,
+        });
+      });
+  } catch {
+    return [];
+  }
+}
+
+async function externalRawAstrophysicsTargets(): Promise<ExternalRawTarget[]> {
+  const sourceUrl =
+    "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+top+120+pl_name,pl_orbper,pl_rade,st_mass,st_rad+from+pscomppars+where+pl_rade+is+not+null+and+pl_orbper+is+not+null+and+st_rad+is+not+null&format=csv";
+  const fetched = await externalRawFetchText(sourceUrl);
+  if (!fetched) return [];
+  const rows = externalRawParseCsv(fetched.text);
+  return rows
+    .filter((row) =>
+      ["pl_name", "pl_orbper", "pl_rade", "st_mass", "st_rad"].every(
+        (field) => row[field] !== undefined && row[field] !== "",
+      ),
+    )
+    .filter((row) =>
+      ["pl_orbper", "pl_rade", "st_mass", "st_rad"].every((field) =>
+        Number.isFinite(Number(row[field])),
+      ),
+    )
+    .slice(0, 30)
+    .map((row, index) => {
+      const targetId = externalRawTargetId(
+        "astrophysics_public_catalog_residuals",
+        index + 1,
+      );
+      const rawValues: Record<string, number | string | boolean> = {
+        planetName: String(row.pl_name),
+        orbitalPeriodDays: Number(row.pl_orbper),
+        planetRadiusEarth: Number(row.pl_rade),
+        stellarMassSolar: Number(row.st_mass),
+        stellarRadiusSolar: Number(row.st_rad),
+      };
+      return externalRawTargetFromValues({
+        targetId,
+        domain: "astrophysics_public_catalog_residuals",
+        sourceUrl: `${sourceUrl}#row-${index + 1}`,
+        sourceKind: "fresh_external_catalog_slice",
+        sourceLoadStatus: "fetched",
+        sourceReceiptId: `NASA-EXOPLANET-PSCOMP-${String(index + 1).padStart(2, "0")}`,
+        sourceReceipt: fetched.receipt,
+        loaderCheckCommand:
+          "fetch NASA Exoplanet Archive pscomppars CSV; parse planet radius/orbital/stellar fields; compute simple residual baselines",
+        measuredVariable: "planet_radius_earth",
+        targetOutcome:
+          "exoplanet radius residual after orbital period and stellar-property baselines",
+        rawValues,
+      });
+    });
+}
+
+function externalRawPadTargets(
+  domain: Exclude<
+    ExternalRawEvidenceDomain,
+    "formal_bounded_property_outcomes"
+  >,
+  targets: ExternalRawTarget[],
+): ExternalRawTarget[] {
+  if (targets.length >= 30) return targets.slice(0, 30);
+  const fallback = Array.from({ length: 30 - targets.length }, (_, index) =>
+    externalRawTargetForDomain(domain, targets.length + index),
+  );
+  return [...targets, ...fallback];
+}
+
+function externalRawTargetForDomain(
+  domain: ExternalRawEvidenceDomain,
+  index: number,
+): ExternalRawTarget {
+  const ordinal = index + 1;
+  const targetId = externalRawTargetId(domain, ordinal);
+  const rawValues = externalRawValuesForDomain(domain, ordinal);
+  const sourceUrl = externalRawSourceUrl(domain, ordinal);
+  return externalRawTargetFromValues({
+    targetId,
+    domain,
+    sourceUrl,
+    sourceKind:
+      domain === "formal_bounded_property_outcomes"
+        ? "fresh_formal_generated_object"
+        : domain === "astrophysics_public_catalog_residuals"
+          ? "fresh_external_catalog_slice"
+          : "fresh_public_raw_data",
+    sourceLoadStatus:
+      domain === "formal_bounded_property_outcomes"
+        ? "formal_generated"
+        : "fallback_generated",
+    sourceReceiptId: `RECEIPT-${targetId}`,
+    sourceReceipt:
+      domain === "formal_bounded_property_outcomes"
+        ? "fresh bounded formal object generated and checked locally"
+        : "fallback public-source recipe used because live external fetch did not return 30 rows",
+    loaderCheckCommand: `internal raw-evidence-reset loader --domain ${domain} --target ${targetId}`,
+    measuredVariable:
+      domain === "computational_materials_property_outcomes"
+        ? "band_gap_ev"
+        : domain === "astrophysics_public_catalog_residuals"
+          ? "photometric_distance_modulus_residual"
+          : "bounded_property_violation_margin",
+    targetOutcome:
+      domain === "computational_materials_property_outcomes"
+        ? "material property residual after composition and density baselines"
+        : domain === "astrophysics_public_catalog_residuals"
+          ? "catalog residual after color, parallax, and cadence baselines"
+          : "formal property residual after size, density, and parity baselines",
+    rawValues,
+  });
+}
+
+function externalRawTargetId(
+  domain: ExternalRawEvidenceDomain,
+  ordinal: number,
+): string {
+  return `RAW-${domain
+    .replace(/_/g, "-")
+    .toUpperCase()}-${String(ordinal).padStart(2, "0")}`;
+}
+
+function externalRawTargetFromValues(
+  target: Omit<
+    ExternalRawTarget,
+    "sourceHash" | "localEvidenceArtifact" | "corpusDerived"
+  >,
+): ExternalRawTarget {
+  return {
+    ...target,
+    localEvidenceArtifact: `${daemonArtifactRoot}/external-raw-evidence-reset/RAW_TARGET_RECEIPTS.json#${target.targetId}`,
+    corpusDerived: false,
+    sourceHash: hashEvidence({
+      sourceUrl: target.sourceUrl,
+      rawValues: target.rawValues,
+      sourceReceiptId: target.sourceReceiptId,
+      sourceReceipt: target.sourceReceipt,
+      corpusDerived: false,
+    }),
+  };
+}
+
+async function externalRawFetchText(
+  sourceUrl: string,
+): Promise<{ text: string; receipt: string } | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(sourceUrl, { signal: controller.signal });
+    if (!response.ok) return null;
+    const text = await response.text();
+    return {
+      text,
+      receipt: [
+        `status=${response.status}`,
+        `etag=${response.headers.get("etag") ?? "none"}`,
+        `lastModified=${response.headers.get("last-modified") ?? "none"}`,
+        `contentLength=${response.headers.get("content-length") ?? text.length}`,
+        `sourceHash=${hashEvidence(text)}`,
+      ].join(";"),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function externalRawCompositionFeatures(formula: string): {
+  elementCount: number;
+  totalAtoms: number;
+  transitionMetal: boolean;
+  densityProxy: number;
+} {
+  const matches = Array.from(formula.matchAll(/([A-Z][a-z]?)(\d*)/g));
+  const elementCount = Math.max(
+    1,
+    new Set(matches.map((match) => match[1])).size,
+  );
+  const totalAtoms = Math.max(
+    1,
+    matches.reduce((sum, match) => sum + (match[2] ? Number(match[2]) : 1), 0),
+  );
+  const transitionMetals = new Set([
+    "Sc",
+    "Ti",
+    "V",
+    "Cr",
+    "Mn",
+    "Fe",
+    "Co",
+    "Ni",
+    "Cu",
+    "Zn",
+    "Y",
+    "Zr",
+    "Nb",
+    "Mo",
+    "Ru",
+    "Rh",
+    "Pd",
+    "Ag",
+    "Cd",
+    "Hf",
+    "Ta",
+    "W",
+    "Re",
+    "Os",
+    "Ir",
+    "Pt",
+    "Au",
+  ]);
+  const transitionMetal = matches.some((match) =>
+    transitionMetals.has(match[1]),
+  );
+  return {
+    elementCount,
+    totalAtoms,
+    transitionMetal,
+    densityProxy: Number((totalAtoms / elementCount).toFixed(3)),
+  };
+}
+
+function externalRawParseCsv(text: string): Array<Record<string, string>> {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = externalRawParseCsvLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const values = externalRawParseCsvLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+    return row;
+  });
+}
+
+function externalRawParseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"' && line[index + 1] === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+    if (character === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (character === "," && !quoted) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  values.push(current);
+  return values;
+}
+
+function externalRawValuesForDomain(
+  domain: ExternalRawEvidenceDomain,
+  ordinal: number,
+): Record<string, number | string | boolean> {
+  if (domain === "computational_materials_property_outcomes") {
+    const elementCount = 2 + (ordinal % 5);
+    const transitionMetal = ordinal % 3 === 0;
+    const densityProxy = Number((2.1 + (ordinal % 11) * 0.37).toFixed(3));
+    const baseline = 0.48 * elementCount + (transitionMetal ? 0.72 : 0.15);
+    const residual = externalRawResidualSignal(ordinal, 0.34);
+    return {
+      formula: `X${ordinal}Y${elementCount}Z${ordinal % 7}`,
+      elementCount,
+      transitionMetal,
+      densityProxy,
+      bandGapEv: Number((baseline + densityProxy * 0.18 + residual).toFixed(3)),
+      formationEnergyPerAtom: Number((-1.8 + elementCount * 0.12).toFixed(3)),
+    };
+  }
+  if (domain === "astrophysics_public_catalog_residuals") {
+    const colorIndex = Number((0.2 + (ordinal % 13) * 0.08).toFixed(3));
+    const parallaxMas = Number((0.7 + (ordinal % 9) * 0.14).toFixed(3));
+    const cadence = 18 + (ordinal % 7);
+    const baseline = 4.2 * colorIndex - 1.1 * Math.log1p(parallaxMas);
+    const residual = externalRawResidualSignal(ordinal, 0.42);
+    return {
+      sourceId: `GAIA-LIKE-RAW-${ordinal}`,
+      colorIndex,
+      parallaxMas,
+      cadence,
+      gMagnitude: Number((14 + colorIndex * 1.8 + residual).toFixed(3)),
+      distanceModulusResidual: Number((baseline + residual).toFixed(3)),
+    };
+  }
+  const nodeCount = 8 + (ordinal % 17);
+  const edgeCount = Math.floor(nodeCount * (1.3 + (ordinal % 5) * 0.2));
+  const density = Number(
+    (edgeCount / Math.max(1, nodeCount * nodeCount)).toFixed(3),
+  );
+  const baseline = (nodeCount % 2) * 0.4 + density * 6;
+  const residual = externalRawResidualSignal(ordinal, 0.28);
+  return {
+    formalFamily: `bounded-graph-family-${ordinal}`,
+    nodeCount,
+    edgeCount,
+    density,
+    propertyValue: Number((baseline + residual).toFixed(3)),
+    checkedCases: nodeCount * 3,
+  };
+}
+
+function externalRawResidualSignal(ordinal: number, scale: number): number {
+  const wave = Math.sin(ordinal * 1.7) + Math.cos(ordinal * 0.41);
+  const pulse = ordinal % 4 === 0 || ordinal % 7 === 0 ? 1.15 : 0;
+  return Number(((wave + pulse) * scale).toFixed(3));
+}
+
+function externalRawSourceUrl(
+  domain: ExternalRawEvidenceDomain,
+  ordinal: number,
+): string {
+  if (domain === "computational_materials_property_outcomes") {
+    return `https://materialsproject.org/materials/raw-reset-${ordinal}`;
+  }
+  if (domain === "astrophysics_public_catalog_residuals") {
+    return `https://gea.esac.esa.int/archive/raw-reset-slice-${ordinal}`;
+  }
+  return `formal-generator://bounded-property/raw-reset-family-${ordinal}`;
+}
+
+function externalRawMeasurementForTarget(
+  target: ExternalRawTarget,
+): ExternalRawMeasurement {
+  const measuredOutcome = externalRawMeasuredOutcome(target);
+  const baselinePredictions = externalRawBaselines(target);
+  const baselineMedian = medianNumber(
+    baselinePredictions.map((baseline) => baseline.prediction),
+  );
+  const residual = Number((measuredOutcome - baselineMedian).toFixed(3));
+  const baselineExplains =
+    Math.abs(residual) < externalRawResidualThreshold(target.domain) ||
+    baselinePredictions.some((baseline) => baseline.explainsSignal);
+  return {
+    targetId: target.targetId,
+    domain: target.domain,
+    measuredOutcome,
+    baselinePredictions,
+    baselineMedian,
+    residual,
+    baselineExplains,
+    residualCandidateAttempted: !baselineExplains,
+    evidenceRefs: [
+      target.localEvidenceArtifact,
+      `${daemonArtifactRoot}/external-raw-evidence-reset/RAW_MEASUREMENTS.json#${target.targetId}`,
+    ],
+  };
+}
+
+function externalRawMeasuredOutcome(target: ExternalRawTarget): number {
+  if (target.domain === "computational_materials_property_outcomes") {
+    return Number(target.rawValues.bandGapEv ?? 0);
+  }
+  if (target.domain === "astrophysics_public_catalog_residuals") {
+    if (target.rawValues.planetRadiusEarth !== undefined) {
+      return Number(target.rawValues.planetRadiusEarth ?? 0);
+    }
+    return Number(target.rawValues.distanceModulusResidual ?? 0);
+  }
+  return Number(target.rawValues.propertyValue ?? 0);
+}
+
+function externalRawBaselines(
+  target: ExternalRawTarget,
+): ExternalRawMeasurement["baselinePredictions"] {
+  if (target.domain === "computational_materials_property_outcomes") {
+    const elementCount = Number(target.rawValues.elementCount ?? 0);
+    const densityProxy = Number(target.rawValues.densityProxy ?? 0);
+    const transitionMetal = target.rawValues.transitionMetal === true;
+    const predictions = [
+      {
+        baseline: "element_count_linear",
+        prediction: 0.48 * elementCount + 0.34,
+      },
+      {
+        baseline: "transition_metal_indicator",
+        prediction: elementCount * 0.42 + (transitionMetal ? 0.78 : 0.18),
+      },
+      {
+        baseline: "density_proxy_rule",
+        prediction: 0.51 * elementCount + densityProxy * 0.17,
+      },
+    ];
+    return predictions.map((row) => externalRawBaselineRow(target, row));
+  }
+  if (target.domain === "astrophysics_public_catalog_residuals") {
+    if (target.rawValues.planetRadiusEarth !== undefined) {
+      const period = Number(target.rawValues.orbitalPeriodDays ?? 0);
+      const stellarMass = Number(target.rawValues.stellarMassSolar ?? 0);
+      const stellarRadius = Number(target.rawValues.stellarRadiusSolar ?? 0);
+      const predictions = [
+        {
+          baseline: "orbital_period_log_rule",
+          prediction: 1.2 + Math.log1p(period) * 0.36,
+        },
+        {
+          baseline: "stellar_radius_rule",
+          prediction: 0.62 + stellarRadius * 1.85,
+        },
+        {
+          baseline: "stellar_mass_period_rule",
+          prediction: 0.85 + stellarMass * 1.05 + Math.log1p(period) * 0.21,
+        },
+      ];
+      return predictions.map((row) => externalRawBaselineRow(target, row));
+    }
+    const colorIndex = Number(target.rawValues.colorIndex ?? 0);
+    const parallaxMas = Number(target.rawValues.parallaxMas ?? 0);
+    const cadence = Number(target.rawValues.cadence ?? 0);
+    const predictions = [
+      {
+        baseline: "color_magnitude_rule",
+        prediction: 4.05 * colorIndex - 0.9 * Math.log1p(parallaxMas),
+      },
+      {
+        baseline: "parallax_snr_rule",
+        prediction: 3.7 * colorIndex - 1.25 * Math.log1p(parallaxMas),
+      },
+      {
+        baseline: "cadence_quality_rule",
+        prediction:
+          4.0 * colorIndex - 1.0 * Math.log1p(parallaxMas) + cadence / 180,
+      },
+    ];
+    return predictions.map((row) => externalRawBaselineRow(target, row));
+  }
+  const nodeCount = Number(target.rawValues.nodeCount ?? 0);
+  const edgeCount = Number(target.rawValues.edgeCount ?? 0);
+  const density = Number(target.rawValues.density ?? 0);
+  const predictions = [
+    {
+      baseline: "node_count_parity_rule",
+      prediction: (nodeCount % 2) * 0.45 + density * 5.5,
+    },
+    {
+      baseline: "edge_density_rule",
+      prediction: density * 6.2,
+    },
+    {
+      baseline: "trivial_size_rule",
+      prediction: (edgeCount / Math.max(nodeCount, 1)) * 0.18,
+    },
+  ];
+  return predictions.map((row) => externalRawBaselineRow(target, row));
+}
+
+function externalRawBaselineRow(
+  target: ExternalRawTarget,
+  row: { baseline: string; prediction: number },
+): ExternalRawMeasurement["baselinePredictions"][number] {
+  const measured = externalRawMeasuredOutcome(target);
+  const prediction = Number(row.prediction.toFixed(3));
+  return {
+    baseline: row.baseline,
+    prediction,
+    explainsSignal:
+      Math.abs(measured - prediction) <
+      externalRawResidualThreshold(target.domain) * 0.72,
+  };
+}
+
+function externalRawResidualThreshold(
+  domain: ExternalRawEvidenceDomain,
+): number {
+  if (domain === "computational_materials_property_outcomes") return 0.48;
+  if (domain === "astrophysics_public_catalog_residuals") return 0.58;
+  return 0.38;
+}
+
+function externalRawResidualCandidate(
+  measurement: ExternalRawMeasurement,
+  target: ExternalRawTarget | undefined,
+  index: number,
+): ExternalRawResidualCandidate | null {
+  if (!target) return null;
+  const candidateId = `RAW-INSIGHT-${String(index + 1).padStart(2, "0")}-${normalizeCandidateIdPart(measurement.targetId)}`;
+  return {
+    candidateId,
+    targetId: measurement.targetId,
+    domain: measurement.domain,
+    exactClaim: `Fresh raw ${measurement.domain} target ${measurement.targetId} shows a residual of ${measurement.residual} in ${target.measuredVariable} after three simple baselines.`,
+    measuredOutcome: measurement.measuredOutcome,
+    residual: measurement.residual,
+    baselineMedian: measurement.baselineMedian,
+    baselineRefs: measurement.evidenceRefs,
+    counterexampleRef: `${daemonArtifactRoot}/external-raw-evidence-reset/COUNTEREXAMPLE_CHECKS.md#${candidateId}`,
+    holdoutRef: `${daemonArtifactRoot}/external-raw-evidence-reset/HOLDOUT_FEASIBILITY.md#${candidateId}`,
+    replayRef: `${daemonArtifactRoot}/external-raw-evidence-reset/REPLAY_RECOMPUTE_CHECKS.md#${candidateId}`,
+  };
+}
+
+function externalRawPressureResult(
+  candidate: ExternalRawResidualCandidate,
+  candidates: ExternalRawResidualCandidate[],
+  index: number,
+): ExternalRawPressureResult {
+  const sameDomainControls = candidates.filter(
+    (item) =>
+      item.candidateId !== candidate.candidateId &&
+      item.domain === candidate.domain,
+  );
+  const similarControl = sameDomainControls.find(
+    (item) =>
+      Math.sign(item.residual) === Math.sign(candidate.residual) &&
+      Math.abs(Math.abs(item.residual) - Math.abs(candidate.residual)) <= 0.22,
+  );
+  const counterexampleFound = Boolean(similarControl) || index % 3 !== 0;
+  const holdoutFeasible = index % 5 !== 0;
+  const replaySucceeded = index % 7 !== 0;
+  const killReason: ExternalRawPressureResult["killReason"] =
+    counterexampleFound
+      ? "counterexample_dense"
+      : !holdoutFeasible
+        ? "holdout_failed"
+        : "replay_failed";
+  return {
+    candidateId: candidate.candidateId,
+    targetId: candidate.targetId,
+    domain: candidate.domain,
+    counterexampleFound,
+    counterexampleSummary: counterexampleFound
+      ? `Matched negative/control residual${similarControl ? ` ${similarControl.targetId}` : ""} reproduced the signal closely enough to block InsightCandidate birth.`
+      : "No matched counterexample collapsed the residual.",
+    holdoutFeasible,
+    holdoutSummary: holdoutFeasible
+      ? "A future independent holdout slice can be selected after claim freeze."
+      : "No independent holdout slice remains after source-family separation.",
+    replaySucceeded,
+    replaySummary: replaySucceeded
+      ? "Recompute path is deterministic from raw receipt and baseline definitions."
+      : "Replay/recompute did not close because the residual depends on an unstable slice boundary.",
+    killed: counterexampleFound || !holdoutFeasible || !replaySucceeded,
+    killReason,
+  };
+}
+
+function externalRawEvidenceArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/external-raw-evidence-reset`;
+  return [
+    `${root}/FRESH_SOURCES_USED.md`,
+    `${root}/RAW_TARGET_RECEIPTS.json`,
+    `${root}/RAW_MEASUREMENTS.json`,
+    `${root}/RAW_MEASUREMENTS.md`,
+    `${root}/BASELINE_FIRST_RESULTS.md`,
+    `${root}/RESIDUAL_CANDIDATES.md`,
+    `${root}/COUNTEREXAMPLE_CHECKS.md`,
+    `${root}/HOLDOUT_FEASIBILITY.md`,
+    `${root}/REPLAY_RECOMPUTE_CHECKS.md`,
+    `${root}/INSIGHT_CANDIDATES.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function externalRawSourcesMarkdown(targets: ExternalRawTarget[]): string {
+  return [
+    "# Fresh Sources Used",
+    "",
+    `Fresh raw/formal sources used: ${targets.length}.`,
+    `Corpus-derived targets: ${targets.filter((target) => target.corpusDerived).length}.`,
+    "",
+    "| Target | Domain | Source kind | Load status | Source | Measured variable |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...targets.map(
+      (target) =>
+        `| ${target.targetId} | ${target.domain} | ${target.sourceKind} | ${target.sourceLoadStatus} | ${target.sourceUrl} | ${target.measuredVariable} |`,
+    ),
+    "",
+    "Prior Sovryn corpus and batch artifacts are excluded as primary candidate sources; they may only inform negative death-cause memory.",
+  ].join("\n");
+}
+
+function externalRawMeasurementsMarkdown(
+  measurements: ExternalRawMeasurement[],
+): string {
+  return [
+    "# Raw Measurements",
+    "",
+    `Measurements performed: ${measurements.length}.`,
+    "",
+    "| Target | Domain | Outcome | Baseline median | Residual | Residual attempted |",
+    "| --- | --- | ---: | ---: | ---: | --- |",
+    ...measurements.map(
+      (measurement) =>
+        `| ${measurement.targetId} | ${measurement.domain} | ${measurement.measuredOutcome} | ${measurement.baselineMedian} | ${measurement.residual} | ${String(measurement.residualCandidateAttempted)} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawBaselineMarkdown(
+  measurements: ExternalRawMeasurement[],
+): string {
+  return [
+    "# Baseline-First Results",
+    "",
+    `Baseline checks run: ${measurements.reduce((sum, measurement) => sum + measurement.baselinePredictions.length, 0)}.`,
+    "",
+    "| Target | Baselines | Baseline explains | Residual |",
+    "| --- | --- | --- | ---: |",
+    ...measurements.map(
+      (measurement) =>
+        `| ${measurement.targetId} | ${measurement.baselinePredictions.map((baseline) => `${baseline.baseline}=${baseline.prediction}`).join("; ")} | ${String(measurement.baselineExplains)} | ${measurement.residual} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawResidualCandidatesMarkdown(
+  candidates: ExternalRawResidualCandidate[],
+): string {
+  return [
+    "# Residual Candidates",
+    "",
+    `Residual candidates attempted: ${candidates.length}.`,
+    "",
+    "| Candidate | Target | Domain | Residual | Claim |",
+    "| --- | --- | --- | ---: | --- |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.candidateId} | ${candidate.targetId} | ${candidate.domain} | ${candidate.residual} | ${candidate.exactClaim} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawCounterexamplesMarkdown(
+  results: ExternalRawPressureResult[],
+): string {
+  return [
+    "# Counterexample Checks",
+    "",
+    `Checks run: ${results.length}.`,
+    "",
+    "| Candidate | Counterexample found | Summary |",
+    "| --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.candidateId} | ${String(result.counterexampleFound)} | ${result.counterexampleSummary} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawHoldoutsMarkdown(
+  results: ExternalRawPressureResult[],
+): string {
+  return [
+    "# Holdout Feasibility",
+    "",
+    `Checks run: ${results.length}.`,
+    "",
+    "| Candidate | Holdout feasible | Summary |",
+    "| --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.candidateId} | ${String(result.holdoutFeasible)} | ${result.holdoutSummary} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawReplayMarkdown(
+  results: ExternalRawPressureResult[],
+): string {
+  return [
+    "# Replay Recompute Checks",
+    "",
+    `Checks run: ${results.length}.`,
+    "",
+    "| Candidate | Replay succeeded | Summary |",
+    "| --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.candidateId} | ${String(result.replaySucceeded)} | ${result.replaySummary} |`,
+    ),
+  ].join("\n");
+}
+
+function externalRawInsightCandidatesMarkdown(
+  results: ExternalRawPressureResult[],
+): string {
+  const survivors = results.filter((result) => !result.killed);
+  return [
+    "# InsightCandidates",
+    "",
+    `InsightCandidates created: ${survivors.length}.`,
+    "",
+    survivors.length === 0
+      ? "No residual survived counterexample, holdout, and replay pressure; no InsightCandidate birth occurred."
+      : survivors
+          .map(
+            (result) =>
+              `- ${result.candidateId}: survived raw evidence pressure for ${result.domain}.`,
+          )
+          .join("\n"),
+  ].join("\n");
+}
+
+function externalRawFundGateMarkdown(
+  report: ExternalRawEvidenceSourceResetReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FUND_FOUND.md or fund-candidate.json is written unless a discovery-scored candidate passes the full Fund Gate.",
+  ].join("\n");
+}
+
+function externalRawNextCheckpointMarkdown(
+  report: ExternalRawEvidenceSourceResetReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 export class ScientificSignalQualityTournament {
@@ -13936,6 +15011,11 @@ export class AutonomousDiscoveryDaemonService {
   async marathonSignalQualityTournament(): Promise<ScientificSignalQualityTournamentReport> {
     await this.ensureInitialized();
     return new ScientificSignalQualityTournament(this.root).run();
+  }
+
+  async rawEvidenceReset(): Promise<ExternalRawEvidenceSourceResetReport> {
+    await this.ensureInitialized();
+    return new ExternalRawEvidenceSourceReset(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

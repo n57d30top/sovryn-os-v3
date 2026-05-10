@@ -194,6 +194,7 @@ Commands:
   sovryn discover-daemon marathon [status|resume|audit|depth-gauntlet|gate-closure-autopsy|rival-hard-mode|remaining-strict-closure|signal-quality] [--json]
   sovryn discover-daemon raw-evidence-reset [--json]
   sovryn discover-daemon cross-source-residual-search [--json]
+  sovryn discover-daemon generative-experiments [--json]
   sovryn discover-daemon raw-insight-gate-closure [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
@@ -1686,7 +1687,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|raw-insight-gate-closure|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|raw-insight-gate-closure|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1800,6 +1801,8 @@ async function discoverDaemonCommand(
       return service.rawEvidenceReset();
     case "cross-source-residual-search":
       return service.crossSourceResidualSearch();
+    case "generative-experiments":
+      return service.generativeExperiments();
     case "raw-insight-gate-closure":
       return service.rawInsightGateClosure();
     case "cycle":

@@ -80,6 +80,7 @@ const commands = [
   "marathon",
   "raw-evidence-reset",
   "cross-source-residual-search",
+  "generative-experiments",
   "raw-insight-gate-closure",
   "cycle",
   "candidate-status",
@@ -3088,6 +3089,141 @@ test("discover-daemon cross-source-residual-search CLI is bounded and silent", a
   assert.equal(
     (response.data as Record<string, unknown>).kind,
     "cross_source_residual_pattern_search",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).insightCandidatesCreated,
+    0,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon generative-experiments builds anchored computational experiments without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generativeExperiments();
+
+  assert.equal(report.kind, "generative_computational_experiment_discovery");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.generativePipelinesBuilt, 8);
+  assert.ok(report.softwareToolsUsed.includes("numpy"));
+  assert.ok(report.softwareToolsUsed.includes("scipy"));
+  assert.ok(report.softwareToolsUsed.includes("networkx"));
+  assert.ok(report.softwareToolsUsed.includes("sympy"));
+  assert.ok(report.generatedObjects >= 500);
+  assert.ok(report.realHoldoutFormalComparisons >= 80);
+  assert.ok(report.nullControlCounterexampleChecks >= 50);
+  assert.ok(report.rivalMechanismComparisons >= 20);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "GENERATIVE_EXPERIMENT_REGISTRY.md",
+    "GENERATED_DATASETS_OR_OBJECTS.md",
+    "SIMULATION_VS_REALITY_RESULTS.md",
+    "FORMAL_OBJECT_RESULTS.md",
+    "COUNTEREXAMPLE_GENERATION_RESULTS.md",
+    "PERTURBATION_ABLATION_RESULTS.md",
+    "NULL_MODEL_RESULTS.md",
+    "RUNTIME_EVIDENCE_RESULTS.md",
+    "RIVAL_MECHANISM_COMPARISONS.md",
+    "INSIGHT_CANDIDATES_FROM_GENERATIVE_EXPERIMENTS.md",
+    "DISCOVERY_PROMOTION_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+    "PROGRAM_EVIDENCE.json",
+    "GENERATIVE_PIPELINES.json",
+    "GENERATED_OBJECTS.json",
+  ]) {
+    assert.equal(
+      await exists(
+        join(
+          root,
+          daemonRoot,
+          "generative-computational-experiments",
+          artifact,
+        ),
+      ),
+      true,
+      artifact,
+    );
+  }
+  const pipelinePayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generative-computational-experiments",
+        "GENERATIVE_PIPELINES.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    pipelines: Array<{
+      generatedDataOnly: boolean;
+      anchoredToRealOrFormal: boolean;
+      insightCandidateCreated: boolean;
+      anchorRefs: string[];
+      toolFamilies: string[];
+    }>;
+  };
+  assert.equal(
+    pipelinePayload.pipelines.every(
+      (pipeline) => pipeline.anchoredToRealOrFormal === true,
+    ),
+    true,
+  );
+  assert.equal(
+    pipelinePayload.pipelines.every(
+      (pipeline) => pipeline.anchorRefs.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    pipelinePayload.pipelines.some(
+      (pipeline) => pipeline.generatedDataOnly === true,
+    ),
+    true,
+  );
+  assert.equal(
+    pipelinePayload.pipelines.every(
+      (pipeline) => pipeline.insightCandidateCreated === false,
+    ),
+    true,
+  );
+  assert.equal(
+    new Set(
+      pipelinePayload.pipelines.flatMap((pipeline) => pipeline.toolFamilies),
+    ).size >= 4,
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon generative-experiments CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "generative-experiments", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "generative_computational_experiment_discovery",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).generativePipelinesBuilt,
+    8,
   );
   assert.equal(
     (response.data as Record<string, unknown>).insightCandidatesCreated,

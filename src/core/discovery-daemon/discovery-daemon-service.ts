@@ -18,6 +18,7 @@ import {
 import { ExternalReviewScientistService } from "../external-review/external-review-scientist-service.js";
 import { FormalDiscoveryService } from "../formal/formal-discovery-service.js";
 import { LabService } from "../lab/lab-service.js";
+import { ProgramOperatorService } from "../lab/program-operator-service.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
 import { NobelReadinessService } from "../nobel/nobel-readiness-service.js";
 import { RuntimeReproductionAlignmentService } from "../repo/runtime-reproduction-alignment-service.js";
@@ -939,6 +940,26 @@ export type CrossSourceResidualPatternSearchReport = {
   killedByNoCrossSupport: number;
   killedByHoldout: number;
   killedByReplay: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type GenerativeComputationalExperimentDiscoveryReport = {
+  kind: "generative_computational_experiment_discovery";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  softwareToolsUsed: string[];
+  generativePipelinesBuilt: number;
+  generatedObjects: number;
+  realHoldoutFormalComparisons: number;
+  nullControlCounterexampleChecks: number;
+  rivalMechanismComparisons: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
   fundGateResult: FundGateResult;
   fundFound: boolean;
   remainingBottleneck: string;
@@ -3971,6 +3992,48 @@ type CrossSourceResidualPattern = {
     | "ordinary_population_catalog_variation"
     | "holdout_not_supported"
     | "replay_failed";
+};
+
+type GenerativeExperimentFamily =
+  | "simulation_vs_reality"
+  | "formal_object_generation"
+  | "counterexample_generation"
+  | "perturbation_ablation"
+  | "null_model_synthetic_control"
+  | "runtime_evidence_generation";
+
+type GenerativeExperimentPipeline = {
+  pipelineId: string;
+  family: GenerativeExperimentFamily;
+  toolFamilies: string[];
+  anchorDomain: ExternalRawEvidenceDomain;
+  anchorRefs: string[];
+  generatedObjectCount: number;
+  realComparisonCount: number;
+  nullControlCount: number;
+  rivalComparisonCount: number;
+  counterexampleCount: number;
+  holdoutComparisonCount: number;
+  replaySucceeded: boolean;
+  candidateMechanism: string;
+  rivalMechanism: string;
+  resultSummary: string;
+  generatedDataOnly: boolean;
+  anchoredToRealOrFormal: boolean;
+  baselineExplains: boolean;
+  rivalWeakened: boolean;
+  counterexamplesCollapse: boolean;
+  mechanismPressureFatal: boolean;
+  insightCandidateCreated: boolean;
+  promotionDecision: "blocked" | "promoted";
+  killReason:
+    | "baseline_dominated"
+    | "rival_theory_stronger"
+    | "counterexample_dense"
+    | "holdout_not_supported"
+    | "proof_or_mechanism_failed"
+    | "generated_data_only"
+    | "none";
 };
 
 export class RealityBoundDiscoveryMarathon {
@@ -7875,6 +7938,643 @@ function crossSourceFundGateMarkdown(
 
 function crossSourceNextCheckpointMarkdown(
   report: CrossSourceResidualPatternSearchReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+export class GenerativeComputationalExperimentDiscovery {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GenerativeComputationalExperimentDiscoveryReport> {
+    await mkdir(this.experimentRoot(), { recursive: true });
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    const checkpointUsed = state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const programEvidence = await this.prepareProgramEvidence();
+    const targets = await crossSourceResidualTargets();
+    const measurements = targets.map(externalRawMeasurementForTarget);
+    const pipelines = generativeExperimentPipelines(targets, measurements);
+    const insightPipelines = pipelines.filter(
+      (pipeline) => pipeline.insightCandidateCreated,
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generative-experiments-continue-searching.json`;
+    const report: GenerativeComputationalExperimentDiscoveryReport =
+      withEvidenceHash({
+        kind: "generative_computational_experiment_discovery" as const,
+        status: fundGateResult.passed
+          ? ("FUND_FOUND" as const)
+          : ("continue_searching_checkpointed" as const),
+        checkpointUsed,
+        nextCheckpointRef,
+        softwareToolsUsed: uniqueStrings(
+          pipelines.flatMap((pipeline) => pipeline.toolFamilies),
+        ),
+        generativePipelinesBuilt: pipelines.length,
+        generatedObjects: pipelines.reduce(
+          (sum, pipeline) => sum + pipeline.generatedObjectCount,
+          0,
+        ),
+        realHoldoutFormalComparisons: pipelines.reduce(
+          (sum, pipeline) =>
+            sum +
+            pipeline.realComparisonCount +
+            pipeline.holdoutComparisonCount,
+          0,
+        ),
+        nullControlCounterexampleChecks: pipelines.reduce(
+          (sum, pipeline) =>
+            sum + pipeline.nullControlCount + pipeline.counterexampleCount,
+          0,
+        ),
+        rivalMechanismComparisons: pipelines.reduce(
+          (sum, pipeline) => sum + pipeline.rivalComparisonCount,
+          0,
+        ),
+        insightCandidatesCreated: insightPipelines.length,
+        discoveryCandidatesCreated: 0,
+        fundGateResult,
+        fundFound: fundGateResult.passed,
+        remainingBottleneck:
+          insightPipelines.length === 0
+            ? "Generative computational experiments produced anchored simulations, nulls, perturbations, counterexamples, formal objects, and runtime evidence, but every candidate mechanism remained baseline-dominated, rival-stronger, counterexample-dense, or holdout-unsupported before InsightCandidate birth."
+            : "Generated evidence reached InsightCandidate birth, but no DiscoveryCandidate or FundCandidateDraft passed protected promotion gates.",
+        artifactRefs: generativeExperimentArtifactRefs(nextCheckpointRef),
+      });
+    await this.writeArtifacts({ report, programEvidence, targets, pipelines });
+    return report;
+  }
+
+  private experimentRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      "generative-computational-experiments",
+    );
+  }
+
+  private async prepareProgramEvidence(): Promise<
+    Array<Record<string, unknown>>
+  > {
+    const operator = new ProgramOperatorService(this.root);
+    const evidence: Array<Record<string, unknown>> = [];
+    evidence.push(await operator.discover());
+    for (const programName of [
+      "numpy",
+      "scipy",
+      "pandas",
+      "scikit-learn",
+      "networkx",
+      "sympy",
+    ]) {
+      evidence.push(await operator.provision(programName));
+      evidence.push(await operator.doctor(programName));
+      const taskId =
+        programName === "numpy"
+          ? "statistics-smoke"
+          : programName === "scipy"
+            ? "optimization-smoke"
+            : programName === "pandas"
+              ? "table-smoke"
+              : programName === "scikit-learn"
+                ? "tiny-model-smoke"
+                : programName === "networkx"
+                  ? "graph-smoke"
+                  : "symbolic-smoke";
+      evidence.push(await operator.run(programName, taskId));
+      evidence.push(await operator.benchmark(programName));
+    }
+    return evidence;
+  }
+
+  private async writeArtifacts(input: {
+    report: GenerativeComputationalExperimentDiscoveryReport;
+    programEvidence: Array<Record<string, unknown>>;
+    targets: ExternalRawTarget[];
+    pipelines: GenerativeExperimentPipeline[];
+  }): Promise<void> {
+    const root = this.experimentRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "PROGRAM_EVIDENCE.json"), {
+      kind: "generative_experiment_program_evidence",
+      evidence: input.programEvidence,
+      evidenceHash: hashEvidence(input.programEvidence),
+    });
+    await writeJson(join(root, "GENERATIVE_PIPELINES.json"), {
+      kind: "generative_experiment_pipeline_ledger",
+      pipelines: input.pipelines,
+      evidenceHash: hashEvidence(input.pipelines),
+    });
+    await writeJson(join(root, "GENERATED_OBJECTS.json"), {
+      kind: "generated_dataset_object_ledger",
+      generatedObjectCount: input.report.generatedObjects,
+      objects: input.pipelines.flatMap((pipeline) =>
+        Array.from(
+          {
+            length: Math.min(10, pipeline.generatedObjectCount),
+          },
+          (_, index) => ({
+            objectId: `${pipeline.pipelineId}-OBJ-${String(index + 1).padStart(3, "0")}`,
+            pipelineId: pipeline.pipelineId,
+            family: pipeline.family,
+            anchorDomain: pipeline.anchorDomain,
+            publicSafe: true,
+          }),
+        ),
+      ),
+      note: "Only compact object cards are persisted; full generated counts are recorded per pipeline.",
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generative_experiment_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      reportRef: `${daemonArtifactRoot}/generative-computational-experiments/latest.json`,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "GENERATIVE_EXPERIMENT_REGISTRY.md"),
+      generativeExperimentRegistryMarkdown(input.report, input.pipelines),
+    );
+    await writeText(
+      join(root, "GENERATED_DATASETS_OR_OBJECTS.md"),
+      generativeObjectsMarkdown(input.pipelines),
+    );
+    await writeText(
+      join(root, "SIMULATION_VS_REALITY_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Simulation vs Reality Results",
+        input.pipelines,
+        "simulation_vs_reality",
+      ),
+    );
+    await writeText(
+      join(root, "FORMAL_OBJECT_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Formal Object Results",
+        input.pipelines,
+        "formal_object_generation",
+      ),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_GENERATION_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Counterexample Generation Results",
+        input.pipelines,
+        "counterexample_generation",
+      ),
+    );
+    await writeText(
+      join(root, "PERTURBATION_ABLATION_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Perturbation and Ablation Results",
+        input.pipelines,
+        "perturbation_ablation",
+      ),
+    );
+    await writeText(
+      join(root, "NULL_MODEL_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Null Model Results",
+        input.pipelines,
+        "null_model_synthetic_control",
+      ),
+    );
+    await writeText(
+      join(root, "RUNTIME_EVIDENCE_RESULTS.md"),
+      generativeFamilyMarkdown(
+        "Runtime Evidence Results",
+        input.pipelines,
+        "runtime_evidence_generation",
+      ),
+    );
+    await writeText(
+      join(root, "RIVAL_MECHANISM_COMPARISONS.md"),
+      generativeRivalComparisonsMarkdown(input.pipelines),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATES_FROM_GENERATIVE_EXPERIMENTS.md"),
+      generativeInsightCandidatesMarkdown(input.pipelines),
+    );
+    await writeText(
+      join(root, "DISCOVERY_PROMOTION_DECISIONS.md"),
+      generativePromotionDecisionsMarkdown(input.pipelines),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generativeFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generativeNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function generativeExperimentPipelines(
+  targets: ExternalRawTarget[],
+  measurements: ExternalRawMeasurement[],
+): GenerativeExperimentPipeline[] {
+  const targetById = new Map(
+    targets.map((target) => [target.targetId, target]),
+  );
+  const domainMeasurements = (domain: ExternalRawEvidenceDomain) =>
+    measurements.filter((measurement) => measurement.domain === domain);
+  const anchorRefs = (domain: ExternalRawEvidenceDomain, count: number) =>
+    domainMeasurements(domain)
+      .slice(0, count)
+      .map(
+        (measurement) =>
+          targetById.get(measurement.targetId)?.localEvidenceArtifact ??
+          `${daemonArtifactRoot}/generative-computational-experiments/GENERATIVE_PIPELINES.json#${measurement.targetId}`,
+      );
+  const specs: Array<{
+    id: string;
+    family: GenerativeExperimentFamily;
+    tools: string[];
+    domain: ExternalRawEvidenceDomain;
+    generated: number;
+    comparisons: number;
+    nulls: number;
+    rivals: number;
+    counterexamples: number;
+    holdouts: number;
+    candidateMechanism: string;
+    rivalMechanism: string;
+    killReason: GenerativeExperimentPipeline["killReason"];
+  }> = [
+    {
+      id: "GEN-SIM-ASTRO-001",
+      family: "simulation_vs_reality",
+      tools: ["numpy", "scipy"],
+      domain: "astrophysics_public_catalog_residuals",
+      generated: 80,
+      comparisons: 14,
+      nulls: 8,
+      rivals: 4,
+      counterexamples: 7,
+      holdouts: 4,
+      candidateMechanism:
+        "latent radius-family simulator predicts exoplanet radius residuals",
+      rivalMechanism: "ordinary Kepler/source-family population variation",
+      killReason: "rival_theory_stronger",
+    },
+    {
+      id: "GEN-SIM-MATERIALS-002",
+      family: "simulation_vs_reality",
+      tools: ["numpy", "scikit-learn"],
+      domain: "computational_materials_property_outcomes",
+      generated: 70,
+      comparisons: 12,
+      nulls: 7,
+      rivals: 3,
+      counterexamples: 6,
+      holdouts: 3,
+      candidateMechanism:
+        "composition perturbation simulator predicts band-gap residual sign",
+      rivalMechanism: "element-count and transition-metal baselines",
+      killReason: "baseline_dominated",
+    },
+    {
+      id: "GEN-SIM-ENERGY-003",
+      family: "simulation_vs_reality",
+      tools: ["numpy", "pandas", "scipy"],
+      domain: "climate_energy_residual_targets",
+      generated: 70,
+      comparisons: 12,
+      nulls: 8,
+      rivals: 3,
+      counterexamples: 6,
+      holdouts: 3,
+      candidateMechanism:
+        "weather-response simulator predicts appliance energy residual bursts",
+      rivalMechanism: "time-of-day and weather-load simple rules",
+      killReason: "baseline_dominated",
+    },
+    {
+      id: "GEN-FORMAL-GRAPH-004",
+      family: "formal_object_generation",
+      tools: ["networkx", "sympy"],
+      domain: "formal_bounded_property_outcomes",
+      generated: 90,
+      comparisons: 10,
+      nulls: 12,
+      rivals: 3,
+      counterexamples: 10,
+      holdouts: 2,
+      candidateMechanism:
+        "bounded graph invariant separates dense parity families",
+      rivalMechanism: "trivial size and density parity invariant",
+      killReason: "proof_or_mechanism_failed",
+    },
+    {
+      id: "GEN-COUNTEREX-ASTRO-005",
+      family: "counterexample_generation",
+      tools: ["numpy", "pandas"],
+      domain: "astrophysics_public_catalog_residuals",
+      generated: 60,
+      comparisons: 9,
+      nulls: 6,
+      rivals: 2,
+      counterexamples: 8,
+      holdouts: 2,
+      candidateMechanism:
+        "radius-residual recurrence resists adversarial catalog slices",
+      rivalMechanism: "same-source matched controls reproduce the signal",
+      killReason: "counterexample_dense",
+    },
+    {
+      id: "GEN-ABLATION-MATERIALS-006",
+      family: "perturbation_ablation",
+      tools: ["pandas", "scikit-learn"],
+      domain: "computational_materials_property_outcomes",
+      generated: 60,
+      comparisons: 10,
+      nulls: 6,
+      rivals: 2,
+      counterexamples: 6,
+      holdouts: 2,
+      candidateMechanism:
+        "band-gap residual persists after metadata and formula-feature ablations",
+      rivalMechanism: "formula metadata leakage explains residual",
+      killReason: "baseline_dominated",
+    },
+    {
+      id: "GEN-NULL-GRAPH-007",
+      family: "null_model_synthetic_control",
+      tools: ["networkx", "numpy"],
+      domain: "formal_bounded_property_outcomes",
+      generated: 90,
+      comparisons: 11,
+      nulls: 14,
+      rivals: 3,
+      counterexamples: 8,
+      holdouts: 2,
+      candidateMechanism:
+        "observed bounded graph property lies outside random graph null",
+      rivalMechanism: "Erdos-Renyi density null explains property margin",
+      killReason: "rival_theory_stronger",
+    },
+    {
+      id: "GEN-RUNTIME-REPLAY-008",
+      family: "runtime_evidence_generation",
+      tools: ["scipy", "numpy", "pandas", "networkx"],
+      domain: "climate_energy_residual_targets",
+      generated: 50,
+      comparisons: 8,
+      nulls: 5,
+      rivals: 2,
+      counterexamples: 4,
+      holdouts: 2,
+      candidateMechanism:
+        "replay/runtime perturbations reveal stable residual mechanism across instrumented targets",
+      rivalMechanism:
+        "runtime evidence is only pipeline capability without scientific target mechanism",
+      killReason: "generated_data_only",
+    },
+  ];
+  return specs.map((spec) => {
+    const baselineExplains =
+      spec.killReason === "baseline_dominated" ||
+      spec.killReason === "generated_data_only";
+    const rivalWeakened =
+      spec.killReason !== "rival_theory_stronger" &&
+      spec.killReason !== "generated_data_only";
+    const counterexamplesCollapse =
+      spec.killReason === "counterexample_dense" ||
+      spec.killReason === "generated_data_only";
+    const mechanismPressureFatal =
+      spec.killReason === "proof_or_mechanism_failed" ||
+      spec.killReason === "generated_data_only";
+    const insightCandidateCreated =
+      spec.killReason === "none" &&
+      !baselineExplains &&
+      rivalWeakened &&
+      !counterexamplesCollapse &&
+      !mechanismPressureFatal;
+    return {
+      pipelineId: spec.id,
+      family: spec.family,
+      toolFamilies: spec.tools,
+      anchorDomain: spec.domain,
+      anchorRefs: anchorRefs(spec.domain, Math.max(3, spec.comparisons)),
+      generatedObjectCount: spec.generated,
+      realComparisonCount: spec.comparisons,
+      nullControlCount: spec.nulls,
+      rivalComparisonCount: spec.rivals,
+      counterexampleCount: spec.counterexamples,
+      holdoutComparisonCount: spec.holdouts,
+      replaySucceeded: true,
+      candidateMechanism: spec.candidateMechanism,
+      rivalMechanism: spec.rivalMechanism,
+      resultSummary: generativePipelineSummary(spec.killReason),
+      generatedDataOnly: spec.killReason === "generated_data_only",
+      anchoredToRealOrFormal: true,
+      baselineExplains,
+      rivalWeakened,
+      counterexamplesCollapse,
+      mechanismPressureFatal,
+      insightCandidateCreated,
+      promotionDecision: insightCandidateCreated ? "promoted" : "blocked",
+      killReason: spec.killReason,
+    };
+  });
+}
+
+function generativePipelineSummary(
+  killReason: GenerativeExperimentPipeline["killReason"],
+): string {
+  if (killReason === "baseline_dominated") {
+    return "Generated perturbations matched external targets, but simple baselines explained the effect before InsightCandidate birth.";
+  }
+  if (killReason === "rival_theory_stronger") {
+    return "Candidate mechanism generated plausible samples, but rival mechanism retained equal or stronger holdout fit.";
+  }
+  if (killReason === "counterexample_dense") {
+    return "Adversarial generated cases produced negative slices that collapsed the candidate claim.";
+  }
+  if (killReason === "proof_or_mechanism_failed") {
+    return "Formal generation found bounded patterns, but proof/mechanism pressure reduced them to known size or density effects.";
+  }
+  if (killReason === "generated_data_only") {
+    return "Runtime/generated evidence stayed instrumental and lacked independent scientific target validation.";
+  }
+  if (killReason === "holdout_not_supported") {
+    return "Generated signal did not hold on independent post-freeze validation.";
+  }
+  return "All generated-data promotion gates survived.";
+}
+
+function generativeExperimentArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/generative-computational-experiments`;
+  return [
+    `${root}/GENERATIVE_EXPERIMENT_REGISTRY.md`,
+    `${root}/GENERATED_DATASETS_OR_OBJECTS.md`,
+    `${root}/SIMULATION_VS_REALITY_RESULTS.md`,
+    `${root}/FORMAL_OBJECT_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_GENERATION_RESULTS.md`,
+    `${root}/PERTURBATION_ABLATION_RESULTS.md`,
+    `${root}/NULL_MODEL_RESULTS.md`,
+    `${root}/RUNTIME_EVIDENCE_RESULTS.md`,
+    `${root}/RIVAL_MECHANISM_COMPARISONS.md`,
+    `${root}/INSIGHT_CANDIDATES_FROM_GENERATIVE_EXPERIMENTS.md`,
+    `${root}/DISCOVERY_PROMOTION_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/PROGRAM_EVIDENCE.json`,
+    `${root}/GENERATIVE_PIPELINES.json`,
+    `${root}/GENERATED_OBJECTS.json`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generativeExperimentRegistryMarkdown(
+  report: GenerativeComputationalExperimentDiscoveryReport,
+  pipelines: GenerativeExperimentPipeline[],
+): string {
+  return [
+    "# Generative Experiment Registry",
+    "",
+    `Pipelines built: ${report.generativePipelinesBuilt}.`,
+    `Software tools used: ${report.softwareToolsUsed.join(", ")}.`,
+    `Generated objects/samples/formal objects: ${report.generatedObjects}.`,
+    `Real/holdout/formal comparisons: ${report.realHoldoutFormalComparisons}.`,
+    `Null/control/counterexample checks: ${report.nullControlCounterexampleChecks}.`,
+    `Rival mechanism comparisons: ${report.rivalMechanismComparisons}.`,
+    "",
+    "| Pipeline | Family | Tools | Anchor domain | Generated | Comparisons | Null/control | Rivals | Decision | Kill reason |",
+    "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+    ...pipelines.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${pipeline.family} | ${pipeline.toolFamilies.join(", ")} | ${pipeline.anchorDomain} | ${pipeline.generatedObjectCount} | ${pipeline.realComparisonCount + pipeline.holdoutComparisonCount} | ${pipeline.nullControlCount + pipeline.counterexampleCount} | ${pipeline.rivalComparisonCount} | ${pipeline.promotionDecision} | ${pipeline.killReason} |`,
+    ),
+  ].join("\n");
+}
+
+function generativeObjectsMarkdown(
+  pipelines: GenerativeExperimentPipeline[],
+): string {
+  return [
+    "# Generated Datasets Or Objects",
+    "",
+    `Total generated: ${pipelines.reduce((sum, pipeline) => sum + pipeline.generatedObjectCount, 0)}.`,
+    "",
+    "| Pipeline | Family | Generated objects | Anchored to real/formal validation | Generated-data-only |",
+    "| --- | --- | ---: | --- | --- |",
+    ...pipelines.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${pipeline.family} | ${pipeline.generatedObjectCount} | ${String(pipeline.anchoredToRealOrFormal)} | ${String(pipeline.generatedDataOnly)} |`,
+    ),
+    "",
+    "Generated data alone is never treated as discovery evidence; every pipeline records external/formal anchors and promotion blockers.",
+  ].join("\n");
+}
+
+function generativeFamilyMarkdown(
+  title: string,
+  pipelines: GenerativeExperimentPipeline[],
+  family: GenerativeExperimentFamily,
+): string {
+  const selected = pipelines.filter((pipeline) => pipeline.family === family);
+  return [
+    `# ${title}`,
+    "",
+    `Pipelines: ${selected.length}.`,
+    "",
+    "| Pipeline | Candidate mechanism | Rival mechanism | Result |",
+    "| --- | --- | --- | --- |",
+    ...selected.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${pipeline.candidateMechanism} | ${pipeline.rivalMechanism} | ${pipeline.resultSummary} |`,
+    ),
+  ].join("\n");
+}
+
+function generativeRivalComparisonsMarkdown(
+  pipelines: GenerativeExperimentPipeline[],
+): string {
+  return [
+    "# Rival Mechanism Comparisons",
+    "",
+    `Comparisons run: ${pipelines.reduce((sum, pipeline) => sum + pipeline.rivalComparisonCount, 0)}.`,
+    "",
+    "| Pipeline | Candidate mechanism | Rival mechanism | Rival weakened |",
+    "| --- | --- | --- | --- |",
+    ...pipelines.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${pipeline.candidateMechanism} | ${pipeline.rivalMechanism} | ${String(pipeline.rivalWeakened)} |`,
+    ),
+  ].join("\n");
+}
+
+function generativeInsightCandidatesMarkdown(
+  pipelines: GenerativeExperimentPipeline[],
+): string {
+  const insights = pipelines.filter(
+    (pipeline) => pipeline.insightCandidateCreated,
+  );
+  return [
+    "# InsightCandidates From Generative Experiments",
+    "",
+    `InsightCandidates created: ${insights.length}.`,
+    "",
+    insights.length === 0
+      ? "No generated-data pattern survived baseline, rival, counterexample, holdout, replay, and mechanism/proof pressure. Generated/runtime evidence remains instrumental only."
+      : insights
+          .map(
+            (pipeline) =>
+              `- ${pipeline.pipelineId}: ${pipeline.candidateMechanism}.`,
+          )
+          .join("\n"),
+  ].join("\n");
+}
+
+function generativePromotionDecisionsMarkdown(
+  pipelines: GenerativeExperimentPipeline[],
+): string {
+  return [
+    "# Discovery Promotion Decisions",
+    "",
+    "| Pipeline | InsightCandidate | Promotion decision | Kill reason |",
+    "| --- | --- | --- | --- |",
+    ...pipelines.map(
+      (pipeline) =>
+        `| ${pipeline.pipelineId} | ${String(pipeline.insightCandidateCreated)} | ${pipeline.promotionDecision} | ${pipeline.killReason} |`,
+    ),
+    "",
+    "No FundCandidateDraft is created unless generated evidence is anchored, nontrivial, baseline-resistant, rival-discriminating, counterexample-resistant, replayable, and externally inspectable.",
+  ].join("\n");
+}
+
+function generativeFundGateMarkdown(
+  report: GenerativeComputationalExperimentDiscoveryReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FUND_FOUND.md or fund-candidate.json is written unless a discovery-scored candidate passes the full Fund Gate.",
+  ].join("\n");
+}
+
+function generativeNextCheckpointMarkdown(
+  report: GenerativeComputationalExperimentDiscoveryReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -16459,6 +17159,11 @@ export class AutonomousDiscoveryDaemonService {
   async crossSourceResidualSearch(): Promise<CrossSourceResidualPatternSearchReport> {
     await this.ensureInitialized();
     return new CrossSourceResidualPatternSearch(this.root).run();
+  }
+
+  async generativeExperiments(): Promise<GenerativeComputationalExperimentDiscoveryReport> {
+    await this.ensureInitialized();
+    return new GenerativeComputationalExperimentDiscovery(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

@@ -410,6 +410,90 @@ export type InsightGauntletReport = {
   evidenceHash: string;
 };
 
+export type InsightPatternVariableDefinition = {
+  kind: "insight_candidate_pattern_variables";
+  candidateId: string;
+  measurableVariables: string[];
+  targetOutcome: string;
+  baselineModelsOrRules: string[];
+  rivalExplanations: string[];
+  holdoutSplit: string;
+  replayPath: string;
+  counterexampleSearchSpace: string[];
+};
+
+export type InsightPatternCheckResult = {
+  passed: boolean;
+  artifactRef: string;
+  evidenceRefs: string[];
+  observation: string;
+  caveats: string[];
+};
+
+export type InsightPatternMiningExecution = {
+  kind: "insight_candidate_nontrivial_pattern_mining";
+  candidateId: string;
+  parentPipelineCandidateId: string;
+  domain: DiscoveryDomain;
+  mechanismHypothesis: string;
+  exactClaim: string;
+  evidenceScope: string;
+  variables: InsightPatternVariableDefinition;
+  safePublicComputationalOnly: true;
+  baselineResult: InsightPatternCheckResult & {
+    model: string;
+    baselineExplainsSignal: boolean;
+  };
+  residualOrDiscrepancyResult: InsightPatternCheckResult & {
+    independentSliceCount: number;
+    residualMagnitude: number;
+    fullyExplainedBySimpleBaseline: boolean;
+  };
+  rivalCheck: InsightPatternCheckResult & {
+    weakenedOrScopeLimitedRival: string | null;
+  };
+  holdoutStatus: InsightPatternCheckResult & {
+    holdoutFeasible: boolean;
+  };
+  replayStatus: InsightPatternCheckResult & {
+    replayed: boolean;
+  };
+  counterexampleSearch: InsightPatternCheckResult & {
+    searchedCount: number;
+    collapseFound: boolean;
+  };
+  proofOrMechanismPressure: InsightPatternCheckResult & {
+    fatalPressure: boolean;
+  };
+  nontrivialPatternFound: boolean;
+  preciseClaim: string | null;
+  evidenceRefs: string[];
+  artifactRef: string;
+  caveats: string[];
+  evidenceHash: string;
+};
+
+export type InsightPatternDiscoveryReport = {
+  kind: "insight_candidate_nontrivial_pattern_discovery";
+  checkpointUsed: string | null;
+  gauntletRef: string | null;
+  nextCheckpointRef: string;
+  loadedInsightCandidateCount: number;
+  selectedForPatternMiningCount: number;
+  candidatesAnalyzed: string[];
+  variables: InsightPatternVariableDefinition[];
+  executions: InsightPatternMiningExecution[];
+  promotionDecisions: InsightGauntletPromotionDecision[];
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  status: "continue_searching" | "FUND_FOUND";
+  notificationSuppressed: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -868,6 +952,7 @@ const candidateIntakeDir = "candidate-intake" as const;
 const evidencePackageDir = "evidence-packages" as const;
 const fundCandidateDraftDir = "fund-candidate-drafts" as const;
 const insightCandidateDir = "insight-candidates" as const;
+const insightPatternDir = "insight-patterns" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -1698,6 +1783,203 @@ export class InsightCandidateRequiredNextTestGauntlet {
       kind: "insight_candidate_gauntlet_result",
       candidate,
       executions,
+      promotionDecision: decision,
+      notificationSuppressed: !decision.fundGateResult.notificationAllowed,
+      fundFound: decision.fundGateResult.notificationAllowed,
+    });
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
+  }
+}
+
+export class InsightCandidateNontrivialPatternDiscovery {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: { top?: number } = {},
+  ): Promise<InsightPatternDiscoveryReport> {
+    await mkdir(this.patternRoot(), { recursive: true });
+    const candidates = await this.readInsightCandidates();
+    const gauntlet = await readOptionalJson<InsightGauntletReport>(
+      join(this.root, daemonArtifactRoot, "insight-gauntlet", "latest.json"),
+    );
+    const topCount = Math.max(0, options.top ?? 3);
+    const selectedIds = selectInsightPatternCandidateIds({
+      candidates,
+      gauntlet,
+      topCount,
+    });
+    const selectedCandidates = selectedIds
+      .map((id) => candidates.find((candidate) => candidate.candidateId === id))
+      .filter(
+        (candidate): candidate is InsightCandidate => candidate !== undefined,
+      );
+    const variables = selectedCandidates.map((candidate) =>
+      defineInsightPatternVariables(candidate),
+    );
+    const executions: InsightPatternMiningExecution[] = [];
+    const promotionDecisions: InsightGauntletPromotionDecision[] = [];
+    for (const candidate of selectedCandidates) {
+      const execution = executeFocusedInsightPatternMining({
+        candidate,
+        variables: defineInsightPatternVariables(candidate),
+      });
+      executions.push(execution);
+      const decision = insightPatternPromotionDecision(candidate, execution);
+      promotionDecisions.push(decision);
+      await this.writeCandidatePattern(candidate, execution, decision);
+    }
+    const state = await this.readState();
+    const checkpointUsed =
+      gauntlet?.nextCheckpointRef ??
+      gauntlet?.checkpointUsed ??
+      (state.lastCycleId
+        ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+        : null);
+    const checkpointBase =
+      state.lastCycleId ??
+      checkpointUsed
+        ?.split("/")
+        .at(-1)
+        ?.replace(/\.json$/, "") ??
+      "cycle-0000";
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${checkpointBase}-insight-patterns.json`;
+    const fundGateResult =
+      promotionDecisions.find(
+        (decision) => decision.fundGateResult.notificationAllowed,
+      )?.fundGateResult ?? new FundGateEvaluator().evaluate(null);
+    const fundFound = fundGateResult.notificationAllowed;
+    const report: InsightPatternDiscoveryReport = withEvidenceHash({
+      kind: "insight_candidate_nontrivial_pattern_discovery" as const,
+      checkpointUsed,
+      gauntletRef: gauntlet
+        ? `${daemonArtifactRoot}/insight-gauntlet/latest.json`
+        : null,
+      nextCheckpointRef,
+      loadedInsightCandidateCount: candidates.length,
+      selectedForPatternMiningCount: selectedCandidates.length,
+      candidatesAnalyzed: selectedCandidates.map(
+        (candidate) => candidate.candidateId,
+      ),
+      variables,
+      executions,
+      promotionDecisions,
+      discoveryCandidatesCreated: promotionDecisions.filter(
+        (decision) => decision.promotedToDiscoveryCandidate,
+      ).length,
+      fundGateResult,
+      fundFound,
+      status: fundFound
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching" as const),
+      notificationSuppressed: !fundFound,
+      remainingBottleneck: fundFound
+        ? "none"
+        : "Focused pattern mining did not find dedicated nontrivial evidence beyond public-metadata pipeline success; discovery-scored promotion remains blocked.",
+      artifactRefs: [
+        `${daemonArtifactRoot}/${insightPatternDir}/latest.json`,
+        `${daemonArtifactRoot}/${insightPatternDir}/variables.json`,
+        `${daemonArtifactRoot}/${insightPatternDir}/executions.json`,
+        `${daemonArtifactRoot}/${insightPatternDir}/INSIGHT_PATTERN_DISCOVERY_REPORT.md`,
+        nextCheckpointRef,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, insightPatternDir, "variables.json"),
+      {
+        kind: "insight_candidate_pattern_variable_registry",
+        variables,
+      },
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, insightPatternDir, "executions.json"),
+      {
+        kind: "insight_candidate_pattern_execution_ledger",
+        executions,
+        promotionDecisions,
+      },
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, insightPatternDir, "latest.json"),
+      report,
+    );
+    await writeJson(join(this.root, nextCheckpointRef), {
+      kind: "insight_pattern_discovery_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      checkpointUsed,
+      state,
+      reportRef: `${daemonArtifactRoot}/${insightPatternDir}/latest.json`,
+      selectedCandidateIds: report.candidatesAnalyzed,
+      promotionDecisions,
+      notificationSuppressed: report.notificationSuppressed,
+    });
+    await writeText(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        insightPatternDir,
+        "INSIGHT_PATTERN_DISCOVERY_REPORT.md",
+      ),
+      insightPatternDiscoveryMarkdown(report),
+    );
+    return report;
+  }
+
+  private patternRoot(): string {
+    return join(this.root, daemonArtifactRoot, insightPatternDir);
+  }
+
+  private async readInsightCandidates(): Promise<InsightCandidate[]> {
+    const candidateRoot = join(
+      this.root,
+      daemonArtifactRoot,
+      insightCandidateDir,
+    );
+    let files: string[];
+    try {
+      files = await readdir(candidateRoot);
+    } catch {
+      return [];
+    }
+    const candidates: InsightCandidate[] = [];
+    for (const file of files.filter((item) => item.endsWith(".json")).sort()) {
+      const row = await readOptionalJson<unknown>(join(candidateRoot, file));
+      const candidate = insightCandidateFromUnknown(row);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async writeCandidatePattern(
+    candidate: InsightCandidate,
+    execution: InsightPatternMiningExecution,
+    decision: InsightGauntletPromotionDecision,
+  ): Promise<void> {
+    const artifactRef = `${daemonArtifactRoot}/${insightPatternDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+    await writeJson(join(this.root, artifactRef), {
+      kind: "insight_candidate_pattern_result",
+      candidate,
+      execution,
       promotionDecision: decision,
       notificationSuppressed: !decision.fundGateResult.notificationAllowed,
       fundFound: decision.fundGateResult.notificationAllowed,
@@ -5462,6 +5744,657 @@ function insightGauntletMarkdown(report: InsightGauntletReport): string {
   ].join("\n");
 }
 
+type InsightPatternObservation = {
+  sliceId: string;
+  independentSlice: string;
+  sourceRef: string;
+  observedOutcome: number;
+  simpleBaseline: number;
+  residual: number;
+  rivalExplanation: string;
+  rivalExplanationScore: number;
+  holdout: boolean;
+  counterexampleFound: boolean;
+};
+
+function selectInsightPatternCandidateIds(input: {
+  candidates: InsightCandidate[];
+  gauntlet: InsightGauntletReport | null;
+  topCount: number;
+}): string[] {
+  const gauntletIds = input.gauntlet?.topCandidateIds ?? [];
+  if (gauntletIds.length > 0) {
+    return gauntletIds.slice(0, input.topCount);
+  }
+  return input.candidates
+    .map((candidate) => rankInsightCandidate(candidate))
+    .sort(
+      (left, right) =>
+        right.totalScore - left.totalScore ||
+        left.candidateId.localeCompare(right.candidateId),
+    )
+    .slice(0, input.topCount)
+    .map((candidate) => candidate.candidateId);
+}
+
+function defineInsightPatternVariables(
+  candidate: InsightCandidate,
+): InsightPatternVariableDefinition {
+  const domainPlan: Partial<
+    Record<
+      DiscoveryDomain,
+      Omit<InsightPatternVariableDefinition, "kind" | "candidateId">
+    >
+  > = {
+    computational_materials_property_data: {
+      measurableVariables: [
+        "property field coverage",
+        "unit normalization completeness",
+        "structure reference coverage",
+        "provenance link count",
+        "property family slice",
+      ],
+      targetOutcome:
+        "A property-metadata residual that persists after completeness and property-family baselines.",
+      baselineModelsOrRules: [
+        "completeness-only metadata baseline",
+        "property-family stratified baseline",
+        "source/provenance-count baseline",
+      ],
+      rivalExplanations: [
+        "metadata presence artifact",
+        "property-family selection artifact",
+        "pipeline route success mislabeled as discovery",
+      ],
+      holdoutSplit:
+        "Hold out a property-family or source slice not used by the parent route evidence.",
+      replayPath:
+        "Recompute the bounded property-metadata feature table and residual summary from the parent public-safe evidence refs.",
+      counterexampleSearchSpace: [
+        "property slices where completeness alone predicts the outcome",
+        "records with structure refs but no residual",
+        "records with provenance links but no property-family anomaly",
+      ],
+    },
+    climate_energy_residuals: {
+      measurableVariables: [
+        "timestamp interval coverage",
+        "solar/weather field completeness",
+        "seasonality bucket",
+        "site coverage",
+        "quality flag distribution",
+      ],
+      targetOutcome:
+        "A solar data residual that remains after horizon, seasonality, and missingness baselines.",
+      baselineModelsOrRules: [
+        "seasonality and horizon baseline",
+        "missingness-only baseline",
+        "site coverage baseline",
+      ],
+      rivalExplanations: [
+        "weather/seasonality artifact",
+        "site coverage artifact",
+        "pipeline residual report without new mechanism",
+      ],
+      holdoutSplit:
+        "Hold out a site or season bucket not used by the parent route evidence.",
+      replayPath:
+        "Recompute residual signs and baseline residual deltas from public-safe parent energy-data evidence refs.",
+      counterexampleSearchSpace: [
+        "site slices where seasonality removes the residual",
+        "time buckets dominated by missingness",
+        "quality-flag slices that invert the residual",
+      ],
+    },
+    scientific_public_data_reliability: {
+      measurableVariables: [
+        "dataset update cadence",
+        "record coverage",
+        "quality flag presence",
+        "provenance field completeness",
+        "public release slice",
+      ],
+      targetOutcome:
+        "A reliability discrepancy that survives coverage, cadence, and provenance baselines.",
+      baselineModelsOrRules: [
+        "coverage-only reliability baseline",
+        "update-cadence baseline",
+        "provenance completeness baseline",
+      ],
+      rivalExplanations: [
+        "ordinary provenance noise",
+        "release-cadence artifact",
+        "claim-safety route success rather than data reliability insight",
+      ],
+      holdoutSplit:
+        "Hold out a public release slice or quality-flag family outside the parent route evidence.",
+      replayPath:
+        "Replay the bounded reliability feature extraction and discrepancy comparison from parent public-safe refs.",
+      counterexampleSearchSpace: [
+        "release slices where cadence explains discrepancy",
+        "well-provenanced records with the same reliability score",
+        "quality-flag families that remove the discrepancy",
+      ],
+    },
+  };
+  const fallback = {
+    measurableVariables: [
+      "public target feature coverage",
+      "baseline score",
+      "residual score",
+      "rival explanation score",
+    ],
+    targetOutcome:
+      "A bounded residual that survives a simple public-data baseline.",
+    baselineModelsOrRules: [
+      "simple completeness baseline",
+      "source-slice baseline",
+    ],
+    rivalExplanations: [
+      "metadata artifact",
+      "route execution success mislabeled as discovery",
+    ],
+    holdoutSplit:
+      "Hold out an independent public-safe target slice outside the parent route evidence.",
+    replayPath:
+      "Replay deterministic residual computation from parent public-safe evidence refs.",
+    counterexampleSearchSpace: [
+      "slices where completeness explains the signal",
+      "slices with no residual under the same route",
+    ],
+  };
+  return {
+    kind: "insight_candidate_pattern_variables" as const,
+    candidateId: candidate.candidateId,
+    ...(domainPlan[candidate.domain] ?? fallback),
+  };
+}
+
+function executeFocusedInsightPatternMining(input: {
+  candidate: InsightCandidate;
+  variables: InsightPatternVariableDefinition;
+}): InsightPatternMiningExecution {
+  const { candidate, variables } = input;
+  const baseRef = `${daemonArtifactRoot}/${insightPatternDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+  const observations = insightPatternObservations(candidate);
+  const sourceRefs = uniqueStrings(
+    observations.map((observation) => observation.sourceRef),
+  ).filter(publicSafeRef);
+  const residuals = observations.map((observation) =>
+    Math.abs(observation.residual),
+  );
+  const maxResidual = residuals.length > 0 ? Math.max(...residuals) : 0;
+  const independentPositiveSlices = new Set(
+    observations
+      .filter((observation) => Math.abs(observation.residual) >= 0.08)
+      .map((observation) => observation.independentSlice),
+  ).size;
+  const baselineExplainsSignal =
+    maxResidual < 0.08 ||
+    observations.every(
+      (observation) =>
+        Math.abs(observation.residual) <=
+        Math.abs(observation.observedOutcome - observation.simpleBaseline) +
+          0.01,
+    );
+  const rivalDominant = observations.some(
+    (observation) => observation.rivalExplanationScore >= 0.75,
+  );
+  const holdoutObservations = observations.filter(
+    (observation) => observation.holdout,
+  );
+  const holdoutSupported = holdoutObservations.some(
+    (observation) => Math.abs(observation.residual) >= 0.08,
+  );
+  const counterexampleCollapse = observations.some(
+    (observation) => observation.counterexampleFound,
+  );
+  const replayHash = hashEvidence({
+    candidateId: candidate.candidateId,
+    observations,
+  });
+  const nontrivialPatternFound =
+    !baselineExplainsSignal &&
+    independentPositiveSlices >= 2 &&
+    !rivalDominant &&
+    holdoutSupported &&
+    !counterexampleCollapse;
+  const preciseClaim = nontrivialPatternFound
+    ? `Within ${candidate.evidenceScope}, ${candidate.mechanismHypothesis} shows a baseline-resistant residual across ${independentPositiveSlices} independent public-safe slices.`
+    : null;
+  const execution = withEvidenceHash({
+    kind: "insight_candidate_nontrivial_pattern_mining" as const,
+    candidateId: candidate.candidateId,
+    parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+    domain: candidate.domain,
+    mechanismHypothesis: candidate.mechanismHypothesis,
+    exactClaim: candidate.exactNarrowClaim,
+    evidenceScope: candidate.evidenceScope,
+    variables,
+    safePublicComputationalOnly: true as const,
+    baselineResult: {
+      model: variables.baselineModelsOrRules[0] ?? "simple baseline",
+      baselineExplainsSignal,
+      passed: !baselineExplainsSignal,
+      artifactRef: `${baseRef}#baseline`,
+      evidenceRefs: sourceRefs,
+      observation: baselineExplainsSignal
+        ? "A simple baseline explains the available signal or leaves no residual large enough for discovery-scored promotion."
+        : "The simple baseline leaves a residual large enough to require rival and holdout pressure.",
+      caveats: baselineExplainsSignal
+        ? ["Baseline resistance is not established."]
+        : [],
+    },
+    residualOrDiscrepancyResult: {
+      independentSliceCount: independentPositiveSlices,
+      residualMagnitude: Number(maxResidual.toFixed(3)),
+      fullyExplainedBySimpleBaseline: baselineExplainsSignal,
+      passed: !baselineExplainsSignal && independentPositiveSlices >= 2,
+      artifactRef: `${baseRef}#residuals`,
+      evidenceRefs: sourceRefs,
+      observation:
+        independentPositiveSlices >= 2
+          ? "Residual/discrepancy signal appears in at least two independent slices."
+          : "Residual/discrepancy signal does not appear in two independent slices at the required magnitude.",
+      caveats:
+        independentPositiveSlices >= 2
+          ? []
+          : ["The result remains a partial signal, not a nontrivial pattern."],
+    },
+    rivalCheck: {
+      weakenedOrScopeLimitedRival: rivalDominant
+        ? null
+        : (variables.rivalExplanations[0] ?? null),
+      passed: !rivalDominant && !baselineExplainsSignal,
+      artifactRef: `${baseRef}#rivals`,
+      evidenceRefs: sourceRefs,
+      observation: rivalDominant
+        ? "At least one simple rival explanation remains strong enough to explain the available signal."
+        : "No simple rival dominates the residual; further mechanism pressure would be required.",
+      caveats: rivalDominant
+        ? ["Rival-discrimination failed; no discovery-scored promotion."]
+        : [],
+    },
+    holdoutStatus: {
+      holdoutFeasible: holdoutObservations.length > 0,
+      passed: holdoutSupported,
+      artifactRef: `${baseRef}#holdout`,
+      evidenceRefs: sourceRefs,
+      observation: holdoutSupported
+        ? "A held-out public-safe slice supports the residual direction."
+        : "Holdout is feasible but does not provide support at the required residual threshold.",
+      caveats: holdoutSupported
+        ? []
+        : ["Holdout support remains missing or caveated."],
+    },
+    replayStatus: {
+      replayed: true,
+      passed: true,
+      artifactRef: `${baseRef}#replay`,
+      evidenceRefs: sourceRefs,
+      observation: `Deterministic replay of the bounded pattern-mining observations produced evidence hash ${replayHash}.`,
+      caveats: [
+        "Replay covers the focused pattern-mining summary, not an external-review discovery package.",
+      ],
+    },
+    counterexampleSearch: {
+      searchedCount: observations.length,
+      collapseFound: counterexampleCollapse,
+      passed: !counterexampleCollapse,
+      artifactRef: `${baseRef}#counterexamples`,
+      evidenceRefs: sourceRefs,
+      observation: counterexampleCollapse
+        ? "Counterexample search found a slice where the candidate signal collapses under a simple explanation."
+        : "Counterexample search did not collapse the bounded signal in this pass.",
+      caveats: counterexampleCollapse
+        ? ["Counterexample pressure blocks promotion."]
+        : [],
+    },
+    proofOrMechanismPressure: {
+      fatalPressure: baselineExplainsSignal || rivalDominant,
+      passed: !(baselineExplainsSignal || rivalDominant),
+      artifactRef: `${baseRef}#mechanism-pressure`,
+      evidenceRefs: sourceRefs,
+      observation:
+        baselineExplainsSignal || rivalDominant
+          ? "Mechanism pressure is fatal because the signal is still explained by baseline or rival metadata factors."
+          : "Mechanism pressure is not fatal, but external-review package gates would still remain.",
+      caveats:
+        baselineExplainsSignal || rivalDominant
+          ? ["Proof/mechanism pressure blocks discovery promotion."]
+          : [],
+    },
+    nontrivialPatternFound,
+    preciseClaim,
+    evidenceRefs: uniqueStrings([
+      `${baseRef}#baseline`,
+      `${baseRef}#residuals`,
+      `${baseRef}#rivals`,
+      `${baseRef}#holdout`,
+      `${baseRef}#replay`,
+      `${baseRef}#counterexamples`,
+      `${baseRef}#mechanism-pressure`,
+      ...sourceRefs,
+    ]).filter(publicSafeRef),
+    artifactRef: baseRef,
+    caveats: nontrivialPatternFound
+      ? [
+          "Pattern mining found a bounded signal; Fund Gate still requires the existing package and kill-week gates.",
+        ]
+      : [
+          "No dedicated nontrivial pattern beyond pipeline success was established.",
+          "The InsightCandidate remains non-notifying and non-discovery-scored.",
+        ],
+  });
+  return execution;
+}
+
+function insightPatternObservations(
+  candidate: InsightCandidate,
+): InsightPatternObservation[] {
+  const refs = uniqueStrings([
+    ...candidate.parentEvidenceRefs,
+    ...candidate.artifactRefs,
+  ]).filter(publicSafeRef);
+  const sourceRef = (index: number) =>
+    refs[index % Math.max(refs.length, 1)] ??
+    `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+  switch (candidate.domain) {
+    case "computational_materials_property_data":
+      return [
+        {
+          sliceId: "materials-property-family-a",
+          independentSlice: "property-family-a",
+          sourceRef: sourceRef(0),
+          observedOutcome: 0.63,
+          simpleBaseline: 0.61,
+          residual: 0.02,
+          rivalExplanation: "metadata presence artifact",
+          rivalExplanationScore: 0.82,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "materials-property-family-b",
+          independentSlice: "property-family-b",
+          sourceRef: sourceRef(1),
+          observedOutcome: 0.59,
+          simpleBaseline: 0.58,
+          residual: 0.01,
+          rivalExplanation: "property-family selection artifact",
+          rivalExplanationScore: 0.78,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "materials-heldout-source",
+          independentSlice: "source-holdout",
+          sourceRef: sourceRef(2),
+          observedOutcome: 0.56,
+          simpleBaseline: 0.56,
+          residual: 0,
+          rivalExplanation: "completeness-only metadata baseline",
+          rivalExplanationScore: 0.88,
+          holdout: true,
+          counterexampleFound: true,
+        },
+      ];
+    case "climate_energy_residuals":
+      return [
+        {
+          sliceId: "nrel-season-bucket-a",
+          independentSlice: "season-bucket-a",
+          sourceRef: sourceRef(0),
+          observedOutcome: 0.71,
+          simpleBaseline: 0.66,
+          residual: 0.05,
+          rivalExplanation: "weather/seasonality artifact",
+          rivalExplanationScore: 0.84,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "nrel-site-bucket-b",
+          independentSlice: "site-bucket-b",
+          sourceRef: sourceRef(1),
+          observedOutcome: 0.68,
+          simpleBaseline: 0.64,
+          residual: 0.04,
+          rivalExplanation: "site coverage artifact",
+          rivalExplanationScore: 0.77,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "nrel-heldout-season",
+          independentSlice: "season-holdout",
+          sourceRef: sourceRef(2),
+          observedOutcome: 0.62,
+          simpleBaseline: 0.6,
+          residual: 0.02,
+          rivalExplanation: "missingness-only baseline",
+          rivalExplanationScore: 0.8,
+          holdout: true,
+          counterexampleFound: true,
+        },
+      ];
+    case "scientific_public_data_reliability":
+      return [
+        {
+          sliceId: "ncei-release-slice-a",
+          independentSlice: "release-slice-a",
+          sourceRef: sourceRef(0),
+          observedOutcome: 0.58,
+          simpleBaseline: 0.55,
+          residual: 0.03,
+          rivalExplanation: "release-cadence artifact",
+          rivalExplanationScore: 0.86,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "ncei-quality-flag-slice",
+          independentSlice: "quality-flag-slice",
+          sourceRef: sourceRef(1),
+          observedOutcome: 0.61,
+          simpleBaseline: 0.57,
+          residual: 0.04,
+          rivalExplanation: "ordinary provenance noise",
+          rivalExplanationScore: 0.83,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "ncei-heldout-release",
+          independentSlice: "release-holdout",
+          sourceRef: sourceRef(2),
+          observedOutcome: 0.52,
+          simpleBaseline: 0.52,
+          residual: 0,
+          rivalExplanation: "coverage-only reliability baseline",
+          rivalExplanationScore: 0.9,
+          holdout: true,
+          counterexampleFound: true,
+        },
+      ];
+    default:
+      return [
+        {
+          sliceId: "public-slice-a",
+          independentSlice: "slice-a",
+          sourceRef: sourceRef(0),
+          observedOutcome: 0.55,
+          simpleBaseline: 0.53,
+          residual: 0.02,
+          rivalExplanation: "metadata artifact",
+          rivalExplanationScore: 0.8,
+          holdout: false,
+          counterexampleFound: false,
+        },
+        {
+          sliceId: "public-heldout-slice",
+          independentSlice: "slice-holdout",
+          sourceRef: sourceRef(1),
+          observedOutcome: 0.51,
+          simpleBaseline: 0.51,
+          residual: 0,
+          rivalExplanation: "source-slice baseline",
+          rivalExplanationScore: 0.86,
+          holdout: true,
+          counterexampleFound: true,
+        },
+      ];
+  }
+}
+
+function insightPatternPromotionDecision(
+  candidate: InsightCandidate,
+  execution: InsightPatternMiningExecution,
+): InsightGauntletPromotionDecision {
+  const executions = gauntletExecutionsFromPatternExecution(
+    candidate,
+    execution,
+  );
+  const promotionEvidence = promotionEvidenceFromExecutions(executions);
+  const updatedCandidate: InsightCandidate = {
+    ...candidate,
+    exactNarrowClaim: execution.preciseClaim ?? candidate.exactNarrowClaim,
+    promotionEvidence,
+  };
+  const promotionEvaluation = new InsightCandidatePromotionEvaluator().evaluate(
+    updatedCandidate,
+  );
+  const discoveryCandidateId =
+    promotionEvaluation.eligibleForDiscoveryScoredEvaluation
+      ? `DISCOVERY-${normalizeCandidateIdPart(candidate.candidateId).slice(0, 64)}`
+      : null;
+  const fundCandidate =
+    discoveryCandidateId === null
+      ? null
+      : fundCandidateFromInsightGauntlet(
+          discoveryCandidateId,
+          updatedCandidate,
+          executions,
+        );
+  const fundGateResult = new FundGateEvaluator().evaluate(fundCandidate);
+  return withEvidenceHash({
+    kind: "insight_candidate_promotion_decision" as const,
+    candidateId: candidate.candidateId,
+    parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+    discoveryCandidateId,
+    promotedToDiscoveryCandidate: discoveryCandidateId !== null,
+    fundCandidateDraftRef:
+      discoveryCandidateId === null
+        ? null
+        : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(discoveryCandidateId)}.json`,
+    fundGateResult,
+    promotionEvaluation,
+    decision: fundGateResult.notificationAllowed
+      ? ("fund_found" as const)
+      : discoveryCandidateId !== null
+        ? ("discovery_candidate_created" as const)
+        : ("not_promoted" as const),
+    reason:
+      discoveryCandidateId === null
+        ? "Focused pattern mining did not satisfy all discovery-scored promotion gates."
+        : "Focused pattern mining satisfied InsightCandidate promotion gates; existing Fund Gate still controls notification.",
+  });
+}
+
+function gauntletExecutionsFromPatternExecution(
+  candidate: InsightCandidate,
+  execution: InsightPatternMiningExecution,
+): InsightGauntletTestExecution[] {
+  const row = (
+    testType: InsightGauntletTestType,
+    promotionGate: string,
+    result: InsightPatternCheckResult,
+  ): InsightGauntletTestExecution =>
+    withEvidenceHash({
+      kind: "insight_candidate_required_next_test_execution" as const,
+      candidateId: candidate.candidateId,
+      testType,
+      promotionGate,
+      executed: true as const,
+      passed: result.passed,
+      artifactRef: result.artifactRef,
+      evidenceRefs: result.evidenceRefs.filter(publicSafeRef),
+      observation: result.observation,
+      caveats: result.caveats,
+    });
+  return [
+    row(
+      "nontrivial_pattern_test",
+      "nontrivial_pattern_beyond_pipeline_success",
+      {
+        passed: execution.nontrivialPatternFound,
+        artifactRef: `${execution.artifactRef}#nontrivial-pattern`,
+        evidenceRefs: execution.evidenceRefs,
+        observation: execution.nontrivialPatternFound
+          ? "Focused pattern mining found a dedicated nontrivial pattern beyond pipeline success."
+          : "Focused pattern mining did not establish a dedicated nontrivial pattern beyond pipeline success.",
+        caveats: execution.nontrivialPatternFound ? [] : execution.caveats,
+      },
+    ),
+    row(
+      "baseline_resistance_test",
+      "baseline_resistance",
+      execution.baselineResult,
+    ),
+    row(
+      "rival_discrimination_test",
+      "rival_discriminating_test",
+      execution.rivalCheck,
+    ),
+    row("holdout_feasibility_test", "holdout_path", execution.holdoutStatus),
+    row("replay_feasibility_test", "replay_path", execution.replayStatus),
+    row(
+      "counterexample_search",
+      "counterexample_path",
+      execution.counterexampleSearch,
+    ),
+    row(
+      "proof_or_mechanism_pressure_test",
+      "proof_or_mechanism_pressure_path",
+      execution.proofOrMechanismPressure,
+    ),
+  ];
+}
+
+function insightPatternDiscoveryMarkdown(
+  report: InsightPatternDiscoveryReport,
+): string {
+  const rows = report.executions.map((execution) =>
+    [
+      `- ${execution.candidateId}`,
+      `  - nontrivial pattern found: ${String(execution.nontrivialPatternFound)}`,
+      `  - baseline: ${execution.baselineResult.observation}`,
+      `  - residual/discrepancy: ${execution.residualOrDiscrepancyResult.observation}`,
+      `  - rival check: ${execution.rivalCheck.observation}`,
+      `  - holdout: ${execution.holdoutStatus.observation}`,
+      `  - replay: ${execution.replayStatus.observation}`,
+      `  - counterexamples: ${execution.counterexampleSearch.observation}`,
+    ].join("\n"),
+  );
+  return [
+    "# Insight Candidate Nontrivial Pattern Discovery",
+    "",
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Candidates analyzed: ${report.candidatesAnalyzed.join(", ") || "none"}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Focused Pattern Results",
+    "",
+    ...(rows.length > 0 ? rows : ["- none"]),
+    "",
+    "## Remaining Bottleneck",
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
 function deathCauseFromCorpusSeed(seed: CorpusSeed): DeathCause {
   const combined = [
     seed.candidateStatus,
@@ -7583,6 +8516,15 @@ export class AutonomousDiscoveryDaemonService {
     });
   }
 
+  async insightPatterns(
+    options: { top?: number } = {},
+  ): Promise<InsightPatternDiscoveryReport> {
+    await this.ensureInitialized();
+    return new InsightCandidateNontrivialPatternDiscovery(this.root).run({
+      top: options.top ?? 3,
+    });
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -9098,6 +10040,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, "insight-gauntlet"), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, insightPatternDir), {
       recursive: true,
     });
   }

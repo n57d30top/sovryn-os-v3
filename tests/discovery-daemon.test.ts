@@ -71,6 +71,7 @@ const commands = [
   "hard-seed-generate",
   "hard-seed-audit",
   "insight-gauntlet",
+  "insight-patterns",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -1639,6 +1640,126 @@ test("discover-daemon insight-gauntlet CLI is bounded and silent", async () => {
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("InsightCandidate pattern discovery attempts focused tests without creating fake Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0001",
+    parentPipelineCandidateId: "PIPELINE-MATERIALS",
+    domain: "computational_materials_property_data",
+    mechanismHypothesis: "materials_property_data_external-review-ready",
+    parentEvidenceRefCount: 12,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0002",
+    parentPipelineCandidateId: "PIPELINE-NREL",
+    domain: "climate_energy_residuals",
+    mechanismHypothesis: "climate_energy_public_data_external-review-ready",
+    parentEvidenceRefCount: 11,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0003",
+    parentPipelineCandidateId: "PIPELINE-NCEI",
+    domain: "scientific_public_data_reliability",
+    mechanismHypothesis:
+      "scientific_public_data_reliability_external-review-ready",
+    parentEvidenceRefCount: 10,
+  });
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0004",
+    parentPipelineCandidateId: "PIPELINE-SCIPY",
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanismHypothesis: "repo_package_reproduction_external-review-ready",
+    parentEvidenceRefCount: 7,
+  });
+
+  const gauntlet = await service.insightGauntlet({ top: 3 });
+  const report = await service.insightPatterns({ top: 3 });
+
+  assert.equal(report.kind, "insight_candidate_nontrivial_pattern_discovery");
+  assert.equal(report.loadedInsightCandidateCount, 4);
+  assert.equal(report.selectedForPatternMiningCount, 3);
+  assert.deepEqual(report.candidatesAnalyzed, gauntlet.topCandidateIds);
+  assert.equal(report.variables.length, 3);
+  assert.equal(report.executions.length, 3);
+  assert.equal(
+    report.executions.every(
+      (execution) =>
+        execution.safePublicComputationalOnly === true &&
+        execution.baselineResult.artifactRef.endsWith("#baseline") &&
+        execution.residualOrDiscrepancyResult.artifactRef.endsWith(
+          "#residuals",
+        ) &&
+        execution.rivalCheck.artifactRef.endsWith("#rivals") &&
+        execution.holdoutStatus.artifactRef.endsWith("#holdout") &&
+        execution.replayStatus.artifactRef.endsWith("#replay") &&
+        execution.counterexampleSearch.artifactRef.endsWith(
+          "#counterexamples",
+        ) &&
+        execution.proofOrMechanismPressure.artifactRef.endsWith(
+          "#mechanism-pressure",
+        ),
+    ),
+    true,
+  );
+  assert.equal(
+    report.executions.every(
+      (execution) => execution.nontrivialPatternFound === false,
+    ),
+    true,
+  );
+  assert.equal(
+    report.promotionDecisions.every(
+      (decision) => decision.decision === "not_promoted",
+    ),
+    true,
+  );
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.status, "continue_searching");
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(
+    await exists(join(root, daemonRoot, "insight-patterns", "latest.json")),
+    true,
+  );
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+});
+
+test("discover-daemon insight-patterns CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await writeInsightCandidateFixture(root, {
+    cycleId: "cycle-0001",
+    parentPipelineCandidateId: "PIPELINE-NCEI",
+    domain: "scientific_public_data_reliability",
+    mechanismHypothesis:
+      "scientific_public_data_reliability_external-review-ready",
+    parentEvidenceRefCount: 8,
+  });
+  await service.insightGauntlet({ top: 1 });
+  const response = await executeCli(
+    ["discover-daemon", "insight-patterns", "--top", "1", "--json"],
+    root,
+  );
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "insight_candidate_nontrivial_pattern_discovery",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).selectedForPatternMiningCount,
+    1,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2254,6 +2375,11 @@ const cliScenarios: {
     name: "insight-gauntlet",
     args: ["discover-daemon", "insight-gauntlet", "--json"],
     expectedKind: "insight_candidate_required_next_test_gauntlet",
+  },
+  {
+    name: "insight-patterns",
+    args: ["discover-daemon", "insight-patterns", "--json"],
+    expectedKind: "insight_candidate_nontrivial_pattern_discovery",
   },
   {
     name: "cycle",

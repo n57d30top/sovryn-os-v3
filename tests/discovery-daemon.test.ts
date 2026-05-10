@@ -35,6 +35,9 @@ import {
   hardSeedTypes,
   HardSeedToCandidateBuilder,
   HardSeedValidator,
+  InsightCandidateDeriver,
+  InsightCandidatePromotionEvaluator,
+  insightCandidateSchema,
   MechanismPlanExecutor,
   MechanismRouter,
   publicCorpusBaseRef,
@@ -46,6 +49,7 @@ import {
   type FundCandidateDraft,
   type FundLabel,
   type HardSeed,
+  type InsightCandidate,
   type MechanismCandidateType,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
 
@@ -1198,6 +1202,235 @@ test("candidate identity accepts only explicit minor refinements within boundari
   assert.equal(silent.cause, "identity_drift");
   assert.equal(explicit.accepted, true);
   assert.equal(explicit.cause, "versioned_claim_change");
+});
+
+test("InsightCandidate schema requires parent evidence and non-Fund status", () => {
+  const schema = insightCandidateSchema();
+  assert.equal(schema.kind, "insight_candidate_schema");
+  assert.equal(
+    (schema.requiredFields as string[]).includes("parentPipelineCandidateId"),
+    true,
+  );
+  assert.equal((schema.requiredFields as string[]).includes("fundClass"), true);
+  assert.equal(
+    (schema.hardBlocks as string[]).includes("FUND_FOUND notification"),
+    true,
+  );
+});
+
+test("pipeline evidence can derive new InsightCandidate without mutating parent ID", async () => {
+  const ledger = new CandidateIdentityLedger();
+  const parentPipelineCandidateId = "PIPELINE-PARENT-OPENML-S260";
+  ledger.register({
+    candidateId: parentPipelineCandidateId,
+    claim: "Pipeline evidence shows OpenML slice S260 replay completed.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "single OpenML slice S260 pipeline evidence",
+    fundClass: "pipeline_capability_verified",
+  });
+  const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+    claim:
+      "A nontrivial new insight may exist across real targets beyond the OpenML pipeline result.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanism: "evaluation_fragility_pipeline",
+    evidenceScope: "across real targets beyond pipeline evidence",
+    fundClass: "discovery_fund_candidate",
+  });
+  const versioningDecision = new CandidateVersioningPolicy().resolveCandidateId(
+    {
+      records: ledger.entries(),
+      candidateId: parentPipelineCandidateId,
+      canonicalClaim,
+    },
+  );
+  const derivation = await new InsightCandidateDeriver().derive({
+    cycleId: "cycle-insight-001",
+    parentPipelineCandidateId,
+    parentClaim: "Pipeline evidence shows OpenML slice S260 replay completed.",
+    parentFundClass: "pipeline_capability_verified",
+    domain: "cross_domain_evaluation_fragility",
+    mechanismHypothesis: "evaluation_fragility_pipeline",
+    evidenceScope: "single OpenML slice S260 pipeline evidence",
+    parentEvidenceRefs: [
+      ".sovryn/discovery-daemon/search-cycles/cycle-insight-001.json",
+      "https://www.openml.org/",
+    ],
+    sourceVersioningDecision: versioningDecision,
+    ledger,
+  });
+  assert.equal(versioningDecision.requiresNewCandidateId, true);
+  assert.equal(derivation.derived, true);
+  assert.notEqual(derivation.candidate?.candidateId, parentPipelineCandidateId);
+  assert.equal(
+    derivation.candidate?.parentPipelineCandidateId,
+    parentPipelineCandidateId,
+  );
+  assert.equal(derivation.candidate?.fundClass, "insight_candidate");
+  assert.equal(derivation.identityDecision?.accepted, true);
+  assert.equal(
+    derivation.candidate?.whatIsNotClaimed.includes("not FUND_FOUND"),
+    true,
+  );
+});
+
+test("InsightCandidate is not FUND_FOUND and does not notify", async () => {
+  const ledger = new CandidateIdentityLedger();
+  const parentPipelineCandidateId = "PIPELINE-PARENT-NOTIFY";
+  const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+    claim:
+      "A narrow insight candidate is derived from pipeline evidence without notification.",
+    domain: "benchmark_protocol_methodology",
+    mechanism: "benchmark_protocol_audit",
+    evidenceScope: "one benchmark protocol pipeline artifact",
+    fundClass: "insight_candidate",
+  });
+  const derivation = await new InsightCandidateDeriver().derive({
+    cycleId: "cycle-insight-002",
+    parentPipelineCandidateId,
+    parentClaim: "Benchmark protocol audit pipeline completed.",
+    parentFundClass: "pipeline_capability_verified",
+    domain: "benchmark_protocol_methodology",
+    mechanismHypothesis: "benchmark_protocol_audit",
+    evidenceScope: "one benchmark protocol pipeline artifact",
+    parentEvidenceRefs: ["https://mlcommons.org/"],
+    sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: parentPipelineCandidateId,
+      existing: null,
+      next: canonicalClaim,
+    }),
+    ledger,
+  });
+  const evaluation = new InsightCandidatePromotionEvaluator().evaluate(
+    derivation.candidate!,
+  );
+  assert.equal(derivation.candidate?.fundFound, false);
+  assert.equal(derivation.candidate?.notificationSuppressed, true);
+  assert.equal(evaluation.fundFound, false);
+  assert.equal(evaluation.notificationSuppressed, true);
+  assert.equal(evaluation.targetFundClass, null);
+  assert.equal(evaluation.eligibleForDiscoveryScoredEvaluation, false);
+});
+
+test("InsightCandidate enters discovery-scored evaluation only after required tests exist", () => {
+  const candidate: InsightCandidate = {
+    kind: "insight_candidate",
+    candidateId: "INSIGHT-READY",
+    parentPipelineCandidateId: "PIPELINE-PARENT-READY",
+    parentFundClass: "pipeline_capability_verified",
+    parentEvidenceRefs: ["https://www.openml.org/"],
+    exactNarrowClaim:
+      "A bounded nontrivial pattern beyond pipeline success survives required pressure.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanismHypothesis: "evaluation_fragility_pipeline",
+    evidenceScope: "single bounded target family",
+    fundClass: "insight_candidate",
+    whatIsNotClaimed: ["not FUND_FOUND"],
+    requiredNextTests: {
+      nontrivialPatternBeyondPipelineSuccess: "required",
+      baselineResistance: "required",
+      rivalDiscriminatingTest: "required",
+      holdoutPath: "required",
+      replayPath: "required",
+      counterexamplePath: "required",
+      proofOrMechanismPressurePath: "required",
+    },
+    promotionEvidence: {
+      nontrivialPatternRefs: ["PAPER.md#nontrivial-pattern"],
+      baselineResistanceRefs: ["CLAIM_EVIDENCE_BINDINGS.json#baselines"],
+      rivalDiscriminatingTestRefs: ["CLAIM_EVIDENCE_BINDINGS.json#rivals"],
+      holdoutPathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdouts"],
+      replayPathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replay"],
+      counterexamplePathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexamples"],
+      proofOrMechanismPressureRefs: ["CLAIM_EVIDENCE_BINDINGS.json#mechanism"],
+    },
+    sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: "PIPELINE-PARENT-READY",
+      existing: null,
+      next: new CandidateClaimCanonicalizer().canonicalize({
+        claim:
+          "A bounded nontrivial pattern beyond pipeline success survives required pressure.",
+        domain: "cross_domain_evaluation_fragility",
+        mechanism: "evaluation_fragility_pipeline",
+        evidenceScope: "single bounded target family",
+        fundClass: "insight_candidate",
+      }),
+    }),
+    notificationSuppressed: true,
+    fundFound: false,
+    createdAt: "2026-05-10T00:00:00.000Z",
+    artifactRefs: [
+      ".sovryn/discovery-daemon/insight-candidates/INSIGHT-READY.json",
+    ],
+    evidenceHash: "test",
+  };
+  const evaluation = new InsightCandidatePromotionEvaluator().evaluate(
+    candidate,
+  );
+  assert.equal(evaluation.eligibleForDiscoveryScoredEvaluation, true);
+  assert.equal(evaluation.targetFundClass, "discovery_fund_candidate");
+  assert.equal(evaluation.notificationSuppressed, true);
+});
+
+test("InsightCandidate promotion requires a nontrivial pattern beyond pipeline success", () => {
+  const base: InsightCandidate = {
+    kind: "insight_candidate",
+    candidateId: "INSIGHT-MISSING-NONTRIVIAL",
+    parentPipelineCandidateId: "PIPELINE-PARENT-MISSING-NONTRIVIAL",
+    parentFundClass: "pipeline_capability_verified",
+    parentEvidenceRefs: ["https://www.openml.org/"],
+    exactNarrowClaim:
+      "A bounded pattern candidate has all paths except nontrivial pattern evidence.",
+    domain: "cross_domain_evaluation_fragility",
+    mechanismHypothesis: "evaluation_fragility_pipeline",
+    evidenceScope: "single bounded target family",
+    fundClass: "insight_candidate",
+    whatIsNotClaimed: ["not FUND_FOUND"],
+    requiredNextTests: {
+      nontrivialPatternBeyondPipelineSuccess: "required",
+      baselineResistance: "required",
+      rivalDiscriminatingTest: "required",
+      holdoutPath: "required",
+      replayPath: "required",
+      counterexamplePath: "required",
+      proofOrMechanismPressurePath: "required",
+    },
+    promotionEvidence: {
+      baselineResistanceRefs: ["CLAIM_EVIDENCE_BINDINGS.json#baselines"],
+      rivalDiscriminatingTestRefs: ["CLAIM_EVIDENCE_BINDINGS.json#rivals"],
+      holdoutPathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdouts"],
+      replayPathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replay"],
+      counterexamplePathRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexamples"],
+      proofOrMechanismPressureRefs: ["CLAIM_EVIDENCE_BINDINGS.json#mechanism"],
+    },
+    sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: "PIPELINE-PARENT-MISSING-NONTRIVIAL",
+      existing: null,
+      next: new CandidateClaimCanonicalizer().canonicalize({
+        claim:
+          "A bounded pattern candidate has all paths except nontrivial pattern evidence.",
+        domain: "cross_domain_evaluation_fragility",
+        mechanism: "evaluation_fragility_pipeline",
+        evidenceScope: "single bounded target family",
+        fundClass: "insight_candidate",
+      }),
+    }),
+    notificationSuppressed: true,
+    fundFound: false,
+    createdAt: "2026-05-10T00:00:00.000Z",
+    artifactRefs: [
+      ".sovryn/discovery-daemon/insight-candidates/INSIGHT-MISSING-NONTRIVIAL.json",
+    ],
+    evidenceHash: "test",
+  };
+  const evaluation = new InsightCandidatePromotionEvaluator().evaluate(base);
+  assert.equal(evaluation.eligibleForDiscoveryScoredEvaluation, false);
+  assert.equal(
+    evaluation.failedGates.includes(
+      "nontrivial_pattern_beyond_pipeline_success",
+    ),
+    true,
+  );
 });
 
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {

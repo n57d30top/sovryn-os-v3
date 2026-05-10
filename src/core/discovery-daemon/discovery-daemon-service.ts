@@ -260,6 +260,74 @@ export type FundCandidateDraftValidation = {
   evidenceHash: string;
 };
 
+export type InsightCandidateRequiredTests = {
+  nontrivialPatternBeyondPipelineSuccess: string;
+  baselineResistance: string;
+  rivalDiscriminatingTest: string;
+  holdoutPath: string;
+  replayPath: string;
+  counterexamplePath: string;
+  proofOrMechanismPressurePath: string;
+};
+
+export type InsightCandidatePromotionEvidence = {
+  nontrivialPatternRefs?: string[];
+  baselineResistanceRefs?: string[];
+  rivalDiscriminatingTestRefs?: string[];
+  holdoutPathRefs?: string[];
+  replayPathRefs?: string[];
+  counterexamplePathRefs?: string[];
+  proofOrMechanismPressureRefs?: string[];
+};
+
+export type InsightCandidate = {
+  kind: "insight_candidate";
+  candidateId: string;
+  parentPipelineCandidateId: string;
+  parentFundClass: FundClass | null;
+  parentEvidenceRefs: string[];
+  exactNarrowClaim: string;
+  domain: DiscoveryDomain;
+  mechanismHypothesis: string;
+  evidenceScope: string;
+  fundClass: "insight_candidate";
+  whatIsNotClaimed: string[];
+  requiredNextTests: InsightCandidateRequiredTests;
+  promotionEvidence: InsightCandidatePromotionEvidence;
+  sourceVersioningDecision: CandidateVersioningDecision;
+  notificationSuppressed: true;
+  fundFound: false;
+  createdAt: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type InsightCandidatePromotionEvaluation = {
+  kind: "insight_candidate_promotion_evaluation";
+  candidateId: string;
+  parentPipelineCandidateId: string;
+  fundClass: "insight_candidate";
+  targetFundClass: "discovery_fund_candidate" | null;
+  eligibleForDiscoveryScoredEvaluation: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  notificationSuppressed: true;
+  fundFound: false;
+  evidenceHash: string;
+};
+
+export type InsightCandidateDerivation = {
+  kind: "insight_candidate_derivation";
+  derived: boolean;
+  reason: string;
+  parentPipelineCandidateId: string;
+  candidate: InsightCandidate | null;
+  identityDecision: CandidateIdentityDecision | null;
+  promotionEvaluation: InsightCandidatePromotionEvaluation | null;
+  artifactRef: string | null;
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -717,6 +785,7 @@ const fundCandidateFile = "fund-candidate.json" as const;
 const candidateIntakeDir = "candidate-intake" as const;
 const evidencePackageDir = "evidence-packages" as const;
 const fundCandidateDraftDir = "fund-candidate-drafts" as const;
+const insightCandidateDir = "insight-candidates" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -1099,6 +1168,199 @@ export class CandidateIdentityLedger {
       record: existing,
       canonicalClaim,
       versioningDecision,
+    });
+  }
+}
+
+export class InsightCandidatePromotionEvaluator {
+  evaluate(candidate: InsightCandidate): InsightCandidatePromotionEvaluation {
+    const evidence = candidate.promotionEvidence;
+    const gates = [
+      gate(
+        "nontrivial_pattern_beyond_pipeline_success",
+        stringArray(evidence.nontrivialPatternRefs).length > 0,
+        "InsightCandidate needs evidence for a nontrivial pattern beyond pipeline/tool/infrastructure success.",
+      ),
+      gate(
+        "baseline_resistance",
+        stringArray(evidence.baselineResistanceRefs).length > 0,
+        "InsightCandidate needs baseline-resistance evidence before discovery-scored evaluation.",
+      ),
+      gate(
+        "rival_discriminating_test",
+        stringArray(evidence.rivalDiscriminatingTestRefs).length > 0,
+        "InsightCandidate needs a rival-discriminating test before discovery-scored evaluation.",
+      ),
+      gate(
+        "holdout_path",
+        stringArray(evidence.holdoutPathRefs).length > 0,
+        "InsightCandidate needs a holdout path before discovery-scored evaluation.",
+      ),
+      gate(
+        "replay_path",
+        stringArray(evidence.replayPathRefs).length > 0,
+        "InsightCandidate needs a replay path before discovery-scored evaluation.",
+      ),
+      gate(
+        "counterexample_path",
+        stringArray(evidence.counterexamplePathRefs).length > 0,
+        "InsightCandidate needs a counterexample path before discovery-scored evaluation.",
+      ),
+      gate(
+        "proof_or_mechanism_pressure_path",
+        stringArray(evidence.proofOrMechanismPressureRefs).length > 0,
+        "InsightCandidate needs proof or mechanism pressure before discovery-scored evaluation.",
+      ),
+      gate(
+        "not_a_fund_notification",
+        candidate.fundClass === "insight_candidate" &&
+          candidate.notificationSuppressed === true &&
+          candidate.fundFound === false,
+        "InsightCandidate is an intermediate artifact and must not notify as FUND_FOUND.",
+      ),
+    ];
+    const eligibleForDiscoveryScoredEvaluation = gates.every(
+      (item) => item.passed,
+    );
+    return withEvidenceHash({
+      kind: "insight_candidate_promotion_evaluation" as const,
+      candidateId: candidate.candidateId,
+      parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+      fundClass: "insight_candidate" as const,
+      targetFundClass: eligibleForDiscoveryScoredEvaluation
+        ? ("discovery_fund_candidate" as const)
+        : null,
+      eligibleForDiscoveryScoredEvaluation,
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      notificationSuppressed: true as const,
+      fundFound: false as const,
+    });
+  }
+}
+
+export class InsightCandidateDeriver {
+  constructor(private readonly root?: string) {}
+
+  async derive(input: {
+    cycleId: string;
+    parentPipelineCandidateId: string;
+    parentClaim: string;
+    parentFundClass: FundClass | null;
+    domain: DiscoveryDomain;
+    mechanismHypothesis: string;
+    evidenceScope: string;
+    parentEvidenceRefs: string[];
+    sourceVersioningDecision: CandidateVersioningDecision;
+    ledger: CandidateIdentityLedger;
+    now?: string;
+  }): Promise<InsightCandidateDerivation> {
+    const parentEvidenceRefs = uniqueStrings(input.parentEvidenceRefs).filter(
+      (ref) => ref.trim().length > 0,
+    );
+    const idHash = hashEvidence({
+      parentPipelineCandidateId: input.parentPipelineCandidateId,
+      parentClaim: input.parentClaim,
+      domain: input.domain,
+      mechanismHypothesis: input.mechanismHypothesis,
+      evidenceScope: input.evidenceScope,
+      parentEvidenceRefs,
+    })
+      .slice(0, 12)
+      .toUpperCase();
+    const candidateId = `INSIGHT-${normalizeCandidateIdPart(input.parentPipelineCandidateId).slice(0, 48)}-${idHash}`;
+    const exactNarrowClaim = normalizeWhitespace(
+      [
+        `Insight candidate derived from ${input.parentPipelineCandidateId}:`,
+        `${input.mechanismHypothesis} evidence in ${input.domain} suggests a bounded pattern beyond pipeline success within ${input.evidenceScope}.`,
+        "This is not a discovery Fund unless the required baseline, rival, holdout, replay, counterexample, and proof/mechanism tests pass.",
+      ].join(" "),
+    );
+    const requiredNextTests: InsightCandidateRequiredTests = {
+      nontrivialPatternBeyondPipelineSuccess:
+        "Show a bounded nontrivial pattern that is not merely successful execution of the parent pipeline.",
+      baselineResistance:
+        "Run strong baselines and bind refs showing the pattern is not baseline dominated.",
+      rivalDiscriminatingTest:
+        "Run rival-theory tests and bind refs showing at least one rival is weakened or scope-limited.",
+      holdoutPath:
+        "Bind a fresh post-freeze holdout path and show support on held-out targets.",
+      replayPath: "Bind a fresh workspace replay path for decisive evidence.",
+      counterexamplePath:
+        "Bind counterexample search results showing the pattern does not collapse.",
+      proofOrMechanismPressurePath:
+        "Bind proof, refutation, or mechanism-pressure refs appropriate to the domain.",
+    };
+    const artifactRef = `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(candidateId)}.json`;
+    const candidate: InsightCandidate = withEvidenceHash({
+      kind: "insight_candidate" as const,
+      candidateId,
+      parentPipelineCandidateId: input.parentPipelineCandidateId,
+      parentFundClass: input.parentFundClass,
+      parentEvidenceRefs,
+      exactNarrowClaim,
+      domain: input.domain,
+      mechanismHypothesis: normalizeMechanism(input.mechanismHypothesis),
+      evidenceScope: normalizeWhitespace(input.evidenceScope),
+      fundClass: "insight_candidate" as const,
+      whatIsNotClaimed: [
+        "not FUND_FOUND",
+        "not a discovery_fund_candidate",
+        "not an externally_review_ready_discovery_candidate",
+        "not Einstein/Nobel scoring evidence",
+        "not proof that the parent pipeline output is itself a discovery",
+        "not a broad cross-domain claim beyond the exact evidence scope",
+      ],
+      requiredNextTests,
+      promotionEvidence: {},
+      sourceVersioningDecision: input.sourceVersioningDecision,
+      notificationSuppressed: true as const,
+      fundFound: false as const,
+      createdAt: input.now ?? nowIso(),
+      artifactRefs: [artifactRef],
+    });
+    const identityDecision = input.ledger.register({
+      candidateId,
+      claim: exactNarrowClaim,
+      domain: input.domain,
+      mechanism: candidate.mechanismHypothesis,
+      evidenceScope: candidate.evidenceScope,
+      fundClass: "insight_candidate",
+      now: input.now,
+    });
+    const promotionEvaluation =
+      new InsightCandidatePromotionEvaluator().evaluate(candidate);
+    if (this.root) {
+      await mkdir(join(this.root, daemonArtifactRoot, insightCandidateDir), {
+        recursive: true,
+      });
+      await writeJson(
+        join(this.root, daemonArtifactRoot, "insight-candidate-schema.json"),
+        insightCandidateSchema(),
+      );
+      await writeJson(join(this.root, artifactRef), {
+        kind: "insight_candidate_artifact",
+        candidate,
+        identityDecision,
+        promotionEvaluation,
+        derivationRule:
+          "pipeline/tool/infrastructure evidence that would require semantic broadening is preserved under the parent ID and may derive only a new InsightCandidate ID.",
+        notificationSuppressed: true,
+        fundFound: false,
+      });
+    }
+    return withEvidenceHash({
+      kind: "insight_candidate_derivation" as const,
+      derived: true,
+      reason:
+        "non_discovery_pipeline_or_infrastructure_evidence_requires_explicit_insight_candidate",
+      parentPipelineCandidateId: input.parentPipelineCandidateId,
+      candidate,
+      identityDecision,
+      promotionEvaluation,
+      artifactRef,
     });
   }
 }
@@ -2828,6 +3090,33 @@ export class SilentSearchLoopRunner {
       killWeek,
     });
     const fundGateEvaluation = new FundGateEvaluator().evaluate(fundCandidate);
+    const insightDerivations = shouldDeriveInsightCandidate({
+      fundGateEvaluation,
+      candidateVersioningDecision,
+      mechanismExecutions,
+    })
+      ? [
+          await new InsightCandidateDeriver(input.root).derive({
+            cycleId,
+            parentPipelineCandidateId:
+              candidateVersioningDecision.inputCandidateId,
+            parentClaim: claim,
+            parentFundClass: fundGateEvaluation.fundClass,
+            domain,
+            mechanismHypothesis: canonicalClaim.mechanism,
+            evidenceScope: canonicalClaim.evidenceScope,
+            parentEvidenceRefs: insightParentEvidenceRefs({
+              cycleId,
+              hardSeeds: validHardSeeds,
+              mechanismPlans,
+              mechanismExecutions,
+              fundCandidate,
+            }),
+            sourceVersioningDecision: candidateVersioningDecision,
+            ledger: input.ledger,
+          }),
+        ]
+      : [];
     const status = new DeathCauseClassifier().statusForDeathCause(deathCause);
     if (!fundGateEvaluation.passed) {
       input.graveyard.add({
@@ -2873,6 +3162,16 @@ export class SilentSearchLoopRunner {
         mechanismPlans,
         mechanismExecutions,
       ),
+      insightCandidates: insightDerivations
+        .map((derivation) => derivation.candidate)
+        .filter((candidate) => candidate !== null),
+      insightCandidateDerivations: insightDerivations,
+      insightCandidateCount: insightDerivations.filter(
+        (derivation) => derivation.derived,
+      ).length,
+      insightPromotionEvaluations: insightDerivations
+        .map((derivation) => derivation.promotionEvaluation)
+        .filter((evaluation) => evaluation !== null),
       frozenPredictions,
       freezeLedger: {
         frozenBeforeExecution: true,
@@ -4181,6 +4480,77 @@ function fundCandidateEvidenceScope(candidate: FundCandidate): string {
       ...(candidate.replayOutcomes ?? []),
     ].join(" "),
   );
+}
+
+function shouldDeriveInsightCandidate(input: {
+  fundGateEvaluation: FundGateResult;
+  candidateVersioningDecision: CandidateVersioningDecision;
+  mechanismExecutions: MechanismPlanExecution[];
+}): boolean {
+  const parentClass = input.fundGateEvaluation.fundClass;
+  const derivableParentClass =
+    parentClass === "pipeline_capability_verified" ||
+    parentClass === "pipeline_fund_candidate" ||
+    parentClass === "infrastructure_fund_candidate";
+  if (!derivableParentClass) return false;
+  const hasExecutedMechanismEvidence = input.mechanismExecutions.some(
+    (execution) =>
+      execution.allSelectedToolsInvoked &&
+      execution.downstreamConsumable &&
+      execution.outputArtifactRefs.length > 0,
+  );
+  const semanticBroadeningAttempt =
+    input.candidateVersioningDecision.requiresNewCandidateId &&
+    input.candidateVersioningDecision.reasons.some((reason) =>
+      [
+        "domain_changed",
+        "mechanism_changed",
+        "fund_class_changed",
+        "evidence_scope_broadened",
+        "claim_scope_broadened",
+        "claim_semantics_changed",
+      ].includes(reason),
+    );
+  return (
+    hasExecutedMechanismEvidence &&
+    (semanticBroadeningAttempt || input.fundGateEvaluation.passed)
+  );
+}
+
+function insightParentEvidenceRefs(input: {
+  cycleId: string;
+  hardSeeds: HardSeed[];
+  mechanismPlans: MechanismPlan[];
+  mechanismExecutions: MechanismPlanExecution[];
+  fundCandidate: FundCandidate;
+}): string[] {
+  const cycleRef = `${daemonArtifactRoot}/search-cycles/${input.cycleId}.json`;
+  const hardSeedRefs = input.hardSeeds.flatMap((seed) => [
+    `${cycleRef}#hardSeeds/${seed.seedId}`,
+    ...seed.evidenceRefs,
+    ...seed.baselineRefs,
+    ...seed.rivalRefs,
+    ...seed.holdoutRefs,
+    ...seed.replayRefs,
+    ...seed.counterexampleRefs,
+  ]);
+  return uniqueStrings([
+    cycleRef,
+    `${cycleRef}#fundCandidate`,
+    `${cycleRef}#fundGateEvaluation`,
+    `${cycleRef}#candidateVersioningDecision`,
+    ...input.mechanismPlans.map(
+      (plan, index) => `${cycleRef}#mechanismPlans/${index}`,
+    ),
+    ...input.mechanismExecutions.flatMap((execution) => [
+      ...execution.artifactRefs,
+      ...execution.outputArtifactRefs,
+    ]),
+    ...hardSeedRefs,
+    ...fundCandidateEvidenceScope(input.fundCandidate)
+      .split(" ")
+      .filter((ref) => ref.startsWith("http") || ref.startsWith(".")),
+  ]);
 }
 
 function deathCauseFromCorpusSeed(seed: CorpusSeed): DeathCause {
@@ -7806,6 +8176,9 @@ export class AutonomousDiscoveryDaemonService {
     await mkdir(join(this.root, daemonArtifactRoot, fundCandidateDraftDir), {
       recursive: true,
     });
+    await mkdir(join(this.root, daemonArtifactRoot, insightCandidateDir), {
+      recursive: true,
+    });
   }
 
   private async readSearchCyclesForDomainAudit(): Promise<
@@ -8746,6 +9119,42 @@ export class AutonomousDiscoveryDaemonService {
 
 function gate(code: string, passed: boolean, message: string): FundGate {
   return { code, passed, message };
+}
+
+export function insightCandidateSchema(): Record<string, unknown> {
+  return {
+    kind: "insight_candidate_schema",
+    version: 1,
+    requiredFields: [
+      "candidateId",
+      "parentPipelineCandidateId",
+      "parentEvidenceRefs",
+      "exactNarrowClaim",
+      "domain",
+      "mechanismHypothesis",
+      "evidenceScope",
+      "fundClass",
+      "whatIsNotClaimed",
+      "requiredNextTests",
+    ],
+    hardBlocks: [
+      "candidateId reused from parent pipeline/tool/infrastructure candidate",
+      "missing parent evidence refs",
+      "broad discovery claim without new candidate identity",
+      "FUND_FOUND notification",
+      "Einstein/Nobel discovery scoring before promotion evidence exists",
+      "tool, reproduction, pipeline, or infrastructure success treated as discovery",
+    ],
+    requiredNextTests: [
+      "nontrivial pattern beyond pipeline success",
+      "baseline resistance",
+      "rival-discriminating test",
+      "holdout path",
+      "replay path",
+      "counterexample path",
+      "proof or mechanism pressure path",
+    ],
+  };
 }
 
 function fundCandidateDraftSchema(): Record<string, unknown> {

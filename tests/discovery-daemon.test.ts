@@ -2455,6 +2455,90 @@ test("discover-daemon marathon depth-gauntlet CLI is bounded and silent", async 
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("discover-daemon marathon gate-closure autopsy analyzes strict InsightCandidates without fake Fund", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.marathon();
+  await service.marathonDepthGauntlet();
+
+  const report = await service.marathonGateClosureAutopsy();
+
+  assert.equal(report.kind, "strict_insight_candidate_gate_closure_autopsy");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.candidatesLoaded, 10);
+  assert.equal(report.top3CandidateIds.length, 3);
+  assert.ok(report.testsExecuted >= 3);
+  assert.equal(report.candidatesPromoted, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "gate-closure-autopsy",
+        "STRICT_INSIGHT_CANDIDATE_MATRIX.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "marathon",
+        "depth-gauntlet",
+        "gate-closure-autopsy",
+        "PROMOTION_DECISIONS.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon marathon gate-closure-autopsy CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root, 720);
+  assert.equal(
+    (await executeCli(["discover-daemon", "marathon", "--json"], root)).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await executeCli(
+        ["discover-daemon", "marathon", "depth-gauntlet", "--json"],
+        root,
+      )
+    ).ok,
+    true,
+  );
+
+  const response = await executeCli(
+    ["discover-daemon", "marathon", "gate-closure-autopsy", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "strict_insight_candidate_gate_closure_autopsy",
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("top-level pipeline commands produce instrumental evidence without Fund state", async () => {
   const root = await tempRoot();
   const compose = await executeCli(

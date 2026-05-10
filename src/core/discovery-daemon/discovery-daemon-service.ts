@@ -767,6 +767,35 @@ export type MeasurementDepthGauntletReport = {
   evidenceHash: string;
 };
 
+export type StrictInsightGateCode =
+  | "baseline_resistance"
+  | "rival_discrimination"
+  | "holdout_support"
+  | "replay_support"
+  | "counterexample_pressure"
+  | "mechanism_proof_pressure"
+  | "inspectability_package"
+  | "candidate_identity";
+
+export type StrictInsightGateClosureAutopsyReport = {
+  kind: "strict_insight_candidate_gate_closure_autopsy";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidatesLoaded: number;
+  top3CandidateIds: string[];
+  testsExecuted: number;
+  gatesClosed: number;
+  candidatesKilled: number;
+  candidatesPromoted: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -3345,6 +3374,57 @@ type DeepRerunTournament = {
   promotionDecisions: Array<Record<string, unknown>>;
 };
 
+type StrictInsightGateState = "passed" | "failed" | "bounded_caveat";
+
+type StrictInsightGateStatus = {
+  code: StrictInsightGateCode;
+  status: StrictInsightGateState;
+  evidenceRef: string | null;
+  reason: string;
+};
+
+type StrictInsightGateMatrixRow = {
+  candidateId: string;
+  exactClaim: string;
+  domain: DiscoveryDomain;
+  measuredTargetOutcome: string;
+  parentSeedRefs: string[];
+  evidenceRefs: string[];
+  currentFailedGates: StrictInsightGateCode[];
+  rivalTheoryStatus: string;
+  replayStatus: string;
+  holdoutStatus: string;
+  mechanismProofStatus: string;
+  inspectabilityStatus: string;
+  gateMatrix: Record<StrictInsightGateCode, StrictInsightGateStatus>;
+  closabilityScore: number;
+  sourceCheck: DeepRerunCheck | null;
+};
+
+type StrictInsightGateClosureTestResult = {
+  candidateId: string;
+  gate: StrictInsightGateCode;
+  executed: true;
+  before: StrictInsightGateState;
+  after: StrictInsightGateState;
+  closed: boolean;
+  artifactRef: string;
+  deathCause: MeasurementDepthDeathCause;
+  summary: string;
+};
+
+type StrictInsightPromotionDecision = {
+  candidateId: string;
+  promoted: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftRef: string | null;
+  killed: boolean;
+  killReason: MeasurementDepthDeathCause;
+  missingGates: StrictInsightGateCode[];
+  closedGates: StrictInsightGateCode[];
+  reason: string;
+};
+
 export class RealityBoundDiscoveryMarathon {
   constructor(private readonly root: string) {}
 
@@ -4700,6 +4780,246 @@ export class MeasurementDepthSeedQualityGauntlet {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       measurementDepthNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+export class StrictInsightCandidateGateClosureAutopsy {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<StrictInsightGateClosureAutopsyReport> {
+    await mkdir(this.autopsyRoot(), { recursive: true });
+    const depthReport = await this.readDepthReport();
+    const candidates = await this.readStrictInsightCandidates();
+    const strictValidSeeds = await this.readStrictValidSeeds();
+    const scoredTargets = await this.readDepthScoredTargets();
+    const deepChecks = rebuildMeasurementDepthChecksForReport(
+      depthReport,
+      strictValidSeeds,
+      scoredTargets,
+    );
+    const matrix = candidates.map((candidate) =>
+      strictInsightGateMatrixRow({
+        candidate,
+        seed: strictValidSeeds.find(
+          (seed) =>
+            seed.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+        check: deepChecks.find(
+          (check) =>
+            check.candidateId ===
+            candidate.parentPipelineCandidateId.replace(/-STRICT$/, ""),
+        ),
+      }),
+    );
+    const ranked = [...matrix].sort(strictInsightGateRankComparator);
+    const top3 = ranked.slice(0, 3);
+    const tests = top3.flatMap((row) => runStrictInsightMissingGateTests(row));
+    const decisions = top3.map((row) =>
+      strictInsightPromotionDecision(row, tests),
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${
+      depthReport.nextCheckpointRef.split("/").pop()?.replace(".json", "") ??
+      "cycle-0000"
+    }-gate-closure-autopsy.json`;
+    const report: StrictInsightGateClosureAutopsyReport = withEvidenceHash({
+      kind: "strict_insight_candidate_gate_closure_autopsy" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: depthReport.nextCheckpointRef,
+      nextCheckpointRef,
+      candidatesLoaded: candidates.length,
+      top3CandidateIds: top3.map((row) => row.candidateId),
+      testsExecuted: tests.length,
+      gatesClosed: tests.filter((test) => test.closed).length,
+      candidatesKilled: decisions.filter((decision) => decision.killed).length,
+      candidatesPromoted: decisions.filter((decision) => decision.promoted)
+        .length,
+      discoveryCandidatesCreated: decisions.filter(
+        (decision) => decision.discoveryCandidateId !== null,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      remainingBottleneck:
+        "Strict InsightCandidates still fail gate closure under rival, replay, mechanism, holdout, or inspectability pressure; no FundCandidateDraft was created.",
+      artifactRefs: strictInsightGateClosureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      matrix,
+      ranked,
+      top3,
+      tests,
+      decisions,
+    });
+    return report;
+  }
+
+  private autopsyRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      instrumentedMarathonDir,
+      "depth-gauntlet",
+      "gate-closure-autopsy",
+    );
+  }
+
+  private async readDepthReport(): Promise<MeasurementDepthGauntletReport> {
+    const report = await readOptionalJson<MeasurementDepthGauntletReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "latest.json",
+      ),
+    );
+    if (!report) {
+      throw new Error(
+        "Strict InsightCandidate gate-closure autopsy requires a completed measurement-depth gauntlet.",
+      );
+    }
+    return report;
+  }
+
+  private async readStrictInsightCandidates(): Promise<InsightCandidate[]> {
+    const markdown = await readFile(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_INSIGHT_CANDIDATES.md",
+      ),
+      "utf8",
+    );
+    const refs = uniqueStrings(
+      [...markdown.matchAll(/ref=([^,\s]+\.json)/g)].map(
+        (match) => match[1] ?? "",
+      ),
+    ).filter((ref) => ref.length > 0);
+    const candidates: InsightCandidate[] = [];
+    for (const ref of refs) {
+      const row = await readOptionalJson<unknown>(join(this.root, ref));
+      const candidate = insightCandidateFromUnknown(row);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async readStrictValidSeeds(): Promise<RealityMeasuredSeed[]> {
+    const ledger = await readOptionalJson<{ seeds?: RealityMeasuredSeed[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_VALID_SEEDS.json",
+      ),
+    );
+    return Array.isArray(ledger?.seeds) ? ledger.seeds : [];
+  }
+
+  private async readDepthScoredTargets(): Promise<DepthScoredTarget[]> {
+    const ledger = await readOptionalJson<{ targets?: DepthScoredTarget[] }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "DEPTH_SCORED_TARGETS.json",
+      ),
+    );
+    return Array.isArray(ledger?.targets) ? ledger.targets : [];
+  }
+
+  private async writeArtifacts(input: {
+    report: StrictInsightGateClosureAutopsyReport;
+    matrix: StrictInsightGateMatrixRow[];
+    ranked: StrictInsightGateMatrixRow[];
+    top3: StrictInsightGateMatrixRow[];
+    tests: StrictInsightGateClosureTestResult[];
+    decisions: StrictInsightPromotionDecision[];
+  }): Promise<void> {
+    const root = this.autopsyRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "strict_insight_gate_closure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      checkpointUsed: input.report.checkpointUsed,
+      reportRef: `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/gate-closure-autopsy/latest.json`,
+      top3CandidateIds: input.report.top3CandidateIds,
+      nextAction:
+        "continue searching; strict candidates require stronger rival, replay, mechanism, holdout, or inspectability closure before promotion",
+    });
+    await writeText(
+      join(root, "STRICT_INSIGHT_CANDIDATE_MATRIX.md"),
+      strictInsightCandidateMatrixMarkdown(input.matrix),
+    );
+    await writeText(
+      join(root, "GATE_CLOSURE_RANKING.md"),
+      strictGateClosureRankingMarkdown(input.ranked, input.top3),
+    );
+    await writeText(
+      join(root, "TOP3_GATE_CLOSURE_TESTS.md"),
+      strictTop3GateClosureTestsMarkdown(input.top3, input.tests),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_RESULTS.md"),
+      strictGateClosureResultsMarkdown(
+        "Rival Discrimination Results",
+        input.tests,
+        "rival_discrimination",
+      ),
+    );
+    await writeText(
+      join(root, "HOLDOUT_CLOSURE_RESULTS.md"),
+      strictGateClosureResultsMarkdown(
+        "Holdout Closure Results",
+        input.tests,
+        "holdout_support",
+      ),
+    );
+    await writeText(
+      join(root, "REPLAY_CLOSURE_RESULTS.md"),
+      strictGateClosureResultsMarkdown(
+        "Replay Closure Results",
+        input.tests,
+        "replay_support",
+      ),
+    );
+    await writeText(
+      join(root, "MECHANISM_PRESSURE_RESULTS.md"),
+      strictGateClosureResultsMarkdown(
+        "Mechanism Pressure Results",
+        input.tests,
+        "mechanism_proof_pressure",
+      ),
+    );
+    await writeText(
+      join(root, "INSPECTABILITY_STATUS.md"),
+      strictGateClosureResultsMarkdown(
+        "Inspectability Status",
+        input.tests,
+        "inspectability_package",
+      ),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISIONS.md"),
+      strictPromotionDecisionsMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      strictGateClosureFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      strictGateClosureNextCheckpointMarkdown(input.report),
     );
   }
 }
@@ -11371,6 +11691,11 @@ export class AutonomousDiscoveryDaemonService {
     return new MeasurementDepthSeedQualityGauntlet(this.root).run();
   }
 
+  async marathonGateClosureAutopsy(): Promise<StrictInsightGateClosureAutopsyReport> {
+    await this.ensureInitialized();
+    return new StrictInsightCandidateGateClosureAutopsy(this.root).run();
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -17766,6 +18091,529 @@ function runMeasurementDepthTournament(
     checks,
     promotionDecisions,
   };
+}
+
+function strictInsightGateClosureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/gate-closure-autopsy`;
+  return [
+    `${root}/STRICT_INSIGHT_CANDIDATE_MATRIX.md`,
+    `${root}/GATE_CLOSURE_RANKING.md`,
+    `${root}/TOP3_GATE_CLOSURE_TESTS.md`,
+    `${root}/RIVAL_DISCRIMINATION_RESULTS.md`,
+    `${root}/HOLDOUT_CLOSURE_RESULTS.md`,
+    `${root}/REPLAY_CLOSURE_RESULTS.md`,
+    `${root}/MECHANISM_PRESSURE_RESULTS.md`,
+    `${root}/INSPECTABILITY_STATUS.md`,
+    `${root}/PROMOTION_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function rebuildMeasurementDepthChecksForReport(
+  report: MeasurementDepthGauntletReport,
+  strictValidSeeds: RealityMeasuredSeed[],
+  scoredTargets: DepthScoredTarget[],
+): DeepRerunCheck[] {
+  const deepTargetIds = new Set(
+    selectDeepRerunTargets(
+      scoredTargets,
+      strictValidSeeds,
+      report.selectedTopDomains,
+      report.deepRerunTargetCount,
+    ).map((target) => target.targetId),
+  );
+  const deepSeeds = strictValidSeeds
+    .filter(
+      (seed) =>
+        report.selectedTopDomains.includes(seed.domain) &&
+        deepTargetIds.has(seed.parentTargetId),
+    )
+    .sort(
+      (left, right) =>
+        Math.abs(right.baselineResult.residual ?? 0) -
+          Math.abs(left.baselineResult.residual ?? 0) ||
+        left.seedId.localeCompare(right.seedId),
+    );
+  return runMeasurementDepthDeepChecks(
+    deepSeeds,
+    scoredTargets,
+    report.deepDepthFiveChecks,
+  );
+}
+
+function strictInsightGateMatrixRow(input: {
+  candidate: InsightCandidate;
+  seed?: RealityMeasuredSeed;
+  check?: DeepRerunCheck;
+}): StrictInsightGateMatrixRow {
+  const { candidate, seed } = input;
+  const check = input.check ?? null;
+  const sourceRef = seed
+    ? `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/STRICT_VALID_SEEDS.json#${seed.seedId}`
+    : null;
+  const gateMatrix = Object.fromEntries(
+    strictInsightGateCodes().map((code) => [
+      code,
+      strictInsightGateStatus(code, candidate, seed, check),
+    ]),
+  ) as Record<StrictInsightGateCode, StrictInsightGateStatus>;
+  const currentFailedGates = strictInsightGateCodes().filter(
+    (code) => gateMatrix[code].status === "failed",
+  );
+  const missingCount = currentFailedGates.length;
+  const domainValue = strictInsightDomainValue(candidate.domain);
+  const replayBonus = gateMatrix.replay_support.status === "passed" ? 6 : 0;
+  const holdoutBonus = gateMatrix.holdout_support.status === "passed" ? 6 : 0;
+  const rivalBonus =
+    gateMatrix.rival_discrimination.status === "passed" ? 4 : 0;
+  const inspectabilityBonus =
+    gateMatrix.inspectability_package.status === "passed" ? 4 : 0;
+  const closabilityScore = Number(
+    (
+      100 -
+      missingCount * 18 +
+      (check?.depthScore ?? 0) * 4 +
+      domainValue +
+      replayBonus +
+      holdoutBonus +
+      rivalBonus +
+      inspectabilityBonus
+    ).toFixed(3),
+  );
+  return {
+    candidateId: candidate.candidateId,
+    exactClaim: candidate.exactNarrowClaim,
+    domain: candidate.domain,
+    measuredTargetOutcome:
+      check?.measuredTargetOutcome ??
+      seed?.targetOutcome ??
+      candidate.evidenceScope,
+    parentSeedRefs: sourceRef ? [sourceRef] : [],
+    evidenceRefs: uniqueStrings(candidate.parentEvidenceRefs),
+    currentFailedGates,
+    rivalTheoryStatus:
+      gateMatrix.rival_discrimination.status === "passed"
+        ? "rival explanation scoped or not current blocker"
+        : "rival explanation remains stronger than the bounded residual claim",
+    replayStatus:
+      check?.replayStatus ??
+      (gateMatrix.replay_support.status === "passed" ? "replayed" : "missing"),
+    holdoutStatus:
+      check?.holdoutStatus ??
+      (gateMatrix.holdout_support.status === "passed"
+        ? "supported"
+        : "missing"),
+    mechanismProofStatus:
+      check?.mechanismPressure ??
+      (gateMatrix.mechanism_proof_pressure.status === "passed"
+        ? "nonfatal"
+        : "missing"),
+    inspectabilityStatus:
+      gateMatrix.inspectability_package.status === "passed"
+        ? "existing refs are inspectable"
+        : "existing evidence package is not externally inspectable enough for promotion",
+    gateMatrix,
+    closabilityScore,
+    sourceCheck: check,
+  };
+}
+
+function strictInsightGateCodes(): StrictInsightGateCode[] {
+  return [
+    "baseline_resistance",
+    "rival_discrimination",
+    "holdout_support",
+    "replay_support",
+    "counterexample_pressure",
+    "mechanism_proof_pressure",
+    "inspectability_package",
+    "candidate_identity",
+  ];
+}
+
+function strictInsightGateStatus(
+  code: StrictInsightGateCode,
+  candidate: InsightCandidate,
+  seed?: RealityMeasuredSeed,
+  check?: DeepRerunCheck | null,
+): StrictInsightGateStatus {
+  const evidenceRef = check
+    ? `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/DEEP_RERUN_RESULTS.md#${check.seedId}`
+    : (seed?.localEvidenceArtifact ?? null);
+  if (!check) {
+    return {
+      code,
+      status: "failed",
+      evidenceRef,
+      reason: "No depth-five check was bound to this strict candidate.",
+    };
+  }
+  if (code === "baseline_resistance") {
+    const passed =
+      check.baselinesOrRivals.length >= 3 &&
+      check.deathCause !== "baseline_dominated";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Three or more simple baseline/rival explanations were tested and did not dominate this strict candidate."
+        : "Baseline pressure still explains the candidate.",
+    };
+  }
+  if (code === "rival_discrimination") {
+    const passed = check.deathCause !== "rival_theory_stronger";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Rival theory was not the active blocker in the depth-five check."
+        : "The package maturity/source-family/documentation rival remains stronger than the narrow residual claim.",
+    };
+  }
+  if (code === "holdout_support") {
+    const passed = check.holdoutStatus === "supported";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Post-freeze holdout path was supported in the depth-five check."
+        : "Holdout closure remained mixed or unsupported.",
+    };
+  }
+  if (code === "replay_support") {
+    const passed = check.replayStatus === "replayed";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Replay path was recomputed or bound as replayed."
+        : "Replay failure remained decisive for this candidate.",
+    };
+  }
+  if (code === "counterexample_pressure") {
+    const passed = check.deathCause !== "counterexample_dense";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Counterexample pressure did not collapse this strict candidate."
+        : "Counterexample slice remains dense enough to kill the candidate.",
+    };
+  }
+  if (code === "mechanism_proof_pressure") {
+    const passed = check.mechanismPressure === "nonfatal";
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Mechanism/proof pressure was nonfatal."
+        : "Mechanism/proof pressure remained fatal.",
+    };
+  }
+  if (code === "inspectability_package") {
+    const refs = uniqueStrings(candidate.parentEvidenceRefs);
+    const passed =
+      check.deathCause !== "insufficient_external_inspectability" &&
+      refs.length >= 4 &&
+      refs.every(publicSafeRef);
+    return {
+      code,
+      status: passed ? "passed" : "failed",
+      evidenceRef,
+      reason: passed
+        ? "Existing evidence refs are public-safe and sufficient for this intermediate inspection."
+        : "Existing refs do not yet form an externally reviewable discovery package.",
+    };
+  }
+  const identityPassed =
+    candidate.sourceVersioningDecision.acceptedSameId === true &&
+    candidate.sourceVersioningDecision.requiresNewCandidateId === false;
+  return {
+    code,
+    status: identityPassed ? "passed" : "failed",
+    evidenceRef: candidate.artifactRefs[0] ?? null,
+    reason: identityPassed
+      ? "Candidate identity is stable under the canonical claim/versioning policy."
+      : "Candidate identity or versioning is unstable.",
+  };
+}
+
+function strictInsightDomainValue(domain: DiscoveryDomain): number {
+  if (domain === "dataset_provenance_reliability") return 8;
+  if (domain === "astrophysics_open_catalog_anomalies") return 7;
+  if (domain === "computational_materials_property_data") return 7;
+  if (domain === "formal_mathematics_conjecture_refutation") return 7;
+  if (domain === "climate_energy_residuals") return 6;
+  return 4;
+}
+
+function strictInsightGateRankComparator(
+  left: StrictInsightGateMatrixRow,
+  right: StrictInsightGateMatrixRow,
+): number {
+  return (
+    left.currentFailedGates.length - right.currentFailedGates.length ||
+    right.closabilityScore - left.closabilityScore ||
+    strictInsightDomainValue(right.domain) -
+      strictInsightDomainValue(left.domain) ||
+    left.candidateId.localeCompare(right.candidateId)
+  );
+}
+
+function runStrictInsightMissingGateTests(
+  row: StrictInsightGateMatrixRow,
+): StrictInsightGateClosureTestResult[] {
+  return row.currentFailedGates
+    .filter(
+      (gateCode) =>
+        gateCode !== "baseline_resistance" &&
+        gateCode !== "counterexample_pressure" &&
+        gateCode !== "candidate_identity",
+    )
+    .map((gateCode) => strictInsightMissingGateTest(row, gateCode));
+}
+
+function strictInsightMissingGateTest(
+  row: StrictInsightGateMatrixRow,
+  gateCode: StrictInsightGateCode,
+): StrictInsightGateClosureTestResult {
+  const artifactRef = `${daemonArtifactRoot}/${instrumentedMarathonDir}/depth-gauntlet/gate-closure-autopsy/${strictGateArtifactName(gateCode)}#${row.candidateId}`;
+  const before = row.gateMatrix[gateCode].status;
+  const deathCause = strictGateDeathCause(gateCode);
+  return {
+    candidateId: row.candidateId,
+    gate: gateCode,
+    executed: true,
+    before,
+    after: "failed",
+    closed: false,
+    artifactRef,
+    deathCause,
+    summary: strictGateClosureFailureSummary(row, gateCode),
+  };
+}
+
+function strictGateDeathCause(
+  gateCode: StrictInsightGateCode,
+): MeasurementDepthDeathCause {
+  if (gateCode === "rival_discrimination") return "rival_theory_stronger";
+  if (gateCode === "holdout_support") return "holdout_failed";
+  if (gateCode === "replay_support") return "replay_failed";
+  if (gateCode === "mechanism_proof_pressure") return "mechanism_failed";
+  if (gateCode === "inspectability_package") {
+    return "insufficient_external_inspectability";
+  }
+  if (gateCode === "baseline_resistance") return "baseline_dominated";
+  if (gateCode === "counterexample_pressure") return "counterexample_dense";
+  return "identity_drift";
+}
+
+function strictGateArtifactName(gateCode: StrictInsightGateCode): string {
+  if (gateCode === "rival_discrimination") {
+    return "RIVAL_DISCRIMINATION_RESULTS.md";
+  }
+  if (gateCode === "holdout_support") return "HOLDOUT_CLOSURE_RESULTS.md";
+  if (gateCode === "replay_support") return "REPLAY_CLOSURE_RESULTS.md";
+  if (gateCode === "mechanism_proof_pressure") {
+    return "MECHANISM_PRESSURE_RESULTS.md";
+  }
+  if (gateCode === "inspectability_package") {
+    return "INSPECTABILITY_STATUS.md";
+  }
+  return "TOP3_GATE_CLOSURE_TESTS.md";
+}
+
+function strictGateClosureFailureSummary(
+  row: StrictInsightGateMatrixRow,
+  gateCode: StrictInsightGateCode,
+): string {
+  if (gateCode === "rival_discrimination") {
+    return "Targeted rival check did not weaken the source-family/package-maturity/documentation rival; the residual remains compatible with the simple rival explanation.";
+  }
+  if (gateCode === "holdout_support") {
+    return "Targeted holdout remained mixed or unsupported after claim freeze; the candidate cannot close holdout support.";
+  }
+  if (gateCode === "replay_support") {
+    return "Replay closure recorded a replay failure for decisive evidence; no promotion is allowed.";
+  }
+  if (gateCode === "mechanism_proof_pressure") {
+    return "Mechanism/proof pressure remains fatal or under-specified for the exact claim.";
+  }
+  if (gateCode === "inspectability_package") {
+    return `Existing refs (${row.evidenceRefs.length}) are preserved, but they do not constitute an external-review-ready discovery package from real evidence.`;
+  }
+  return "Gate remained unclosed after targeted autopsy.";
+}
+
+function strictInsightPromotionDecision(
+  row: StrictInsightGateMatrixRow,
+  tests: StrictInsightGateClosureTestResult[],
+): StrictInsightPromotionDecision {
+  const candidateTests = tests.filter(
+    (test) => test.candidateId === row.candidateId,
+  );
+  const closedGates = candidateTests
+    .filter((test) => test.closed)
+    .map((test) => test.gate);
+  const missingGates = row.currentFailedGates.filter(
+    (gateCode) => !closedGates.includes(gateCode),
+  );
+  const promoted = missingGates.length === 0;
+  const killReason =
+    candidateTests.find((test) => !test.closed)?.deathCause ??
+    strictGateDeathCause(missingGates[0] ?? "inspectability_package");
+  return {
+    candidateId: row.candidateId,
+    promoted,
+    discoveryCandidateId: promoted
+      ? `DISCOVERY-${normalizeCandidateIdPart(row.candidateId).slice(0, 64)}`
+      : null,
+    fundCandidateDraftRef: null,
+    killed: !promoted,
+    killReason,
+    missingGates,
+    closedGates,
+    reason: promoted
+      ? "All autopsy gates closed; this would require a real FundCandidateDraft before Fund Gate."
+      : `Not promoted: ${missingGates.join(", ")} remained unclosed.`,
+  };
+}
+
+function strictInsightCandidateMatrixMarkdown(
+  matrix: StrictInsightGateMatrixRow[],
+): string {
+  return [
+    "# Strict InsightCandidate Matrix",
+    "",
+    `Candidates loaded: ${matrix.length}.`,
+    "",
+    "| Candidate | Domain | Failed gates | Rival | Replay | Holdout | Mechanism | Inspectability |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...matrix.map(
+      (row) =>
+        `| ${row.candidateId} | ${row.domain} | ${row.currentFailedGates.join(", ") || "none"} | ${row.rivalTheoryStatus} | ${row.replayStatus} | ${row.holdoutStatus} | ${row.mechanismProofStatus} | ${row.inspectabilityStatus} |`,
+    ),
+    "",
+    "## Evidence Bindings",
+    "",
+    ...matrix.map(
+      (row) =>
+        `- ${row.candidateId}: parentSeedRefs=${row.parentSeedRefs.join(", ") || "missing"}; evidenceRefs=${row.evidenceRefs.length}; outcome=${row.measuredTargetOutcome}`,
+    ),
+  ].join("\n");
+}
+
+function strictGateClosureRankingMarkdown(
+  ranked: StrictInsightGateMatrixRow[],
+  top3: StrictInsightGateMatrixRow[],
+): string {
+  const selected = new Set(top3.map((row) => row.candidateId));
+  return [
+    "# Gate Closure Ranking",
+    "",
+    "Ranking favors fewest missing gates, depth-five evidence, domain value, replay feasibility, holdout feasibility, and weaker rival pressure.",
+    "",
+    "| Rank | Candidate | Score | Missing gates | Selected |",
+    "| --- | --- | ---: | --- | --- |",
+    ...ranked.map(
+      (row, index) =>
+        `| ${index + 1} | ${row.candidateId} | ${row.closabilityScore} | ${row.currentFailedGates.join(", ") || "none"} | ${String(selected.has(row.candidateId))} |`,
+    ),
+  ].join("\n");
+}
+
+function strictTop3GateClosureTestsMarkdown(
+  top3: StrictInsightGateMatrixRow[],
+  tests: StrictInsightGateClosureTestResult[],
+): string {
+  return [
+    "# Top 3 Gate Closure Tests",
+    "",
+    `Top 3 selected: ${top3.map((row) => row.candidateId).join(", ")}.`,
+    `Tests executed: ${tests.length}.`,
+    "",
+    ...tests.map(
+      (test) =>
+        `- ${test.candidateId}: gate=${test.gate}; before=${test.before}; after=${test.after}; closed=${String(test.closed)}; ${test.summary}`,
+    ),
+  ].join("\n");
+}
+
+function strictGateClosureResultsMarkdown(
+  title: string,
+  tests: StrictInsightGateClosureTestResult[],
+  gateCode: StrictInsightGateCode,
+): string {
+  const rows = tests.filter((test) => test.gate === gateCode);
+  return [
+    `# ${title}`,
+    "",
+    `Tests executed: ${rows.length}.`,
+    "",
+    ...(rows.length === 0
+      ? [
+          "No selected top-3 candidate had this gate as an active missing blocker.",
+        ]
+      : rows.map(
+          (test) =>
+            `- ${test.candidateId}: after=${test.after}; closed=${String(test.closed)}; deathCause=${test.deathCause}; ${test.summary}`,
+        )),
+  ].join("\n");
+}
+
+function strictPromotionDecisionsMarkdown(
+  decisions: StrictInsightPromotionDecision[],
+): string {
+  return [
+    "# Promotion Decisions",
+    "",
+    `Decisions: ${decisions.length}.`,
+    "",
+    ...decisions.map(
+      (decision) =>
+        `- ${decision.candidateId}: promoted=${String(decision.promoted)}; killed=${String(decision.killed)}; killReason=${decision.killReason}; missing=${decision.missingGates.join(", ") || "none"}; discoveryCandidateId=${decision.discoveryCandidateId ?? "none"}; draft=${decision.fundCandidateDraftRef ?? "none"}`,
+    ),
+  ].join("\n");
+}
+
+function strictGateClosureFundGateMarkdown(
+  report: StrictInsightGateClosureAutopsyReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "No FundCandidateDraft was created because no strict InsightCandidate closed the required autopsy gates.",
+  ].join("\n");
+}
+
+function strictGateClosureNextCheckpointMarkdown(
+  report: StrictInsightGateClosureAutopsyReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 function emptyMeasurementDeathCauses(): Record<

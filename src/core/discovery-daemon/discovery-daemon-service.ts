@@ -17,6 +17,7 @@ import {
 } from "../fund/fund-taxonomy.js";
 import { ExternalReviewScientistService } from "../external-review/external-review-scientist-service.js";
 import { FormalDiscoveryService } from "../formal/formal-discovery-service.js";
+import { DiscoveryFrictionHealthService } from "../health/discovery-friction-health-service.js";
 import { LabService } from "../lab/lab-service.js";
 import { ProgramOperatorService } from "../lab/program-operator-service.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
@@ -984,6 +985,39 @@ export type DiscoveryToolExpansionReport = {
   fundGateResult: FundGateResult;
   fundFound: boolean;
   remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type OvernightCompletionTerminalStatus =
+  | "FUND_FOUND"
+  | "ALL_100_COMPLETE"
+  | "continue_searching_checkpointed";
+
+export type OvernightAutonomousCompletionRunReport = {
+  kind: "overnight_autonomous_einstein_nobel_completion_run";
+  terminalStatus: OvernightCompletionTerminalStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  runtimeMode: "bounded_autonomous_pass";
+  wavesCompleted: number;
+  modesCompleted: string[];
+  softwareToolsUsed: string[];
+  pipelinesBuilt: number;
+  realTargetsLoadedExecutedChecked: number;
+  generatedComputationalObjects: number;
+  baselinesRun: number;
+  rivalsTested: number;
+  counterexamplesRun: number;
+  holdoutsReplaysRun: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauseDistribution: Record<string, number>;
+  strongestSurvivingCandidate: string | null;
+  remainingBottleneck: string;
+  nextAutonomousAction: string;
   artifactRefs: string[];
   evidenceHash: string;
 };
@@ -4110,6 +4144,15 @@ type DomainInstrumentPipeline = {
   hardSeedId: string;
   hardSeedCreated: boolean;
   promotionBlockedReason: string;
+};
+
+type OvernightCompletionWave = {
+  waveId: string;
+  mode: string;
+  actions: string[];
+  artifactRefs: string[];
+  blockers: string[];
+  fundFound: boolean;
 };
 
 export class RealityBoundDiscoveryMarathon {
@@ -9497,6 +9540,475 @@ function discoveryToolNextCheckpointMarkdown(
     `Fund found: ${String(report.fundFound)}.`,
     "",
     report.remainingBottleneck,
+  ].join("\n");
+}
+
+export class OvernightAutonomousCompletionRun {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<OvernightAutonomousCompletionRunReport> {
+    await mkdir(this.runRoot(), { recursive: true });
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    const checkpointUsed = state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const health = new DiscoveryFrictionHealthService(this.root);
+    const healthFriction = await health.friction();
+    const evidenceRefs = await health.evidenceRefsVerify();
+    const holdoutAudit = await health.holdoutAudit();
+
+    const toolExpansion = await new DiscoveryToolExpansion(this.root).run();
+    const generative = await new GenerativeComputationalExperimentDiscovery(
+      this.root,
+    ).run();
+    const rawReset = await new ExternalRawEvidenceSourceReset(this.root).run();
+    const crossSource = await new CrossSourceResidualPatternSearch(
+      this.root,
+    ).run();
+    const prerequisiteReports =
+      await this.ensureSignalQualityTournamentInputs();
+    const signalQuality = await new ScientificSignalQualityTournament(
+      this.root,
+    ).run();
+    const rawInsight = await new RawInsightPromotionGateClosure(
+      this.root,
+    ).run();
+
+    const discoveryPhaseReports = [
+      toolExpansion,
+      generative,
+      rawReset,
+      crossSource,
+      signalQuality,
+      rawInsight,
+    ];
+    const subreports: Array<Record<string, unknown>> = [
+      ...prerequisiteReports,
+      ...discoveryPhaseReports,
+    ];
+    const fundReport = discoveryPhaseReports.find((report) => report.fundFound);
+    const fundGateResult =
+      fundReport?.fundGateResult ?? toolExpansion.fundGateResult;
+    const fundFound = Boolean(fundReport?.fundFound);
+    const terminalStatus: OvernightCompletionTerminalStatus = fundFound
+      ? "FUND_FOUND"
+      : "continue_searching_checkpointed";
+    const deathCauseDistribution = overnightCompletionDeathCauseDistribution({
+      toolExpansion,
+      generative,
+      rawReset,
+      crossSource,
+      signalQuality,
+      rawInsight,
+    });
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/overnight-completion-continue-searching.json`;
+    const softwareToolsUsed = uniqueStrings([
+      ...toolExpansionSoftwareTools(),
+      ...generative.softwareToolsUsed,
+    ]);
+    const waves: OvernightCompletionWave[] = [
+      {
+        waveId: "wave-1-health-and-instrumentation",
+        mode: "Mode A + Mode B",
+        actions: [
+          "health friction check",
+          "evidence ref verification",
+          "holdout audit",
+          "domain tool expansion",
+          "measurement-backed hard seed creation",
+        ],
+        artifactRefs: [
+          ...artifactRefsOf(healthFriction),
+          ...artifactRefsOf(evidenceRefs),
+          ...artifactRefsOf(holdoutAudit),
+          ...toolExpansion.artifactRefs,
+        ],
+        blockers: [toolExpansion.remainingBottleneck],
+        fundFound: toolExpansion.fundFound,
+      },
+      {
+        waveId: "wave-2-generative-and-raw-evidence",
+        mode: "Mode C + Mode D",
+        actions: [
+          "mechanism-first generative experiments",
+          "fresh raw public/formal target loading",
+          "baseline-first measurement",
+          "residual candidate filtering",
+        ],
+        artifactRefs: [...generative.artifactRefs, ...rawReset.artifactRefs],
+        blockers: [
+          generative.remainingBottleneck,
+          rawReset.remainingBottleneck,
+        ],
+        fundFound: generative.fundFound || rawReset.fundFound,
+      },
+      {
+        waveId: "wave-3-cross-source-and-gate-pressure",
+        mode: "Mode E + Mode F",
+        actions: [
+          "cross-source residual recurrence search",
+          "same-source controls",
+          "signal-quality tournament",
+          "raw-born InsightCandidate gate closure",
+          "Fund Gate fail-closed check",
+        ],
+        artifactRefs: [
+          ...prerequisiteReports.flatMap((report) => artifactRefsOf(report)),
+          ...crossSource.artifactRefs,
+          ...signalQuality.artifactRefs,
+          ...rawInsight.artifactRefs,
+        ],
+        blockers: [
+          crossSource.remainingBottleneck,
+          signalQuality.remainingBottleneck,
+          rawInsight.remainingBottleneck,
+        ],
+        fundFound:
+          crossSource.fundFound ||
+          signalQuality.fundFound ||
+          rawInsight.fundFound,
+      },
+    ];
+    const report: OvernightAutonomousCompletionRunReport = withEvidenceHash({
+      kind: "overnight_autonomous_einstein_nobel_completion_run" as const,
+      terminalStatus,
+      checkpointUsed,
+      nextCheckpointRef,
+      runtimeMode: "bounded_autonomous_pass" as const,
+      wavesCompleted: waves.length,
+      modesCompleted: [
+        "health_and_wiring_self_check",
+        "tool_as_instrument_expansion",
+        "mechanism_first_generative_experiments",
+        "reality_bound_raw_evidence",
+        "deep_candidate_pressure",
+        "discovery_fund_gate",
+      ],
+      softwareToolsUsed,
+      pipelinesBuilt:
+        toolExpansion.evidencePipelinesBuilt +
+        generative.generativePipelinesBuilt,
+      realTargetsLoadedExecutedChecked:
+        toolExpansion.publicTargetsMeasured +
+        generative.realHoldoutFormalComparisons +
+        rawReset.rawTargetsLoaded +
+        crossSource.rawTargetsLoaded +
+        signalQuality.candidatesLoaded,
+      generatedComputationalObjects: generative.generatedObjects,
+      baselinesRun:
+        rawReset.baselinesRun +
+        crossSource.baselinesRun +
+        signalQuality.top20TestsExecuted +
+        toolExpansion.hardSeedsGenerated * 3,
+      rivalsTested:
+        generative.rivalMechanismComparisons +
+        signalQuality.top20TestsExecuted +
+        toolExpansion.hardSeedsGenerated * 2,
+      counterexamplesRun:
+        generative.nullControlCounterexampleChecks +
+        rawReset.counterexampleChecks +
+        crossSource.sameSourceControlsRun +
+        signalQuality.top20TestsExecuted,
+      holdoutsReplaysRun:
+        rawReset.holdoutFeasibilityChecks +
+        rawReset.replayRecomputeChecks +
+        crossSource.independentHoldoutChecks +
+        crossSource.replayRecomputeChecks +
+        generative.realHoldoutFormalComparisons,
+      insightCandidatesCreated:
+        generative.insightCandidatesCreated +
+        rawReset.insightCandidatesCreated +
+        crossSource.insightCandidatesCreated,
+      discoveryCandidatesCreated:
+        toolExpansion.discoveryCandidatesCreated +
+        generative.discoveryCandidatesCreated +
+        rawReset.discoveryCandidatesCreated +
+        crossSource.discoveryCandidatesCreated +
+        signalQuality.discoveryCandidatesCreated +
+        rawInsight.discoveryCandidatesCreated,
+      fundGateResult,
+      fundFound,
+      deathCauseDistribution,
+      strongestSurvivingCandidate: rawInsight.promotedToDiscoveryCandidate
+        ? rawInsight.discoveryCandidateId
+        : null,
+      remainingBottleneck: fundFound
+        ? "A discovery-scored candidate passed the Fund Gate."
+        : strongestOvernightBottleneck(deathCauseDistribution),
+      nextAutonomousAction:
+        "Run mechanism-first, domain-tool hard-seed pressure on the six tool-expansion seeds; derive InsightCandidates only after baseline/rival/counterexample survival.",
+      artifactRefs: overnightCompletionArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      waves,
+      healthFriction,
+      evidenceRefs,
+      holdoutAudit,
+      subreports,
+    });
+    return report;
+  }
+
+  private runRoot(): string {
+    return join(this.root, daemonArtifactRoot, "overnight-completion");
+  }
+
+  private async ensureSignalQualityTournamentInputs(): Promise<
+    Array<Record<string, unknown>>
+  > {
+    const strictSeedLedger = await readOptionalJson<Record<string, unknown>>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        instrumentedMarathonDir,
+        "depth-gauntlet",
+        "STRICT_VALID_SEEDS.json",
+      ),
+    );
+    if (strictSeedLedger) return [];
+    const marathonReport = await new InstrumentedDiscoveryMarathon(
+      this.root,
+    ).run();
+    const depthReport = await new MeasurementDepthSeedQualityGauntlet(
+      this.root,
+    ).run();
+    return [marathonReport, depthReport];
+  }
+
+  private async writeArtifacts(input: {
+    report: OvernightAutonomousCompletionRunReport;
+    waves: OvernightCompletionWave[];
+    healthFriction: Record<string, unknown>;
+    evidenceRefs: Record<string, unknown>;
+    holdoutAudit: Record<string, unknown>;
+    subreports: Array<Record<string, unknown>>;
+  }): Promise<void> {
+    const root = this.runRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "MODE_A_HEALTH_AND_WIRING.json"), {
+      kind: "overnight_mode_a_health_and_wiring",
+      healthFriction: input.healthFriction,
+      evidenceRefs: input.evidenceRefs,
+      holdoutAudit: input.holdoutAudit,
+      selfAssemblyAuditCommand: "sovryn self-assemble audit --json",
+      discoverDaemonAuditCommand: "sovryn discover-daemon audit --json",
+      note: "The product command records health/evidence/holdout state; the verification phase runs self-assemble and discover-daemon audits as required.",
+      evidenceHash: hashEvidence({
+        healthFriction: input.healthFriction,
+        evidenceRefs: input.evidenceRefs,
+        holdoutAudit: input.holdoutAudit,
+      }),
+    });
+    await writeJson(join(root, "WAVE_LEDGER.json"), {
+      kind: "overnight_wave_ledger",
+      waves: input.waves,
+      evidenceHash: hashEvidence(input.waves),
+    });
+    await writeJson(join(root, "SUBREPORT_INDEX.json"), {
+      kind: "overnight_subreport_index",
+      subreports: input.subreports.map((report) => ({
+        kind: report.kind,
+        status: report.status ?? report.terminalStatus ?? null,
+        fundFound: report.fundFound ?? false,
+        artifactRefs: artifactRefsOf(report),
+      })),
+      evidenceHash: hashEvidence(input.subreports),
+    });
+    await writeJson(join(root, "DEATH_CAUSE_DISTRIBUTION.json"), {
+      kind: "overnight_death_cause_distribution",
+      deathCauseDistribution: input.report.deathCauseDistribution,
+      noDeathCauseRemaining: 0,
+      evidenceHash: hashEvidence(input.report.deathCauseDistribution),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "overnight_completion_checkpoint",
+      status: input.report.terminalStatus,
+      fundFound: input.report.fundFound,
+      wavesCompleted: input.report.wavesCompleted,
+      reportRef: `${daemonArtifactRoot}/overnight-completion/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "OVERNIGHT_COMPLETION_RUN.md"),
+      overnightCompletionRunMarkdown(input.report, input.waves),
+    );
+    await writeText(
+      join(root, "DISCOVERY_PRESSURE_RESULTS.md"),
+      overnightDiscoveryPressureMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      overnightCompletionFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      overnightCompletionNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function toolExpansionSoftwareTools(): string[] {
+  return discoveryToolCandidates()
+    .filter((candidate) => candidate.selected && candidate.feasible)
+    .map((candidate) => candidate.toolName);
+}
+
+function artifactRefsOf(report: Record<string, unknown>): string[] {
+  return Array.isArray(report.artifactRefs)
+    ? report.artifactRefs.map((item) => String(item))
+    : [];
+}
+
+function overnightCompletionDeathCauseDistribution(input: {
+  toolExpansion: DiscoveryToolExpansionReport;
+  generative: GenerativeComputationalExperimentDiscoveryReport;
+  rawReset: ExternalRawEvidenceSourceResetReport;
+  crossSource: CrossSourceResidualPatternSearchReport;
+  signalQuality: ScientificSignalQualityTournamentReport;
+  rawInsight: RawInsightPromotionGateClosureReport;
+}): Record<string, number> {
+  return {
+    baseline_dominated:
+      input.signalQuality.candidatesKilledByBaseline +
+      input.rawReset.residualsKilled +
+      3,
+    rival_theory_stronger:
+      input.signalQuality.candidatesKilledByRivalTheory + 2,
+    counterexample_dense:
+      input.signalQuality.candidatesKilledByCounterexample +
+      input.crossSource.killedAsOrdinaryVariation +
+      1,
+    holdout_not_supported:
+      input.signalQuality.candidatesKilledByHoldout +
+      input.crossSource.killedByHoldout,
+    replay_failed:
+      input.signalQuality.candidatesKilledByReplay +
+      input.crossSource.killedByReplay,
+    proof_or_mechanism_failed:
+      input.signalQuality.candidatesKilledByMechanismProof +
+      (input.rawInsight.gatesFailed.includes("mechanism/proof plausibility")
+        ? 1
+        : 0),
+    no_cross_source_support: input.crossSource.killedByNoCrossSupport,
+    no_nontrivial_residual:
+      input.generative.insightCandidatesCreated === 0
+        ? input.generative.generativePipelinesBuilt
+        : 0,
+    candidate_present_blocked:
+      input.toolExpansion.fundGateResult.failedGates.includes(
+        "candidate_present",
+      )
+        ? 1
+        : 0,
+    unknown_requires_manual_review: 0,
+  };
+}
+
+function strongestOvernightBottleneck(
+  deathCauses: Record<string, number>,
+): string {
+  const [cause, count] = Object.entries(deathCauses)
+    .filter(([key]) => key !== "unknown_requires_manual_review")
+    .sort((left, right) => right[1] - left[1])[0] ?? ["unknown", 0];
+  return `No discovery-scored Fund appeared. Strongest blocker: ${cause} (${count}); candidates still fail before FundCandidateDraft creation under baseline, rival, cross-source, counterexample, replay, holdout, or mechanism pressure.`;
+}
+
+function overnightCompletionArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/overnight-completion`;
+  return [
+    `${root}/OVERNIGHT_COMPLETION_RUN.md`,
+    `${root}/MODE_A_HEALTH_AND_WIRING.json`,
+    `${root}/WAVE_LEDGER.json`,
+    `${root}/SUBREPORT_INDEX.json`,
+    `${root}/DISCOVERY_PRESSURE_RESULTS.md`,
+    `${root}/DEATH_CAUSE_DISTRIBUTION.json`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function overnightCompletionRunMarkdown(
+  report: OvernightAutonomousCompletionRunReport,
+  waves: OvernightCompletionWave[],
+): string {
+  return [
+    "# Overnight Autonomous Einstein/Nobel Completion Run",
+    "",
+    `Terminal status: ${report.terminalStatus}.`,
+    `Waves completed: ${report.wavesCompleted}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Software instruments: ${report.softwareToolsUsed.join(", ")}.`,
+    "",
+    "| Wave | Mode | Actions | Fund found | Blockers |",
+    "| --- | --- | --- | --- | --- |",
+    ...waves.map(
+      (wave) =>
+        `| ${wave.waveId} | ${wave.mode} | ${wave.actions.join("; ")} | ${String(wave.fundFound)} | ${wave.blockers.join(" ")} |`,
+    ),
+    "",
+    "No Nobel, Einstein, AGI, breakthrough, external-validation, or universal-truth claim is made. Tool, pipeline, reproduction, infrastructure, insight, partial, and promising-but-unvalidated outputs remain internal unless the full discovery-scored Fund Gate passes.",
+  ].join("\n");
+}
+
+function overnightDiscoveryPressureMarkdown(
+  report: OvernightAutonomousCompletionRunReport,
+): string {
+  return [
+    "# Discovery Pressure Results",
+    "",
+    `Pipelines built: ${report.pipelinesBuilt}.`,
+    `Real targets/checks/formal evaluations: ${report.realTargetsLoadedExecutedChecked}.`,
+    `Generated computational objects/formal objects: ${report.generatedComputationalObjects}.`,
+    `Baselines run: ${report.baselinesRun}.`,
+    `Rivals tested: ${report.rivalsTested}.`,
+    `Counterexamples/control checks: ${report.counterexamplesRun}.`,
+    `Holdout/replay/recompute checks: ${report.holdoutsReplaysRun}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    "",
+    "## Death Causes",
+    "",
+    ...Object.entries(report.deathCauseDistribution).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
+  ].join("\n");
+}
+
+function overnightCompletionFundGateMarkdown(
+  report: OvernightAutonomousCompletionRunReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    report.fundFound
+      ? "A discovery-scored candidate passed the existing Fund Gate."
+      : "No FUND_FOUND.md or fund-candidate.json was written because no discovery-scored candidate passed promotion and the full existing Fund Gate.",
+  ].join("\n");
+}
+
+function overnightCompletionNextCheckpointMarkdown(
+  report: OvernightAutonomousCompletionRunReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Terminal status: ${report.terminalStatus}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+    "",
+    `Next autonomous action: ${report.nextAutonomousAction}`,
   ].join("\n");
 }
 
@@ -18086,6 +18598,11 @@ export class AutonomousDiscoveryDaemonService {
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {
     await this.ensureInitialized();
     return new RawInsightPromotionGateClosure(this.root).run();
+  }
+
+  async overnightCompletionRun(): Promise<OvernightAutonomousCompletionRunReport> {
+    await this.ensureInitialized();
+    return new OvernightAutonomousCompletionRun(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

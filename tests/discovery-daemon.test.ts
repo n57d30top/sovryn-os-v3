@@ -83,6 +83,7 @@ const commands = [
   "generative-experiments",
   "tool-expansion",
   "raw-insight-gate-closure",
+  "overnight-completion",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -3472,6 +3473,94 @@ test("discover-daemon raw-insight-gate-closure CLI is bounded and silent", async
   );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("discover-daemon overnight-completion runs all required modes and checkpoints without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.overnightCompletionRun();
+
+  assert.equal(
+    report.kind,
+    "overnight_autonomous_einstein_nobel_completion_run",
+  );
+  assert.equal(report.terminalStatus, "continue_searching_checkpointed");
+  assert.equal(report.wavesCompleted, 3);
+  assert.deepEqual(report.modesCompleted, [
+    "health_and_wiring_self_check",
+    "tool_as_instrument_expansion",
+    "mechanism_first_generative_experiments",
+    "reality_bound_raw_evidence",
+    "deep_candidate_pressure",
+    "discovery_fund_gate",
+  ]);
+  assert.ok(report.softwareToolsUsed.includes("pymatgen"));
+  assert.ok(report.softwareToolsUsed.includes("astropy"));
+  assert.ok(report.softwareToolsUsed.includes("xarray"));
+  assert.ok(report.softwareToolsUsed.includes("z3-solver"));
+  assert.ok(report.softwareToolsUsed.includes("openml"));
+  assert.ok(report.softwareToolsUsed.includes("pytest"));
+  assert.ok(report.pipelinesBuilt >= 6);
+  assert.ok(report.realTargetsLoadedExecutedChecked >= 100);
+  assert.ok(report.baselinesRun >= 60);
+  assert.ok(report.rivalsTested >= 20);
+  assert.ok(report.counterexamplesRun >= 30);
+  assert.ok(report.holdoutsReplaysRun >= 20);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(report.deathCauseDistribution.unknown_requires_manual_review, 0);
+  assert.equal(report.deathCauseDistribution.no_death_cause ?? 0, 0);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "OVERNIGHT_COMPLETION_RUN.md",
+    "MODE_A_HEALTH_AND_WIRING.json",
+    "WAVE_LEDGER.json",
+    "SUBREPORT_INDEX.json",
+    "DISCOVERY_PRESSURE_RESULTS.md",
+    "DEATH_CAUSE_DISTRIBUTION.json",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "overnight-completion", artifact)),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon overnight-completion CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "overnight-completion", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "overnight_autonomous_einstein_nobel_completion_run",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).terminalStatus,
+    "continue_searching_checkpointed",
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
 });
 
 test("top-level pipeline commands produce instrumental evidence without Fund state", async () => {

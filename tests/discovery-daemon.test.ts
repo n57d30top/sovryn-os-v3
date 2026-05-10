@@ -76,6 +76,7 @@ const commands = [
   "insight-patterns",
   "outcome-pattern-search",
   "outcome-war",
+  "reality-marathon",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -325,6 +326,148 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function writeRealityCorpusFixture(
+  root: string,
+  count = 320,
+): Promise<void> {
+  const domainFixtures = [
+    {
+      slug: "materials-property-outcome",
+      title: "Materials property outcome",
+      domain: "chemistry material property outcomes",
+      resultKind: "computational_materials_property_outcome",
+    },
+    {
+      slug: "astro-catalog-residual",
+      title: "Astrophysics catalog measurement residual",
+      domain: "astrophysics public catalog residuals",
+      resultKind: "astrophysics_catalog_measurement_residual",
+    },
+    {
+      slug: "energy-residual",
+      title: "Energy measured residual target",
+      domain: "climate energy residual targets",
+      resultKind: "climate_energy_residual_target",
+    },
+    {
+      slug: "benchmark-protocol-delta",
+      title: "Benchmark protocol performance delta",
+      domain: "benchmark protocol performance deltas",
+      resultKind: "benchmark_protocol_performance_delta",
+    },
+    {
+      slug: "formal-bounded-property",
+      title: "Formal bounded property outcome",
+      domain: "formal bounded property outcomes",
+      resultKind: "formal_bounded_property",
+    },
+    {
+      slug: "repo-reproduction-outcome",
+      title: "Repo reproduction outcome label",
+      domain: "repo reproduction outcome labels",
+      resultKind: "repo_reproduction_outcome_label",
+    },
+    {
+      slug: "public-data-reliability",
+      title: "Scientific public data reliability outcome",
+      domain: "scientific public-data reliability outcomes",
+      resultKind: "scientific_public_data_reliability_outcome",
+    },
+    {
+      slug: "cross-domain-fragility",
+      title: "Cross-domain evaluation fragility outcome",
+      domain: "cross-domain evaluation fragility outcomes",
+      resultKind: "cross_domain_evaluation_fragility_outcome",
+    },
+  ];
+  const results = [];
+  for (let index = 0; index < count; index += 1) {
+    const fixture = domainFixtures[index % domainFixtures.length]!;
+    const metadataOnly = index % 9 === 0;
+    const pipelineOnly = index % 13 === 0;
+    const slug = `${fixture.slug}-${String(index + 1).padStart(3, "0")}`;
+    const path = `results/${slug}`;
+    const resultKind = metadataOnly
+      ? "autonomous_research_program_continuity_review"
+      : pipelineOnly
+        ? "strategy_pipeline_success_record"
+        : fixture.resultKind;
+    results.push({
+      slug,
+      title: `${metadataOnly ? "Metadata continuity" : fixture.title} ${index + 1}`,
+      resultKind,
+      domain: fixture.domain,
+      path,
+      qualityLabel: index % 5 === 0 ? "reviewable" : "good",
+      candidateStatus: pipelineOnly ? "strategy_trial_ready" : "autopublished",
+      antiTemplateStatus: "review_ready",
+      lifecycleStatus: "autopublished",
+      versionGroup: slug,
+      supersedes: null,
+      supersededBy: null,
+      showcaseEligible: index % 4 === 0,
+      showcaseRank: null,
+      showcaseDocumentation: {
+        readme: true,
+        showcase: index % 4 === 0,
+        method: true,
+        reproduce: true,
+        limitations: true,
+        examples: index % 3 === 0,
+      },
+      revisionReason: null,
+      humanReadableSummary:
+        "Fixture public corpus result with measured outcome scores for reality-bound daemon tests.",
+      releaseReadinessScore: 58 + ((index * 7) % 42),
+      evidenceStrengthScore: 50 + ((index * 11) % 50),
+      reproducibilityScore: 45 + ((index * 13) % 55),
+      publicationSafetyScore: 98,
+      replayCriticalPassRate: index % 6 === 0 ? 80 : 100,
+      specificityScore: 42 + ((index * 17) % 58),
+      publicHygienePassed: true,
+      safetyScanPassed: true,
+      reliabilityReplayPassed: index % 7 !== 0,
+      customTool: index % 8 === 0 ? "fixture-tool" : null,
+      workerAssurance: "container-netoff",
+      falsificationStatus:
+        index % 10 === 0 ? "counterexample_found" : "passes_falsification",
+    });
+    await mkdir(join(root, path), { recursive: true });
+    await writeFile(
+      join(root, path, "README.md"),
+      `# ${slug}\n\nMeasured public artifact fixture ${index + 1}.\n`,
+    );
+    await writeFile(
+      join(root, path, "METHOD.md"),
+      "Measurement method uses indexed scores, replay status, and package documents.\n",
+    );
+    await writeFile(
+      join(root, path, "REPRODUCE.md"),
+      "Re-run the loader over INDEX.json and this result package.\n",
+    );
+    await writeFile(
+      join(root, path, "LIMITATIONS.md"),
+      "Fixture is public-safe and bounded to computational evidence.\n",
+    );
+    await writeFile(
+      join(root, path, "CLAIM_EVIDENCE_BINDINGS.json"),
+      JSON.stringify({ slug, evidenceRefs: [`INDEX.json#${slug}`] }, null, 2),
+    );
+  }
+  await writeFile(
+    join(root, "INDEX.json"),
+    JSON.stringify(
+      {
+        kind: "public_corpus_index",
+        resultCount: results.length,
+        results,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 async function writeInsightCandidateFixture(
@@ -2019,6 +2162,103 @@ test("discover-daemon outcome-war status resume and audit are bounded", async ()
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
+test("reality-bound marathon loads public artifacts, rejects weak seeds, and checkpoints without fake Fund", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root);
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.realityMarathon();
+
+  assert.equal(report.kind, "reality_bound_autonomous_discovery_marathon");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.fundFound, false);
+  assert.equal(report.targetsConsidered, 300);
+  assert.ok(report.targetsLoadedChecked >= 120);
+  assert.ok(report.representedDomains.length >= 6);
+  assert.ok(report.sourceReceiptCount >= 120);
+  assert.ok(report.measuredSeedsCreated >= 80);
+  assert.ok(report.validMeasuredSeeds >= 80);
+  assert.ok(report.invalidMeasuredSeeds > 0);
+  assert.ok(report.invalidSeedRate > 0);
+  assert.equal(report.validMeasuredSeeds < report.measuredSeedsCreated, true);
+  assert.ok(report.baselineRealityChecks >= 80);
+  assert.ok(report.baselineKills > 0);
+  assert.ok(report.counterexampleRealityChecks >= 50);
+  assert.ok(report.insightCandidatesBorn >= 5);
+  assert.equal(report.top5CandidateIds.length, 5);
+  assert.ok(report.holdoutChecks >= 15);
+  assert.ok(report.replayChecks >= 15);
+  assert.ok(report.rivalDiscriminationChecks >= 20);
+  assert.ok(report.counterexampleExpansionChecks >= 20);
+  assert.ok(report.mechanismPressureChecks >= 10);
+  assert.equal(report.discoveryCandidatesPromoted, 0);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "reality-marathon", "latest.json")),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(root, daemonRoot, "reality-marathon", "REAL_TARGET_RECEIPTS.json"),
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "reality-marathon",
+        "CHECKPOINT_CONTINUE_SEARCHING.md",
+      ),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon reality-marathon status and audit are bounded", async () => {
+  const root = await tempRoot();
+  await writeRealityCorpusFixture(root);
+  const runResponse = await executeCli(
+    ["discover-daemon", "reality-marathon", "--json"],
+    root,
+  );
+  assert.equal(runResponse.ok, true, JSON.stringify(runResponse.errors));
+  assert.equal(
+    (runResponse.data as Record<string, unknown>).kind,
+    "reality_bound_autonomous_discovery_marathon",
+  );
+
+  const statusResponse = await executeCli(
+    ["discover-daemon", "reality-marathon", "status", "--json"],
+    root,
+  );
+  assert.equal(statusResponse.ok, true, JSON.stringify(statusResponse.errors));
+  assert.equal(
+    (statusResponse.data as Record<string, unknown>).kind,
+    "reality_marathon_status",
+  );
+  assert.equal((statusResponse.data as Record<string, unknown>).hasRun, true);
+
+  const auditResponse = await executeCli(
+    ["discover-daemon", "reality-marathon", "audit", "--json"],
+    root,
+  );
+  assert.equal(auditResponse.ok, true, JSON.stringify(auditResponse.errors));
+  assert.equal(
+    (auditResponse.data as Record<string, unknown>).kind,
+    "reality_marathon_audit",
+  );
+  assert.equal((auditResponse.data as Record<string, unknown>).passed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("FundCandidateDraft validator accepts evidence-backed draft", () => {
   const validation = new FundCandidateDraftValidator().validate({
     draft: fundCandidateDraft(),
@@ -2649,6 +2889,11 @@ const cliScenarios: {
     name: "outcome-war",
     args: ["discover-daemon", "outcome-war", "status", "--json"],
     expectedKind: "outcome_war_status",
+  },
+  {
+    name: "reality-marathon",
+    args: ["discover-daemon", "reality-marathon", "status", "--json"],
+    expectedKind: "reality_marathon_status",
   },
   {
     name: "cycle",

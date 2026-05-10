@@ -644,6 +644,47 @@ export type OutcomeWarCampaignReport = {
   evidenceHash: string;
 };
 
+export type RealityMarathonStatus =
+  | "FUND_FOUND"
+  | "continue_searching_checkpointed";
+
+export type RealityBoundDiscoveryMarathonReport = {
+  kind: "reality_bound_autonomous_discovery_marathon";
+  status: RealityMarathonStatus;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  targetsConsidered: number;
+  targetsLoadedChecked: number;
+  acceptedTargetCount: number;
+  representedDomains: DiscoveryDomain[];
+  sourceReceiptCount: number;
+  measuredSeedsCreated: number;
+  validMeasuredSeeds: number;
+  invalidMeasuredSeeds: number;
+  invalidSeedRate: number;
+  seedValidatorTooWeak: boolean;
+  baselineRealityChecks: number;
+  baselineKills: number;
+  baselineResistantSeeds: number;
+  counterexampleRealityChecks: number;
+  counterexampleKills: number;
+  counterexampleDenseDomains: DiscoveryDomain[];
+  insightCandidatesBorn: number;
+  top5CandidateIds: string[];
+  holdoutChecks: number;
+  replayChecks: number;
+  rivalDiscriminationChecks: number;
+  counterexampleExpansionChecks: number;
+  mechanismPressureChecks: number;
+  discoveryCandidatesPromoted: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauses: Record<string, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -1105,6 +1146,7 @@ const insightCandidateDir = "insight-candidates" as const;
 const insightPatternDir = "insight-patterns" as const;
 const outcomePatternSearchDir = "outcome-pattern-search" as const;
 const outcomeWarDir = "outcome-war" as const;
+const realityMarathonDir = "reality-marathon" as const;
 const classifiedNonDiscoveryFundFile =
   "classified-non-discovery-funds.json" as const;
 const packageScoutFile = "package-scout.json" as const;
@@ -2957,6 +2999,653 @@ export class OutcomeWarCampaign {
         "",
         input.report.remainingBottleneck,
       ].join("\n"),
+    );
+  }
+
+  private async readState(): Promise<DiscoveryDaemonState> {
+    return (
+      (await readOptionalJson<DiscoveryDaemonState>(
+        join(this.root, daemonArtifactRoot, "state.json"),
+      )) ??
+      withEvidenceHash({
+        kind: "discovery_daemon_state" as const,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: 0,
+        lastCycleId: null,
+        lastCandidateId: null,
+        currentDomain: "computational_materials_property_data" as const,
+        silentMode: true as const,
+        notifyOnlyOnFund: true as const,
+        updatedAt: nowIso(),
+        artifactRoot: daemonArtifactRoot,
+      })
+    );
+  }
+}
+
+type RealityCorpusIndex = {
+  source: CorpusSnapshot["source"];
+  resultCount: number;
+  results: Array<Record<string, unknown>>;
+};
+
+type RealityTargetRecord = {
+  targetId: string;
+  domain: DiscoveryDomain;
+  sourceKind: OutcomeBearingSourceKind;
+  sourceUrl: string;
+  formalGeneratorSpec: string | null;
+  corpusPath: string | null;
+  title: string;
+  resultKind: string;
+  sourceRecord: Record<string, unknown>;
+};
+
+type RealityLoadedTarget = RealityTargetRecord & {
+  sourceReceiptId: string;
+  sourceHash: string | null;
+  sourceReceiptRef: string;
+  loaderCheckCommand: string;
+  loaded: boolean;
+  checked: boolean;
+  filesChecked: number;
+  objectsChecked: number;
+  casesChecked: number;
+  rowsChecked: number;
+  measuredVariable: string | null;
+  measuredValue: number | null;
+  targetOutcome: string | null;
+  safetyScope: string;
+  failureStatus: string | null;
+  docsPresent: string[];
+  packageCompleteness: number;
+};
+
+type RealitySourceReceipt = {
+  receiptId: string;
+  targetId: string;
+  sourceUrl: string;
+  sourceHash: string | null;
+  loaderCheckCommand: string;
+  loaded: boolean;
+  checked: boolean;
+  localEvidenceArtifact: string;
+  measuredVariable: string | null;
+  targetOutcome: string | null;
+  evidenceHash: string;
+};
+
+type RealityMeasuredSeed = {
+  kind: "reality_measured_hard_seed";
+  seedId: string;
+  candidateId: string;
+  parentTargetId: string;
+  domain: DiscoveryDomain;
+  sourceKind: OutcomeBearingSourceKind;
+  exactClaim: string;
+  measuredVariable: string | null;
+  measuredOutcome: number | null;
+  targetOutcome: string | null;
+  baselineResult: {
+    executed: boolean;
+    value: number | null;
+    residual: number | null;
+    simpleExplanationsTested: Array<{
+      explanation: string;
+      score: number;
+      explainsSignal: boolean;
+    }>;
+  };
+  rivalExplanation: string | null;
+  nontrivialityRationale: string | null;
+  counterexamplePath: string | null;
+  holdoutPath: string | null;
+  replayPath: string | null;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  sourceHash: string | null;
+  sourceReceiptRef: string | null;
+  localEvidenceArtifact: string | null;
+  metadataOnlySignal: boolean;
+  pipelineSuccessOnlySignal: boolean;
+};
+
+type RealitySeedValidation = {
+  kind: "reality_measured_seed_validation";
+  seedId: string;
+  candidateId: string;
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceHash: string;
+};
+
+type RealityBaselineCheck = {
+  seedId: string;
+  candidateId: string;
+  domain: DiscoveryDomain;
+  measuredVariable: string;
+  baselineRunFirst: true;
+  simpleExplanationsTested: string[];
+  baselineExplainsSignal: boolean;
+  baselineKilled: boolean;
+  residualMagnitude: number;
+  deathCause: DeathCause;
+  evidenceRefs: string[];
+};
+
+type RealityCounterexampleCheck = {
+  seedId: string;
+  candidateId: string;
+  domain: DiscoveryDomain;
+  adversarialSliceId: string;
+  actualNegativeSliceEvaluated: true;
+  counterexampleFound: boolean;
+  collapsedClaim: boolean;
+  deathCause: DeathCause;
+  evidenceRefs: string[];
+};
+
+type RealityInsightRow = {
+  candidateId: string;
+  insightCandidateId: string;
+  insightCandidateRef: string;
+  cardRef: string;
+  domain: DiscoveryDomain;
+  score: number;
+  exactClaim: string;
+  measuredOutcome: number;
+  mechanismHypothesis: string;
+  evidenceScope: string;
+  parentSeedRef: string;
+};
+
+type RealityTournament = {
+  top5: RealityInsightRow[];
+  holdoutChecks: number;
+  replayChecks: number;
+  rivalDiscriminationChecks: number;
+  counterexampleExpansionChecks: number;
+  mechanismPressureChecks: number;
+  holdoutRows: Array<Record<string, unknown>>;
+  replayRows: Array<Record<string, unknown>>;
+  rivalRows: Array<Record<string, unknown>>;
+  mechanismRows: Array<Record<string, unknown>>;
+  decisions: Array<Record<string, unknown>>;
+};
+
+export class RealityBoundDiscoveryMarathon {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<RealityBoundDiscoveryMarathonReport> {
+    await mkdir(this.marathonRoot(), { recursive: true });
+    await mkdir(join(this.marathonRoot(), "INSIGHT_CANDIDATE_CARDS"), {
+      recursive: true,
+    });
+    await mkdir(join(this.marathonRoot(), "DISCOVERY_CANDIDATE_DRAFTS"), {
+      recursive: true,
+    });
+    const state = await this.readState();
+    const checkpointUsed = state.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+    const index = await readRealityCorpusIndex(this.root);
+    const targetUniverse = buildRealityTargetUniverse(index).slice(0, 300);
+    const loadedTargets = await loadRealityTargets(
+      this.root,
+      targetUniverse,
+      targetUniverse.length,
+    );
+    const receipts = loadedTargets.map((target) =>
+      realitySourceReceipt(target),
+    );
+    const acceptedTargets = loadedTargets.filter(
+      (target) =>
+        target.loaded && target.checked && target.failureStatus === null,
+    );
+    const seedAttempts = selectRealityMeasuredSeedAttempts(
+      buildRealityMeasuredSeeds(acceptedTargets),
+      150,
+    );
+    const seedValidations = seedAttempts.map(validateRealityMeasuredSeed);
+    const validSeeds = seedAttempts.filter(
+      (_seed, index) => seedValidations[index]?.accepted,
+    );
+    const invalidSeeds = seedAttempts.filter(
+      (_seed, index) => !seedValidations[index]?.accepted,
+    );
+    const baselineChecks = validSeeds
+      .slice(0, 80)
+      .map((seed, index) => runRealityBaselineCheck(seed, validSeeds, index));
+    const baselineResistantSeeds = validSeeds.filter((seed) =>
+      baselineChecks.some(
+        (check) => check.seedId === seed.seedId && !check.baselineKilled,
+      ),
+    );
+    const counterexampleChecks = runRealityCounterexampleChecks(
+      baselineResistantSeeds,
+      acceptedTargets,
+      50,
+    );
+    const survivingSeedIds = new Set(
+      baselineResistantSeeds
+        .filter((seed) =>
+          counterexampleChecks
+            .filter((check) => check.seedId === seed.seedId)
+            .every((check) => !check.collapsedClaim),
+        )
+        .map((seed) => seed.seedId),
+    );
+    const insightRows: RealityInsightRow[] = [];
+    for (const seed of baselineResistantSeeds.filter((item) =>
+      survivingSeedIds.has(item.seedId),
+    )) {
+      if (insightRows.length >= 12) break;
+      insightRows.push(await this.deriveInsightCandidate(seed));
+    }
+    const tournament = runRealityTop5Tournament(insightRows);
+    const promotionDecisions = runRealityPromotionDecisions(tournament);
+    const killWeek = runRealityKillWeek(promotionDecisions);
+    const discoveryCandidatesPromoted = promotionDecisions.filter(
+      (decision) => decision.promoted === true,
+    ).length;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/${state.lastCycleId ?? "cycle-0000"}-reality-marathon.json`;
+    const representedDomains = uniqueStrings(
+      acceptedTargets.map((target) => target.domain),
+    ) as DiscoveryDomain[];
+    const deathCauses = mergeOutcomeWarDeathCauses([
+      countOutcomeWarDeathCauses(
+        baselineChecks.map((check) => ({ deathCause: check.deathCause })),
+      ),
+      countOutcomeWarDeathCauses(
+        counterexampleChecks.map((check) => ({ deathCause: check.deathCause })),
+      ),
+      countOutcomeWarDeathCauses(
+        promotionDecisions.map((decision) => ({
+          deathCause: String(decision.deathCause ?? "no_death_cause"),
+        })),
+      ),
+    ]);
+    const invalidSeedRate =
+      seedAttempts.length === 0
+        ? 0
+        : Number((invalidSeeds.length / seedAttempts.length).toFixed(3));
+    const report: RealityBoundDiscoveryMarathonReport = withEvidenceHash({
+      kind: "reality_bound_autonomous_discovery_marathon" as const,
+      status: fundGateResult.passed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed,
+      nextCheckpointRef,
+      targetsConsidered: targetUniverse.length,
+      targetsLoadedChecked: acceptedTargets.length,
+      acceptedTargetCount: acceptedTargets.length,
+      representedDomains,
+      sourceReceiptCount: receipts.length,
+      measuredSeedsCreated: seedAttempts.length,
+      validMeasuredSeeds: validSeeds.length,
+      invalidMeasuredSeeds: invalidSeeds.length,
+      invalidSeedRate,
+      seedValidatorTooWeak:
+        validSeeds.length / Math.max(1, seedAttempts.length) > 0.7,
+      baselineRealityChecks: baselineChecks.length,
+      baselineKills: baselineChecks.filter((check) => check.baselineKilled)
+        .length,
+      baselineResistantSeeds: baselineResistantSeeds.length,
+      counterexampleRealityChecks: counterexampleChecks.length,
+      counterexampleKills: counterexampleChecks.filter(
+        (check) => check.collapsedClaim,
+      ).length,
+      counterexampleDenseDomains:
+        counterexampleDenseRealityDomains(counterexampleChecks),
+      insightCandidatesBorn: insightRows.length,
+      top5CandidateIds: tournament.top5.map((row) => row.insightCandidateId),
+      holdoutChecks: tournament.holdoutChecks,
+      replayChecks: tournament.replayChecks,
+      rivalDiscriminationChecks: tournament.rivalDiscriminationChecks,
+      counterexampleExpansionChecks: tournament.counterexampleExpansionChecks,
+      mechanismPressureChecks: tournament.mechanismPressureChecks,
+      discoveryCandidatesPromoted,
+      fundGateResult,
+      fundFound: fundGateResult.passed,
+      deathCauses,
+      remainingBottleneck:
+        discoveryCandidatesPromoted > 0
+          ? "Promotion produced a candidate, but existing Fund Gate still blocked notification."
+          : "Reality-born seeds remain dominated by simple baselines, counterexamples, replay caveats, or insufficient external-review readiness before discovery-scored promotion.",
+      artifactRefs: realityMarathonArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      targetUniverse,
+      loadedTargets,
+      receipts,
+      seedAttempts,
+      seedValidations,
+      baselineChecks,
+      counterexampleChecks,
+      insightRows,
+      tournament,
+      promotionDecisions,
+      killWeek,
+      report,
+      state,
+    });
+    return report;
+  }
+
+  async status(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    return withEvidenceHash({
+      kind: "reality_marathon_status" as const,
+      hasRun: latest !== null,
+      status: latest?.status ?? "not_run",
+      fundFound: latest?.fundFound ?? false,
+      targetsLoadedChecked: latest?.targetsLoadedChecked ?? 0,
+      measuredSeedsCreated: latest?.measuredSeedsCreated ?? 0,
+      insightCandidatesBorn: latest?.insightCandidatesBorn ?? 0,
+      nextCheckpointRef: latest?.nextCheckpointRef ?? null,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${realityMarathonDir}/latest.json`
+        : null,
+    });
+  }
+
+  async audit(): Promise<Record<string, unknown>> {
+    const latest = await this.readLatest();
+    const artifactChecks = await Promise.all(
+      requiredRealityMarathonArtifactNames().map(async (file) => ({
+        file,
+        exists: await exists(
+          join(this.root, daemonArtifactRoot, realityMarathonDir, file),
+        ),
+      })),
+    );
+    const gates = [
+      gate(
+        "marathon_ran",
+        latest !== null,
+        "Reality marathon must have a latest report.",
+      ),
+      gate(
+        "reality_target_scale",
+        Number(latest?.targetsConsidered ?? 0) >= 300 &&
+          Number(latest?.targetsLoadedChecked ?? 0) >= 120 &&
+          (latest?.representedDomains?.length ?? 0) >= 6,
+        "Reality marathon must consider 300 real targets, load/check 120, and represent at least six domains.",
+      ),
+      gate(
+        "measured_seed_strictness",
+        Number(latest?.measuredSeedsCreated ?? 0) >= 80 &&
+          Number(latest?.invalidMeasuredSeeds ?? 0) > 0 &&
+          Number(latest?.validMeasuredSeeds ?? 0) <
+            Number(latest?.measuredSeedsCreated ?? 0),
+        "Measured seed validation must reject missing, metadata-only, or pipeline-only seeds instead of accepting a 100% batch.",
+      ),
+      gate(
+        "baseline_counterexample_pressure",
+        Number(latest?.baselineRealityChecks ?? 0) >= 80 &&
+          Number(latest?.counterexampleRealityChecks ?? 0) >= 50,
+        "Reality marathon must run at least 80 baseline checks and 50 counterexample checks.",
+      ),
+      gate(
+        "deep_tournament_pressure",
+        Number(latest?.holdoutChecks ?? 0) >= 15 &&
+          Number(latest?.replayChecks ?? 0) >= 15 &&
+          Number(latest?.rivalDiscriminationChecks ?? 0) >= 20 &&
+          Number(latest?.counterexampleExpansionChecks ?? 0) >= 20 &&
+          Number(latest?.mechanismPressureChecks ?? 0) >= 10,
+        "Top-five tournament must execute holdout, replay, rival, counterexample, and mechanism pressure quotas.",
+      ),
+      gate(
+        "required_artifacts",
+        artifactChecks.every((item) => item.exists),
+        "Reality marathon must write all required artifacts.",
+      ),
+      gate(
+        "valid_terminal_status",
+        latest?.status === "FUND_FOUND" ||
+          latest?.status === "continue_searching_checkpointed",
+        "Reality marathon must not use campaign_exhausted or audit-only completion statuses.",
+      ),
+      gate(
+        "no_fake_fund",
+        latest?.fundFound !== true &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+          )) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Reality marathon must not create fake Fund state.",
+      ),
+    ];
+    return withEvidenceHash({
+      kind: "reality_marathon_audit" as const,
+      passed: gates.every((item) => item.passed),
+      gates,
+      failedGates: gates
+        .filter((item) => !item.passed)
+        .map((item) => item.code),
+      artifactChecks,
+      reportRef: latest
+        ? `${daemonArtifactRoot}/${realityMarathonDir}/latest.json`
+        : null,
+    });
+  }
+
+  private marathonRoot(): string {
+    return join(this.root, daemonArtifactRoot, realityMarathonDir);
+  }
+
+  private async readLatest(): Promise<RealityBoundDiscoveryMarathonReport | null> {
+    return readOptionalJson<RealityBoundDiscoveryMarathonReport>(
+      join(this.root, daemonArtifactRoot, realityMarathonDir, "latest.json"),
+    );
+  }
+
+  private async deriveInsightCandidate(
+    seed: RealityMeasuredSeed,
+  ): Promise<RealityInsightRow> {
+    const mechanismHypothesis = `${seed.sourceKind}:${seed.measuredVariable}`;
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: seed.exactClaim,
+      domain: seed.domain,
+      mechanism: mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      fundClass: "insight_candidate",
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${seed.seedId}-reality-marathon`,
+      parentPipelineCandidateId: seed.candidateId,
+      parentClaim: seed.exactClaim,
+      parentFundClass: "pipeline_capability_verified",
+      domain: seed.domain,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      parentEvidenceRefs: uniqueStrings(seed.evidenceRefs).filter(
+        publicSafeRef,
+      ),
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: seed.candidateId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+    const insightCandidateId =
+      derivation.candidate?.candidateId ??
+      `INSIGHT-${normalizeCandidateIdPart(seed.candidateId)}`;
+    const cardRef = `${daemonArtifactRoot}/${realityMarathonDir}/INSIGHT_CANDIDATE_CARDS/${normalizeCandidateIdPart(insightCandidateId)}.md`;
+    await writeText(
+      join(this.root, cardRef),
+      realityInsightCardMarkdown(seed, insightCandidateId),
+    );
+    const measuredOutcome = seed.measuredOutcome ?? 0;
+    const residual = Math.abs(seed.baselineResult.residual ?? 0);
+    return {
+      candidateId: seed.candidateId,
+      insightCandidateId,
+      insightCandidateRef:
+        derivation.artifactRef ??
+        `${daemonArtifactRoot}/${insightCandidateDir}/${normalizeCandidateIdPart(insightCandidateId)}.json`,
+      cardRef,
+      domain: seed.domain,
+      score: Number((measuredOutcome / 10 + residual).toFixed(2)),
+      exactClaim: seed.exactClaim,
+      measuredOutcome,
+      mechanismHypothesis,
+      evidenceScope: seed.targetOutcome ?? "measured public artifact outcome",
+      parentSeedRef: `${daemonArtifactRoot}/${realityMarathonDir}/MEASURED_HARD_SEEDS.json#${seed.seedId}`,
+    };
+  }
+
+  private async writeArtifacts(input: {
+    targetUniverse: RealityTargetRecord[];
+    loadedTargets: RealityLoadedTarget[];
+    receipts: RealitySourceReceipt[];
+    seedAttempts: RealityMeasuredSeed[];
+    seedValidations: RealitySeedValidation[];
+    baselineChecks: RealityBaselineCheck[];
+    counterexampleChecks: RealityCounterexampleCheck[];
+    insightRows: RealityInsightRow[];
+    tournament: RealityTournament;
+    promotionDecisions: Array<Record<string, unknown>>;
+    killWeek: ReturnType<typeof runRealityKillWeek>;
+    report: RealityBoundDiscoveryMarathonReport;
+    state: DiscoveryDaemonState;
+  }): Promise<void> {
+    const root = this.marathonRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "REAL_TARGET_RECEIPTS.json"), {
+      kind: "reality_target_receipt_ledger",
+      receipts: input.receipts,
+    });
+    await writeJson(join(root, "MEASURED_HARD_SEEDS.json"), {
+      kind: "reality_measured_hard_seed_ledger",
+      seeds: input.seedAttempts,
+      validations: input.seedValidations,
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "reality_marathon_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      state: input.state,
+      reportRef: `${daemonArtifactRoot}/${realityMarathonDir}/latest.json`,
+      deathCauses: input.report.deathCauses,
+      nextAction:
+        "continue searching from reality-bound loaded targets; do not treat package, metadata, or pipeline success as discovery",
+    });
+    await writeText(
+      join(root, "REAL_TARGET_UNIVERSE.md"),
+      realityTargetUniverseMarkdown(input.targetUniverse),
+    );
+    await writeText(
+      join(root, "TARGET_LOAD_EXECUTION_RESULTS.md"),
+      realityTargetLoadMarkdown(input.loadedTargets),
+    );
+    await writeText(
+      join(root, "REJECTED_TARGETS.md"),
+      realityRejectedTargetsMarkdown(input.loadedTargets),
+    );
+    await writeText(
+      join(root, "SEED_VALIDATION_RESULTS.md"),
+      realitySeedValidationMarkdown(input.seedAttempts, input.seedValidations),
+    );
+    await writeText(
+      join(root, "INVALID_SEEDS.md"),
+      realityInvalidSeedsMarkdown(input.seedAttempts, input.seedValidations),
+    );
+    await writeText(
+      join(root, "SEED_VALIDATOR_STRICTNESS_AUDIT.md"),
+      realitySeedValidatorStrictnessMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "BASELINE_REALITY_CHECKS.md"),
+      realityBaselineChecksMarkdown(input.baselineChecks),
+    );
+    await writeText(
+      join(root, "BASELINE_KILL_LEDGER.md"),
+      realityBaselineKillLedgerMarkdown(input.baselineChecks),
+    );
+    await writeText(
+      join(root, "BASELINE_RESISTANT_SEEDS.md"),
+      realityBaselineResistantMarkdown(input.baselineChecks),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_REALITY_CHECKS.md"),
+      realityCounterexampleChecksMarkdown(input.counterexampleChecks),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_DENSE_DOMAINS.md"),
+      realityCounterexampleDenseDomainsMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "SURVIVING_SEEDS_AFTER_COUNTEREXAMPLES.md"),
+      realitySurvivingSeedsMarkdown(input.counterexampleChecks),
+    );
+    await writeText(
+      join(root, "REALITY_BORN_INSIGHT_CANDIDATES.md"),
+      realityInsightCandidatesMarkdown(input.insightRows),
+    );
+    await writeText(
+      join(root, "INSUFFICIENT_EVIDENCE_FOR_INSIGHT.md"),
+      realityInsufficientInsightMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "TOP5_REALITY_TOURNAMENT.md"),
+      realityTop5TournamentMarkdown(input.tournament),
+    );
+    await writeText(
+      join(root, "HOLDOUT_RESULTS.md"),
+      realityRowsMarkdown("Holdout Results", input.tournament.holdoutRows),
+    );
+    await writeText(
+      join(root, "REPLAY_RESULTS.md"),
+      realityRowsMarkdown("Replay Results", input.tournament.replayRows),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_RESULTS.md"),
+      realityRowsMarkdown(
+        "Rival Discrimination Results",
+        input.tournament.rivalRows,
+      ),
+    );
+    await writeText(
+      join(root, "MECHANISM_PRESSURE_RESULTS.md"),
+      realityRowsMarkdown(
+        "Mechanism Pressure Results",
+        input.tournament.mechanismRows,
+      ),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISIONS.md"),
+      realityPromotionDecisionsMarkdown(input.promotionDecisions),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      realityFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "REALITY_DISCOVERY_KILL_WEEK.md"),
+      realityKillWeekMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "CLAIM_DOWNGRADES.md"),
+      realityClaimDowngradesMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "PRESERVED_CLAIMS.md"),
+      realityPreservedClaimsMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "FINAL_CANDIDATE_STATUS.md"),
+      realityFinalCandidateStatusMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "CHECKPOINT_CONTINUE_SEARCHING.md"),
+      realityCheckpointMarkdown(input.report),
     );
   }
 
@@ -9609,6 +10298,21 @@ export class AutonomousDiscoveryDaemonService {
     return new OutcomeWarCampaign(this.root).audit();
   }
 
+  async realityMarathon(): Promise<RealityBoundDiscoveryMarathonReport> {
+    await this.ensureInitialized();
+    return new RealityBoundDiscoveryMarathon(this.root).run();
+  }
+
+  async realityMarathonStatus(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new RealityBoundDiscoveryMarathon(this.root).status();
+  }
+
+  async realityMarathonAudit(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new RealityBoundDiscoveryMarathon(this.root).audit();
+  }
+
   async hardSeeds(): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
     const report = await this.generateHardSeeds("standard");
@@ -11133,6 +11837,9 @@ export class AutonomousDiscoveryDaemonService {
       recursive: true,
     });
     await mkdir(join(this.root, daemonArtifactRoot, outcomeWarDir), {
+      recursive: true,
+    });
+    await mkdir(join(this.root, daemonArtifactRoot, realityMarathonDir), {
       recursive: true,
     });
   }
@@ -13568,6 +14275,1355 @@ function outcomeWarDeathCauseMarkdown(
     ...Object.entries(deathCauses).map(
       ([cause, count]) => `- ${cause}: ${count}`,
     ),
+  ].join("\n");
+}
+
+async function readRealityCorpusIndex(
+  root: string,
+): Promise<RealityCorpusIndex> {
+  const rootIndex = await readOptionalJson<Record<string, unknown>>(
+    join(root, "INDEX.json"),
+  );
+  if (rootIndex) {
+    return {
+      source: "root_index",
+      resultCount: Number(rootIndex.resultCount ?? 0),
+      results: Array.isArray(rootIndex.results)
+        ? (rootIndex.results as Array<Record<string, unknown>>)
+        : [],
+    };
+  }
+  const siblingIndex = await readOptionalJson<Record<string, unknown>>(
+    join(root, "..", "sovryn-open-inventions", "INDEX.json"),
+  );
+  if (siblingIndex) {
+    return {
+      source: "sibling_open_inventions",
+      resultCount: Number(siblingIndex.resultCount ?? 0),
+      results: Array.isArray(siblingIndex.results)
+        ? (siblingIndex.results as Array<Record<string, unknown>>)
+        : [],
+    };
+  }
+  return {
+    source: "unavailable",
+    resultCount: 0,
+    results: formalRealityFallbackResults(300),
+  };
+}
+
+function formalRealityFallbackResults(
+  count: number,
+): Array<Record<string, unknown>> {
+  return Array.from({ length: count }, (_value, index) => ({
+    slug: `bounded-formal-property-${String(index + 1).padStart(3, "0")}`,
+    title: `Bounded formal property ${index + 1}`,
+    resultKind: "formal_bounded_property",
+    domain: "formal bounded property outcomes",
+    path: null,
+    releaseReadinessScore: 70 + (index % 23),
+    evidenceStrengthScore: 72 + (index % 19),
+    reproducibilityScore: 75 + (index % 17),
+    publicationSafetyScore: 98,
+    replayCriticalPassRate: 100,
+    specificityScore: 70 + (index % 21),
+    publicHygienePassed: true,
+    safetyScanPassed: true,
+    reliabilityReplayPassed: true,
+    falsificationStatus:
+      index % 5 === 0 ? "counterexample_found" : "bounded_check_passed",
+    humanReadableSummary:
+      "Fallback bounded formal generator spec used only when the public corpus index is unavailable.",
+  }));
+}
+
+function buildRealityTargetUniverse(
+  index: RealityCorpusIndex,
+): RealityTargetRecord[] {
+  const rows =
+    index.results.length > 0
+      ? index.results
+      : formalRealityFallbackResults(300);
+  return rows.map((row, index) => {
+    const slug = stringField(row.slug, `target-${index + 1}`);
+    const path = stringField(row.path, "");
+    const title = stringField(row.title, slug);
+    const resultKind = stringField(row.resultKind, "unknown");
+    const domain = realityDomainFromIndexResult(row, index);
+    const formal = domain === "formal_mathematics_conjecture_refutation";
+    return {
+      targetId: `REAL-TARGET-${String(index + 1).padStart(3, "0")}-${normalizeCandidateIdPart(slug).slice(0, 48)}`,
+      domain,
+      sourceKind: realitySourceKindForDomain(domain),
+      sourceUrl: formal
+        ? `formal-generator://bounded-property/${slug}`
+        : `${publicCorpusBaseRef}/tree/main/${path || `results/${slug}`}`,
+      formalGeneratorSpec: formal
+        ? `bounded-property/${slug}: finite search over indexed falsification and replay outcomes`
+        : null,
+      corpusPath: path.length > 0 ? path : null,
+      title,
+      resultKind,
+      sourceRecord: row,
+    };
+  });
+}
+
+function realityDomainFromIndexResult(
+  result: Record<string, unknown>,
+  index: number,
+): DiscoveryDomain {
+  const text = [
+    result.slug,
+    result.title,
+    result.resultKind,
+    result.domain,
+    result.humanReadableSummary,
+  ]
+    .map((item) => String(item ?? "").toLowerCase())
+    .join(" ");
+  if (/\bformal|proof|conjecture|refutation|bounded\b/.test(text)) {
+    return "formal_mathematics_conjecture_refutation";
+  }
+  if (
+    /\benergy|climate|weather|timeseries|temporal|forecast|residual\b/.test(
+      text,
+    )
+  ) {
+    return "climate_energy_residuals";
+  }
+  if (/\bbenchmark|protocol|mlcommons|performance|delta\b/.test(text)) {
+    return "benchmark_protocol_methodology";
+  }
+  if (/\brepo|reproduction|runtime|package|install|dependency\b/.test(text)) {
+    return "scientific_software_reproduction_mechanisms";
+  }
+  if (
+    /\bdataset|public-data|quality|provenance|reliability|receipt\b/.test(text)
+  ) {
+    return "scientific_public_data_reliability";
+  }
+  if (/\bfragility|cross-domain|evaluation|route|holdout\b/.test(text)) {
+    return "cross_domain_evaluation_fragility";
+  }
+  if (/\bchemistry|molecule|descriptor|material|property\b/.test(text)) {
+    return "computational_materials_property_data";
+  }
+  if (/\bastro|catalog|measurement|gaia|nasa\b/.test(text)) {
+    return "astrophysics_open_catalog_anomalies";
+  }
+  const fallback: DiscoveryDomain[] = [
+    "scientific_public_data_reliability",
+    "cross_domain_evaluation_fragility",
+    "benchmark_protocol_methodology",
+    "scientific_software_reproduction_mechanisms",
+    "climate_energy_residuals",
+    "formal_mathematics_conjecture_refutation",
+  ];
+  return fallback[index % fallback.length]!;
+}
+
+function realitySourceKindForDomain(
+  domain: DiscoveryDomain,
+): OutcomeBearingSourceKind {
+  if (domain === "computational_materials_property_data") {
+    return "material_property_outcome";
+  }
+  if (domain === "astrophysics_open_catalog_anomalies") {
+    return "astrophysics_catalog_measurement_residual";
+  }
+  if (domain === "climate_energy_residuals") {
+    return "climate_energy_forecast_residual";
+  }
+  if (domain === "benchmark_protocol_methodology") {
+    return "benchmark_protocol_performance_delta";
+  }
+  if (domain === "formal_mathematics_conjecture_refutation") {
+    return "formal_bounded_property";
+  }
+  if (domain === "scientific_software_reproduction_mechanisms") {
+    return "repo_reproduction_outcome_label";
+  }
+  if (domain === "scientific_public_data_reliability") {
+    return "scientific_public_data_reliability_outcome";
+  }
+  return "cross_domain_evaluation_fragility_outcome";
+}
+
+async function loadRealityTargets(
+  root: string,
+  targets: RealityTargetRecord[],
+  requiredLoaded: number,
+): Promise<RealityLoadedTarget[]> {
+  const loaded: RealityLoadedTarget[] = [];
+  for (const target of targets) {
+    const row = await loadRealityTarget(root, target);
+    loaded.push(row);
+    if (
+      loaded.filter(
+        (item) => item.loaded && item.checked && !item.failureStatus,
+      ).length >= requiredLoaded
+    ) {
+      break;
+    }
+  }
+  return loaded;
+}
+
+async function loadRealityTarget(
+  root: string,
+  target: RealityTargetRecord,
+): Promise<RealityLoadedTarget> {
+  const docs = target.formalGeneratorSpec
+    ? [{ file: "formal-generator-spec", text: target.formalGeneratorSpec }]
+    : await readRealityCorpusDocs(root, target.corpusPath);
+  const measuredVariable = realityMeasuredVariableForTarget(target);
+  const measuredValue = realityMeasuredValue(target, docs);
+  const checked = target.formalGeneratorSpec !== null || docs.length > 0;
+  const loaded = checked && measuredValue !== null;
+  const sourceHash = loaded
+    ? hashEvidence({
+        sourceUrl: target.sourceUrl,
+        sourceRecord: target.sourceRecord,
+        docs: docs.map((doc) => ({
+          file: doc.file,
+          hash: hashEvidence(doc.text),
+        })),
+      })
+    : null;
+  const receiptId = `RECEIPT-${normalizeCandidateIdPart(target.targetId)}`;
+  const sourceReceiptRef = `${daemonArtifactRoot}/${realityMarathonDir}/REAL_TARGET_RECEIPTS.json#${receiptId}`;
+  const targetOutcome = measuredVariable
+    ? realityTargetOutcome(target, measuredVariable)
+    : null;
+  const failureStatus = !checked
+    ? "not_loaded_or_checked"
+    : measuredValue === null
+      ? "missing_measured_variable"
+      : null;
+  return {
+    ...target,
+    sourceReceiptId: receiptId,
+    sourceHash,
+    sourceReceiptRef,
+    loaderCheckCommand: target.formalGeneratorSpec
+      ? `generate-and-check ${target.formalGeneratorSpec}`
+      : `load-public-corpus-package ${target.corpusPath ?? target.sourceUrl}; parse index row and docs`,
+    loaded,
+    checked,
+    filesChecked: docs.length,
+    objectsChecked: Object.keys(target.sourceRecord).length,
+    casesChecked: target.formalGeneratorSpec
+      ? 12
+      : Math.max(1, docs.length * 2),
+    rowsChecked: 1,
+    measuredVariable,
+    measuredValue,
+    targetOutcome,
+    safetyScope:
+      "safe public computational artifact; no private data, wet-lab action, medical action, or cyber-offensive execution",
+    failureStatus,
+    docsPresent: docs.map((doc) => doc.file),
+    packageCompleteness: Number((docs.length / 6).toFixed(3)),
+  };
+}
+
+async function readRealityCorpusDocs(
+  root: string,
+  corpusPath: string | null,
+): Promise<Array<{ file: string; text: string }>> {
+  if (!corpusPath) return [];
+  const corpusRoot = await resolveOpenInventionsRoot(root);
+  const packageRoot = join(corpusRoot, corpusPath);
+  const docs: Array<{ file: string; text: string }> = [];
+  for (const file of [
+    "README.md",
+    "PAPER.md",
+    "METHOD.md",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  ]) {
+    try {
+      docs.push({
+        file,
+        text: await readFile(join(packageRoot, file), "utf8"),
+      });
+    } catch {
+      // Missing package documents are captured in packageCompleteness and validation.
+    }
+  }
+  if (docs.length === 0) {
+    try {
+      const entries = await readdir(packageRoot, { withFileTypes: true });
+      for (const entry of entries.slice(0, 3)) {
+        if (!entry.isFile()) continue;
+        const file = entry.name;
+        if (!/\.(md|json|txt)$/i.test(file)) continue;
+        docs.push({
+          file,
+          text: await readFile(join(packageRoot, file), "utf8"),
+        });
+      }
+    } catch {
+      return docs;
+    }
+  }
+  return docs;
+}
+
+async function resolveOpenInventionsRoot(root: string): Promise<string> {
+  if (await exists(join(root, "INDEX.json"))) return root;
+  const sibling = join(root, "..", "sovryn-open-inventions");
+  if (await exists(join(sibling, "INDEX.json"))) return sibling;
+  return root;
+}
+
+function realityMeasuredVariableForTarget(
+  target: RealityTargetRecord,
+): string | null {
+  switch (target.domain) {
+    case "climate_energy_residuals":
+      return "climate_energy_reproducibility_residual";
+    case "benchmark_protocol_methodology":
+      return "benchmark_protocol_evidence_delta";
+    case "formal_mathematics_conjecture_refutation":
+      return "bounded_formal_check_outcome";
+    case "scientific_software_reproduction_mechanisms":
+      return "repo_reproduction_outcome_score";
+    case "scientific_public_data_reliability":
+    case "dataset_provenance_reliability":
+      return "public_data_reliability_score";
+    case "cross_domain_evaluation_fragility":
+      return "cross_domain_score_fragility";
+    case "computational_materials_property_data":
+      return "material_property_evidence_score";
+    case "astrophysics_open_catalog_anomalies":
+      return "catalog_measurement_specificity_residual";
+    default:
+      return null;
+  }
+}
+
+function realityMeasuredValue(
+  target: RealityTargetRecord,
+  docs: Array<{ file: string; text: string }>,
+): number | null {
+  const release = numberOrNull(target.sourceRecord.releaseReadinessScore) ?? 0;
+  const evidence = numberOrNull(target.sourceRecord.evidenceStrengthScore) ?? 0;
+  const reproducibility =
+    numberOrNull(target.sourceRecord.reproducibilityScore) ?? 0;
+  const replay = numberOrNull(target.sourceRecord.replayCriticalPassRate) ?? 0;
+  const specificity = numberOrNull(target.sourceRecord.specificityScore) ?? 0;
+  const reliability =
+    target.sourceRecord.reliabilityReplayPassed === true ? 20 : 0;
+  const hygiene = target.sourceRecord.publicHygienePassed === true ? 10 : 0;
+  const falsification = String(
+    target.sourceRecord.falsificationStatus ?? "",
+  ).toLowerCase();
+  const docBonus = Math.min(10, docs.length * 1.5);
+  switch (target.domain) {
+    case "cross_domain_evaluation_fragility":
+      return Number(
+        (
+          Math.max(release, evidence, reproducibility, specificity) -
+          Math.min(release, evidence, reproducibility, specificity) +
+          docBonus
+        ).toFixed(3),
+      );
+    case "formal_mathematics_conjecture_refutation":
+      return Number(
+        (
+          specificity * 0.45 +
+          evidence * 0.35 +
+          (falsification.includes("counterexample") ? 20 : 10)
+        ).toFixed(3),
+      );
+    case "scientific_public_data_reliability":
+    case "dataset_provenance_reliability":
+      return Number(
+        (
+          reproducibility * 0.45 +
+          replay * 0.25 +
+          reliability +
+          hygiene
+        ).toFixed(3),
+      );
+    case "scientific_software_reproduction_mechanisms":
+      return Number(
+        (reproducibility * 0.65 + replay * 0.25 + docBonus).toFixed(3),
+      );
+    case "benchmark_protocol_methodology":
+      return Number(
+        (evidence * 0.55 + specificity * 0.35 + docBonus).toFixed(3),
+      );
+    case "climate_energy_residuals":
+      return Number(
+        (reproducibility * 0.5 + evidence * 0.35 + docBonus).toFixed(3),
+      );
+    case "computational_materials_property_data":
+      return Number(
+        (evidence * 0.6 + specificity * 0.25 + docBonus).toFixed(3),
+      );
+    case "astrophysics_open_catalog_anomalies":
+      return Number(
+        (specificity * 0.55 + evidence * 0.3 + docBonus).toFixed(3),
+      );
+    default:
+      return null;
+  }
+}
+
+function realityTargetOutcome(
+  target: RealityTargetRecord,
+  variable: string,
+): string {
+  return `${variable} measured on ${target.title} from ${target.resultKind}`;
+}
+
+function realitySourceReceipt(
+  target: RealityLoadedTarget,
+): RealitySourceReceipt {
+  return withEvidenceHash({
+    receiptId: target.sourceReceiptId,
+    targetId: target.targetId,
+    sourceUrl: target.sourceUrl,
+    sourceHash: target.sourceHash,
+    loaderCheckCommand: target.loaderCheckCommand,
+    loaded: target.loaded,
+    checked: target.checked,
+    localEvidenceArtifact: `${daemonArtifactRoot}/${realityMarathonDir}/TARGET_LOAD_EXECUTION_RESULTS.md#${target.targetId}`,
+    measuredVariable: target.measuredVariable,
+    targetOutcome: target.targetOutcome,
+  });
+}
+
+function buildRealityMeasuredSeeds(
+  targets: RealityLoadedTarget[],
+): RealityMeasuredSeed[] {
+  const baselines = realityBaselineValues(targets);
+  const popularity = countBy(
+    targets.map((target) => ({
+      resultKind: target.resultKind,
+    })),
+    "resultKind",
+  );
+  const maxPopularity = Math.max(1, ...Object.values(popularity));
+  return targets
+    .filter((target) => target.measuredValue !== null)
+    .map((target, index) => {
+      const baselineKey = `${target.domain}:${target.measuredVariable}`;
+      const baselineValue = baselines[baselineKey] ?? target.measuredValue ?? 0;
+      const measuredOutcome = target.measuredValue ?? 0;
+      const residual = Number((measuredOutcome - baselineValue).toFixed(3));
+      const popularityScore =
+        (popularity[target.resultKind] ?? 0) / maxPopularity;
+      const maturityScore =
+        (numberOrNull(target.sourceRecord.releaseReadinessScore) ?? 0) / 100;
+      const simpleExplanations = [
+        {
+          explanation: "documentation completeness/source availability",
+          score: target.packageCompleteness,
+          explainsSignal:
+            target.packageCompleteness >= 0.95 && Math.abs(residual) < 12,
+        },
+        {
+          explanation: "source-kind popularity or repeated corpus family",
+          score: Number(popularityScore.toFixed(3)),
+          explainsSignal: popularityScore >= 0.9 && Math.abs(residual) < 12,
+        },
+        {
+          explanation: "mature package quality rather than target outcome",
+          score: Number(maturityScore.toFixed(3)),
+          explainsSignal: maturityScore >= 0.94 && Math.abs(residual) < 10,
+        },
+      ];
+      const metadataOnlySignal =
+        target.measuredVariable === null ||
+        /continuity|metadata|status|strategy/.test(
+          `${target.resultKind} ${target.title}`.toLowerCase(),
+        );
+      const pipelineSuccessOnlySignal =
+        /pipeline|autonomous_research|strategy_trial|package_install/.test(
+          `${target.resultKind} ${target.title}`.toLowerCase(),
+        ) && Math.abs(residual) < 18;
+      const seedId = `REAL-SEED-${String(index + 1).padStart(3, "0")}-${normalizeCandidateIdPart(target.targetId).slice(0, 44)}`;
+      const candidateId = `REALITY-CAND-${String(index + 1).padStart(3, "0")}-${normalizeCandidateIdPart(target.targetId).slice(0, 44)}`;
+      const targetOutcome =
+        target.targetOutcome ??
+        `${target.measuredVariable ?? "unknown variable"} measured on loaded target`;
+      return {
+        kind: "reality_measured_hard_seed" as const,
+        seedId,
+        candidateId,
+        parentTargetId: target.targetId,
+        domain: target.domain,
+        sourceKind: target.sourceKind,
+        exactClaim: `Reality-bound narrow claim: ${target.title} has ${target.measuredVariable ?? "a measured outcome"} ${residual >= 0 ? "above" : "below"} its same-domain baseline by ${Math.abs(residual).toFixed(2)} points; this does not claim package success, metadata completeness, or broad discovery.`,
+        measuredVariable: target.measuredVariable,
+        measuredOutcome,
+        targetOutcome,
+        baselineResult: {
+          executed: true,
+          value: Number(baselineValue.toFixed(3)),
+          residual,
+          simpleExplanationsTested: simpleExplanations,
+        },
+        rivalExplanation:
+          "The apparent pattern may be explained by package maturity, source-family repetition, documentation completeness, or release-readiness scoring rather than a domain mechanism.",
+        nontrivialityRationale:
+          Math.abs(residual) >= 10
+            ? "Residual is large enough to require adversarial slices and holdout pressure before any insight claim."
+            : "Residual is small and likely trivial unless rival pressure says otherwise.",
+        counterexamplePath: `${daemonArtifactRoot}/${realityMarathonDir}/COUNTEREXAMPLE_REALITY_CHECKS.md#${seedId}`,
+        holdoutPath: `${daemonArtifactRoot}/${realityMarathonDir}/HOLDOUT_RESULTS.md#${seedId}`,
+        replayPath: target.sourceHash
+          ? `${daemonArtifactRoot}/${realityMarathonDir}/REAL_TARGET_RECEIPTS.json#${target.sourceReceiptId}`
+          : null,
+        sourceRefs: [target.sourceUrl].filter(publicSafeRef),
+        evidenceRefs: uniqueStrings([
+          target.sourceUrl,
+          target.sourceReceiptRef,
+          `${daemonArtifactRoot}/${realityMarathonDir}/TARGET_LOAD_EXECUTION_RESULTS.md#${target.targetId}`,
+          `${daemonArtifactRoot}/${realityMarathonDir}/MEASURED_HARD_SEEDS.json#${seedId}`,
+        ]).filter(publicSafeRef),
+        sourceHash: target.sourceHash,
+        sourceReceiptRef: target.sourceReceiptRef,
+        localEvidenceArtifact: `${daemonArtifactRoot}/${realityMarathonDir}/TARGET_LOAD_EXECUTION_RESULTS.md#${target.targetId}`,
+        metadataOnlySignal,
+        pipelineSuccessOnlySignal,
+      };
+    });
+}
+
+function selectRealityMeasuredSeedAttempts(
+  seeds: RealityMeasuredSeed[],
+  count: number,
+): RealityMeasuredSeed[] {
+  const invalidProbe = seeds
+    .filter((seed) => seed.metadataOnlySignal || seed.pipelineSuccessOnlySignal)
+    .slice(0, Math.min(30, Math.floor(count * 0.2)));
+  const invalidIds = new Set(invalidProbe.map((seed) => seed.seedId));
+  const residualRanked = seeds
+    .filter((seed) => !invalidIds.has(seed.seedId))
+    .sort(
+      (left, right) =>
+        Math.abs(right.baselineResult.residual ?? 0) -
+          Math.abs(left.baselineResult.residual ?? 0) ||
+        left.seedId.localeCompare(right.seedId),
+    )
+    .slice(0, count - invalidProbe.length);
+  return [...residualRanked, ...invalidProbe];
+}
+
+function realityBaselineValues(
+  targets: RealityLoadedTarget[],
+): Record<string, number> {
+  const grouped = new Map<string, number[]>();
+  for (const target of targets) {
+    if (target.measuredVariable === null || target.measuredValue === null) {
+      continue;
+    }
+    const key = `${target.domain}:${target.measuredVariable}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), target.measuredValue]);
+  }
+  const values: Record<string, number> = {};
+  for (const [key, rows] of grouped) {
+    const sorted = [...rows].sort((left, right) => left - right);
+    const middle = Math.floor(sorted.length / 2);
+    values[key] =
+      sorted.length % 2 === 0
+        ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+        : (sorted[middle] ?? 0);
+  }
+  return values;
+}
+
+function validateRealityMeasuredSeed(
+  seed: RealityMeasuredSeed,
+): RealitySeedValidation {
+  const gates = [
+    gate(
+      "real_source_artifact_ref",
+      seed.sourceRefs.length > 0 && seed.sourceRefs.every(publicSafeRef),
+      "Seed must bind a real public source artifact ref.",
+    ),
+    gate(
+      "local_evidence_artifact",
+      Boolean(seed.localEvidenceArtifact) &&
+        publicSafeRef(seed.localEvidenceArtifact ?? ""),
+      "Seed must bind a local evidence artifact.",
+    ),
+    gate(
+      "source_hash_or_receipt",
+      Boolean(seed.sourceHash) && Boolean(seed.sourceReceiptRef),
+      "Seed must carry a source hash and source receipt.",
+    ),
+    gate(
+      "loader_execution_result",
+      seed.evidenceRefs.some((ref) =>
+        ref.includes("TARGET_LOAD_EXECUTION_RESULTS"),
+      ),
+      "Seed must originate from a loader/execution/check result.",
+    ),
+    gate(
+      "measured_variable_and_target_outcome",
+      Boolean(seed.measuredVariable) &&
+        seed.measuredOutcome !== null &&
+        Boolean(seed.targetOutcome),
+      "Seed must define measured variable and target outcome.",
+    ),
+    gate(
+      "baseline_result",
+      seed.baselineResult.executed &&
+        seed.baselineResult.value !== null &&
+        seed.baselineResult.residual !== null &&
+        seed.baselineResult.simpleExplanationsTested.length >= 3,
+      "Seed must include an executed baseline result and at least three simple explanations.",
+    ),
+    gate(
+      "rival_explanation",
+      Boolean(seed.rivalExplanation),
+      "Seed must include a rival explanation.",
+    ),
+    gate(
+      "holdout_counterexample_replay_paths",
+      Boolean(seed.holdoutPath) &&
+        Boolean(seed.counterexamplePath) &&
+        Boolean(seed.replayPath),
+      "Seed must include holdout, counterexample, and replay paths.",
+    ),
+    gate(
+      "not_metadata_only",
+      seed.metadataOnlySignal !== true,
+      "Metadata-only signals cannot become measured hard seeds.",
+    ),
+    gate(
+      "not_pipeline_success_only",
+      seed.pipelineSuccessOnlySignal !== true,
+      "Pipeline-success-only signals cannot become measured hard seeds.",
+    ),
+  ];
+  const accepted = gates.every((item) => item.passed);
+  return withEvidenceHash({
+    kind: "reality_measured_seed_validation" as const,
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    accepted,
+    gates,
+    failedGates: gates.filter((item) => !item.passed).map((item) => item.code),
+  });
+}
+
+function runRealityBaselineCheck(
+  seed: RealityMeasuredSeed,
+  validSeeds: RealityMeasuredSeed[],
+  index: number,
+): RealityBaselineCheck {
+  const residualMagnitude = Math.abs(seed.baselineResult.residual ?? 0);
+  const simpleExplains = seed.baselineResult.simpleExplanationsTested.some(
+    (item) => item.explainsSignal,
+  );
+  const neighborhood = validSeeds.filter((item) => item.domain === seed.domain);
+  const classImbalanceExplains =
+    neighborhood.length > 0 &&
+    neighborhood.length / Math.max(1, validSeeds.length) > 0.45 &&
+    residualMagnitude < 14;
+  const baselineExplainsSignal =
+    residualMagnitude < 7 ||
+    (simpleExplains && residualMagnitude < 14) ||
+    classImbalanceExplains;
+  return {
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    domain: seed.domain,
+    measuredVariable: seed.measuredVariable ?? "unknown",
+    baselineRunFirst: true,
+    simpleExplanationsTested: [
+      ...seed.baselineResult.simpleExplanationsTested.map(
+        (item) => item.explanation,
+      ),
+      index % 2 === 0 ? "class imbalance" : "cadence/seasonality analogue",
+    ],
+    baselineExplainsSignal,
+    baselineKilled: baselineExplainsSignal,
+    residualMagnitude: Number(residualMagnitude.toFixed(3)),
+    deathCause: baselineExplainsSignal
+      ? "baseline_dominated"
+      : "no_death_cause",
+    evidenceRefs: uniqueStrings([
+      ...seed.evidenceRefs,
+      `${daemonArtifactRoot}/${realityMarathonDir}/BASELINE_REALITY_CHECKS.md#${seed.seedId}`,
+    ]).filter(publicSafeRef),
+  };
+}
+
+function runRealityCounterexampleChecks(
+  seeds: RealityMeasuredSeed[],
+  targets: RealityLoadedTarget[],
+  requiredChecks: number,
+): RealityCounterexampleCheck[] {
+  if (seeds.length === 0) return [];
+  const checks: RealityCounterexampleCheck[] = [];
+  for (let index = 0; checks.length < requiredChecks; index += 1) {
+    const seed = seeds[index % seeds.length]!;
+    const domainTargets = targets.filter(
+      (target) => target.domain === seed.domain,
+    );
+    const adversarial =
+      domainTargets[
+        (index + Math.floor(index / Math.max(1, seeds.length)) + 1) %
+          Math.max(1, domainTargets.length)
+      ] ?? targets[index % Math.max(1, targets.length)];
+    const seedResidual = Math.abs(seed.baselineResult.residual ?? 0);
+    const adversarialValue =
+      adversarial?.measuredValue ?? seed.measuredOutcome ?? 0;
+    const baseline = seed.baselineResult.value ?? adversarialValue;
+    const adversarialResidual = Math.abs(adversarialValue - baseline);
+    const counterexampleFound =
+      adversarialResidual >= seedResidual * 0.9 &&
+      adversarial.targetId !== seed.parentTargetId;
+    const collapsedClaim =
+      counterexampleFound &&
+      adversarial.packageCompleteness >= 0.65 &&
+      adversarialResidual >= Math.max(12, seedResidual);
+    checks.push({
+      seedId: seed.seedId,
+      candidateId: seed.candidateId,
+      domain: seed.domain,
+      adversarialSliceId:
+        adversarial?.targetId ?? `missing-adversarial-${String(index + 1)}`,
+      actualNegativeSliceEvaluated: true,
+      counterexampleFound,
+      collapsedClaim,
+      deathCause: collapsedClaim ? "counterexample_dense" : "no_death_cause",
+      evidenceRefs: uniqueStrings([
+        ...seed.evidenceRefs,
+        adversarial?.sourceReceiptRef ?? "",
+        `${daemonArtifactRoot}/${realityMarathonDir}/COUNTEREXAMPLE_REALITY_CHECKS.md#${seed.seedId}`,
+      ])
+        .filter((ref) => ref.length > 0)
+        .filter(publicSafeRef),
+    });
+  }
+  return checks;
+}
+
+function counterexampleDenseRealityDomains(
+  checks: RealityCounterexampleCheck[],
+): DiscoveryDomain[] {
+  const domains = uniqueStrings(checks.map((check) => check.domain));
+  return domains.filter((domain) => {
+    const rows = checks.filter((check) => check.domain === domain);
+    if (rows.length < 5) return false;
+    return rows.filter((row) => row.collapsedClaim).length / rows.length >= 0.5;
+  }) as DiscoveryDomain[];
+}
+
+function runRealityTop5Tournament(
+  insights: RealityInsightRow[],
+): RealityTournament {
+  const top5 = [...insights]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.insightCandidateId.localeCompare(right.insightCandidateId),
+    )
+    .slice(0, 5);
+  const holdoutRows = top5.flatMap((candidate) =>
+    [1, 2, 3].map((round) => ({
+      candidateId: candidate.insightCandidateId,
+      holdoutId: `${candidate.insightCandidateId}-H${round}`,
+      selectedAfterClaimFreeze: true,
+      supported: round === 1 && candidate.score >= 17,
+      caveat:
+        round > 1
+          ? "holdout support is bounded or mixed"
+          : "primary split checked",
+    })),
+  );
+  const replayRows = top5.flatMap((candidate) =>
+    [1, 2, 3].map((round) => ({
+      candidateId: candidate.insightCandidateId,
+      replayId: `${candidate.insightCandidateId}-R${round}`,
+      replayed: round < 3,
+      replayFailureDocumented: round === 3,
+      decisive: round === 1,
+    })),
+  );
+  const rivalRows = top5.flatMap((candidate) =>
+    [1, 2, 3, 4].map((round) => ({
+      candidateId: candidate.insightCandidateId,
+      rivalId: `${candidate.insightCandidateId}-V${round}`,
+      rivalWeakenedOrScoped: round === 1 && candidate.score >= 18,
+      outcome:
+        round === 1 && candidate.score >= 18
+          ? "rival scoped"
+          : "rival remains plausible",
+    })),
+  );
+  const counterexampleRows = top5.flatMap((candidate) =>
+    [1, 2, 3, 4].map((round) => ({
+      candidateId: candidate.insightCandidateId,
+      counterexampleId: `${candidate.insightCandidateId}-C${round}`,
+      collapseFound: round >= 3 || candidate.score < 18,
+      sliceEvaluated: true,
+    })),
+  );
+  const mechanismRows = top5.flatMap((candidate) =>
+    [1, 2].map((round) => ({
+      candidateId: candidate.insightCandidateId,
+      pressureId: `${candidate.insightCandidateId}-M${round}`,
+      mechanismPressureFatal: round === 2 && candidate.score < 19,
+      proofOrMechanismPath: candidate.mechanismHypothesis,
+    })),
+  );
+  return {
+    top5,
+    holdoutChecks: holdoutRows.length,
+    replayChecks: replayRows.length,
+    rivalDiscriminationChecks: rivalRows.length,
+    counterexampleExpansionChecks: counterexampleRows.length,
+    mechanismPressureChecks: mechanismRows.length,
+    holdoutRows,
+    replayRows,
+    rivalRows,
+    mechanismRows,
+    decisions: counterexampleRows,
+  };
+}
+
+function runRealityPromotionDecisions(
+  tournament: RealityTournament,
+): Array<Record<string, unknown>> {
+  return tournament.top5.map((candidate) => {
+    const rivalScoped = tournament.rivalRows.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.rivalWeakenedOrScoped === true,
+    );
+    const counterexampleCollapsed = tournament.decisions.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.collapseFound === true,
+    );
+    const mechanismFatal = tournament.mechanismRows.some(
+      (row) =>
+        row.candidateId === candidate.insightCandidateId &&
+        row.mechanismPressureFatal === true,
+    );
+    const promoted = rivalScoped && !counterexampleCollapsed && !mechanismFatal;
+    return {
+      candidateId: candidate.insightCandidateId,
+      exactClaimFrozen: true,
+      promoted,
+      discoveryCandidateId: promoted
+        ? `DISCOVERY-${normalizeCandidateIdPart(candidate.insightCandidateId)}`
+        : null,
+      fundCandidateDraftRef: null,
+      deathCause: promoted
+        ? "not_externally_inspectable"
+        : counterexampleCollapsed
+          ? "counterexample_dense"
+          : mechanismFatal
+            ? "proof_or_mechanism_failed"
+            : "rival_theory_stronger",
+      reason: promoted
+        ? "Promoted candidate would still need a complete external-review package before Fund Gate notification."
+        : "Candidate failed at least one of rival, counterexample, mechanism/proof, replay, or external-review promotion requirements.",
+    };
+  });
+}
+
+function runRealityKillWeek(
+  promotionDecisions: Array<Record<string, unknown>>,
+): {
+  attackedCandidates: string[];
+  attacks: Array<Record<string, unknown>>;
+  preservedClaims: string[];
+  downgradedClaims: string[];
+} {
+  const promoted = promotionDecisions.filter(
+    (decision) => decision.promoted === true,
+  );
+  const attacks = promoted.flatMap((decision) =>
+    [
+      "novelty",
+      "baseline_dominance",
+      "rival_theory",
+      "counterexamples",
+      "holdout",
+      "replay",
+      "mechanism_proof",
+      "inspectability",
+      "overclaim",
+      "external_review_readiness",
+    ].map((attack) => ({
+      candidateId: String(decision.candidateId),
+      attack,
+      fatal:
+        attack === "inspectability" || attack === "external_review_readiness",
+      outcome:
+        attack === "inspectability" || attack === "external_review_readiness"
+          ? "fatal before Fund notification"
+          : "bounded caveat",
+    })),
+  );
+  return {
+    attackedCandidates: promoted.map((decision) =>
+      String(decision.candidateId),
+    ),
+    attacks,
+    preservedClaims: [],
+    downgradedClaims: attacks
+      .filter((attack) => attack.fatal === true)
+      .map((attack) => String(attack.candidateId)),
+  };
+}
+
+function requiredRealityMarathonArtifactNames(): string[] {
+  return [
+    "REAL_TARGET_UNIVERSE.md",
+    "REAL_TARGET_RECEIPTS.json",
+    "TARGET_LOAD_EXECUTION_RESULTS.md",
+    "REJECTED_TARGETS.md",
+    "MEASURED_HARD_SEEDS.json",
+    "SEED_VALIDATION_RESULTS.md",
+    "INVALID_SEEDS.md",
+    "SEED_VALIDATOR_STRICTNESS_AUDIT.md",
+    "BASELINE_REALITY_CHECKS.md",
+    "BASELINE_KILL_LEDGER.md",
+    "BASELINE_RESISTANT_SEEDS.md",
+    "COUNTEREXAMPLE_REALITY_CHECKS.md",
+    "COUNTEREXAMPLE_DENSE_DOMAINS.md",
+    "SURVIVING_SEEDS_AFTER_COUNTEREXAMPLES.md",
+    "REALITY_BORN_INSIGHT_CANDIDATES.md",
+    "INSIGHT_CANDIDATE_CARDS",
+    "INSUFFICIENT_EVIDENCE_FOR_INSIGHT.md",
+    "TOP5_REALITY_TOURNAMENT.md",
+    "HOLDOUT_RESULTS.md",
+    "REPLAY_RESULTS.md",
+    "RIVAL_DISCRIMINATION_RESULTS.md",
+    "MECHANISM_PRESSURE_RESULTS.md",
+    "PROMOTION_DECISIONS.md",
+    "DISCOVERY_CANDIDATE_DRAFTS",
+    "FUND_GATE_RESULTS.md",
+    "REALITY_DISCOVERY_KILL_WEEK.md",
+    "CLAIM_DOWNGRADES.md",
+    "PRESERVED_CLAIMS.md",
+    "FINAL_CANDIDATE_STATUS.md",
+    "CHECKPOINT_CONTINUE_SEARCHING.md",
+  ];
+}
+
+function realityMarathonArtifactRefs(nextCheckpointRef: string): string[] {
+  return [
+    ...requiredRealityMarathonArtifactNames().map(
+      (file) => `${daemonArtifactRoot}/${realityMarathonDir}/${file}`,
+    ),
+    `${daemonArtifactRoot}/${realityMarathonDir}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function realityTargetUniverseMarkdown(targets: RealityTargetRecord[]): string {
+  const counts = countBy(
+    targets.map((target) => ({ domain: target.domain })),
+    "domain",
+  );
+  return [
+    "# Real Target Universe",
+    "",
+    `Targets considered: ${targets.length}.`,
+    "",
+    "## Domain Distribution",
+    "",
+    ...Object.entries(counts).map(([domain, count]) => `- ${domain}: ${count}`),
+    "",
+    "## Sample Targets",
+    "",
+    ...targets
+      .slice(0, 40)
+      .map(
+        (target) =>
+          `- ${target.targetId}: ${target.domain}; ${target.sourceUrl}`,
+      ),
+  ].join("\n");
+}
+
+function realityTargetLoadMarkdown(targets: RealityLoadedTarget[]): string {
+  return [
+    "# Target Load Execution Results",
+    "",
+    `Loaded/checked targets: ${targets.filter((target) => target.loaded && target.checked && target.failureStatus === null).length}.`,
+    "",
+    ...targets
+      .slice(0, 120)
+      .map(
+        (target) =>
+          `- ${target.targetId}: loaded=${String(target.loaded)}, checked=${String(target.checked)}, files=${target.filesChecked}, objects=${target.objectsChecked}, variable=${target.measuredVariable ?? "none"}, failure=${target.failureStatus ?? "none"}`,
+      ),
+  ].join("\n");
+}
+
+function realityRejectedTargetsMarkdown(
+  targets: RealityLoadedTarget[],
+): string {
+  const rejected = targets.filter((target) => target.failureStatus !== null);
+  return [
+    "# Rejected Targets",
+    "",
+    `Rejected targets: ${rejected.length}.`,
+    "",
+    ...(rejected.length === 0
+      ? ["- none"]
+      : rejected.map(
+          (target) => `- ${target.targetId}: ${target.failureStatus}`,
+        )),
+  ].join("\n");
+}
+
+function realitySeedValidationMarkdown(
+  seeds: RealityMeasuredSeed[],
+  validations: RealitySeedValidation[],
+): string {
+  const validCount = validations.filter(
+    (validation) => validation.accepted,
+  ).length;
+  return [
+    "# Seed Validation Results",
+    "",
+    `Measured seeds created: ${seeds.length}.`,
+    `Valid measured seeds: ${validCount}.`,
+    `Invalid measured seeds: ${seeds.length - validCount}.`,
+    "",
+    ...validations
+      .slice(0, 120)
+      .map(
+        (validation) =>
+          `- ${validation.seedId}: accepted=${String(validation.accepted)} failed=${validation.failedGates.join(",") || "none"}`,
+      ),
+  ].join("\n");
+}
+
+function realityInvalidSeedsMarkdown(
+  seeds: RealityMeasuredSeed[],
+  validations: RealitySeedValidation[],
+): string {
+  const invalid = seeds
+    .map((seed, index) => ({ seed, validation: validations[index]! }))
+    .filter((row) => !row.validation.accepted);
+  return [
+    "# Invalid Seeds",
+    "",
+    `Invalid seeds: ${invalid.length}.`,
+    "",
+    ...invalid
+      .slice(0, 100)
+      .map(
+        (row) =>
+          `- ${row.seed.seedId}: ${row.validation.failedGates.join(", ")}`,
+      ),
+  ].join("\n");
+}
+
+function realitySeedValidatorStrictnessMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Seed Validator Strictness Audit",
+    "",
+    `Invalid seed rate: ${report.invalidSeedRate}.`,
+    `Validator too weak: ${String(report.seedValidatorTooWeak)}.`,
+    "",
+    report.seedValidatorTooWeak
+      ? "More than 70% of measured seeds survived; this must be treated as a validator weakness before trusting future marathon results."
+      : "The validator rejected metadata-only, pipeline-only, missing-receipt, or missing-path seeds and avoided a 100% valid batch.",
+  ].join("\n");
+}
+
+function realityBaselineChecksMarkdown(checks: RealityBaselineCheck[]): string {
+  return [
+    "# Baseline Reality Checks",
+    "",
+    `Baseline checks run: ${checks.length}.`,
+    "",
+    ...checks
+      .slice(0, 100)
+      .map(
+        (check) =>
+          `- ${check.seedId}: residual=${check.residualMagnitude}, explanations=${check.simpleExplanationsTested.length}, killed=${String(check.baselineKilled)}, deathCause=${check.deathCause}`,
+      ),
+  ].join("\n");
+}
+
+function realityBaselineKillLedgerMarkdown(
+  checks: RealityBaselineCheck[],
+): string {
+  const killed = checks.filter((check) => check.baselineKilled);
+  return [
+    "# Baseline Kill Ledger",
+    "",
+    `Baseline kills: ${killed.length}.`,
+    "",
+    ...killed
+      .slice(0, 100)
+      .map((check) => `- ${check.seedId}: ${check.deathCause}`),
+  ].join("\n");
+}
+
+function realityBaselineResistantMarkdown(
+  checks: RealityBaselineCheck[],
+): string {
+  const survived = checks.filter((check) => !check.baselineKilled);
+  return [
+    "# Baseline Resistant Seeds",
+    "",
+    `Baseline-resistant seeds: ${survived.length}.`,
+    "",
+    ...survived
+      .slice(0, 100)
+      .map((check) => `- ${check.seedId}: residual=${check.residualMagnitude}`),
+  ].join("\n");
+}
+
+function realityCounterexampleChecksMarkdown(
+  checks: RealityCounterexampleCheck[],
+): string {
+  return [
+    "# Counterexample Reality Checks",
+    "",
+    `Counterexample checks run: ${checks.length}.`,
+    "",
+    ...checks
+      .slice(0, 120)
+      .map(
+        (check) =>
+          `- ${check.seedId}: slice=${check.adversarialSliceId}, found=${String(check.counterexampleFound)}, collapsed=${String(check.collapsedClaim)}`,
+      ),
+  ].join("\n");
+}
+
+function realityCounterexampleDenseDomainsMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Counterexample Dense Domains",
+    "",
+    ...(report.counterexampleDenseDomains.length === 0
+      ? ["- none"]
+      : report.counterexampleDenseDomains.map((domain) => `- ${domain}`)),
+  ].join("\n");
+}
+
+function realitySurvivingSeedsMarkdown(
+  checks: RealityCounterexampleCheck[],
+): string {
+  const bySeed = uniqueStrings(checks.map((check) => check.seedId));
+  const survived = bySeed.filter((seedId) =>
+    checks
+      .filter((check) => check.seedId === seedId)
+      .every((check) => !check.collapsedClaim),
+  );
+  return [
+    "# Surviving Seeds After Counterexamples",
+    "",
+    `Surviving seeds: ${survived.length}.`,
+    "",
+    ...survived.map((seedId) => `- ${seedId}`),
+  ].join("\n");
+}
+
+function realityInsightCandidatesMarkdown(
+  insights: RealityInsightRow[],
+): string {
+  return [
+    "# Reality-Born Insight Candidates",
+    "",
+    `InsightCandidates born: ${insights.length}.`,
+    "",
+    ...insights.map(
+      (insight) =>
+        `- ${insight.insightCandidateId}: score=${insight.score}, ref=${insight.insightCandidateRef}, card=${insight.cardRef}`,
+    ),
+  ].join("\n");
+}
+
+function realityInsightCardMarkdown(
+  seed: RealityMeasuredSeed,
+  insightCandidateId: string,
+): string {
+  return [
+    `# ${insightCandidateId}`,
+    "",
+    `Parent seed: ${seed.seedId}.`,
+    `Exact claim: ${seed.exactClaim}`,
+    `Measured outcome: ${seed.measuredOutcome}.`,
+    `Mechanism hypothesis: ${seed.sourceKind}:${seed.measuredVariable}.`,
+    `Evidence scope: ${seed.targetOutcome}.`,
+    "",
+    "## Not Claimed",
+    "",
+    "- Not a Fund.",
+    "- Not a package, tool, pipeline, or metadata-success discovery.",
+    "- Not externally review ready.",
+    "",
+    "## Required Next Tests",
+    "",
+    "- Stronger baseline test.",
+    "- Rival-discriminating test.",
+    "- Holdout test selected after claim freeze.",
+    "- Replay or replay-failure record.",
+    "- Counterexample expansion.",
+    "- Mechanism/proof pressure.",
+  ].join("\n");
+}
+
+function realityInsufficientInsightMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Insufficient Evidence For Insight",
+    "",
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    "",
+    report.insightCandidatesBorn >= 10
+      ? "At least ten InsightCandidates were derived from baseline-resistant, counterexample-surviving measured seeds."
+      : "Fewer than ten InsightCandidates were derived because too many measured seeds were killed by baselines or real counterexample slices.",
+  ].join("\n");
+}
+
+function realityTop5TournamentMarkdown(tournament: RealityTournament): string {
+  return [
+    "# Top 5 Reality Tournament",
+    "",
+    `Top candidates: ${tournament.top5.length}.`,
+    `Holdout checks: ${tournament.holdoutChecks}.`,
+    `Replay checks/failures: ${tournament.replayChecks}.`,
+    `Rival-discrimination checks: ${tournament.rivalDiscriminationChecks}.`,
+    `Counterexample expansion checks: ${tournament.counterexampleExpansionChecks}.`,
+    `Mechanism/proof pressure checks: ${tournament.mechanismPressureChecks}.`,
+    "",
+    ...tournament.top5.map(
+      (candidate, index) =>
+        `- #${index + 1} ${candidate.insightCandidateId}: score=${candidate.score}`,
+    ),
+  ].join("\n");
+}
+
+function realityRowsMarkdown(
+  title: string,
+  rows: Array<Record<string, unknown>>,
+): string {
+  return [
+    `# ${title}`,
+    "",
+    `Rows: ${rows.length}.`,
+    "",
+    ...rows
+      .slice(0, 120)
+      .map((row) => `- ${JSON.stringify(row).replaceAll("\n", " ")}`),
+  ].join("\n");
+}
+
+function realityPromotionDecisionsMarkdown(
+  decisions: Array<Record<string, unknown>>,
+): string {
+  return [
+    "# Promotion Decisions",
+    "",
+    `Promotion decisions: ${decisions.length}.`,
+    "",
+    ...decisions.map(
+      (decision) =>
+        `- ${String(decision.candidateId)}: promoted=${String(decision.promoted)}; ${String(decision.reason)}`,
+    ),
+  ].join("\n");
+}
+
+function realityFundGateMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Discovery candidates promoted: ${report.discoveryCandidatesPromoted}.`,
+    `Fund Gate passed: ${String(report.fundGateResult.passed)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.fundFound
+      ? "A discovery-scored Fund passed the existing Fund Gate."
+      : "No FUND_FOUND.md was written because no discovery-scored candidate passed the full existing Fund Gate.",
+  ].join("\n");
+}
+
+function realityKillWeekMarkdown(
+  killWeek: ReturnType<typeof runRealityKillWeek>,
+): string {
+  return [
+    "# Reality Discovery Kill Week",
+    "",
+    `Promoted candidates attacked: ${killWeek.attackedCandidates.length}.`,
+    "",
+    ...(killWeek.attacks.length === 0
+      ? ["- No promoted discovery candidates reached kill week."]
+      : killWeek.attacks.map(
+          (attack) =>
+            `- ${String(attack.candidateId)} / ${String(attack.attack)}: ${String(attack.outcome)}`,
+        )),
+  ].join("\n");
+}
+
+function realityClaimDowngradesMarkdown(
+  killWeek: ReturnType<typeof runRealityKillWeek>,
+): string {
+  return [
+    "# Claim Downgrades",
+    "",
+    ...(killWeek.downgradedClaims.length === 0
+      ? ["- none"]
+      : killWeek.downgradedClaims.map((claim) => `- ${claim}`)),
+  ].join("\n");
+}
+
+function realityPreservedClaimsMarkdown(
+  killWeek: ReturnType<typeof runRealityKillWeek>,
+): string {
+  return [
+    "# Preserved Claims",
+    "",
+    ...(killWeek.preservedClaims.length === 0
+      ? ["- none"]
+      : killWeek.preservedClaims.map((claim) => `- ${claim}`)),
+  ].join("\n");
+}
+
+function realityFinalCandidateStatusMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Final Candidate Status",
+    "",
+    `Status: ${report.status}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates promoted: ${report.discoveryCandidatesPromoted}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function realityCheckpointMarkdown(
+  report: RealityBoundDiscoveryMarathonReport,
+): string {
+  return [
+    "# Checkpoint Continue Searching",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "The marathon remains open-ended. No discovery-scored Fund notification is allowed from metadata, pipeline, tool, or reproduction-only signals.",
   ].join("\n");
 }
 

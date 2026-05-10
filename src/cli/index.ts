@@ -188,6 +188,7 @@ Commands:
   sovryn discover-daemon insight-patterns [--top 3] [--json]
   sovryn discover-daemon outcome-pattern-search [--hard-seeds 30] [--checks 12] [--json]
   sovryn discover-daemon outcome-war [status|resume|audit] [--json]
+  sovryn discover-daemon reality-marathon [status|audit] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1633,7 +1634,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1709,6 +1710,16 @@ async function discoverDaemonCommand(
       throw new AppError(
         "UNKNOWN_DISCOVER_DAEMON_OUTCOME_WAR_COMMAND",
         `Unknown discover-daemon outcome-war command: ${action}`,
+      );
+    }
+    case "reality-marathon": {
+      const action = parsed.positionals[1];
+      if (!action) return service.realityMarathon();
+      if (action === "status") return service.realityMarathonStatus();
+      if (action === "audit") return service.realityMarathonAudit();
+      throw new AppError(
+        "UNKNOWN_DISCOVER_DAEMON_REALITY_MARATHON_COMMAND",
+        `Unknown discover-daemon reality-marathon command: ${action}`,
       );
     }
     case "cycle":

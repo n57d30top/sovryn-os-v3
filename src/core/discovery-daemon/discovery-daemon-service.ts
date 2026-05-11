@@ -1311,6 +1311,28 @@ export type MechanismFirstGeneratorAuditReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornHardSeedPressureReport = {
+  kind: "generator_born_hard_seed_pressure";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  seedsLoaded: number;
+  testsRun: number;
+  seedsKilledByBaseline: number;
+  seedsKilledByRival: number;
+  seedsKilledByCounterexample: number;
+  seedsKilledByLackOfRecurrence: number;
+  seedsKilledByHoldoutReplay: number;
+  seedsKilledByMechanismProof: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -4514,6 +4536,62 @@ type MechanismFirstPressureRow = {
     | "no_cross_source_support"
     | "holdout_or_replay_failed"
     | "proof_or_mechanism_failed"
+    | "survived";
+  insightCandidateCreated: boolean;
+  insightCandidateRef: string | null;
+  discoveryCandidateCreated: boolean;
+};
+
+type GeneratorBornPressureRow = {
+  seedId: string;
+  candidateId: string;
+  domain: DiscoveryDomain;
+  generatorId: string;
+  outputId: string;
+  exactClaim: string;
+  evidenceRefs: string[];
+  runtimeEvidenceRef: string | null;
+  measuredOutcome: number;
+  residual: number;
+  mechanismHypothesis: string;
+  rivalHypothesis: string;
+  baseline: {
+    passed: boolean;
+    strongestBaseline: string;
+    summary: string;
+  };
+  rival: {
+    weakened: boolean;
+    summary: string;
+  };
+  counterexample: {
+    survived: boolean;
+    summary: string;
+  };
+  recurrence: {
+    supported: boolean;
+    summary: string;
+  };
+  holdoutReplay: {
+    supported: boolean;
+    summary: string;
+  };
+  mechanismProof: {
+    survived: boolean;
+    summary: string;
+  };
+  inspectability: {
+    complete: boolean;
+    summary: string;
+  };
+  primaryKillReason:
+    | "baseline_dominated"
+    | "rival_theory_stronger"
+    | "counterexample_dense"
+    | "no_cross_source_support"
+    | "holdout_or_replay_failed"
+    | "proof_or_mechanism_failed"
+    | "not_externally_inspectable"
     | "survived";
   insightCandidateCreated: boolean;
   insightCandidateRef: string | null;
@@ -10637,6 +10715,7 @@ function mechanismFirstNextCheckpointMarkdown(
 }
 
 const generatorFamilyDir = "generator-families" as const;
+const generatorBornPressureDir = "generator-pressure" as const;
 
 export class HardSeedBirthEvaluator {
   evaluate(input: HardSeedBirthEvaluationInput): HardSeedBirthEvaluation {
@@ -10988,6 +11067,600 @@ export class MechanismFirstEvidenceGeneratorService {
       generatorNextCheckpointMarkdown(input.report),
     );
   }
+}
+
+export class GeneratorBornHardSeedPressureService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornHardSeedPressureReport> {
+    await mkdir(this.pressureRoot(), { recursive: true });
+    await this.ensureGeneratorArtifacts();
+    const { hardSeeds, outputs } = await this.loadGeneratorBornSeeds();
+    const outputBySeedId = new Map(
+      outputs
+        .filter((output) => output.hardSeed !== null)
+        .map((output) => [output.hardSeed!.seedId, output]),
+    );
+    const rows: GeneratorBornPressureRow[] = [];
+    for (const seed of hardSeeds) {
+      const output = outputBySeedId.get(seed.seedId) ?? null;
+      const runtimeEvidenceRef = output?.producedArtifact ?? null;
+      const runtimeEvidenceExists =
+        runtimeEvidenceRef !== null &&
+        (await exists(join(this.root, runtimeEvidenceRef)));
+      const row = generatorBornPressureRow({
+        seed,
+        output,
+        runtimeEvidenceExists,
+      });
+      if (row.primaryKillReason === "survived") {
+        const derivation = await this.deriveInsightCandidate(row);
+        row.insightCandidateCreated = derivation.derived;
+        row.insightCandidateRef = derivation.artifactRef;
+      }
+      rows.push(row);
+    }
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-born-pressure-continue-searching.json`;
+    const report: GeneratorBornHardSeedPressureReport = withEvidenceHash({
+      kind: "generator_born_hard_seed_pressure" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: await this.checkpointUsed(),
+      nextCheckpointRef,
+      seedsLoaded: hardSeeds.length,
+      testsRun: rows.length * 7,
+      seedsKilledByBaseline: rows.filter(
+        (row) => row.primaryKillReason === "baseline_dominated",
+      ).length,
+      seedsKilledByRival: rows.filter(
+        (row) => row.primaryKillReason === "rival_theory_stronger",
+      ).length,
+      seedsKilledByCounterexample: rows.filter(
+        (row) => row.primaryKillReason === "counterexample_dense",
+      ).length,
+      seedsKilledByLackOfRecurrence: rows.filter(
+        (row) => row.primaryKillReason === "no_cross_source_support",
+      ).length,
+      seedsKilledByHoldoutReplay: rows.filter(
+        (row) => row.primaryKillReason === "holdout_or_replay_failed",
+      ).length,
+      seedsKilledByMechanismProof: rows.filter(
+        (row) => row.primaryKillReason === "proof_or_mechanism_failed",
+      ).length,
+      insightCandidatesCreated: rows.filter(
+        (row) => row.insightCandidateCreated,
+      ).length,
+      discoveryCandidatesCreated: rows.filter(
+        (row) => row.discoveryCandidateCreated,
+      ).length,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: generatorBornPressureRemainingBottleneck(rows),
+      artifactRefs: generatorBornPressureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({ report, rows });
+    return report;
+  }
+
+  private pressureRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorBornPressureDir);
+  }
+
+  private async ensureGeneratorArtifacts(): Promise<void> {
+    const seedPath = join(
+      this.root,
+      daemonArtifactRoot,
+      generatorFamilyDir,
+      "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+    );
+    const outputPath = join(
+      this.root,
+      daemonArtifactRoot,
+      generatorFamilyDir,
+      "GENERATOR_OUTPUTS.json",
+    );
+    if ((await exists(seedPath)) && (await exists(outputPath))) return;
+    await new MechanismFirstEvidenceGeneratorService(this.root).run();
+  }
+
+  private async loadGeneratorBornSeeds(): Promise<{
+    hardSeeds: HardSeed[];
+    outputs: MechanismFirstGeneratorOutput[];
+  }> {
+    const seedPayload = await readOptionalJson<{
+      hardSeeds?: HardSeed[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFamilyDir,
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+    );
+    const outputPayload = await readOptionalJson<{
+      outputs?: MechanismFirstGeneratorOutput[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFamilyDir,
+        "GENERATOR_OUTPUTS.json",
+      ),
+    );
+    const hardSeeds = seedPayload?.hardSeeds ?? [];
+    const outputs = outputPayload?.outputs ?? [];
+    if (hardSeeds.length === 0) {
+      throw new Error(
+        "Generator-born pressure requires birth-eligible hard seeds.",
+      );
+    }
+    return { hardSeeds, outputs };
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    const generatorCheckpoint = `${daemonArtifactRoot}/checkpoints/generator-families-continue-searching.json`;
+    if (await exists(join(this.root, generatorCheckpoint))) {
+      return generatorCheckpoint;
+    }
+    const latest = await readOptionalJson<MechanismFirstGeneratorRunReport>(
+      join(this.root, daemonArtifactRoot, generatorFamilyDir, "latest.json"),
+    );
+    return latest?.nextCheckpointRef ?? null;
+  }
+
+  private async deriveInsightCandidate(
+    row: GeneratorBornPressureRow,
+  ): Promise<InsightCandidateDerivation> {
+    const parentClaim = normalizeWhitespace(
+      [
+        `Generator-born hard seed ${row.seedId} survived second-stage mechanism-first pressure.`,
+        `Exact candidate mechanism: ${row.mechanismHypothesis}.`,
+        `Measured outcome ${row.measuredOutcome} with residual ${row.residual}.`,
+        "This remains an InsightCandidate only and cannot notify or count as a discovery Fund.",
+      ].join(" "),
+    );
+    const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+      claim: parentClaim,
+      domain: row.domain,
+      mechanism: row.mechanismHypothesis,
+      evidenceScope: `generator-born ${row.domain} ${row.generatorId} runtime evidence`,
+      fundClass: "insight_candidate",
+    });
+    return new InsightCandidateDeriver(this.root).derive({
+      cycleId: `${row.seedId}-generator-born-pressure`,
+      parentPipelineCandidateId: row.seedId,
+      parentClaim,
+      parentFundClass: null,
+      domain: row.domain,
+      mechanismHypothesis: row.mechanismHypothesis,
+      evidenceScope: `generator-born ${row.domain} runtime evidence with second-stage pressure`,
+      parentEvidenceRefs: row.evidenceRefs,
+      sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+        inputCandidateId: row.seedId,
+        existing: null,
+        next: canonicalClaim,
+      }),
+      ledger: new CandidateIdentityLedger(),
+    });
+  }
+
+  private async writeArtifacts(input: {
+    report: GeneratorBornHardSeedPressureReport;
+    rows: GeneratorBornPressureRow[];
+  }): Promise<void> {
+    const root = this.pressureRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "PRESSURE_ROWS.json"), {
+      kind: "generator_born_hard_seed_pressure_rows",
+      rows: input.rows,
+      evidenceHash: hashEvidence(input.rows),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generator_born_hard_seed_pressure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      seedsLoaded: input.report.seedsLoaded,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
+      discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
+      reportRef: `${daemonArtifactRoot}/${generatorBornPressureDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "GENERATOR_BORN_HARD_SEEDS_PROFILE.md"),
+      generatorBornSeedProfileMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "GENERATOR_BORN_TEST_PLANS.md"),
+      generatorBornTestPlansMarkdown(input.rows),
+    );
+    await writeText(
+      join(root, "BASELINE_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Baseline Pressure Results",
+        input.rows,
+        (row) => row.baseline.passed,
+        (row) => row.baseline.summary,
+      ),
+    );
+    await writeText(
+      join(root, "RIVAL_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Rival Pressure Results",
+        input.rows,
+        (row) => row.rival.weakened,
+        (row) => row.rival.summary,
+      ),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Counterexample Pressure Results",
+        input.rows,
+        (row) => row.counterexample.survived,
+        (row) => row.counterexample.summary,
+      ),
+    );
+    await writeText(
+      join(root, "RECURRENCE_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Cross Source Recurrence Results",
+        input.rows,
+        (row) => row.recurrence.supported,
+        (row) => row.recurrence.summary,
+      ),
+    );
+    await writeText(
+      join(root, "HOLDOUT_REPLAY_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Holdout Replay Pressure Results",
+        input.rows,
+        (row) => row.holdoutReplay.supported,
+        (row) => row.holdoutReplay.summary,
+      ),
+    );
+    await writeText(
+      join(root, "MECHANISM_PROOF_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Mechanism Proof Pressure Results",
+        input.rows,
+        (row) => row.mechanismProof.survived,
+        (row) => row.mechanismProof.summary,
+      ),
+    );
+    await writeText(
+      join(root, "INSPECTABILITY_PRESSURE_RESULTS.md"),
+      generatorBornPressureMarkdown(
+        "Inspectability Pressure Results",
+        input.rows,
+        (row) => row.inspectability.complete,
+        (row) => row.inspectability.summary,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATE_DERIVATION_DECISIONS.md"),
+      generatorBornInsightDecisionMarkdown(input.rows, input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generatorBornFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generatorBornNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function generatorBornPressureRow(input: {
+  seed: HardSeed;
+  output: MechanismFirstGeneratorOutput | null;
+  runtimeEvidenceExists: boolean;
+}): GeneratorBornPressureRow {
+  const { seed, output } = input;
+  const residual = output?.residualMagnitude ?? seed.confidenceScore / 100;
+  const generatorId = String(seed.sourceSeed.generatorId ?? "unknown");
+  const outputId = String(seed.sourceSeed.outputId ?? seed.seedId);
+  const runtimeEvidenceRef = output?.producedArtifact ?? null;
+  const evidenceRefs = uniqueStrings([
+    ...seed.sourceRefs,
+    ...seed.evidenceRefs,
+    ...seed.baselineRefs,
+    ...seed.rivalRefs,
+    ...seed.holdoutRefs,
+    ...seed.replayRefs,
+    ...seed.counterexampleRefs,
+    runtimeEvidenceRef ?? "",
+  ]).filter(Boolean);
+  const publicUrls = evidenceRefs.filter((ref) => ref.startsWith("https://"));
+  const localRefs = evidenceRefs.filter((ref) => ref.startsWith(".sovryn/"));
+  const strongerBaselineExplains =
+    output === null ||
+    output.baselineResults.some((result) => result.explainsSignal) ||
+    residual < 0.1;
+  const rivalWeakened =
+    output !== null &&
+    output.rivalWeakened &&
+    (seed.type === "checked_refutation_or_formal_boundary" || residual >= 0.1);
+  const counterexampleSurvived =
+    output !== null &&
+    !output.counterexampleCollapsed &&
+    seed.counterexampleRefs.length > 0;
+  const recurrenceSupported =
+    output !== null && output.crossSourceSupport && publicUrls.length >= 2;
+  const holdoutReplaySupported =
+    output !== null &&
+    output.holdoutReplayAvailable &&
+    seed.holdoutRefs.length > 0 &&
+    seed.replayRefs.length > 0;
+  const mechanismProofSurvived =
+    seed.type === "checked_refutation_or_formal_boundary" ||
+    (output !== null && residual >= 0.12);
+  const inspectabilityComplete =
+    input.runtimeEvidenceExists &&
+    localRefs.length > 0 &&
+    publicUrls.length > 0 &&
+    evidenceRefs.every(publicSafeRef);
+  const primaryKillReason = strongerBaselineExplains
+    ? "baseline_dominated"
+    : !rivalWeakened
+      ? "rival_theory_stronger"
+      : !counterexampleSurvived
+        ? "counterexample_dense"
+        : !recurrenceSupported
+          ? "no_cross_source_support"
+          : !holdoutReplaySupported
+            ? "holdout_or_replay_failed"
+            : !mechanismProofSurvived
+              ? "proof_or_mechanism_failed"
+              : !inspectabilityComplete
+                ? "not_externally_inspectable"
+                : "survived";
+  return {
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    domain: seed.domain,
+    generatorId,
+    outputId,
+    exactClaim: seed.claim,
+    evidenceRefs,
+    runtimeEvidenceRef,
+    measuredOutcome: output?.measuredOutcome ?? seed.confidenceScore,
+    residual,
+    mechanismHypothesis: generatorBornMechanismHypothesis(seed, output),
+    rivalHypothesis: generatorBornRivalHypothesis(seed, output),
+    baseline: {
+      passed: !strongerBaselineExplains,
+      strongestBaseline:
+        output?.baselineResults.find((result) => result.explainsSignal)
+          ?.baseline ??
+        output?.baselineResults[0]?.baseline ??
+        "stronger_residual_floor_baseline",
+      summary: strongerBaselineExplains
+        ? "Second-stage pressure killed the hard seed before InsightCandidate birth because the residual is too small or a stronger simple baseline still explains it."
+        : "The hard seed remains baseline-resistant under the second-stage residual floor and recorded simple baselines.",
+    },
+    rival: {
+      weakened: rivalWeakened,
+      summary: rivalWeakened
+        ? "At least one rival mechanism remains weakened or scope-limited after second-stage pressure."
+        : "The strongest rival mechanism remains too strong for InsightCandidate birth.",
+    },
+    counterexample: {
+      survived: counterexampleSurvived,
+      summary: counterexampleSurvived
+        ? "Counterexample/control pressure did not collapse the narrow hard-seed claim."
+        : "Counterexample/control pressure collapses or is missing for the narrow hard-seed claim.",
+    },
+    recurrence: {
+      supported: recurrenceSupported,
+      summary: recurrenceSupported
+        ? "The hard seed retains cross-source or cross-slice support with at least two public refs."
+        : "The hard seed lacks enough independent recurrence support after second-stage pressure.",
+    },
+    holdoutReplay: {
+      supported: holdoutReplaySupported,
+      summary: holdoutReplaySupported
+        ? "Holdout and replay paths are both bound before InsightCandidate birth."
+        : "Holdout or replay path is missing or only weakly bounded.",
+    },
+    mechanismProof: {
+      survived: mechanismProofSurvived,
+      summary: mechanismProofSurvived
+        ? "Mechanism/proof pressure is nonfatal for the narrow evidence scope."
+        : "Mechanism/proof pressure is fatal or underpowered for the proposed mechanism.",
+    },
+    inspectability: {
+      complete: inspectabilityComplete,
+      summary: inspectabilityComplete
+        ? "Runtime evidence, local artifacts, and public-safe refs are inspectable enough for an InsightCandidate artifact."
+        : "Inspectability is incomplete because runtime evidence or public-safe evidence refs are missing.",
+    },
+    primaryKillReason,
+    insightCandidateCreated: false,
+    insightCandidateRef: null,
+    discoveryCandidateCreated: false,
+  };
+}
+
+function generatorBornMechanismHypothesis(
+  seed: HardSeed,
+  output: MechanismFirstGeneratorOutput | null,
+): string {
+  if (output?.generatorId === "formal_counterexample_boundary_generator") {
+    return "bounded formal boundary survives size density and trivial-rule controls across generated object families";
+  }
+  if (output?.generatorId === "materials_descriptor_ablation_generator") {
+    return "composition-normalized descriptor ablation residual survives formula-family controls";
+  }
+  if (output?.generatorId === "benchmark_protocol_perturbation_generator") {
+    return "protocol perturbation delta survives split metric and stronger-model controls";
+  }
+  return normalizeMechanism(seed.claim);
+}
+
+function generatorBornRivalHypothesis(
+  seed: HardSeed,
+  output: MechanismFirstGeneratorOutput | null,
+): string {
+  if (output?.generatorId === "formal_counterexample_boundary_generator") {
+    return "size density or small bounded counterexamples explain the apparent boundary";
+  }
+  if (output?.generatorId === "materials_descriptor_ablation_generator") {
+    return "composition formula size or descriptor leakage explains the property residual";
+  }
+  if (output?.generatorId === "benchmark_protocol_perturbation_generator") {
+    return "class balance split leakage or stronger model controls explain the benchmark delta";
+  }
+  return `stronger rival for ${seed.domain}`;
+}
+
+function generatorBornPressureRemainingBottleneck(
+  rows: GeneratorBornPressureRow[],
+): string {
+  const insights = rows.filter((row) => row.insightCandidateCreated).length;
+  const discovery = rows.filter((row) => row.discoveryCandidateCreated).length;
+  if (insights > 0 && discovery === 0) {
+    return `${insights} generator-born hard seed(s) reached InsightCandidate birth, but none became a discovery-scored candidate. Remaining bottleneck is required-next-test closure and external-review package pressure.`;
+  }
+  const counts = generatorBornKillCounts(rows);
+  const top =
+    Object.entries(counts).sort((left, right) => right[1] - left[1])[0]?.[0] ??
+    "unknown";
+  return `No generator-born hard seed reached InsightCandidate birth. Dominant blocker: ${top}.`;
+}
+
+function generatorBornKillCounts(
+  rows: GeneratorBornPressureRow[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    if (row.primaryKillReason === "survived") continue;
+    counts[row.primaryKillReason] = (counts[row.primaryKillReason] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function generatorBornPressureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorBornPressureDir}`;
+  return [
+    `${root}/GENERATOR_BORN_HARD_SEEDS_PROFILE.md`,
+    `${root}/GENERATOR_BORN_TEST_PLANS.md`,
+    `${root}/BASELINE_PRESSURE_RESULTS.md`,
+    `${root}/RIVAL_PRESSURE_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_PRESSURE_RESULTS.md`,
+    `${root}/RECURRENCE_PRESSURE_RESULTS.md`,
+    `${root}/HOLDOUT_REPLAY_PRESSURE_RESULTS.md`,
+    `${root}/MECHANISM_PROOF_PRESSURE_RESULTS.md`,
+    `${root}/INSPECTABILITY_PRESSURE_RESULTS.md`,
+    `${root}/INSIGHT_CANDIDATE_DERIVATION_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/PRESSURE_ROWS.json`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornSeedProfileMarkdown(
+  rows: GeneratorBornPressureRow[],
+): string {
+  return [
+    "# Generator Born Hard Seeds Profile",
+    "",
+    `Seeds loaded: ${rows.length}.`,
+    "",
+    "| Seed | Domain | Generator | Residual | Mechanism | Rival | Runtime evidence |",
+    "| --- | --- | --- | ---: | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${row.domain} | ${row.generatorId} | ${row.residual} | ${row.mechanismHypothesis} | ${row.rivalHypothesis} | ${row.runtimeEvidenceRef ?? "missing"} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornTestPlansMarkdown(
+  rows: GeneratorBornPressureRow[],
+): string {
+  return [
+    "# Generator Born Test Plans",
+    "",
+    "| Seed | Candidate prediction | Rival prediction | Falsifier | Holdout/replay requirement |",
+    "| --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${row.mechanismHypothesis} should remain after stronger residual-floor and matched controls. | ${row.rivalHypothesis} should absorb the signal if it is not real. | Kill if baseline, rival, counterexample, recurrence, holdout/replay, mechanism/proof, or inspectability pressure fails. | ${row.holdoutReplay.summary} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornPressureMarkdown(
+  title: string,
+  rows: GeneratorBornPressureRow[],
+  passed: (row: GeneratorBornPressureRow) => boolean,
+  summary: (row: GeneratorBornPressureRow) => string,
+): string {
+  return [
+    `# ${title}`,
+    "",
+    "| Seed | Passed | Primary kill reason | Summary |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${String(passed(row))} | ${row.primaryKillReason} | ${summary(row)} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornInsightDecisionMarkdown(
+  rows: GeneratorBornPressureRow[],
+  report: GeneratorBornHardSeedPressureReport,
+): string {
+  return [
+    "# Insight Candidate Derivation Decisions",
+    "",
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    "",
+    "| Seed | InsightCandidate created | DiscoveryCandidate created | Decision |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.seedId} | ${String(row.insightCandidateCreated)} | ${String(row.discoveryCandidateCreated)} | ${row.primaryKillReason === "survived" ? `derived: ${row.insightCandidateRef ?? "missing-ref"}` : `blocked: ${row.primaryKillReason}`} |`,
+    ),
+    "",
+    "Generator-born HardSeeds are not discoveries. They may only create InsightCandidates after second-stage pressure survives; DiscoveryCandidate and Fund paths remain gated downstream.",
+  ].join("\n");
+}
+
+function generatorBornFundGateMarkdown(
+  report: GeneratorBornHardSeedPressureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "The Fund Gate was fail-closed because generator-born pressure created no discovery-scored FundCandidateDraft.",
+  ].join("\n");
+}
+
+function generatorBornNextCheckpointMarkdown(
+  report: GeneratorBornHardSeedPressureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
@@ -21913,6 +22586,11 @@ export class AutonomousDiscoveryDaemonService {
   async generatorAudit(): Promise<MechanismFirstGeneratorAuditReport> {
     await this.ensureInitialized();
     return new MechanismFirstEvidenceGeneratorService(this.root).audit();
+  }
+
+  async generatorPressure(): Promise<GeneratorBornHardSeedPressureReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornHardSeedPressureService(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

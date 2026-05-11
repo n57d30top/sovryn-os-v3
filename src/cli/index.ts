@@ -200,6 +200,7 @@ Commands:
   sovryn discover-daemon generator-families [--json]
   sovryn discover-daemon generator-run --generator <id> [--json]
   sovryn discover-daemon generator-audit [--json]
+  sovryn discover-daemon generator-pressure [--json]
   sovryn discover-daemon raw-insight-gate-closure [--json]
   sovryn discover-daemon overnight-completion [--json]
   sovryn discover-daemon overnight-min-runtime [--min-runtime-ms N] [--runtime-limit-ms N] [--heartbeat-ms N] [--generator-variant-limit N] [--stagnation-iteration-limit N] [--json]
@@ -1694,7 +1695,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1826,6 +1827,8 @@ async function discoverDaemonCommand(
       });
     case "generator-audit":
       return service.generatorAudit();
+    case "generator-pressure":
+      return service.generatorPressure();
     case "raw-insight-gate-closure":
       return service.rawInsightGateClosure();
     case "overnight-completion":

@@ -1449,6 +1449,7 @@ export type DimacsBoundaryClosureReport = {
 export type ExternalFormalAnchorStatus =
   | "pilot_ready"
   | "rejected_known_source_family"
+  | "rejected_known_prior_absorbed"
   | "rejected_missing_external_source"
   | "rejected_missing_bounded_check"
   | "rejected_low_external_value";
@@ -1474,6 +1475,9 @@ export type ExternalFormalAnchor = {
   counterexampleFeasibility: number;
   proofMechanismFeasibility: number;
   sourceFamilyTrivialityRisk: number;
+  knownPriorAbsorptionRisk: number;
+  knownPriorAbsorbsPilot: boolean;
+  knownPriorAbsorptionReason: string;
   knownSourceFamilyMechanism: boolean;
   hasExternalSource: boolean;
   hasBoundedCheckPath: boolean;
@@ -1502,6 +1506,7 @@ export type ExternalFormalAnchorSelectionReport = {
   anchorsEvaluated: number;
   pilotReadyAnchors: number;
   rejectedKnownSourceFamily: number;
+  rejectedKnownPriorAbsorbed: number;
   rejectedMissingExternalSource: number;
   rejectedMissingBoundedCheck: number;
   top5Anchors: ExternalFormalAnchorEvaluation[];
@@ -13462,6 +13467,12 @@ export class ExternalFormalAnchorSelector {
         "Formal anchors must have low risk that the signal is just source-family trivia.",
       ),
       gate(
+        "known_prior_absorption_risk_low",
+        !anchor.knownPriorAbsorbsPilot &&
+          anchor.knownPriorAbsorptionRisk <= 0.66,
+        "Formal anchors whose bounded pilot would only replay an absorbed known witness or theorem are rejected before HardSeed birth.",
+      ),
+      gate(
         "public_inspectability_sufficient",
         anchor.publicInspectability >= 3 &&
           anchor.inspectabilityRef.startsWith("https://"),
@@ -13557,6 +13568,9 @@ export class ExternalFormalAnchorSelectionService {
       rejectedKnownSourceFamily: evaluations.filter(
         (item) => item.status === "rejected_known_source_family",
       ).length,
+      rejectedKnownPriorAbsorbed: evaluations.filter(
+        (item) => item.status === "rejected_known_prior_absorbed",
+      ).length,
       rejectedMissingExternalSource: evaluations.filter(
         (item) => item.status === "rejected_missing_external_source",
       ).length,
@@ -13640,9 +13654,21 @@ export class ExternalFormalAnchorSelectionService {
         "At least one known source-family mechanism anchor, including DIMACS-like cases, must be rejected.",
       ),
       gate(
+        "known_prior_absorbed_anchor_rejected",
+        selection.rejectedKnownPriorAbsorbed >= 3,
+        "Classical known witness/theorem anchors that only replay absorbed prior results must be rejected before pilot birth.",
+      ),
+      gate(
         "top5_selected",
         selection.top5Anchors.length === 5,
         "Selector must choose exactly five top formal anchors for mechanism-first design.",
+      ),
+      gate(
+        "top5_excludes_fatal_known_prior",
+        selection.top5Anchors.every(
+          (item) => !item.anchor.knownPriorAbsorbsPilot,
+        ),
+        "Top formal anchors must exclude fatal known-prior absorbed witness families.",
       ),
       gate(
         "top3_piloted",
@@ -14150,7 +14176,9 @@ function externalFormalAnchorScore(anchor: ExternalFormalAnchor): number {
     anchor.proofMechanismFeasibility * 14;
   const penalty =
     anchor.sourceFamilyTrivialityRisk * 24 +
+    anchor.knownPriorAbsorptionRisk * 30 +
     (anchor.knownSourceFamilyMechanism ? 35 : 0) +
+    (anchor.knownPriorAbsorbsPilot ? 45 : 0) +
     (anchor.hasExternalSource ? 0 : 40) +
     (anchor.hasBoundedCheckPath ? 0 : 35);
   return Math.max(0, Math.min(100, Math.round(positive - penalty)));
@@ -14186,6 +14214,12 @@ function externalFormalAnchorStatus(
     return "rejected_known_source_family";
   }
   if (
+    failedGates.includes("known_prior_absorption_risk_low") ||
+    anchor.knownPriorAbsorbsPilot
+  ) {
+    return "rejected_known_prior_absorbed";
+  }
+  if (
     failedGates.includes("bounded_check_path_present") ||
     !anchor.hasBoundedCheckPath
   ) {
@@ -14207,6 +14241,13 @@ function externalFormalAnchorRejectionReasons(
     anchor.knownSourceFamilyMechanism ? "known_source_family_mechanism" : "",
     anchor.sourceFamilyTrivialityRisk > 0.66
       ? "source_family_triviality_risk_too_high"
+      : "",
+    anchor.knownPriorAbsorbsPilot ? "known_prior_absorbs_pilot" : "",
+    anchor.knownPriorAbsorptionRisk > 0.66
+      ? "known_prior_absorption_risk_too_high"
+      : "",
+    anchor.knownPriorAbsorbsPilot && anchor.knownPriorAbsorptionReason
+      ? anchor.knownPriorAbsorptionReason
       : "",
     score < 64 ? "low_external_formal_anchor_score" : "",
     ...failedGates,
@@ -14247,6 +14288,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: 5,
       proofMechanismFeasibility: 4,
       sourceFamilyTrivialityRisk: 0.32,
+      knownPriorAbsorptionRisk: 0.94,
+      knownPriorAbsorbsPilot: true,
+      knownPriorAbsorptionReason:
+        "The bounded Paley/residue graph is a known Ramsey R(4,4) lower-bound witness, so a pilot would replay known Ramsey witness theory before discovery pressure.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
@@ -14281,6 +14326,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: 4,
       proofMechanismFeasibility: 4,
       sourceFamilyTrivialityRisk: 0.38,
+      knownPriorAbsorptionRisk: 0.82,
+      knownPriorAbsorbsPilot: true,
+      knownPriorAbsorptionReason:
+        "Finite unit-distance lower-bound witnesses are dominated by known Moser-spindle/de Grey family prior before a fresh non-source-family obstruction exists.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
@@ -14314,6 +14363,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: 5,
       proofMechanismFeasibility: 4,
       sourceFamilyTrivialityRisk: 0.55,
+      knownPriorAbsorptionRisk: 0.88,
+      knownPriorAbsorbsPilot: true,
+      knownPriorAbsorptionReason:
+        "Bounded bit-vector/integer-lift divergences in the current pilot design are absorbed by documented SMT-LIB modular arithmetic semantics.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS",
@@ -14432,6 +14485,9 @@ function formalAnchor(input: {
   counterexampleFeasibility: number;
   proofMechanismFeasibility: number;
   sourceFamilyTrivialityRisk: number;
+  knownPriorAbsorptionRisk?: number;
+  knownPriorAbsorbsPilot?: boolean;
+  knownPriorAbsorptionReason?: string;
   knownSourceFamilyMechanism?: boolean;
   hasExternalSource?: boolean;
   hasBoundedCheckPath?: boolean;
@@ -14459,6 +14515,12 @@ function formalAnchor(input: {
     counterexampleFeasibility: input.counterexampleFeasibility,
     proofMechanismFeasibility: input.proofMechanismFeasibility,
     sourceFamilyTrivialityRisk: input.sourceFamilyTrivialityRisk,
+    knownPriorAbsorptionRisk:
+      input.knownPriorAbsorptionRisk ?? input.sourceFamilyTrivialityRisk,
+    knownPriorAbsorbsPilot: input.knownPriorAbsorbsPilot === true,
+    knownPriorAbsorptionReason:
+      input.knownPriorAbsorptionReason ??
+      "No fatal known-prior absorption recorded before pilot.",
     knownSourceFamilyMechanism: input.knownSourceFamilyMechanism === true,
     hasExternalSource: input.hasExternalSource !== false,
     hasBoundedCheckPath: input.hasBoundedCheckPath !== false,
@@ -14681,6 +14743,12 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: Math.min(5, item.checkability + 1),
       proofMechanismFeasibility: Math.max(2, item.checkability - 1),
       sourceFamilyTrivialityRisk: item.risk,
+      knownPriorAbsorptionRisk: item.risk,
+      knownPriorAbsorbsPilot: item.known === true,
+      knownPriorAbsorptionReason:
+        item.known === true
+          ? `The external source already documents the ${item.topic} mechanism closely enough that a pilot would replay a known family.`
+          : `No fatal known-prior absorption is predeclared for ${item.topic}.`,
       knownSourceFamilyMechanism: item.known === true,
       hasExternalSource: item.external !== false,
       hasBoundedCheckPath: item.bounded !== false,
@@ -14788,39 +14856,153 @@ function formalAnchorPilotProfile(
         "pilot remained dominated by known finite unit-distance lower-bound family pressure",
     };
   }
+  if (anchor.anchorId === "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY") {
+    return {
+      formalObjectsGenerated: 64 + pilotIndex,
+      boundedChecksRun: 15,
+      counterexampleChecksRun: 7,
+      holdoutReplayChecksRun: 4,
+      candidateMechanismPrediction:
+        "Generated bit-vector formulas should show a width-recurrent integer-lift failure not already explained by documented modular semantics.",
+      baselineResults: [
+        {
+          baseline: "documented_modular_semantics",
+          explainsSignal: true,
+          result: "overflow divergence exactly follows bit-vector semantics",
+        },
+        {
+          baseline: "constant_folding_control",
+          explainsSignal: false,
+          result: "formula replay was deterministic",
+        },
+        {
+          baseline: "width_generalization_control",
+          explainsSignal: false,
+          result: "divergence recurred but remained semantically documented",
+        },
+      ],
+      rivalWeakened: false,
+      nontrivialResidual: false,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      knownTrivial: true,
+      secondarySourceRef: "https://smt-lib.org/#QF_BV",
+      residualSummary:
+        "bit-vector/integer-lift divergence is replayable but killed as documented semantics, not a new boundary",
+    };
+  }
+  if (anchor.anchorId === "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS") {
+    return {
+      formalObjectsGenerated: 40,
+      boundedChecksRun: 14,
+      counterexampleChecksRun: 8,
+      holdoutReplayChecksRun: 4,
+      candidateMechanismPrediction:
+        "Small structured Boolean functions should produce a sensitivity/block-sensitivity separation not explained by symmetry, truth-table size, or random-function controls.",
+      baselineResults: [
+        {
+          baseline: "solved_sensitivity_theorem_context",
+          explainsSignal: true,
+          result:
+            "bounded separations remain inside known theorem context and do not create a new checked boundary",
+        },
+        {
+          baseline: "truth_table_size_control",
+          explainsSignal: false,
+          result: "size-matched functions were computable and replayable",
+        },
+        {
+          baseline: "random_function_control",
+          explainsSignal: false,
+          result:
+            "random controls did not produce the same structured candidate pattern",
+        },
+      ],
+      rivalWeakened: false,
+      nontrivialResidual: false,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      knownTrivial: true,
+      secondarySourceRef: "https://arxiv.org/abs/1907.00847#bounded-check",
+      residualSummary:
+        "bounded Boolean sensitivity measurements were replayable, but known theorem context remains the stronger rival before HardSeed birth",
+    };
+  }
+  if (anchor.anchorId === "EXT-FORMAL-GRACEFUL-TREE-SMALL-N") {
+    return {
+      formalObjectsGenerated: 42,
+      boundedChecksRun: 13,
+      counterexampleChecksRun: 7,
+      holdoutReplayChecksRun: 4,
+      candidateMechanismPrediction:
+        "Small tree symmetry and degree profile should predict graceful-labeling obstruction better than tree size alone.",
+      baselineResults: [
+        {
+          baseline: "degree_sequence_control",
+          explainsSignal: true,
+          result:
+            "degree-profile matched controls explained the bounded labeling outcomes",
+        },
+        {
+          baseline: "automorphism_class_control",
+          explainsSignal: true,
+          result:
+            "automorphism classes preserved the candidate pattern without a new mechanism",
+        },
+        {
+          baseline: "size_only_control",
+          explainsSignal: false,
+          result: "size alone did not explain all checked trees",
+        },
+      ],
+      rivalWeakened: false,
+      nontrivialResidual: false,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      knownTrivial: false,
+      secondarySourceRef:
+        "https://mathworld.wolfram.com/GracefulGraph.html#small-tree-control",
+      residualSummary:
+        "bounded graceful-labeling measurements stayed dominated by degree and automorphism controls",
+    };
+  }
   return {
-    formalObjectsGenerated: 64 + pilotIndex,
-    boundedChecksRun: 15,
-    counterexampleChecksRun: 7,
-    holdoutReplayChecksRun: 4,
-    candidateMechanismPrediction:
-      "Generated bit-vector formulas should show a width-recurrent integer-lift failure not already explained by documented modular semantics.",
+    formalObjectsGenerated: 24 + pilotIndex,
+    boundedChecksRun: 10 + pilotIndex,
+    counterexampleChecksRun: 5,
+    holdoutReplayChecksRun: 3,
+    candidateMechanismPrediction: `${anchor.candidateMechanismHypothesis} should beat known-prior, size, density, and generator-artifact rivals before HardSeed birth.`,
     baselineResults: [
       {
-        baseline: "documented_modular_semantics",
+        baseline: "known_prior_or_size_control",
         explainsSignal: true,
-        result: "overflow divergence exactly follows bit-vector semantics",
+        result:
+          "bounded pilot evidence remains explained by known-prior, size, or simple generator controls",
       },
       {
-        baseline: "constant_folding_control",
+        baseline: "negative_control_generation",
         explainsSignal: false,
-        result: "formula replay was deterministic",
+        result:
+          "negative controls were generated but did not isolate a new mechanism",
       },
       {
-        baseline: "width_generalization_control",
+        baseline: "replay_control",
         explainsSignal: false,
-        result: "divergence recurred but remained semantically documented",
+        result: "deterministic replay path exists for the bounded pilot",
       },
     ],
     rivalWeakened: false,
     nontrivialResidual: false,
-    crossSourceSupport: true,
+    crossSourceSupport: false,
     counterexampleCollapsed: false,
     holdoutReplayAvailable: true,
-    knownTrivial: true,
-    secondarySourceRef: "https://smt-lib.org/#QF_BV",
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#bounded-pilot`,
     residualSummary:
-      "bit-vector/integer-lift divergence is replayable but killed as documented semantics, not a new boundary",
+      "bounded pilot evidence did not isolate a nontrivial mechanism beyond known-prior or simple controls",
   };
 }
 
@@ -15036,11 +15218,11 @@ function externalFormalAnchorSelectorMarkdown(
     "",
     `Anchors evaluated: ${evaluations.length}.`,
     "",
-    "| Anchor | Score | Status | Source-family risk | External source | Bounded check | Selected top5 | Selected pilot |",
-    "| --- | ---: | --- | ---: | --- | --- | --- | --- |",
+    "| Anchor | Score | Status | Source-family risk | Known-prior risk | Known-prior absorbed | External source | Bounded check | Selected top5 | Selected pilot |",
+    "| --- | ---: | --- | ---: | ---: | --- | --- | --- | --- | --- |",
     ...evaluations.map(
       (item) =>
-        `| ${item.anchor.anchorId} | ${item.score} | ${item.status} | ${item.anchor.sourceFamilyTrivialityRisk} | ${String(item.anchor.hasExternalSource)} | ${String(item.anchor.hasBoundedCheckPath)} | ${String(item.selectedForTop5)} | ${String(item.selectedForPilot)} |`,
+        `| ${item.anchor.anchorId} | ${item.score} | ${item.status} | ${item.anchor.sourceFamilyTrivialityRisk} | ${item.anchor.knownPriorAbsorptionRisk} | ${String(item.anchor.knownPriorAbsorbsPilot)} | ${String(item.anchor.hasExternalSource)} | ${String(item.anchor.hasBoundedCheckPath)} | ${String(item.selectedForTop5)} | ${String(item.selectedForPilot)} |`,
     ),
   ].join("\n");
 }
@@ -15051,11 +15233,11 @@ function topFormalAnchorsMarkdown(
   return [
     "# Top 5 Formal Anchors",
     "",
-    "| Anchor | Problem | Target outcome | Candidate mechanism | Rival mechanisms | Falsifier | Bounded plan | Counterexample path | Replay path | Nontrivial if | Kill if |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Anchor | Problem | Target outcome | Candidate mechanism | Rival mechanisms | Falsifier | Bounded plan | Counterexample path | Replay path | Nontrivial if | Kill if | Known-prior absorption guard |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...evaluations.map((item) => {
       const anchor = item.anchor;
-      return `| ${anchor.anchorId} | ${anchor.problemAnchor} | ${anchor.measurableFormalOutcome} | ${anchor.candidateMechanismHypothesis} | ${anchor.rivalMechanisms.join("; ")} | ${anchor.falsifier} | ${anchor.boundedSearchPlan} | ${anchor.counterexamplePath} | ${anchor.replayPath} | ${anchor.nontrivialityCriteria} | ${anchor.knownTrivialKillCriteria} |`;
+      return `| ${anchor.anchorId} | ${anchor.problemAnchor} | ${anchor.measurableFormalOutcome} | ${anchor.candidateMechanismHypothesis} | ${anchor.rivalMechanisms.join("; ")} | ${anchor.falsifier} | ${anchor.boundedSearchPlan} | ${anchor.counterexamplePath} | ${anchor.replayPath} | ${anchor.nontrivialityCriteria} | ${anchor.knownTrivialKillCriteria} | ${anchor.knownPriorAbsorptionReason} |`;
     }),
   ].join("\n");
 }

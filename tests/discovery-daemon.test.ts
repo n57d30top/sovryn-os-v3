@@ -4184,6 +4184,10 @@ test("external formal anchor selector rejects weak anchors and accepts bounded e
     counterexampleFeasibility: 5,
     proofMechanismFeasibility: 4,
     sourceFamilyTrivialityRisk: 0.25,
+    knownPriorAbsorptionRisk: 0.25,
+    knownPriorAbsorbsPilot: false,
+    knownPriorAbsorptionReason:
+      "No fatal known-prior absorption recorded for the synthetic selector test anchor.",
     knownSourceFamilyMechanism: false,
     hasExternalSource: true,
     hasBoundedCheckPath: true,
@@ -4198,6 +4202,17 @@ test("external formal anchor selector rejects weak anchors and accepts bounded e
       sourceFamilyTrivialityRisk: 0.92,
     }).status,
     "rejected_known_source_family",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "EXT-TEST-KNOWN-PRIOR-ABSORBED",
+      knownPriorAbsorptionRisk: 0.91,
+      knownPriorAbsorbsPilot: true,
+      knownPriorAbsorptionReason:
+        "The bounded pilot would replay a known witness family.",
+    }).status,
+    "rejected_known_prior_absorbed",
   );
   assert.equal(
     selector.evaluate({
@@ -4230,12 +4245,14 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   assert.equal(selection.anchorsEvaluated >= 25, true);
   assert.equal(selection.top5Anchors.length, 5);
   assert.equal(selection.rejectedKnownSourceFamily >= 1, true);
+  assert.equal(selection.rejectedKnownPriorAbsorbed >= 3, true);
   assert.equal(
     selection.top5Anchors.every(
       (item) =>
         item.status === "pilot_ready" &&
         item.anchor.sourceRef.startsWith("https://") &&
-        item.anchor.hasBoundedCheckPath,
+        item.anchor.hasBoundedCheckPath &&
+        !item.anchor.knownPriorAbsorbsPilot,
     ),
     true,
   );
@@ -4246,7 +4263,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   assert.equal(pilot.status, "continue_searching_checkpointed");
   assert.equal(pilot.anchorsPiloted, 3);
   assert.equal(pilot.hardSeedBirthAttempts, 3);
-  assert.equal(pilot.hardSeedsBorn >= 1, true);
+  assert.equal(pilot.hardSeedsBorn, 0);
   assert.equal(pilot.insightCandidatesCreated, pilot.hardSeedsBorn);
   assert.equal(pilot.discoveryCandidatesCreated, 0);
   assert.equal(pilot.fundFound, false);
@@ -4290,17 +4307,19 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
     }>;
   };
   assert.equal(
-    pilotRows.results.some(
-      (row) => row.birthEvaluation.accepted && row.hardSeed !== null,
+    pilotRows.results.every(
+      (row) => !row.birthEvaluation.accepted && row.hardSeed === null,
     ),
     true,
   );
   assert.equal(
-    pilotRows.results.some(
+    pilotRows.results.every(
       (row) =>
-        row.knownTrivial &&
-        !row.birthEvaluation.accepted &&
-        row.hardSeed === null,
+        ![
+          "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS",
+          "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
+          "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
+        ].includes(row.anchorId),
     ),
     true,
   );
@@ -4315,7 +4334,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   );
 });
 
-test("formal anchor pressure kills Ramsey seed as known prior without fake Fund", async () => {
+test("formal anchor pressure stays fail-closed after selector blocks known priors", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -4325,10 +4344,10 @@ test("formal anchor pressure kills Ramsey seed as known prior without fake Fund"
 
   assert.equal(report.kind, "external_formal_anchor_pressure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.equal(report.hardSeedsLoaded, 1);
-  assert.equal(report.insightCandidatesLoaded, 1);
-  assert.equal(report.requiredNextTestsRun, 7);
-  assert.equal(report.candidatesKilled, 1);
+  assert.equal(report.hardSeedsLoaded, 0);
+  assert.equal(report.insightCandidatesLoaded, 0);
+  assert.equal(report.requiredNextTestsRun, 0);
+  assert.equal(report.candidatesKilled, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundCandidateDraftsCreated, 0);
   assert.equal(report.fundFound, false);
@@ -4370,12 +4389,7 @@ test("formal anchor pressure kills Ramsey seed as known prior without fake Fund"
       fundCandidateDraftCreated: boolean;
     }>;
   };
-  assert.equal(decisions.decisions.length, 1);
-  assert.equal(decisions.decisions[0]?.knownPriorStatus, "fatal_known_prior");
-  assert.equal(decisions.decisions[0]?.killed, true);
-  assert.equal(decisions.decisions[0]?.primaryDeathCause, "known_trivial");
-  assert.equal(decisions.decisions[0]?.discoveryCandidateCreated, false);
-  assert.equal(decisions.decisions[0]?.fundCandidateDraftCreated, false);
+  assert.equal(decisions.decisions.length, 0);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

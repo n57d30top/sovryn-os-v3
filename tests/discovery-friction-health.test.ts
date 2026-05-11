@@ -345,6 +345,19 @@ test("health friction exposes generator-family no-birth yield as fake-green risk
         source_family_documented_signal: 9,
         "baseline_dominated:stronger_residual_floor": 6,
       },
+      replacementRequired: true,
+      replacementRequirements: [
+        {
+          generatorId: "known_formal_problem_boundary_generator",
+          status: "replacement_required",
+          dominantBlocker: "source_family_documented_signal",
+        },
+        {
+          generatorId: "benchmark_delta_mechanism_generator",
+          status: "replacement_required",
+          dominantBlocker: "baseline_dominated:stronger_residual_floor",
+        },
+      ],
       fundFound: false,
     }),
   );
@@ -361,6 +374,11 @@ test("health friction exposes generator-family no-birth yield as fake-green risk
   assert.equal(data.generatorFamilyYield.runAvailable, true);
   assert.equal(data.generatorFamilyYield.runtimeChecks, 30);
   assert.equal(data.generatorFamilyYield.hardSeedsBorn, 0);
+  assert.equal(data.generatorFamilyYield.replacementRequired, true);
+  assert.deepEqual(data.generatorFamilyYield.replacementFamilies, [
+    "known_formal_problem_boundary_generator",
+    "benchmark_delta_mechanism_generator",
+  ]);
   assert.equal(data.generatorFamilyYield.noBirthAfterRun, true);
   assert.equal(
     data.generatorFamilyYield.dominantBlocker,

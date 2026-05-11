@@ -1316,6 +1316,17 @@ export type MechanismFirstGeneratorOutput = {
   hardSeed: HardSeed | null;
 };
 
+export type GeneratorFamilyReplacementRequirement = {
+  generatorId: MechanismFirstGeneratorFamilyId;
+  status: "productive_or_not_run" | "replacement_required";
+  runtimeChecks: number;
+  hardSeedsBorn: number;
+  blockedOutputs: number;
+  dominantBlocker: string | null;
+  blockerCounts: Record<string, number>;
+  requiredChange: string;
+};
+
 export type MechanismFirstGeneratorRunReport = {
   kind: "mechanism_first_generator_run";
   status: "continue_searching_checkpointed";
@@ -1330,6 +1341,8 @@ export type MechanismFirstGeneratorRunReport = {
   seedsBlockedByExternalValueGate: number;
   hardSeedsBorn: number;
   blockedOutputsByCause: Record<string, number>;
+  replacementRequired: boolean;
+  replacementRequirements: GeneratorFamilyReplacementRequirement[];
   insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
   fundGateResult: FundGateResult;
@@ -1347,6 +1360,8 @@ export type MechanismFirstGeneratorAuditReport = {
   runtimeChecks: number;
   hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
+  replacementRequired: boolean;
+  replacementRequirements: GeneratorFamilyReplacementRequirement[];
   pressureYield: GeneratorPressureYieldSignal;
   gates: FundGate[];
   failedGates: string[];
@@ -11312,6 +11327,10 @@ export class MechanismFirstEvidenceGeneratorService {
     const blocked = outputs.filter(
       (output) => !output.birthEvaluation.accepted,
     );
+    const replacementRequirements = generatorFamilyReplacementRequirements(
+      outputs,
+      families,
+    );
     const fundGateResult = new FundGateEvaluator().evaluate(null);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-families-continue-searching.json`;
     const report = withEvidenceHash({
@@ -11332,6 +11351,10 @@ export class MechanismFirstEvidenceGeneratorService {
       ).length,
       hardSeedsBorn: bornSeeds.length,
       blockedOutputsByCause: generatorBlockedOutputsByCause(outputs),
+      replacementRequired: replacementRequirements.some(
+        (item) => item.status === "replacement_required",
+      ),
+      replacementRequirements,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       fundGateResult,
@@ -11369,6 +11392,14 @@ export class MechanismFirstEvidenceGeneratorService {
       );
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
+    const replacementRequirements =
+      latest?.replacementRequirements ??
+      generatorFamilyReplacementRequirements(outputs, registry.families);
+    const replacementRequired =
+      latest?.replacementRequired ??
+      replacementRequirements.some(
+        (item) => item.status === "replacement_required",
+      );
     const gates = [
       gate(
         "registry_has_three_new_families",
@@ -11435,6 +11466,15 @@ export class MechanismFirstEvidenceGeneratorService {
         "Focused validation must either produce a birth-eligible hard seed or prove precise blocker causes for every output.",
       ),
       gate(
+        "no_birth_requires_replacement_requirements",
+        (latest?.hardSeedsBorn ?? 0) > 0 ||
+          !replacementRequired ||
+          replacementRequirements.some(
+            (item) => item.status === "replacement_required",
+          ),
+        "If runtime generator validation creates no HardSeeds, the audit must expose concrete generator replacement requirements instead of a green-only audit.",
+      ),
+      gate(
         "pressure_yield_not_fake_green",
         !pressureYield.noInsightAfterBornSeeds,
         "Generator audit must not stay green after generator-pressure kills every born hard seed before InsightCandidate birth.",
@@ -11462,11 +11502,14 @@ export class MechanismFirstEvidenceGeneratorService {
       runtimeChecks: latest?.runtimeChecks ?? 0,
       hardSeedBirthAttempts: latest?.hardSeedBirthAttempts ?? 0,
       hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
+      replacementRequired,
+      replacementRequirements,
       pressureYield,
       gates,
       failedGates,
       artifactRefs: [
         `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_AUDIT.md`,
+        `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_REPLACEMENT_REQUIREMENTS.md`,
         `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
         ...(pressureYield.pressureRef === null
           ? []
@@ -11552,6 +11595,8 @@ export class MechanismFirstEvidenceGeneratorService {
       seedsBlockedByExternalValueGate:
         input.report.seedsBlockedByExternalValueGate,
       hardSeedsBorn: input.report.hardSeedsBorn,
+      replacementRequired: input.report.replacementRequired,
+      replacementRequirements: input.report.replacementRequirements,
       reportRef: `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
     });
@@ -11570,6 +11615,18 @@ export class MechanismFirstEvidenceGeneratorService {
     await writeText(
       join(root, "BLOCKED_GENERATOR_OUTPUTS.md"),
       blockedGeneratorOutputsMarkdown(input.blocked),
+    );
+    await writeJson(join(root, "GENERATOR_REPLACEMENT_REQUIREMENTS.json"), {
+      kind: "generator_replacement_requirements",
+      replacementRequired: input.report.replacementRequired,
+      requirements: input.report.replacementRequirements,
+      evidenceHash: hashEvidence(input.report.replacementRequirements),
+    });
+    await writeText(
+      join(root, "GENERATOR_REPLACEMENT_REQUIREMENTS.md"),
+      generatorReplacementRequirementsMarkdown(
+        input.report.replacementRequirements,
+      ),
     );
     await writeText(
       join(root, "FUND_GATE_RESULTS.md"),
@@ -20733,6 +20790,78 @@ function generatorBlockedOutputsByCause(
   return counts;
 }
 
+function generatorFamilyReplacementRequirements(
+  outputs: MechanismFirstGeneratorOutput[],
+  families: MechanismFirstGeneratorFamily[],
+): GeneratorFamilyReplacementRequirement[] {
+  return families.map((family) => {
+    const familyOutputs = outputs.filter(
+      (output) => output.generatorId === family.generatorId,
+    );
+    const born = familyOutputs.filter(
+      (output) => output.birthEvaluation.accepted,
+    );
+    const blockerCounts = generatorBlockedOutputsByCause(familyOutputs);
+    const dominantBlocker =
+      Object.entries(blockerCounts)
+        .filter(([, count]) => count > 0)
+        .sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+    const replacementRequired = familyOutputs.length > 0 && born.length === 0;
+    return {
+      generatorId: family.generatorId,
+      status: replacementRequired
+        ? ("replacement_required" as const)
+        : ("productive_or_not_run" as const),
+      runtimeChecks: familyOutputs.length,
+      hardSeedsBorn: born.length,
+      blockedOutputs: familyOutputs.length - born.length,
+      dominantBlocker,
+      blockerCounts,
+      requiredChange: replacementRequired
+        ? generatorReplacementRequiredChange(dominantBlocker, family)
+        : "No replacement required from the latest run.",
+    };
+  });
+}
+
+function generatorReplacementRequiredChange(
+  dominantBlocker: string | null,
+  family: MechanismFirstGeneratorFamily,
+): string {
+  if (
+    dominantBlocker === "source_family_documented_signal" ||
+    dominantBlocker === "known_trivial_signal"
+  ) {
+    return "Replace the external problem anchor or target family; the current signal is source-family documented or known-trivial before birth.";
+  }
+  if (dominantBlocker?.startsWith("baseline_dominated")) {
+    return "Redesign the measurement so the mechanism prediction produces a residual above the second-stage pressure floor before HardSeed birth.";
+  }
+  if (dominantBlocker === "rival_theory_stronger") {
+    return "Redesign the frozen prediction around a rival-discriminating measurement where the rival mechanism can be weakened before birth.";
+  }
+  if (dominantBlocker === "no_cross_source_support") {
+    return "Add independent source-family or cross-slice recurrence before birth; same-source recurrence is insufficient.";
+  }
+  if (dominantBlocker === "counterexample_dense") {
+    return "Replace or narrow the mechanism hypothesis so bounded counterexample/control slices do not collapse the claim before birth.";
+  }
+  if (
+    dominantBlocker === "generator_only_signal" ||
+    dominantBlocker === "package_only_signal" ||
+    dominantBlocker === "internally_interesting_only"
+  ) {
+    return "Choose a public external problem anchor with target-outcome evidence; generator-only or package-only interest cannot create a HardSeed.";
+  }
+  if (dominantBlocker === "missing_runtime_evidence") {
+    return "Add a real loader/check execution path that writes canonical runtime evidence before any birth decision.";
+  }
+  if (dominantBlocker === "no_nontrivial_residual") {
+    return "Replace the target outcome or mechanism prediction; current evidence has no nontrivial residual beyond simple controls.";
+  }
+  return `Redesign ${family.generatorId} around a stronger external target outcome, explicit rival falsifier, independent recurrence, and replayable runtime evidence.`;
+}
+
 function generatorRunRemainingBottleneck(
   outputs: MechanismFirstGeneratorOutput[],
 ): string {
@@ -20744,7 +20873,7 @@ function generatorRunRemainingBottleneck(
   const topCause =
     Object.entries(causes).sort((left, right) => right[1] - left[1])[0]?.[0] ??
     "unknown";
-  return `No generator output reached hard-seed birth. Dominant blocker: ${topCause}.`;
+  return `No generator output reached hard-seed birth. Dominant blocker: ${topCause}. Generator-family replacement is required before rerunning long campaigns on this search surface.`;
 }
 
 function generatorRunArtifactRefs(nextCheckpointRef: string): string[] {
@@ -20762,6 +20891,8 @@ function generatorRunArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/BIRTH_ELIGIBLE_HARD_SEEDS.json`,
     `${root}/BLOCKED_GENERATOR_OUTPUTS.md`,
     `${root}/BLOCKED_GENERATOR_OUTPUTS.json`,
+    `${root}/GENERATOR_REPLACEMENT_REQUIREMENTS.md`,
+    `${root}/GENERATOR_REPLACEMENT_REQUIREMENTS.json`,
     `${root}/GENERATOR_AUDIT.md`,
     `${root}/NEXT_CHECKPOINT.md`,
     `${root}/latest.json`,
@@ -20821,6 +20952,7 @@ function generatorRunResultsMarkdown(
     `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
     `Seeds blocked by ExternalValueGate: ${report.seedsBlockedByExternalValueGate}.`,
     `Hard seeds born: ${report.hardSeedsBorn}.`,
+    `Generator replacement required: ${String(report.replacementRequired)}.`,
     "",
     "| Output | Generator | Domain | Target | Outcome | Residual | Birth | Primary blocker | Evidence |",
     "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
@@ -20828,6 +20960,25 @@ function generatorRunResultsMarkdown(
       (output) =>
         `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
     ),
+  ].join("\n");
+}
+
+function generatorReplacementRequirementsMarkdown(
+  requirements: GeneratorFamilyReplacementRequirement[],
+): string {
+  return [
+    "# Generator Replacement Requirements",
+    "",
+    `Replacement required: ${String(requirements.some((item) => item.status === "replacement_required"))}.`,
+    "",
+    "| Generator | Status | Runtime checks | HardSeeds born | Blocked outputs | Dominant blocker | Required change |",
+    "| --- | --- | ---: | ---: | ---: | --- | --- |",
+    ...requirements.map(
+      (item) =>
+        `| ${item.generatorId} | ${item.status} | ${item.runtimeChecks} | ${item.hardSeedsBorn} | ${item.blockedOutputs} | ${item.dominantBlocker ?? "none"} | ${item.requiredChange} |`,
+    ),
+    "",
+    "These requirements are not discovery claims. They only prevent repeated long searches on generator families that already produced runtime evidence but no birth-eligible HardSeed.",
   ].join("\n");
 }
 
@@ -20894,6 +21045,16 @@ function generatorAuditMarkdown(
     `Runtime checks: ${report.runtimeChecks}.`,
     `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
     `Hard seeds born: ${report.hardSeedsBorn}.`,
+    `Generator replacement required: ${String(report.replacementRequired)}.`,
+    "",
+    "## Generator Replacement Requirements",
+    "",
+    "| Generator | Status | Runtime checks | HardSeeds born | Dominant blocker | Required change |",
+    "| --- | --- | ---: | ---: | --- | --- |",
+    ...report.replacementRequirements.map(
+      (item) =>
+        `| ${item.generatorId} | ${item.status} | ${item.runtimeChecks} | ${item.hardSeedsBorn} | ${item.dominantBlocker ?? "none"} | ${item.requiredChange} |`,
+    ),
     "",
     "## Generator Pressure Yield",
     "",

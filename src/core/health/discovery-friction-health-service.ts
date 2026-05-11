@@ -223,6 +223,8 @@ export type GeneratorFamilyYieldSignal = {
   runtimeChecks: number;
   hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
+  replacementRequired: boolean;
+  replacementFamilies: string[];
   dominantBlocker: string | null;
   noBirthAfterRun: boolean;
   recommendedAction: string;
@@ -1059,6 +1061,12 @@ export class DiscoveryFrictionHealthService {
       hardSeedBirthAttempts?: number;
       hardSeedsBorn?: number;
       blockedOutputsByCause?: Record<string, number>;
+      replacementRequired?: boolean;
+      replacementRequirements?: Array<{
+        generatorId?: string;
+        status?: string;
+        dominantBlocker?: string | null;
+      }>;
     }>(join(this.root, generatorFamilyLatestRel));
     const runRecord = run as Record<string, unknown> | null;
     const runtimeChecks = numberField(runRecord, "runtimeChecks", 0);
@@ -1068,6 +1076,18 @@ export class DiscoveryFrictionHealthService {
       0,
     );
     const hardSeedsBorn = numberField(runRecord, "hardSeedsBorn", 0);
+    const replacementRequirements = Array.isArray(run?.replacementRequirements)
+      ? run.replacementRequirements
+      : [];
+    const replacementRequired =
+      run?.replacementRequired === true ||
+      replacementRequirements.some(
+        (item) => item.status === "replacement_required",
+      );
+    const replacementFamilies = replacementRequirements
+      .filter((item) => item.status === "replacement_required")
+      .map((item) => item.generatorId)
+      .filter((item): item is string => typeof item === "string");
     const blockedOutputsByCause =
       run?.blockedOutputsByCause === undefined
         ? {}
@@ -1084,16 +1104,20 @@ export class DiscoveryFrictionHealthService {
       runtimeChecks,
       hardSeedBirthAttempts,
       hardSeedsBorn,
+      replacementRequired,
+      replacementFamilies,
       dominantBlocker,
       noBirthAfterRun,
       recommendedAction:
         run === null
           ? "run discover-daemon generator-run before using generator-family yield as a health signal"
-          : noBirthAfterRun
-            ? `redesign generator families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
-            : hardSeedsBorn > 0
-              ? "pressure born generator HardSeeds through required-next-test closure"
-              : "maintain generator registry and continue mechanism-first target selection",
+          : replacementRequired
+            ? `replace or redesign ${replacementFamilies.length} generator family/families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
+            : noBirthAfterRun
+              ? `redesign generator families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
+              : hardSeedsBorn > 0
+                ? "pressure born generator HardSeeds through required-next-test closure"
+                : "maintain generator registry and continue mechanism-first target selection",
       runRef: run === null ? null : generatorFamilyLatestRel,
     };
   }
@@ -2143,6 +2167,8 @@ ${bulletList(report.promotionReadinessBlockers)}
 - Runtime checks: ${report.generatorFamilyYield.runtimeChecks}
 - HardSeed birth attempts: ${report.generatorFamilyYield.hardSeedBirthAttempts}
 - HardSeeds born: ${report.generatorFamilyYield.hardSeedsBorn}
+- Replacement required: ${String(report.generatorFamilyYield.replacementRequired)}
+- Replacement families: ${report.generatorFamilyYield.replacementFamilies.join(", ") || "none"}
 - Dominant blocker: ${report.generatorFamilyYield.dominantBlocker ?? "none"}
 - No-birth after run: ${String(report.generatorFamilyYield.noBirthAfterRun)}
 - Recommended action: ${report.generatorFamilyYield.recommendedAction}

@@ -3680,6 +3680,14 @@ test("mechanism-first generator run blocks pressure-weak outputs before hard-see
   assert.equal(report.hardSeedBirthAttempts, 30);
   assert.equal(report.seedsBlockedByExternalValueGate >= 1, true);
   assert.equal(report.hardSeedsBorn, 0);
+  assert.equal(report.replacementRequired, true);
+  assert.equal(report.replacementRequirements.length, 3);
+  assert.equal(
+    report.replacementRequirements.every(
+      (item) => item.status === "replacement_required",
+    ),
+    true,
+  );
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
@@ -3697,6 +3705,8 @@ test("mechanism-first generator run blocks pressure-weak outputs before hard-see
     "BIRTH_ELIGIBLE_HARD_SEEDS.json",
     "BLOCKED_GENERATOR_OUTPUTS.md",
     "BLOCKED_GENERATOR_OUTPUTS.json",
+    "GENERATOR_REPLACEMENT_REQUIREMENTS.md",
+    "GENERATOR_REPLACEMENT_REQUIREMENTS.json",
     "NEXT_CHECKPOINT.md",
     "latest.json",
   ]) {
@@ -3779,6 +3789,40 @@ test("mechanism-first generator run blocks pressure-weak outputs before hard-see
     ),
     true,
   );
+  const replacementPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "GENERATOR_REPLACEMENT_REQUIREMENTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    replacementRequired: boolean;
+    requirements: Array<{
+      generatorId: string;
+      status: string;
+      runtimeChecks: number;
+      hardSeedsBorn: number;
+      dominantBlocker: string | null;
+      requiredChange: string;
+    }>;
+  };
+  assert.equal(replacementPayload.replacementRequired, true);
+  assert.equal(replacementPayload.requirements.length, 3);
+  assert.equal(
+    replacementPayload.requirements.every(
+      (item) =>
+        item.status === "replacement_required" &&
+        item.runtimeChecks === 10 &&
+        item.hardSeedsBorn === 0 &&
+        item.dominantBlocker !== null &&
+        item.requiredChange.length > 0,
+    ),
+    true,
+  );
   assert.equal(
     outputPayload.outputs
       .filter(
@@ -3823,6 +3867,14 @@ test("mechanism-first generator audit verifies birth gate artifacts", async () =
   assert.equal(audit.runtimeChecks, 30);
   assert.equal(audit.hardSeedBirthAttempts, 30);
   assert.equal(audit.hardSeedsBorn, 0);
+  assert.equal(audit.replacementRequired, true);
+  assert.equal(audit.replacementRequirements.length, 3);
+  assert.equal(
+    audit.replacementRequirements.every(
+      (item) => item.status === "replacement_required",
+    ),
+    true,
+  );
   assert.equal(audit.pressureYield.pressureRunFound, false);
   assert.equal(audit.pressureYield.noInsightAfterBornSeeds, false);
   assert.deepEqual(audit.failedGates, []);

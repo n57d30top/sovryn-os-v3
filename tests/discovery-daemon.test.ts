@@ -4424,6 +4424,78 @@ test("formal anchor audit rematerializes stale pilot rows before passing", async
   );
 });
 
+test("formal anchor audit handles depleted reserve without stale top-three proxy", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  await mkdir(selectionRoot, { recursive: true });
+  await writeFile(
+    join(selectionRoot, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    JSON.stringify(
+      {
+        kind: "external_formal_anchor_selector_memory",
+        baselineDominatedAnchorIds: [
+          "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+          "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+          "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+          "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+          "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE",
+          "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS",
+          "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY",
+          "EXT-FORMAL-STRONGLY-REGULAR-GRAPH-ISOMORPHISM-CONTROLS",
+          "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
+        ],
+        knownTrivialAnchorIds: [
+          "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+          "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+          "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+          "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+          "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+          "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY",
+          "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS",
+          "EXT-FORMAL-EULERIAN-TRAIL-PARITY-BOUNDARY",
+          "EXT-FORMAL-BROOKS-THEOREM-SMALL-GRAPHS",
+          "EXT-FORMAL-CHORDAL-GRAPH-PEO-BOUNDARY",
+          "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS",
+          "EXT-FORMAL-STEINER-TRIPLE-SYSTEM-SMALL-N",
+        ],
+        rivalStrongerAnchorIds: [],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+        evidenceHash: "depleted-pilot-reserve",
+      },
+      null,
+      2,
+    ),
+  );
+
+  const audit = await service.formalAnchorAudit();
+
+  assert.equal(audit.passed, true);
+  assert.equal(audit.top5Selected, 2);
+  assert.equal(audit.top3Piloted, 2);
+  assert.equal(
+    audit.gates.find((item) => item.code === "top5_selected")?.passed,
+    true,
+  );
+  assert.equal(
+    audit.gates.find((item) => item.code === "top3_piloted")?.passed,
+    true,
+  );
+  const latest = JSON.parse(
+    await readFile(join(selectionRoot, "latest.json"), "utf8"),
+  ) as { selectedPilotAnchorIds: string[] };
+  assert.deepEqual(latest.selectedPilotAnchorIds, [
+    "EXT-FORMAL-HALL-MARRIAGE-SMALL-BIPARTITE",
+    "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY",
+  ]);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("formal anchor selector keeps bounded reserve anchors after repeated pilot deaths", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

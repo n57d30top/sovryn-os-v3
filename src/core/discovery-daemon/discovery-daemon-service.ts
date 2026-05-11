@@ -13716,6 +13716,8 @@ export class ExternalFormalAnchorSelectionService {
       selection = await this.select();
     }
     const pilotFresh = formalAnchorPilotArtifactsFresh(pilot, rows, selection);
+    const expectedTop5Count = Math.min(5, selection.pilotReadyAnchors);
+    const expectedPilotCount = Math.min(3, selection.top5Anchors.length);
     const gates = [
       gate(
         "at_least_25_external_anchors_evaluated",
@@ -13744,8 +13746,13 @@ export class ExternalFormalAnchorSelectionService {
       ),
       gate(
         "top5_selected",
-        selection.top5Anchors.length === 5,
-        "Selector must choose exactly five top formal anchors for mechanism-first design.",
+        selection.top5Anchors.length === expectedTop5Count,
+        "Selector must choose the available top formal anchors for mechanism-first design without pretending an exhausted reserve is full.",
+      ),
+      gate(
+        "pilot_ready_anchor_pool_available",
+        selection.pilotReadyAnchors > 0,
+        "Formal-anchor audit must expose anchor-pool exhaustion instead of passing a stale or empty pilot selection.",
       ),
       gate(
         "top5_excludes_fatal_known_prior",
@@ -13763,10 +13770,11 @@ export class ExternalFormalAnchorSelectionService {
       ),
       gate(
         "top3_piloted",
-        pilot.anchorsPiloted === 3 &&
-          rows.length === 3 &&
-          pilot.selectedPilotAnchorIds.length === 3,
-        "Pilot must run bounded checks on the top three anchors only.",
+        expectedPilotCount > 0 &&
+          pilot.anchorsPiloted === expectedPilotCount &&
+          rows.length === expectedPilotCount &&
+          pilot.selectedPilotAnchorIds.length === expectedPilotCount,
+        "Pilot must run bounded checks on the selected top anchors, capped at three when enough pilot-ready anchors exist.",
       ),
       gate(
         "pilot_artifacts_match_selected_anchor_snapshot",
@@ -13785,7 +13793,7 @@ export class ExternalFormalAnchorSelectionService {
       ),
       gate(
         "top3_pilots_use_mechanism_specific_executors",
-        rows.length === 3 &&
+        rows.length === expectedPilotCount &&
           rows.every(
             (row) =>
               row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&

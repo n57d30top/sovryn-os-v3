@@ -403,6 +403,104 @@ test("health friction exposes generator-family no-birth yield as fake-green risk
   );
 });
 
+test("health friction exposes generator closure non-discovery yield as fake-green risk", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  const generatorRoot = join(
+    root,
+    ".sovryn/discovery-daemon/generator-families",
+  );
+  const closureRoot = join(
+    root,
+    ".sovryn/discovery-daemon/generator-fund-closure",
+  );
+  await mkdir(generatorRoot, { recursive: true });
+  await mkdir(closureRoot, { recursive: true });
+  await writeFile(
+    join(generatorRoot, "latest.json"),
+    JSON.stringify({
+      kind: "mechanism_first_generator_run",
+      status: "continue_searching_checkpointed",
+      runtimeChecks: 30,
+      hardSeedBirthAttempts: 30,
+      hardSeedsBorn: 6,
+      blockedOutputsByCause: {
+        "baseline_dominated:stronger_residual_floor": 12,
+      },
+      replacementRequired: false,
+      replacementRequirements: [
+        {
+          generatorId: "satlib_bounded_sat_boundary_generator",
+          status: "productive_or_not_run",
+          dominantBlocker: "baseline_dominated:stronger_residual_floor",
+        },
+      ],
+      fundFound: false,
+    }),
+  );
+  await writeFile(
+    join(closureRoot, "latest.json"),
+    JSON.stringify({
+      kind: "generator_born_fund_closure",
+      status: "continue_searching_checkpointed",
+      closureCandidateCount: 6,
+      discoveryScoredCandidates: 0,
+      nonDiscoveryClassifiedCandidates: 6,
+      fundClassDistribution: {
+        pipeline_fund_candidate: 6,
+      },
+      fundFound: false,
+    }),
+  );
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    generatorFamilyYield: Record<string, unknown>;
+    promotionReadinessBlockers: string[];
+    fakeGreenAuditRisks: string[];
+    remainingBottleneck: string;
+  };
+  assert.equal(data.generatorFamilyYield.runAvailable, true);
+  assert.equal(data.generatorFamilyYield.hardSeedsBorn, 6);
+  assert.equal(data.generatorFamilyYield.closureRunAvailable, true);
+  assert.equal(data.generatorFamilyYield.closureCandidateCount, 6);
+  assert.equal(data.generatorFamilyYield.discoveryScoredClosureCandidates, 0);
+  assert.equal(
+    data.generatorFamilyYield.nonDiscoveryClassifiedClosureCandidates,
+    6,
+  );
+  assert.equal(data.generatorFamilyYield.allClosedAsNonDiscovery, true);
+  assert.equal(
+    data.generatorFamilyYield.dominantFundClass,
+    "pipeline_fund_candidate",
+  );
+  assert.ok(
+    data.promotionReadinessBlockers.includes(
+      "generator_closure_non_discovery_yield",
+    ),
+  );
+  assert.ok(
+    data.fakeGreenAuditRisks.includes(
+      "generator-family audits can pass through pressure while FundClass closure classifies every candidate as non-discovery",
+    ),
+  );
+  assert.match(data.remainingBottleneck, /non-discovery FundClasses/);
+  assert.match(
+    String(data.generatorFamilyYield.recommendedAction),
+    /external scientific significance/,
+  );
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/FUND_FOUND.md")),
+    false,
+  );
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/fund-candidate.json")),
+    false,
+  );
+});
+
 test("evidence refs verify and holdout audit commands expose repaired contracts", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);

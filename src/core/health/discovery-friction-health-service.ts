@@ -229,6 +229,14 @@ export type GeneratorFamilyYieldSignal = {
   noBirthAfterRun: boolean;
   recommendedAction: string;
   runRef: string | null;
+  closureRunAvailable: boolean;
+  closureCandidateCount: number;
+  discoveryScoredClosureCandidates: number;
+  nonDiscoveryClassifiedClosureCandidates: number;
+  fundClassDistribution: Record<string, number>;
+  allClosedAsNonDiscovery: boolean;
+  dominantFundClass: string | null;
+  closureRef: string | null;
 };
 
 export type DiscoveryFrictionHealthReport = {
@@ -279,6 +287,7 @@ const depthRootRel = `${marathonRootRel}/depth-gauntlet`;
 const remainingClosureRel = `${depthRootRel}/remaining-strict-closure`;
 const formalAnchorAuditRel = `${daemonRootRel}/formal-anchor-selection/FORMAL_ANCHOR_AUDIT.json`;
 const generatorFamilyLatestRel = `${daemonRootRel}/generator-families/latest.json`;
+const generatorFundClosureLatestRel = `${daemonRootRel}/generator-fund-closure/latest.json`;
 const engineRootRel = ".sovryn/discovery-engine";
 const githubCorpusPrefix =
   "https://github.com/n57d30top/sovryn-open-inventions/tree/main/";
@@ -1068,7 +1077,14 @@ export class DiscoveryFrictionHealthService {
         dominantBlocker?: string | null;
       }>;
     }>(join(this.root, generatorFamilyLatestRel));
+    const closure = await readJsonIfExists<{
+      closureCandidateCount?: number;
+      discoveryScoredCandidates?: number;
+      nonDiscoveryClassifiedCandidates?: number;
+      fundClassDistribution?: Record<string, number>;
+    }>(join(this.root, generatorFundClosureLatestRel));
     const runRecord = run as Record<string, unknown> | null;
+    const closureRecord = closure as Record<string, unknown> | null;
     const runtimeChecks = numberField(runRecord, "runtimeChecks", 0);
     const hardSeedBirthAttempts = numberField(
       runRecord,
@@ -1099,6 +1115,35 @@ export class DiscoveryFrictionHealthService {
       null;
     const noBirthAfterRun =
       run !== null && runtimeChecks > 0 && hardSeedsBorn === 0;
+    const closureCandidateCount = numberField(
+      closureRecord,
+      "closureCandidateCount",
+      0,
+    );
+    const discoveryScoredClosureCandidates = numberField(
+      closureRecord,
+      "discoveryScoredCandidates",
+      0,
+    );
+    const nonDiscoveryClassifiedClosureCandidates = numberField(
+      closureRecord,
+      "nonDiscoveryClassifiedCandidates",
+      0,
+    );
+    const fundClassDistribution =
+      closure?.fundClassDistribution === undefined
+        ? {}
+        : asRecordNumber(closure.fundClassDistribution);
+    const dominantFundClass =
+      Object.entries(fundClassDistribution)
+        .filter(([, count]) => Number(count) > 0)
+        .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] ??
+      null;
+    const allClosedAsNonDiscovery =
+      closure !== null &&
+      closureCandidateCount > 0 &&
+      discoveryScoredClosureCandidates === 0 &&
+      nonDiscoveryClassifiedClosureCandidates === closureCandidateCount;
     return {
       runAvailable: run !== null,
       runtimeChecks,
@@ -1111,14 +1156,24 @@ export class DiscoveryFrictionHealthService {
       recommendedAction:
         run === null
           ? "run discover-daemon generator-run before using generator-family yield as a health signal"
-          : replacementRequired
-            ? `replace or redesign ${replacementFamilies.length} generator family/families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
-            : noBirthAfterRun
-              ? `redesign generator families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
-              : hardSeedsBorn > 0
-                ? "pressure born generator HardSeeds through required-next-test closure"
-                : "maintain generator registry and continue mechanism-first target selection",
+          : allClosedAsNonDiscovery
+            ? `replace or redesign generator families around external scientific significance; closure classified every candidate as ${dominantFundClass ?? "non-discovery"}`
+            : replacementRequired
+              ? `replace or redesign ${replacementFamilies.length} generator family/families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
+              : noBirthAfterRun
+                ? `redesign generator families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
+                : hardSeedsBorn > 0
+                  ? "pressure born generator HardSeeds through required-next-test closure"
+                  : "maintain generator registry and continue mechanism-first target selection",
       runRef: run === null ? null : generatorFamilyLatestRel,
+      closureRunAvailable: closure !== null,
+      closureCandidateCount,
+      discoveryScoredClosureCandidates,
+      nonDiscoveryClassifiedClosureCandidates,
+      fundClassDistribution,
+      allClosedAsNonDiscovery,
+      dominantFundClass,
+      closureRef: closure === null ? null : generatorFundClosureLatestRel,
     };
   }
 
@@ -1778,6 +1833,8 @@ function promotionBlockers(
     blockers.push("formal_anchor_no_birth_yield");
   if (generatorFamilyYield.noBirthAfterRun)
     blockers.push("generator_family_no_birth_yield");
+  if (generatorFamilyYield.allClosedAsNonDiscovery)
+    blockers.push("generator_closure_non_discovery_yield");
   return blockers;
 }
 
@@ -1805,6 +1862,10 @@ function fakeGreenRisks(
   if (generatorFamilyYield.noBirthAfterRun)
     risks.push(
       "generator-family audits can pass while no generator output produces a birth-eligible HardSeed",
+    );
+  if (generatorFamilyYield.allClosedAsNonDiscovery)
+    risks.push(
+      "generator-family audits can pass through pressure while FundClass closure classifies every candidate as non-discovery",
     );
   if (codeHotspots.some((item) => item.lines > 10000))
     risks.push(
@@ -1840,6 +1901,11 @@ function remainingBottleneck(
   if (generatorFamilyYield.noBirthAfterRun) {
     parts.push(
       "mechanism-first generator families ran runtime checks but produced zero birth-eligible HardSeeds",
+    );
+  }
+  if (generatorFamilyYield.allClosedAsNonDiscovery) {
+    parts.push(
+      "generator-born closure candidates all classified as non-discovery FundClasses",
     );
   }
   return parts.length > 0
@@ -2171,6 +2237,12 @@ ${bulletList(report.promotionReadinessBlockers)}
 - Replacement families: ${report.generatorFamilyYield.replacementFamilies.join(", ") || "none"}
 - Dominant blocker: ${report.generatorFamilyYield.dominantBlocker ?? "none"}
 - No-birth after run: ${String(report.generatorFamilyYield.noBirthAfterRun)}
+- Closure run available: ${String(report.generatorFamilyYield.closureRunAvailable)}
+- Closure candidates: ${report.generatorFamilyYield.closureCandidateCount}
+- Discovery-scored closure candidates: ${report.generatorFamilyYield.discoveryScoredClosureCandidates}
+- Non-discovery closure candidates: ${report.generatorFamilyYield.nonDiscoveryClassifiedClosureCandidates}
+- All closed as non-discovery: ${String(report.generatorFamilyYield.allClosedAsNonDiscovery)}
+- Dominant FundClass: ${report.generatorFamilyYield.dominantFundClass ?? "none"}
 - Recommended action: ${report.generatorFamilyYield.recommendedAction}
 
 ## Fake-Green Audit Risks

@@ -5691,6 +5691,71 @@ test("discover-daemon overnight-min-runtime default variants include orthogonal 
   );
 });
 
+test("discover-daemon overnight-min-runtime stops on replacement-required generator surface", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 1,
+    stagnationIterationLimit: 3,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.adaptiveStopTriggered, true);
+  assert.equal(
+    report.adaptiveStopReason,
+    "generator_family_replacement_required",
+  );
+  assert.equal(report.adaptiveStopIteration, 1);
+  assert.equal(report.waveExecutions, 6);
+  assert.equal(report.hardSeedBirthAttempts, 0);
+  assert.equal(report.hardSeedsBorn, 0);
+  assert.equal(report.generatorReplacementRequired, true);
+  assert.deepEqual(report.generatorReplacementFamilies, [
+    "known_formal_problem_boundary_generator",
+    "benchmark_delta_mechanism_generator",
+    "public_measurement_residual_generator",
+  ]);
+  assert.equal(
+    report.generatorReplacementDominantBlocker,
+    "source_family_documented_signal",
+  );
+  assert.match(
+    report.remainingBottleneck,
+    /replacement_required.*external problem anchored generator families/,
+  );
+
+  const runningCheckpoint = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "RUNNING_CHECKPOINT.json",
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(runningCheckpoint.generatorReplacementRequired, true);
+  assert.deepEqual(runningCheckpoint.generatorReplacementFamilies, [
+    "known_formal_problem_boundary_generator",
+    "benchmark_delta_mechanism_generator",
+    "public_measurement_residual_generator",
+  ]);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

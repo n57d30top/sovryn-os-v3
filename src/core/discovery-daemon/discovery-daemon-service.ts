@@ -1045,6 +1045,7 @@ export type MinimumRuntimeOvernightInterruptSignal =
 export type MinimumRuntimeOvernightAdaptiveStopReason =
   | "deterministic_no_candidate_birth"
   | "generator_variants_exhausted_without_candidate_birth"
+  | "generator_family_replacement_required"
   | null;
 
 export type MechanismDesignedOvernightWave = {
@@ -1115,6 +1116,9 @@ export type MinimumRuntimeOvernightRunReport = {
   fundGateResult: FundGateResult;
   fundFound: boolean;
   deathCauseDistribution: Record<string, number>;
+  generatorReplacementRequired: boolean;
+  generatorReplacementFamilies: string[];
+  generatorReplacementDominantBlocker: string | null;
   adaptiveStopTriggered: boolean;
   adaptiveStopReason: MinimumRuntimeOvernightAdaptiveStopReason;
   adaptiveStopIteration: number | null;
@@ -1157,6 +1161,9 @@ export type MinimumRuntimeOvernightProgressReport = {
     discoveryCandidatesCreated: number;
   };
   deathCauseDistribution: Record<string, number>;
+  generatorReplacementRequired: boolean;
+  generatorReplacementFamilies: string[];
+  generatorReplacementDominantBlocker: string | null;
   currentFundState: {
     candidatePresent: boolean;
     fundFound: boolean;
@@ -21188,6 +21195,8 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     const wallClockStart = new Date(startedAtMs).toISOString();
     const checkpointUsed = await this.checkpointUsed();
     const experimentInputs = await minimumRuntimeExperimentInputs(this.root);
+    const generatorReplacementSignal =
+      await minimumRuntimeGeneratorReplacementSignal(this.root);
     const waveRows: MechanismDesignedOvernightWave[] = [];
     const abortController = new AbortController();
     let interruptSignal: MinimumRuntimeOvernightInterruptSignal | null = null;
@@ -21223,6 +21232,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         stagnationIterationLimit,
         generatorVariantLimit,
         checkpointUsed,
+        generatorReplacementSignal,
         currentIteration: iteration,
         waves: waveRows,
         interruptSignal,
@@ -21258,6 +21268,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
             stagnationIterationLimit,
             generatorVariantLimit,
             checkpointUsed,
+            generatorReplacementSignal,
             currentIteration: iteration,
             waves: waveRows,
             interruptSignal,
@@ -21269,6 +21280,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           iteration,
           stagnationIterationLimit,
           generatorVariantLimit,
+          generatorReplacementSignal,
         );
         if (adaptiveStopReason) {
           adaptiveStopIteration = iteration;
@@ -21281,6 +21293,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
             stagnationIterationLimit,
             generatorVariantLimit,
             checkpointUsed,
+            generatorReplacementSignal,
             currentIteration: iteration,
             waves: waveRows,
             interruptSignal,
@@ -21312,6 +21325,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           stagnationIterationLimit,
           generatorVariantLimit,
           checkpointUsed,
+          generatorReplacementSignal,
           currentIteration: iteration,
           waves: waveRows,
           interruptSignal,
@@ -21393,6 +21407,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       fundGateResult,
       fundFound,
       deathCauseDistribution,
+      generatorReplacementRequired:
+        generatorReplacementSignal.replacementRequired,
+      generatorReplacementFamilies:
+        generatorReplacementSignal.replacementFamilies,
+      generatorReplacementDominantBlocker:
+        generatorReplacementSignal.dominantBlocker,
       adaptiveStopTriggered: adaptiveStopReason !== null,
       adaptiveStopReason,
       adaptiveStopIteration,
@@ -21401,10 +21421,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       remainingBottleneck:
         adaptiveStopReason === "deterministic_no_candidate_birth"
           ? "The overnight minimum-runtime loop repeated the same mechanism-designed wave pattern without any InsightCandidate birth; the next step is to switch experiment generation rather than continue linear repetition."
-          : adaptiveStopReason ===
-              "generator_variants_exhausted_without_candidate_birth"
-            ? "The overnight minimum-runtime loop exhausted its configured mechanism-designed generator variants without any InsightCandidate birth; the next step is to add a genuinely new raw-target/mechanism/baseline generator before resuming."
-            : "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
+          : adaptiveStopReason === "generator_family_replacement_required"
+            ? `The latest mechanism-first generator run marked ${generatorReplacementSignal.replacementFamilies.length} generator family/families as replacement_required; the next step is to add genuinely new external problem anchored generator families before resuming long runtime execution.`
+            : adaptiveStopReason ===
+                "generator_variants_exhausted_without_candidate_birth"
+              ? "The overnight minimum-runtime loop exhausted its configured mechanism-designed generator variants without any InsightCandidate birth; the next step is to add a genuinely new raw-target/mechanism/baseline generator before resuming."
+              : "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
       artifactRefs: minimumRuntimeOvernightArtifactRefs(
         nextCheckpointRef,
         interruptSignal !== null,
@@ -21421,6 +21443,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       stagnationIterationLimit,
       generatorVariantLimit,
       checkpointUsed,
+      generatorReplacementSignal,
       currentIteration: iteration,
       waves: waveRows,
       interruptSignal,
@@ -21495,6 +21518,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       minimumRuntimeReached: report.minimumRuntimeReached,
       durationMs: report.durationMs,
       fundFound: report.fundFound,
+      generatorReplacementRequired: report.generatorReplacementRequired,
+      generatorReplacementFamilies: report.generatorReplacementFamilies,
+      generatorReplacementDominantBlocker:
+        report.generatorReplacementDominantBlocker,
       adaptiveStopTriggered: report.adaptiveStopTriggered,
       adaptiveStopReason: report.adaptiveStopReason,
       adaptiveStopRecommendation: report.adaptiveStopRecommendation,
@@ -21529,6 +21556,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         insightCandidatesCreated: report.insightCandidatesCreated,
         discoveryCandidatesCreated: report.discoveryCandidatesCreated,
         deathCauseDistribution: report.deathCauseDistribution,
+        generatorReplacementRequired: report.generatorReplacementRequired,
+        generatorReplacementFamilies: report.generatorReplacementFamilies,
+        generatorReplacementDominantBlocker:
+          report.generatorReplacementDominantBlocker,
         recommendation: report.adaptiveStopRecommendation,
         evidenceHash: hashEvidence({
           reason: report.adaptiveStopReason,
@@ -21564,6 +21595,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     runtimeLimitMs: number | null;
     stagnationIterationLimit: number;
     generatorVariantLimit: number;
+    generatorReplacementSignal: MinimumRuntimeGeneratorReplacementSignal;
     checkpointUsed: string | null;
     currentIteration: number;
     waves: MechanismDesignedOvernightWave[];
@@ -21628,6 +21660,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         ),
       },
       deathCauseDistribution: minimumRuntimeDeathCauseDistribution(input.waves),
+      generatorReplacementRequired:
+        input.generatorReplacementSignal.replacementRequired,
+      generatorReplacementFamilies:
+        input.generatorReplacementSignal.replacementFamilies,
+      generatorReplacementDominantBlocker:
+        input.generatorReplacementSignal.dominantBlocker,
       currentFundState: {
         candidatePresent: false,
         fundFound: fundGateResult.passed,
@@ -21662,6 +21700,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         completedWaveExecutions: report.completedWaveExecutions,
         stagnationIterationLimit: input.stagnationIterationLimit,
         generatorVariantLimit: input.generatorVariantLimit,
+        generatorReplacementRequired:
+          input.generatorReplacementSignal.replacementRequired,
+        generatorReplacementFamilies:
+          input.generatorReplacementSignal.replacementFamilies,
+        generatorReplacementDominantBlocker:
+          input.generatorReplacementSignal.dominantBlocker,
         latestWaveId: report.latestWave?.waveId ?? null,
         latestGeneratorVariant: report.latestWave?.generatorVariant ?? null,
         latestDeathCause: report.latestWave?.deathCause ?? null,
@@ -21685,6 +21729,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       latestWave: report.latestWave,
       counters: report.counters,
       deathCauseDistribution: report.deathCauseDistribution,
+      generatorReplacementRequired: report.generatorReplacementRequired,
+      generatorReplacementFamilies: report.generatorReplacementFamilies,
+      generatorReplacementDominantBlocker:
+        report.generatorReplacementDominantBlocker,
       fundFound: report.currentFundState.fundFound,
       adaptiveStopTriggered: report.adaptiveStopTriggered,
       adaptiveStopReason: report.adaptiveStopReason,
@@ -21710,6 +21758,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       minimumRuntimeReached: report.minimumRuntimeReached,
       durationMs: report.durationMs,
       fundFound: report.fundFound,
+      generatorReplacementRequired: report.generatorReplacementRequired,
+      generatorReplacementFamilies: report.generatorReplacementFamilies,
+      generatorReplacementDominantBlocker:
+        report.generatorReplacementDominantBlocker,
       reportRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/latest.json`,
       progressRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/progress.json`,
       remainingBottleneck: report.remainingBottleneck,
@@ -21718,6 +21770,8 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         terminalStatus: report.terminalStatus,
         durationMs: report.durationMs,
         fundFound: report.fundFound,
+        generatorReplacementRequired: report.generatorReplacementRequired,
+        generatorReplacementFamilies: report.generatorReplacementFamilies,
       }),
     });
     await writeText(
@@ -21762,6 +21816,13 @@ type MinimumRuntimeExperimentInput = {
   residual: number | null;
   baselineExplainedBy: string[];
   promotionBlockedReason: string | null;
+};
+
+type MinimumRuntimeGeneratorReplacementSignal = {
+  replacementRequired: boolean;
+  replacementFamilies: string[];
+  dominantBlocker: string | null;
+  replacementRunRef: string | null;
 };
 
 function mechanismDesignedOvernightWaveSpecs(
@@ -22101,7 +22162,16 @@ function minimumRuntimeApplyExperimentInput(
   spec: MechanismDesignedOvernightWaveSpec,
   input: MinimumRuntimeExperimentInput | undefined,
 ): MechanismDesignedOvernightWaveSpec {
-  if (!input) return spec;
+  if (!input) {
+    return {
+      ...spec,
+      hardSeedBirthAttempts: 0,
+      hardSeedsBorn: 0,
+      seedBirthStatus: "blocked_missing_runtime_pipeline_evidence",
+      seedBirthBlockers: ["missing_runtime_pipeline_evidence"],
+      deathCause: "missing_runtime_evidence",
+    };
+  }
   const birthAssessment = minimumRuntimeHardSeedBirthAssessment(spec, input);
   return {
     ...spec,
@@ -22222,6 +22292,42 @@ async function minimumRuntimeExperimentInputs(
   return inputs;
 }
 
+async function minimumRuntimeGeneratorReplacementSignal(
+  root: string,
+): Promise<MinimumRuntimeGeneratorReplacementSignal> {
+  const run = await readOptionalJson<{
+    replacementRequired?: boolean;
+    replacementRequirements?: Array<{
+      generatorId?: string;
+      status?: string;
+      dominantBlocker?: string | null;
+    }>;
+  }>(join(root, daemonArtifactRoot, generatorFamilyDir, "latest.json"));
+  const replacementRequirements = Array.isArray(run?.replacementRequirements)
+    ? run.replacementRequirements
+    : [];
+  const replacementFamilies = replacementRequirements
+    .filter((item) => item.status === "replacement_required")
+    .map((item) => item.generatorId)
+    .filter((item): item is string => typeof item === "string");
+  const dominantBlocker =
+    replacementRequirements.find(
+      (item) =>
+        item.status === "replacement_required" &&
+        typeof item.dominantBlocker === "string",
+    )?.dominantBlocker ?? null;
+  return {
+    replacementRequired:
+      run?.replacementRequired === true || replacementFamilies.length > 0,
+    replacementFamilies,
+    dominantBlocker,
+    replacementRunRef:
+      run === null
+        ? null
+        : `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
+  };
+}
+
 function minimumRuntimeBaselineExplainedBy(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return uniqueStrings(
@@ -22308,10 +22414,14 @@ function minimumRuntimeAdaptiveStopReason(
   currentIteration: number,
   stagnationIterationLimit: number,
   generatorVariantLimit: number,
+  generatorReplacementSignal: MinimumRuntimeGeneratorReplacementSignal,
 ): MinimumRuntimeOvernightAdaptiveStopReason {
   if (stagnationIterationLimit <= 0) return null;
   if (sumOvernightBy(waves, "insightCandidatesCreated") > 0) return null;
   if (sumOvernightBy(waves, "discoveryCandidatesCreated") > 0) return null;
+  if (generatorReplacementSignal.replacementRequired && currentIteration >= 1) {
+    return "generator_family_replacement_required";
+  }
   if (currentIteration >= stagnationIterationLimit) {
     const recentIterations = Array.from(
       { length: stagnationIterationLimit },
@@ -22367,6 +22477,9 @@ function minimumRuntimeAdaptiveStopRecommendation(
 ): string | null {
   if (reason === "deterministic_no_candidate_birth") {
     return "Stop repeating the same six mechanism-designed waves; switch to a different experiment generator that changes raw target selection, mechanism hypotheses, or baseline/rival design before resuming overnight execution.";
+  }
+  if (reason === "generator_family_replacement_required") {
+    return "Do not rerun long overnight searches on generator families already marked replacement_required; add or select new external problem anchored generator families first.";
   }
   if (reason === "generator_variants_exhausted_without_candidate_birth") {
     return "The configured raw-target/mechanism/baseline generator variants were all tried without InsightCandidate birth; add a genuinely new generator family before resuming long runtime execution.";
@@ -22439,6 +22552,9 @@ function minimumRuntimeComplianceMarkdown(
     `Required minimum ms: ${report.minimumRuntimeMs}.`,
     `Minimum reached: ${String(report.minimumRuntimeReached)}.`,
     `Terminal status: ${report.terminalStatus}.`,
+    `Generator replacement required: ${String(report.generatorReplacementRequired)}.`,
+    `Replacement families: ${report.generatorReplacementFamilies.join(", ") || "none"}.`,
+    `Replacement dominant blocker: ${report.generatorReplacementDominantBlocker ?? "none"}.`,
     `Adaptive stop triggered: ${String(report.adaptiveStopTriggered)}.`,
     `Adaptive stop reason: ${report.adaptiveStopReason ?? "none"}.`,
     "",
@@ -22480,6 +22596,8 @@ function minimumRuntimeNextCheckpointMarkdown(
     `Status: ${report.terminalStatus}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
     `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Generator replacement required: ${String(report.generatorReplacementRequired)}.`,
+    `Replacement families: ${report.generatorReplacementFamilies.join(", ") || "none"}.`,
     `Fund found: ${String(report.fundFound)}.`,
     `Adaptive stop: ${report.adaptiveStopReason ?? "none"}.`,
     "",
@@ -22499,6 +22617,8 @@ function minimumRuntimeAdaptiveStopMarkdown(
     `Wave executions: ${report.waveExecutions}.`,
     `InsightCandidates created: ${report.insightCandidatesCreated}.`,
     `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Generator replacement required: ${String(report.generatorReplacementRequired)}.`,
+    `Replacement families: ${report.generatorReplacementFamilies.join(", ") || "none"}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
     `Recommendation: ${report.adaptiveStopRecommendation ?? "none"}.`,

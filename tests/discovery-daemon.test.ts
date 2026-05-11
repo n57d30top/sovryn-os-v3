@@ -3611,6 +3611,18 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     "generator_only_signal",
   );
   assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      sourceFamilyDocumentedSignal: true,
+    }).primaryBlocker,
+    "source_family_documented_signal",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, knownTrivialSignal: true })
+      .primaryBlocker,
+    "known_trivial_signal",
+  );
+  assert.equal(
     evaluator.evaluate({ ...baseInput, runtimeEvidencePresent: false })
       .primaryBlocker,
     "missing_runtime_evidence",
@@ -3722,6 +3734,7 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
     ),
   ) as {
     outputs: Array<{
+      generatorId: string;
       birthEvaluation: {
         status: string;
         accepted: boolean;
@@ -3759,6 +3772,21 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
     ),
     true,
   );
+  assert.equal(
+    outputPayload.outputs
+      .filter(
+        (output) =>
+          output.generatorId === "known_formal_problem_boundary_generator",
+      )
+      .every(
+        (output) =>
+          output.hardSeed === null &&
+          output.birthEvaluation.blockers.includes(
+            "source_family_documented_signal",
+          ),
+      ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -3783,7 +3811,7 @@ test("mechanism-first generator audit verifies birth gate artifacts", async () =
   assert.deepEqual(audit.failedGates, []);
 });
 
-test("generator-born hard-seed pressure derives only surviving InsightCandidates", async () => {
+test("generator-born hard-seed pressure blocks weak generator-born seeds without fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -3793,15 +3821,15 @@ test("generator-born hard-seed pressure derives only surviving InsightCandidates
 
   assert.equal(report.kind, "generator_born_hard_seed_pressure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.equal(report.seedsLoaded, 3);
-  assert.equal(report.testsRun, 21);
+  assert.equal(report.seedsLoaded, 2);
+  assert.equal(report.testsRun, 14);
   assert.equal(report.seedsKilledByBaseline, 2);
   assert.equal(report.seedsKilledByRival, 0);
   assert.equal(report.seedsKilledByCounterexample, 0);
   assert.equal(report.seedsKilledByLackOfRecurrence, 0);
   assert.equal(report.seedsKilledByHoldoutReplay, 0);
   assert.equal(report.seedsKilledByMechanismProof, 0);
-  assert.equal(report.insightCandidatesCreated, 1);
+  assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
@@ -3842,23 +3870,19 @@ test("generator-born hard-seed pressure derives only surviving InsightCandidates
       discoveryCandidateCreated: boolean;
     }>;
   };
-  assert.equal(rowsPayload.rows.length, 3);
+  assert.equal(rowsPayload.rows.length, 2);
   assert.deepEqual(
     rowsPayload.rows.map((row) => row.primaryKillReason).sort(),
-    ["baseline_dominated", "baseline_dominated", "survived"],
+    ["baseline_dominated", "baseline_dominated"],
   );
-  const survivor = rowsPayload.rows.find(
-    (row) => row.primaryKillReason === "survived",
-  );
-  assert.ok(survivor);
-  assert.equal(survivor.insightCandidateCreated, true);
   assert.equal(
-    survivor.insightCandidateRef?.startsWith(
-      `${daemonRoot}/insight-candidates/`,
+    rowsPayload.rows.every(
+      (row) =>
+        row.insightCandidateCreated === false &&
+        row.insightCandidateRef === null,
     ),
     true,
   );
-  assert.equal(await exists(join(root, survivor.insightCandidateRef!)), true);
   assert.equal(
     rowsPayload.rows.every((row) => row.discoveryCandidateCreated === false),
     true,
@@ -3883,10 +3907,10 @@ test("discover-daemon generator-pressure CLI pressures born seeds without fake F
     (response.data as Record<string, unknown>).kind,
     "generator_born_hard_seed_pressure",
   );
-  assert.equal((response.data as Record<string, unknown>).seedsLoaded, 3);
+  assert.equal((response.data as Record<string, unknown>).seedsLoaded, 2);
   assert.equal(
     (response.data as Record<string, unknown>).insightCandidatesCreated,
-    1,
+    0,
   );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
@@ -3896,7 +3920,7 @@ test("discover-daemon generator-pressure CLI pressures born seeds without fake F
   );
 });
 
-test("generator-born insight closure targets only generator-born InsightCandidates", async () => {
+test("generator-born insight closure ignores unrelated InsightCandidates when no generator-born candidate survived", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -3932,18 +3956,13 @@ test("generator-born insight closure targets only generator-born InsightCandidat
 
   assert.equal(report.kind, "generator_born_insight_closure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.equal(report.candidatesLoaded, 1);
-  assert.equal(report.candidateIds.length, 1);
-  assert.equal(report.candidateIds[0]?.startsWith("INSIGHT-HARD-GEN-"), true);
-  assert.equal(report.testsExecuted, 7);
+  assert.equal(report.candidatesLoaded, 0);
+  assert.equal(report.candidateIds.length, 0);
+  assert.equal(report.testsExecuted, 0);
   assert.deepEqual(report.gatesFailed, []);
-  assert.equal(report.discoveryCandidatesCreated, 1);
+  assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
-  assert.deepEqual(report.fundGateResult.failedGates, [
-    "frozen_predictions",
-    "kill_week",
-    "external_review_package",
-  ]);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
   assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
   for (const artifact of [
     "GENERATOR_BORN_INSIGHT_PROFILE.md",
@@ -3990,10 +4009,10 @@ test("discover-daemon generator-insight-closure CLI closes generated insight wit
     (response.data as Record<string, unknown>).kind,
     "generator_born_insight_closure",
   );
-  assert.equal((response.data as Record<string, unknown>).candidatesLoaded, 1);
+  assert.equal((response.data as Record<string, unknown>).candidatesLoaded, 0);
   assert.equal(
     (response.data as Record<string, unknown>).discoveryCandidatesCreated,
-    1,
+    0,
   );
   assert.equal((response.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
@@ -4013,21 +4032,21 @@ test("generator-born fund closure packages predictions and keeps non-discovery c
 
   assert.equal(report.kind, "generator_born_fund_closure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.equal(report.predictionsFrozen, 12);
-  assert.equal(report.predictionsExecuted, 12);
-  assert.equal(report.nonObviousPredictions >= 3, true);
-  assert.equal(report.killWeekComplete, true);
-  assert.equal(report.fatalUnresolvedAttack, false);
-  assert.equal(report.packageArtifactGatesPassed, true);
-  assert.equal(report.fundGateResult.passed, true);
+  assert.equal(report.predictionsFrozen, 0);
+  assert.equal(report.predictionsExecuted, 0);
+  assert.equal(report.nonObviousPredictions, 0);
+  assert.equal(report.killWeekComplete, false);
+  assert.equal(report.fatalUnresolvedAttack, true);
+  assert.equal(report.packageArtifactGatesPassed, false);
+  assert.equal(report.fundGateResult.passed, false);
   assert.equal(report.fundGateResult.notificationAllowed, false);
   assert.equal(
     report.fundGateResult.countsForEinsteinNobelDiscoveryScore,
     false,
   );
   assert.equal(report.fundFound, false);
-  assert.ok(report.externalReviewPackagePath);
-  assert.ok(report.fundCandidateDraftRef);
+  assert.equal(report.externalReviewPackagePath, null);
+  assert.equal(report.fundCandidateDraftRef, null);
   for (const artifact of [
     "FROZEN_PREDICTION_LEDGER.md",
     "FROZEN_PREDICTION_LEDGER.json",
@@ -4045,21 +4064,6 @@ test("generator-born fund closure packages predictions and keeps non-discovery c
       artifact,
     );
   }
-  for (const artifact of [
-    "PAPER.md",
-    "METHOD.md",
-    "CLAIM_EVIDENCE_BINDINGS.json",
-    "REPRODUCE.md",
-    "LIMITATIONS.md",
-    "FUND_CANDIDATE.json",
-  ]) {
-    assert.equal(
-      await exists(join(root, report.externalReviewPackagePath, artifact)),
-      true,
-      artifact,
-    );
-  }
-  assert.equal(await exists(join(root, report.fundCandidateDraftRef)), true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

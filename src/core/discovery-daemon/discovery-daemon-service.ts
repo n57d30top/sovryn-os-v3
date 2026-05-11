@@ -1243,6 +1243,8 @@ export type HardSeedBirthEvaluationInput = {
   generatorOnlySignal?: boolean;
   packageOnlySignal?: boolean;
   internallyInterestingOnly?: boolean;
+  sourceFamilyDocumentedSignal?: boolean;
+  knownTrivialSignal?: boolean;
   runtimeEvidencePresent: boolean;
   sourceRefs: string[];
   evidenceRefs: string[];
@@ -1305,6 +1307,8 @@ export type MechanismFirstGeneratorOutput = {
   crossSourceSupport: boolean;
   holdoutReplayAvailable: boolean;
   nontrivialResidual: boolean;
+  sourceFamilyDocumentedSignal: boolean;
+  knownTrivialSignal: boolean;
   runtimeEvidencePresent: boolean;
   producedArtifact: string;
   birthEvaluation: HardSeedBirthEvaluation;
@@ -10993,6 +10997,8 @@ export class ExternalValueGate {
     generatorOnlySignal?: boolean;
     packageOnlySignal?: boolean;
     internallyInterestingOnly?: boolean;
+    sourceFamilyDocumentedSignal?: boolean;
+    knownTrivialSignal?: boolean;
   }): ExternalValueGateAssessment {
     const anchor = input.anchor ?? null;
     const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
@@ -11042,6 +11048,16 @@ export class ExternalValueGate {
         input.internallyInterestingOnly !== true,
         "Internally interesting but externally unanchored signals are blocked before HardSeed birth.",
       ),
+      gate(
+        "not_source_family_documented_signal",
+        input.sourceFamilyDocumentedSignal !== true,
+        "Source-family documented behavior is blocked before HardSeed birth.",
+      ),
+      gate(
+        "not_known_trivial_signal",
+        input.knownTrivialSignal !== true,
+        "Known or trivial behavior is blocked before HardSeed birth.",
+      ),
     ];
     const failedGates = gates
       .filter((item) => !item.passed)
@@ -11075,6 +11091,10 @@ export class ExternalValueGate {
       input.internallyInterestingOnly === true
         ? "internally_interesting_only"
         : "",
+      input.sourceFamilyDocumentedSignal === true
+        ? "source_family_documented_signal"
+        : "",
+      input.knownTrivialSignal === true ? "known_trivial_signal" : "",
     ]).filter(Boolean);
     return withEvidenceHash({
       kind: "external_value_gate_assessment" as const,
@@ -11101,6 +11121,8 @@ export class HardSeedBirthEvaluator {
       generatorOnlySignal: input.generatorOnlySignal,
       packageOnlySignal: input.packageOnlySignal,
       internallyInterestingOnly: input.internallyInterestingOnly,
+      sourceFamilyDocumentedSignal: input.sourceFamilyDocumentedSignal,
+      knownTrivialSignal: input.knownTrivialSignal,
     });
     const gates = [
       gate(
@@ -11634,11 +11656,6 @@ export class GeneratorBornHardSeedPressureService {
     );
     const hardSeeds = seedPayload?.hardSeeds ?? [];
     const outputs = outputPayload?.outputs ?? [];
-    if (hardSeeds.length === 0) {
-      throw new Error(
-        "Generator-born pressure requires birth-eligible hard seeds.",
-      );
-    }
     return { hardSeeds, outputs };
   }
 
@@ -20358,6 +20375,7 @@ function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
 function generatorBirthGateCriteria(): string[] {
   return [
     "external problem anchor is present and public-inspectable",
+    "source-family documented or known-trivial behavior is rejected before birth",
     "runtime evidence exists",
     "all critical evidence refs are public-safe and resolvable by shape",
     "no simple baseline explains the signal",
@@ -20425,6 +20443,8 @@ function mechanismFirstGeneratorOutput(
     generatorOnlySignal: profile.generatorOnlySignal,
     packageOnlySignal: profile.packageOnlySignal,
     internallyInterestingOnly: profile.internallyInterestingOnly,
+    sourceFamilyDocumentedSignal: profile.sourceFamilyDocumentedSignal,
+    knownTrivialSignal: profile.knownTrivialSignal,
     runtimeEvidencePresent: true,
     sourceRefs,
     evidenceRefs,
@@ -20469,6 +20489,8 @@ function mechanismFirstGeneratorOutput(
     crossSourceSupport: profile.crossSourceSupport,
     holdoutReplayAvailable: profile.holdoutReplayAvailable,
     nontrivialResidual: profile.nontrivialResidual,
+    sourceFamilyDocumentedSignal: profile.sourceFamilyDocumentedSignal,
+    knownTrivialSignal: profile.knownTrivialSignal,
     runtimeEvidencePresent: true,
     producedArtifact,
     birthEvaluation,
@@ -20498,6 +20520,8 @@ function generatorOutcomeProfile(
   generatorOnlySignal: boolean;
   packageOnlySignal: boolean;
   internallyInterestingOnly: boolean;
+  sourceFamilyDocumentedSignal: boolean;
+  knownTrivialSignal: boolean;
   secondarySourceRef: string;
   candidatePrediction: string;
   rivalPrediction: string;
@@ -20526,6 +20550,8 @@ function generatorOutcomeProfile(
       generatorOnlySignal: internallyInterestingOnly,
       packageOnlySignal: false,
       internallyInterestingOnly,
+      sourceFamilyDocumentedSignal: true,
+      knownTrivialSignal: born,
       secondarySourceRef: `https://mat.tepper.cmu.edu/COLOR/instances.html#dimacs-anchor-${ordinal}`,
       candidatePrediction:
         "the bounded coloring boundary persists under size density clique and trivial invariant controls across disjoint generated graph families tied to the public benchmark anchor",
@@ -20553,6 +20579,8 @@ function generatorOutcomeProfile(
       generatorOnlySignal: false,
       packageOnlySignal: ordinal === 3,
       internallyInterestingOnly: false,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
       secondarySourceRef: `https://www.openml.org/t/31#protocol-anchor-${ordinal}`,
       candidatePrediction:
         "the protocol delta persists after split metric shuffled-label class-balance and stronger-model perturbations",
@@ -20579,6 +20607,8 @@ function generatorOutcomeProfile(
     generatorOnlySignal: false,
     packageOnlySignal: false,
     internallyInterestingOnly: ordinal === 2,
+    sourceFamilyDocumentedSignal: false,
+    knownTrivialSignal: false,
     secondarySourceRef: `https://developer.nrel.gov/docs/solar/pvdaq-v3/#measurement-anchor-${ordinal}`,
     candidatePrediction:
       "the public measurement residual recurs across independent station or time slices after seasonality cadence and missingness controls",

@@ -3621,6 +3621,11 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       knownBaselineOrPrior: "size density and trivial-rule baselines",
       externalValueRationale:
         "The test target is externally anchored rather than generator-only.",
+      domainScientificSignificance:
+        "A bounded formal mechanism boundary has domain scientific significance when it changes the checked public formal problem state beyond trivial baselines.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a checked proof refutation or bounded validated conjecture with public formal significance.",
+      significanceEvidenceRefs: ["https://example.org/public-target"],
       inspectabilityRef: "https://example.org/public-target",
     },
     runtimeEvidencePresent: true,
@@ -3648,6 +3653,18 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     evaluator.evaluate({ ...baseInput, externalProblemAnchor: null })
       .primaryBlocker,
     "missing_external_problem_anchor",
+  );
+  assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      externalProblemAnchor: {
+        ...baseInput.externalProblemAnchor,
+        domainScientificSignificance: "pipeline package audit only",
+        discoveryScoredOutcome: "pipeline package audit completion",
+        significanceEvidenceRefs: [],
+      },
+    }).primaryBlocker,
+    "missing_domain_scientific_significance",
   );
   assert.equal(
     evaluator.evaluate({ ...baseInput, generatorOnlySignal: true })

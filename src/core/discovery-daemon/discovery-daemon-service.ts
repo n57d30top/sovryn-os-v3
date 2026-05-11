@@ -1221,6 +1221,9 @@ export type ExternalProblemAnchor = {
   measuredTargetOutcome: string;
   knownBaselineOrPrior: string;
   externalValueRationale: string;
+  domainScientificSignificance: string;
+  discoveryScoredOutcome: string;
+  significanceEvidenceRefs: string[];
   inspectabilityRef: string;
 };
 
@@ -11114,6 +11117,27 @@ export class ExternalValueGate {
         "External problem anchor must define the known baseline or prior rival state.",
       ),
       gate(
+        "external_anchor_domain_scientific_significance",
+        externalAnchorHasDomainScientificSignificance(anchor),
+        "External problem anchor must explain domain scientific significance beyond pipeline, package, or tool capability.",
+      ),
+      gate(
+        "external_anchor_discovery_scored_outcome",
+        normalizeWhitespace(anchor?.discoveryScoredOutcome ?? "").length >=
+          32 && !externalAnchorLooksPipelineOnly(anchor),
+        "External problem anchor must define a discovery-scored outcome that is not only operational pipeline success.",
+      ),
+      gate(
+        "external_anchor_significance_refs",
+        Array.isArray(anchor?.significanceEvidenceRefs) &&
+          anchor.significanceEvidenceRefs.length > 0 &&
+          anchor.significanceEvidenceRefs.every(
+            (ref) => ref.startsWith("https://") && publicSafeRef(ref),
+          ) &&
+          anchor.significanceEvidenceRefs.every((ref) => allRefs.includes(ref)),
+        "External problem anchor must bind public-safe significance evidence refs into the evidence set.",
+      ),
+      gate(
         "external_anchor_inspectable",
         anchor !== null &&
           anchor.inspectabilityRef.startsWith("https://") &&
@@ -11170,6 +11194,26 @@ export class ExternalValueGate {
         ? "missing_external_baseline_prior"
         : "",
       gates.some(
+        (item) =>
+          item.code === "external_anchor_domain_scientific_significance" &&
+          !item.passed,
+      )
+        ? "missing_domain_scientific_significance"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "external_anchor_discovery_scored_outcome" &&
+          !item.passed,
+      )
+        ? "missing_discovery_scored_outcome"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "external_anchor_significance_refs" && !item.passed,
+      )
+        ? "missing_significance_evidence_refs"
+        : "",
+      gates.some(
         (item) => item.code === "external_anchor_inspectable" && !item.passed,
       )
         ? "external_anchor_not_inspectable"
@@ -11194,6 +11238,47 @@ export class ExternalValueGate {
       blockers,
     });
   }
+}
+
+function externalAnchorHasDomainScientificSignificance(
+  anchor: ExternalProblemAnchor | null,
+): boolean {
+  if (anchor === null) return false;
+  const text = normalizeWhitespace(
+    [
+      anchor.domainScientificSignificance,
+      anchor.discoveryScoredOutcome,
+      anchor.externalValueRationale,
+    ].join(" "),
+  ).toLowerCase();
+  if (text.length < 48) return false;
+  const scientificTerms =
+    /\b(scientific|formal|proof|refutation|conjecture|measurement|domain|mechanism|residual|invariant|boundary|causal|physical|astronom|material|climate|energy)\b/.test(
+      text,
+    );
+  return scientificTerms && !externalAnchorLooksPipelineOnly(anchor);
+}
+
+function externalAnchorLooksPipelineOnly(
+  anchor: ExternalProblemAnchor | null,
+): boolean {
+  if (anchor === null) return true;
+  const text = normalizeWhitespace(
+    [
+      anchor.externalValueRationale,
+      anchor.domainScientificSignificance,
+      anchor.discoveryScoredOutcome,
+    ].join(" "),
+  ).toLowerCase();
+  const operationalTerms =
+    /\b(pipeline|package|tool install|tool capability|runtime reproduction|preflight|audit|autopublish|release candidate|manifest|search index)\b/.test(
+      text,
+    );
+  const scientificTerms =
+    /\b(scientific|formal|proof|refutation|conjecture|measurement|domain|mechanism|residual|invariant|boundary|causal|physical|astronom|material|climate|energy)\b/.test(
+      text,
+    );
+  return operationalTerms && !scientificTerms;
 }
 
 export class HardSeedBirthEvaluator {
@@ -11514,9 +11599,13 @@ export class MechanismFirstEvidenceGeneratorService {
           (family) =>
             family.externalProblemAnchor.sourceRef.startsWith("https://") &&
             family.externalProblemAnchor.measuredTargetOutcome.length > 0 &&
-            family.externalProblemAnchor.knownBaselineOrPrior.length > 0,
+            family.externalProblemAnchor.knownBaselineOrPrior.length > 0 &&
+            externalAnchorHasDomainScientificSignificance(
+              family.externalProblemAnchor,
+            ) &&
+            family.externalProblemAnchor.significanceEvidenceRefs.length > 0,
         ),
-        "Every generator family must start from a public external problem anchor.",
+        "Every generator family must start from a public external problem anchor with explicit domain scientific significance.",
       ),
       gate(
         "latest_run_present",
@@ -14418,6 +14507,11 @@ export class ExternalFormalAnchorSelectionService {
         knownBaselineOrPrior: anchor.rivalMechanisms.join("; "),
         externalValueRationale:
           "The pilot starts from a public formal problem anchor rather than a generator-internal signal.",
+        domainScientificSignificance:
+          "A checked bounded formal boundary can have domain scientific significance only when it changes what is known about the public formal problem anchor rather than replaying an internal generator pattern.",
+        discoveryScoredOutcome:
+          "A discovery-scored outcome would be a checked proof, checked refutation, or bounded validated conjecture with external formal value that survives known-prior, rival, counterexample, and replay pressure.",
+        significanceEvidenceRefs: [anchor.sourceRef, anchor.inspectabilityRef],
         inspectabilityRef: anchor.inspectabilityRef,
       },
       runtimeEvidencePresent: true,
@@ -20772,6 +20866,13 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "size, density, clique-number, and small-counterexample baselines are established first-order rivals for graph-coloring boundary claims",
         externalValueRationale:
           "A bounded formal boundary is only useful if it maps to a known public graph-coloring benchmark family rather than an internally interesting generated object.",
+        domainScientificSignificance:
+          "A new bounded graph-coloring boundary would have formal scientific significance only if it changed an externally inspectable graph decision boundary beyond size, density, clique, and known benchmark-family behavior.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a checked bounded proof, refutation, or validated conjecture for the public coloring anchor, not a generator replay or pipeline-success artifact.",
+        significanceEvidenceRefs: [
+          "https://mat.tepper.cmu.edu/COLOR/instances.html",
+        ],
         inspectabilityRef: "https://mat.tepper.cmu.edu/COLOR/instances.html",
       },
       mechanismHypothesis:
@@ -20808,6 +20909,11 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "class balance, split leakage, source maturity, and stronger model baselines are simple rival explanations for protocol-performance deltas",
         externalValueRationale:
           "A protocol delta matters only when it is tied to an externally inspectable benchmark task and cannot be explained by ordinary split or class-balance artifacts.",
+        domainScientificSignificance:
+          "A benchmark protocol mechanism has scientific significance only if it reveals a reproducible evaluation-methodology failure mode across public tasks that is not explained by class balance, leakage, maturity, or stronger-model rivals.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a public benchmark-methodology claim that changes how evaluation outcomes should be interpreted across independent tasks, not a successful pipeline or package reproduction.",
+        significanceEvidenceRefs: ["https://www.openml.org/t/31"],
         inspectabilityRef: "https://www.openml.org/t/31",
       },
       mechanismHypothesis:
@@ -20844,6 +20950,13 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "seasonality, cadence, missingness, station-family, and ordinary weather/proxy baselines are simple rival explanations for public solar residuals",
         externalValueRationale:
           "A measurement residual matters only when anchored to an externally inspectable public measurement source and recurrent beyond one station or time slice.",
+        domainScientificSignificance:
+          "A climate or energy residual has scientific significance only if it identifies a reproducible measurement or mechanism pattern across independent public slices after seasonality, cadence, missingness, and source-family rivals fail.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a narrow public measurement residual claim with cross-source recurrence and mechanism pressure, not metadata completeness or pipeline success.",
+        significanceEvidenceRefs: [
+          "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
+        ],
         inspectabilityRef: "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
       },
       mechanismHypothesis:
@@ -20885,6 +20998,13 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "clause-variable ratio, unit propagation, pure-literal simplification, and random-CNF phase-transition behavior are strong rival explanations for SAT boundary signals",
         externalValueRationale:
           "A bounded SAT boundary is externally valuable only if it is tied to public SATLIB-style SAT/UNSAT outcomes and survives generated negative controls rather than remaining a generator-internal invariant.",
+        domainScientificSignificance:
+          "A SAT boundary has formal scientific significance only if it exposes a checked satisfiability outcome boundary that is not absorbed by clause-variable ratio, unit propagation, pure-literal simplification, or known random-CNF phase behavior.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a checked bounded conjecture, proof, or refutation about public SAT outcome structure with counterexample-resistant replay, not generator or solver pipeline success.",
+        significanceEvidenceRefs: [
+          "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+        ],
         inspectabilityRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
       },
       mechanismHypothesis:
@@ -20921,6 +21041,11 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "degree distribution, graph density, component size, source family, and random rewiring are simple rival explanations for apparent network-resilience residuals",
         externalValueRationale:
           "A resilience residual is externally meaningful only when it recurs across public network families and is not merely a same-source or degree-sequence artifact.",
+        domainScientificSignificance:
+          "A network resilience residual has scientific significance only if it reveals a mechanism about public graph structure that survives degree sequence, density, component-size, random-rewire, and source-family rivals across independent graph families.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a cross-family public graph-mechanism claim about cut resilience with independent recurrence and counterexample pressure, not a networkx pipeline success.",
+        significanceEvidenceRefs: ["https://snap.stanford.edu/data/"],
         inspectabilityRef: "https://snap.stanford.edu/data/",
       },
       mechanismHypothesis:
@@ -20957,6 +21082,11 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "class imbalance, metric choice, split leakage, task maturity, and stronger-model baselines are simple rival explanations for evaluation-instability signals",
         externalValueRationale:
           "An evaluation-instability residual matters only when it is anchored to public benchmark tasks and predicts instability across independent tasks rather than one task family.",
+        domainScientificSignificance:
+          "A cross-domain evaluation fragility residual has scientific significance only if it reveals a mechanism of model-evaluation instability across independent public tasks beyond class imbalance, metric choice, split leakage, task maturity, and stronger-model rivals.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a narrow benchmark-methodology mechanism claim that changes interpretation of public evaluation outcomes across independent tasks, not tool capability or benchmark pipeline completion.",
+        significanceEvidenceRefs: ["https://www.openml.org/search?type=task"],
         inspectabilityRef: "https://www.openml.org/search?type=task",
       },
       mechanismHypothesis:
@@ -20984,6 +21114,8 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
 function generatorBirthGateCriteria(): string[] {
   return [
     "external problem anchor is present and public-inspectable",
+    "external problem anchor states domain scientific significance beyond pipeline/tool/package capability",
+    "external problem anchor defines a discovery-scored outcome with public significance refs",
     "source-family documented or known-trivial behavior is rejected before birth",
     "runtime evidence exists",
     "all critical evidence refs are public-safe and resolvable by shape",
@@ -21017,12 +21149,14 @@ function mechanismFirstGeneratorOutput(
   const sourceRefs = uniqueStrings([
     family.externalProblemAnchor.sourceRef,
     family.externalProblemAnchor.inspectabilityRef,
+    ...family.externalProblemAnchor.significanceEvidenceRefs,
     family.rawTargetSource,
     profile.secondarySourceRef,
   ]).filter(Boolean);
   const evidenceRefs = uniqueStrings([
     family.externalProblemAnchor.sourceRef,
     family.externalProblemAnchor.inspectabilityRef,
+    ...family.externalProblemAnchor.significanceEvidenceRefs,
     family.rawTargetSource,
     profile.secondarySourceRef,
     `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}`,
@@ -21557,14 +21691,14 @@ function externalProblemAnchorsMarkdown(
     "",
     `Anchors loaded: ${families.length}.`,
     "",
-    "| Anchor | Type | Source | Target outcome | Baseline/prior | External value |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Anchor | Type | Source | Target outcome | Baseline/prior | Scientific significance | Discovery-scored outcome | Significance refs |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...families.map((family) => {
       const anchor = family.externalProblemAnchor;
-      return `| ${anchor.anchorId} | ${anchor.anchorType} | ${anchor.sourceRef} | ${anchor.measuredTargetOutcome} | ${anchor.knownBaselineOrPrior} | ${anchor.externalValueRationale} |`;
+      return `| ${anchor.anchorId} | ${anchor.anchorType} | ${anchor.sourceRef} | ${anchor.measuredTargetOutcome} | ${anchor.knownBaselineOrPrior} | ${anchor.domainScientificSignificance} | ${anchor.discoveryScoredOutcome} | ${anchor.significanceEvidenceRefs.join(", ")} |`;
     }),
     "",
-    "HardSeed birth is blocked when the signal is only generator-internal, package-only, or internally interesting without one of these public problem anchors.",
+    "HardSeed birth is blocked when the signal is only generator-internal, package-only, pipeline-only, or internally interesting without one of these public problem anchors and explicit domain scientific significance.",
   ].join("\n");
 }
 

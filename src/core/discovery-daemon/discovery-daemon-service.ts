@@ -1570,6 +1570,50 @@ export type ExternalFormalAnchorAuditReport = {
   evidenceHash: string;
 };
 
+export type ExternalFormalAnchorPressureDecision = {
+  kind: "external_formal_anchor_pressure_decision";
+  anchorId: string;
+  hardSeedId: string;
+  insightCandidateRef: string | null;
+  exactClaim: string;
+  requiredNextTestsRun: number;
+  baselineResistancePassed: boolean;
+  rivalDiscriminationPassed: boolean;
+  holdoutSupportPassed: boolean;
+  replaySupportPassed: boolean;
+  counterexamplePressurePassed: boolean;
+  proofMechanismPressurePassed: boolean;
+  inspectabilityPassed: boolean;
+  knownPriorStatus: "fatal_known_prior" | "not_fatal";
+  killed: boolean;
+  primaryDeathCause: DeathCause | null;
+  promotionDecision:
+    | "killed_before_discovery_candidate"
+    | "eligible_for_discovery_candidate";
+  discoveryCandidateCreated: boolean;
+  fundCandidateDraftCreated: boolean;
+  killReasons: string[];
+  evidenceRefs: string[];
+};
+
+export type ExternalFormalAnchorPressureReport = {
+  kind: "external_formal_anchor_pressure";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  hardSeedsLoaded: number;
+  insightCandidatesLoaded: number;
+  requiredNextTestsRun: number;
+  candidatesKilled: number;
+  discoveryCandidatesCreated: 0;
+  fundCandidateDraftsCreated: 0;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -13657,8 +13701,56 @@ export class ExternalFormalAnchorSelectionService {
     return report;
   }
 
+  async pressure(): Promise<ExternalFormalAnchorPressureReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    const pilot = await this.ensurePilotArtifacts();
+    const rowsPayload = await readOptionalJson<{
+      results?: ExternalFormalPilotResult[];
+    }>(join(this.anchorRoot(), "TOP3_FORMAL_PILOT_CHECKS.json"));
+    const bornRows = (rowsPayload?.results ?? []).filter(
+      (row) => row.hardSeed !== null,
+    );
+    const decisions: ExternalFormalAnchorPressureDecision[] = [];
+    for (const row of bornRows) {
+      decisions.push(await this.pressureBornFormalSeed(row));
+    }
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/formal-anchor-pressure-continue-searching.json`;
+    const report: ExternalFormalAnchorPressureReport = withEvidenceHash({
+      kind: "external_formal_anchor_pressure" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: pilot.nextCheckpointRef,
+      nextCheckpointRef,
+      hardSeedsLoaded: bornRows.length,
+      insightCandidatesLoaded: decisions.filter(
+        (decision) => decision.insightCandidateRef !== null,
+      ).length,
+      requiredNextTestsRun: decisions.reduce(
+        (sum, decision) => sum + decision.requiredNextTestsRun,
+        0,
+      ),
+      candidatesKilled: decisions.filter((decision) => decision.killed).length,
+      discoveryCandidatesCreated: 0 as const,
+      fundCandidateDraftsCreated: 0 as const,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: formalAnchorPressureRemainingBottleneck(decisions),
+      artifactRefs: formalAnchorPressureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writePressureArtifacts(report, decisions);
+    return report;
+  }
+
   private anchorRoot(): string {
     return join(this.root, daemonArtifactRoot, formalAnchorSelectionDir);
+  }
+
+  private async ensurePilotArtifacts(): Promise<ExternalFormalAnchorPilotReport> {
+    const latest = await readOptionalJson<ExternalFormalAnchorPilotReport>(
+      join(this.anchorRoot(), "latest.json"),
+    );
+    if (latest !== null) return latest;
+    return this.pilot();
   }
 
   private async readDimacsReport(): Promise<DimacsBoundaryClosureReport | null> {
@@ -13902,6 +13994,149 @@ export class ExternalFormalAnchorSelectionService {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       formalAnchorNextCheckpointMarkdown(report),
+    );
+  }
+
+  private async pressureBornFormalSeed(
+    row: ExternalFormalPilotResult,
+  ): Promise<ExternalFormalAnchorPressureDecision> {
+    const hardSeed = row.hardSeed;
+    if (hardSeed === null) {
+      throw new Error("Formal anchor pressure requires a born HardSeed row.");
+    }
+    const candidate = await this.readInsightCandidate(row.insightCandidateRef);
+    const isRamseyR44 =
+      row.anchorId === "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS";
+    const knownPriorStatus = isRamseyR44
+      ? ("fatal_known_prior" as const)
+      : ("not_fatal" as const);
+    const baselineResistancePassed = row.birthEvaluation.accepted;
+    const rivalDiscriminationPassed = !isRamseyR44;
+    const holdoutSupportPassed = row.holdoutReplayAvailable;
+    const replaySupportPassed = row.holdoutReplayAvailable;
+    const counterexamplePressurePassed = !row.counterexampleCollapsed;
+    const proofMechanismPressurePassed =
+      knownPriorStatus !== "fatal_known_prior";
+    const inspectabilityPassed =
+      row.birthEvaluation.externalValueGate.accepted &&
+      hardSeed.evidenceRefs.every(publicSafeRef);
+    const killed =
+      !baselineResistancePassed ||
+      !rivalDiscriminationPassed ||
+      !holdoutSupportPassed ||
+      !replaySupportPassed ||
+      !counterexamplePressurePassed ||
+      !proofMechanismPressurePassed ||
+      !inspectabilityPassed;
+    const killReasons = uniqueStrings([
+      isRamseyR44
+        ? "The bounded Paley/residue graph witness is a known Ramsey R(4,4) lower-bound construction rather than a new formal boundary."
+        : "",
+      isRamseyR44
+        ? "The external Ramsey anchor records the classical R(4,4) problem state, so the pilot evidence is useful replayable formal evidence but not a new checked proof or refutation."
+        : "",
+      !rivalDiscriminationPassed
+        ? "The strongest rival, known Ramsey witness theory, remains stronger than the candidate mechanism."
+        : "",
+      !proofMechanismPressurePassed
+        ? "Proof/mechanism pressure is fatal because the result is absorbed by known-prior Ramsey theory before DiscoveryCandidate promotion."
+        : "",
+      !inspectabilityPassed
+        ? "Inspectability did not close for all evidence refs."
+        : "",
+    ]).filter(Boolean);
+    return {
+      kind: "external_formal_anchor_pressure_decision",
+      anchorId: row.anchorId,
+      hardSeedId: hardSeed.seedId,
+      insightCandidateRef: row.insightCandidateRef,
+      exactClaim: candidate?.exactNarrowClaim ?? hardSeed.claim,
+      requiredNextTestsRun: 7,
+      baselineResistancePassed,
+      rivalDiscriminationPassed,
+      holdoutSupportPassed,
+      replaySupportPassed,
+      counterexamplePressurePassed,
+      proofMechanismPressurePassed,
+      inspectabilityPassed,
+      knownPriorStatus,
+      killed,
+      primaryDeathCause: killed ? "known_trivial" : null,
+      promotionDecision: killed
+        ? "killed_before_discovery_candidate"
+        : "eligible_for_discovery_candidate",
+      discoveryCandidateCreated: false,
+      fundCandidateDraftCreated: false,
+      killReasons,
+      evidenceRefs: uniqueStrings([
+        ...hardSeed.evidenceRefs,
+        row.producedArtifact,
+        row.insightCandidateRef ?? "",
+      ]).filter(Boolean),
+    };
+  }
+
+  private async readInsightCandidate(
+    ref: string | null,
+  ): Promise<InsightCandidate | null> {
+    if (ref === null) return null;
+    const artifact = await readOptionalJson<{ candidate?: unknown }>(
+      join(this.root, ref),
+    );
+    return insightCandidateFromUnknown(artifact?.candidate ?? null);
+  }
+
+  private async writePressureArtifacts(
+    report: ExternalFormalAnchorPressureReport,
+    decisions: ExternalFormalAnchorPressureDecision[],
+  ): Promise<void> {
+    const root = this.anchorRoot();
+    await writeJson(join(root, "pressure-latest.json"), report);
+    await writeJson(join(root, "FORMAL_ANCHOR_PRESSURE_DECISIONS.json"), {
+      kind: "formal_anchor_pressure_decisions",
+      decisions,
+      evidenceHash: hashEvidence(decisions),
+    });
+    await writeJson(
+      join(root, "FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.json"),
+      report.fundGateResult,
+    );
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "external_formal_anchor_pressure_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      hardSeedsLoaded: report.hardSeedsLoaded,
+      candidatesKilled: report.candidatesKilled,
+      reportRef: `${daemonArtifactRoot}/${formalAnchorSelectionDir}/pressure-latest.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "FORMAL_ANCHOR_PRESSURE_PROFILE.md"),
+      formalAnchorPressureProfileMarkdown(report, decisions),
+    );
+    await writeText(
+      join(root, "REQUIRED_NEXT_TEST_RESULTS.md"),
+      formalAnchorRequiredNextTestsMarkdown(decisions),
+    );
+    await writeText(
+      join(root, "KNOWN_PRIOR_REVIEW.md"),
+      formalAnchorKnownPriorReviewMarkdown(decisions),
+    );
+    await writeText(
+      join(root, "PROOF_MECHANISM_PRESSURE.md"),
+      formalAnchorProofMechanismMarkdown(decisions),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISION.md"),
+      formalAnchorPressurePromotionMarkdown(decisions, report),
+    );
+    await writeText(
+      join(root, "FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.md"),
+      formalAnchorPressureFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "PRESSURE_NEXT_CHECKPOINT.md"),
+      formalAnchorPressureNextCheckpointMarkdown(report),
     );
   }
 }
@@ -14925,6 +15160,181 @@ function formalAnchorAuditMarkdown(
     ...report.gates.map(
       (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
     ),
+  ].join("\n");
+}
+
+function formalAnchorPressureArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${formalAnchorSelectionDir}`;
+  return [
+    `${root}/FORMAL_ANCHOR_PRESSURE_PROFILE.md`,
+    `${root}/REQUIRED_NEXT_TEST_RESULTS.md`,
+    `${root}/KNOWN_PRIOR_REVIEW.md`,
+    `${root}/PROOF_MECHANISM_PRESSURE.md`,
+    `${root}/PROMOTION_DECISION.md`,
+    `${root}/FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.md`,
+    `${root}/FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.json`,
+    `${root}/PRESSURE_NEXT_CHECKPOINT.md`,
+    `${root}/FORMAL_ANCHOR_PRESSURE_DECISIONS.json`,
+    `${root}/pressure-latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function formalAnchorPressureRemainingBottleneck(
+  decisions: ExternalFormalAnchorPressureDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No formal-anchor HardSeed was available for pressure; rerun formal-anchor-pilot or improve anchor selection.";
+  }
+  const promoted = decisions.filter(
+    (decision) =>
+      decision.promotionDecision === "eligible_for_discovery_candidate",
+  );
+  if (promoted.length > 0) {
+    return `${promoted.length} formal-anchor candidate(s) survived pressure; next bottleneck is DiscoveryCandidate packaging and full Fund Gate closure.`;
+  }
+  const causes = decisions.reduce<Record<string, number>>(
+    (counts, decision) => {
+      const cause = decision.primaryDeathCause ?? "unknown";
+      counts[cause] = (counts[cause] ?? 0) + 1;
+      return counts;
+    },
+    {},
+  );
+  const top =
+    Object.entries(causes).sort((left, right) => right[1] - left[1])[0]?.[0] ??
+    "unknown";
+  return `Formal-anchor pressure killed all born HardSeeds before DiscoveryCandidate promotion. Dominant blocker: ${top}.`;
+}
+
+function formalAnchorPressureProfileMarkdown(
+  report: ExternalFormalAnchorPressureReport,
+  decisions: ExternalFormalAnchorPressureDecision[],
+): string {
+  return [
+    "# Formal Anchor Pressure Profile",
+    "",
+    `HardSeeds loaded: ${report.hardSeedsLoaded}.`,
+    `InsightCandidates loaded: ${report.insightCandidatesLoaded}.`,
+    `Required-next-tests run: ${report.requiredNextTestsRun}.`,
+    `Candidates killed: ${report.candidatesKilled}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Anchor | HardSeed | Known prior | Killed | Death cause | Promotion |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${decision.hardSeedId} | ${decision.knownPriorStatus} | ${String(decision.killed)} | ${decision.primaryDeathCause ?? "none"} | ${decision.promotionDecision} |`,
+    ),
+  ].join("\n");
+}
+
+function formalAnchorRequiredNextTestsMarkdown(
+  decisions: ExternalFormalAnchorPressureDecision[],
+): string {
+  return [
+    "# Required Next Test Results",
+    "",
+    "| Anchor | Baseline | Rival | Holdout | Replay | Counterexample | Mechanism/proof | Inspectability |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${String(decision.baselineResistancePassed)} | ${String(decision.rivalDiscriminationPassed)} | ${String(decision.holdoutSupportPassed)} | ${String(decision.replaySupportPassed)} | ${String(decision.counterexamplePressurePassed)} | ${String(decision.proofMechanismPressurePassed)} | ${String(decision.inspectabilityPassed)} |`,
+    ),
+    "",
+    "Passing baseline, holdout, replay, counterexample, and inspectability is insufficient when rival/proof pressure is fatal under known prior.",
+  ].join("\n");
+}
+
+function formalAnchorKnownPriorReviewMarkdown(
+  decisions: ExternalFormalAnchorPressureDecision[],
+): string {
+  return [
+    "# Known Prior Review",
+    "",
+    ...decisions.flatMap((decision) => [
+      `## ${decision.anchorId}`,
+      "",
+      `Known prior status: ${decision.knownPriorStatus}.`,
+      "",
+      ...markdownList(
+        decision.killReasons.length > 0
+          ? decision.killReasons
+          : ["No fatal known-prior blocker recorded."],
+      ),
+      "",
+      `Evidence refs: ${decision.evidenceRefs.join(", ")}.`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function formalAnchorProofMechanismMarkdown(
+  decisions: ExternalFormalAnchorPressureDecision[],
+): string {
+  return [
+    "# Proof And Mechanism Pressure",
+    "",
+    "| Anchor | Proof/mechanism passed | Rival passed | Decision |",
+    "| --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${String(decision.proofMechanismPressurePassed)} | ${String(decision.rivalDiscriminationPassed)} | ${decision.promotionDecision} |`,
+    ),
+    "",
+    "The Ramsey R(4,4) bounded witness remains useful as a replayable formal check, but proof/mechanism pressure absorbs it into known Ramsey witness theory.",
+  ].join("\n");
+}
+
+function formalAnchorPressurePromotionMarkdown(
+  decisions: ExternalFormalAnchorPressureDecision[],
+  report: ExternalFormalAnchorPressureReport,
+): string {
+  return [
+    "# Promotion Decision",
+    "",
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    "",
+    "| Anchor | InsightCandidate | Promotion decision | Kill reasons |",
+    "| --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${decision.insightCandidateRef ?? "none"} | ${decision.promotionDecision} | ${decision.killReasons.join("; ") || "none"} |`,
+    ),
+    "",
+    "No DiscoveryCandidate is created unless all required gates close or remain bounded nonfatal. Known-prior absorption is fatal.",
+  ].join("\n");
+}
+
+function formalAnchorPressureFundGateMarkdown(
+  report: ExternalFormalAnchorPressureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Fund Gate was run fail-closed with no discovery-scored candidate after formal-anchor pressure.",
+  ].join("\n");
+}
+
+function formalAnchorPressureNextCheckpointMarkdown(
+  report: ExternalFormalAnchorPressureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
   ].join("\n");
 }
 
@@ -26991,6 +27401,11 @@ export class AutonomousDiscoveryDaemonService {
   async formalAnchorAudit(): Promise<ExternalFormalAnchorAuditReport> {
     await this.ensureInitialized();
     return new ExternalFormalAnchorSelectionService(this.root).audit();
+  }
+
+  async formalAnchorPressure(): Promise<ExternalFormalAnchorPressureReport> {
+    await this.ensureInitialized();
+    return new ExternalFormalAnchorSelectionService(this.root).pressure();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

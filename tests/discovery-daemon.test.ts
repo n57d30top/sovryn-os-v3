@@ -96,6 +96,7 @@ const commands = [
   "formal-anchor-select",
   "formal-anchor-pilot",
   "formal-anchor-audit",
+  "formal-anchor-pressure",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -4314,6 +4315,74 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   );
 });
 
+test("formal anchor pressure kills Ramsey seed as known prior without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.formalAnchorPilot();
+
+  const report = await service.formalAnchorPressure();
+
+  assert.equal(report.kind, "external_formal_anchor_pressure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.hardSeedsLoaded, 1);
+  assert.equal(report.insightCandidatesLoaded, 1);
+  assert.equal(report.requiredNextTestsRun, 7);
+  assert.equal(report.candidatesKilled, 1);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundCandidateDraftsCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  for (const artifact of [
+    "FORMAL_ANCHOR_PRESSURE_PROFILE.md",
+    "REQUIRED_NEXT_TEST_RESULTS.md",
+    "KNOWN_PRIOR_REVIEW.md",
+    "PROOF_MECHANISM_PRESSURE.md",
+    "PROMOTION_DECISION.md",
+    "FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.md",
+    "FORMAL_ANCHOR_PRESSURE_FUND_GATE_RESULTS.json",
+    "PRESSURE_NEXT_CHECKPOINT.md",
+    "FORMAL_ANCHOR_PRESSURE_DECISIONS.json",
+    "pressure-latest.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "formal-anchor-selection", artifact)),
+      true,
+      artifact,
+    );
+  }
+  const decisions = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "formal-anchor-selection",
+        "FORMAL_ANCHOR_PRESSURE_DECISIONS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    decisions: Array<{
+      knownPriorStatus: string;
+      killed: boolean;
+      primaryDeathCause: string | null;
+      discoveryCandidateCreated: boolean;
+      fundCandidateDraftCreated: boolean;
+    }>;
+  };
+  assert.equal(decisions.decisions.length, 1);
+  assert.equal(decisions.decisions[0]?.knownPriorStatus, "fatal_known_prior");
+  assert.equal(decisions.decisions[0]?.killed, true);
+  assert.equal(decisions.decisions[0]?.primaryDeathCause, "known_trivial");
+  assert.equal(decisions.decisions[0]?.discoveryCandidateCreated, false);
+  assert.equal(decisions.decisions[0]?.fundCandidateDraftCreated, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon generator CLIs are bounded and non-funding", async () => {
   const root = await tempRoot();
 
@@ -5711,6 +5780,11 @@ const cliScenarios: {
     name: "formal-anchor-audit",
     args: ["discover-daemon", "formal-anchor-audit", "--json"],
     expectedKind: "external_formal_anchor_audit",
+  },
+  {
+    name: "formal-anchor-pressure",
+    args: ["discover-daemon", "formal-anchor-pressure", "--json"],
+    expectedKind: "external_formal_anchor_pressure",
   },
   {
     name: "cycle",

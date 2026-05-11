@@ -1248,6 +1248,7 @@ export type HardSeedBirthEvaluationInput = {
   runtimeEvidencePresent: boolean;
   sourceRefs: string[];
   evidenceRefs: string[];
+  residualMagnitude?: number;
   baselineResults: Array<{
     baseline: string;
     explainsSignal: boolean;
@@ -2143,6 +2144,7 @@ const requiredFundPackageFiles = [
   "LIMITATIONS.md",
 ] as const;
 export const daemonDefaultRunQuantum = 25;
+const generatorBirthResidualFloor = 0.1;
 export const publicCorpusBaseRef =
   "https://github.com/n57d30top/sovryn-open-inventions" as const;
 const daemonFullCycleRetentionCount = 250;
@@ -11127,6 +11129,9 @@ export class HardSeedBirthEvaluator {
     const explanatoryBaselines = input.baselineResults
       .filter((baseline) => baseline.explainsSignal)
       .map((baseline) => baseline.baseline);
+    const residualBelowPressureFloor =
+      typeof input.residualMagnitude === "number" &&
+      input.residualMagnitude < generatorBirthResidualFloor;
     const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
     const externalValueGate = new ExternalValueGate().evaluate({
       anchor: input.externalProblemAnchor ?? null,
@@ -11161,6 +11166,11 @@ export class HardSeedBirthEvaluator {
         "baseline_resistance",
         explanatoryBaselines.length === 0,
         "HardSeed birth is blocked when any simple baseline explains the signal.",
+      ),
+      gate(
+        "second_stage_residual_floor",
+        !residualBelowPressureFloor,
+        `HardSeed birth is blocked when residual magnitude is below the second-stage pressure floor of ${generatorBirthResidualFloor}.`,
       ),
       gate(
         "rival_weakened_or_scoped",
@@ -11202,6 +11212,9 @@ export class HardSeedBirthEvaluator {
         : "",
       explanatoryBaselines.length > 0
         ? `baseline_dominated:${explanatoryBaselines.join(",")}`
+        : "",
+      residualBelowPressureFloor
+        ? "baseline_dominated:stronger_residual_floor"
         : "",
       input.rivalWeakened ? "" : "rival_theory_stronger",
       input.nontrivialResidual ? "" : "no_nontrivial_residual",
@@ -19871,6 +19884,9 @@ function generatorBornRivalHypothesis(
 function generatorBornPressureRemainingBottleneck(
   rows: GeneratorBornPressureRow[],
 ): string {
+  if (rows.length === 0) {
+    return "No generator-born hard seeds were available for pressure. Remaining bottleneck is upstream generator quality before HardSeed birth.";
+  }
   const insights = rows.filter((row) => row.insightCandidateCreated).length;
   const discovery = rows.filter((row) => row.discoveryCandidateCreated).length;
   if (insights > 0 && discovery === 0) {
@@ -20412,6 +20428,7 @@ function generatorBirthGateCriteria(): string[] {
     "runtime evidence exists",
     "all critical evidence refs are public-safe and resolvable by shape",
     "no simple baseline explains the signal",
+    "residual magnitude clears the second-stage pressure floor before birth",
     "at least one rival mechanism is weakened or scoped",
     "nontrivial residual remains",
     "cross-source or cross-slice recurrence exists",
@@ -20481,6 +20498,7 @@ function mechanismFirstGeneratorOutput(
     runtimeEvidencePresent: true,
     sourceRefs,
     evidenceRefs,
+    residualMagnitude: profile.residualMagnitude,
     baselineResults,
     rivalWeakened: profile.rivalWeakened,
     nontrivialResidual: profile.nontrivialResidual,

@@ -3586,6 +3586,7 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       "https://example.org/public-target",
       ".sovryn/discovery-daemon/generator-families/GENERATOR_RUN_RESULTS.md#target-001",
     ],
+    residualMagnitude: 0.2,
     baselineResults: [
       { baseline: "size", explainsSignal: false, result: 0.1 },
       { baseline: "density", explainsSignal: false, result: 0.2 },
@@ -3638,6 +3639,11 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     "baseline_dominated:size",
   );
   assert.equal(
+    evaluator.evaluate({ ...baseInput, residualMagnitude: 0.03 })
+      .primaryBlocker,
+    "baseline_dominated:stronger_residual_floor",
+  );
+  assert.equal(
     evaluator.evaluate({ ...baseInput, rivalWeakened: false }).primaryBlocker,
     "rival_theory_stronger",
   );
@@ -3658,7 +3664,7 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   );
 });
 
-test("mechanism-first generator run creates only runtime-evidence birth-eligible hard seeds", async () => {
+test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -3673,7 +3679,7 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
   assert.equal(report.runtimeChecks, 30);
   assert.equal(report.hardSeedBirthAttempts, 30);
   assert.equal(report.seedsBlockedByExternalValueGate >= 1, true);
-  assert.equal(report.hardSeedsBorn >= 1, true);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
@@ -3715,6 +3721,7 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
     validations: Array<{ accepted: boolean }>;
   };
   assert.equal(seedPayload.hardSeeds.length, report.hardSeedsBorn);
+  assert.equal(seedPayload.hardSeeds.length, 0);
   assert.equal(
     seedPayload.hardSeeds.every(
       (seed) =>
@@ -3787,6 +3794,14 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
       ),
     true,
   );
+  assert.equal(
+    outputPayload.outputs.some((output) =>
+      output.birthEvaluation.blockers.includes(
+        "baseline_dominated:stronger_residual_floor",
+      ),
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -3807,7 +3822,7 @@ test("mechanism-first generator audit verifies birth gate artifacts", async () =
   assert.equal(audit.familyCount, 3);
   assert.equal(audit.runtimeChecks, 30);
   assert.equal(audit.hardSeedBirthAttempts, 30);
-  assert.equal(audit.hardSeedsBorn >= 1, true);
+  assert.equal(audit.hardSeedsBorn, 0);
   assert.equal(audit.pressureYield.pressureRunFound, false);
   assert.equal(audit.pressureYield.noInsightAfterBornSeeds, false);
   assert.deepEqual(audit.failedGates, []);
@@ -3818,7 +3833,29 @@ test("mechanism-first generator audit exposes pressure fake-green after born see
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
   await service.generatorRun();
-  await service.generatorPressure();
+  await mkdir(join(root, daemonRoot, "generator-pressure"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-pressure", "latest.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_hard_seed_pressure",
+        seedsLoaded: 2,
+        testsRun: 14,
+        seedsKilledByBaseline: 2,
+        seedsKilledByRival: 0,
+        seedsKilledByCounterexample: 0,
+        seedsKilledByLackOfRecurrence: 0,
+        seedsKilledByHoldoutReplay: 0,
+        seedsKilledByMechanismProof: 0,
+        insightCandidatesCreated: 0,
+        discoveryCandidatesCreated: 0,
+      },
+      null,
+      2,
+    ),
+  );
 
   const audit = await service.generatorAudit();
 
@@ -3842,7 +3879,7 @@ test("mechanism-first generator audit exposes pressure fake-green after born see
   );
 });
 
-test("generator-born hard-seed pressure blocks weak generator-born seeds without fake Fund", async () => {
+test("generator-born hard-seed pressure handles strict no-birth state without fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -3852,9 +3889,9 @@ test("generator-born hard-seed pressure blocks weak generator-born seeds without
 
   assert.equal(report.kind, "generator_born_hard_seed_pressure");
   assert.equal(report.status, "continue_searching_checkpointed");
-  assert.equal(report.seedsLoaded, 2);
-  assert.equal(report.testsRun, 14);
-  assert.equal(report.seedsKilledByBaseline, 2);
+  assert.equal(report.seedsLoaded, 0);
+  assert.equal(report.testsRun, 0);
+  assert.equal(report.seedsKilledByBaseline, 0);
   assert.equal(report.seedsKilledByRival, 0);
   assert.equal(report.seedsKilledByCounterexample, 0);
   assert.equal(report.seedsKilledByLackOfRecurrence, 0);
@@ -3862,6 +3899,10 @@ test("generator-born hard-seed pressure blocks weak generator-born seeds without
   assert.equal(report.seedsKilledByMechanismProof, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.match(
+    report.remainingBottleneck,
+    /upstream generator quality before HardSeed birth/,
+  );
   assert.equal(report.fundFound, false);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
   assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
@@ -3901,11 +3942,7 @@ test("generator-born hard-seed pressure blocks weak generator-born seeds without
       discoveryCandidateCreated: boolean;
     }>;
   };
-  assert.equal(rowsPayload.rows.length, 2);
-  assert.deepEqual(
-    rowsPayload.rows.map((row) => row.primaryKillReason).sort(),
-    ["baseline_dominated", "baseline_dominated"],
-  );
+  assert.equal(rowsPayload.rows.length, 0);
   assert.equal(
     rowsPayload.rows.every(
       (row) =>
@@ -3925,7 +3962,7 @@ test("generator-born hard-seed pressure blocks weak generator-born seeds without
   );
 });
 
-test("discover-daemon generator-pressure CLI pressures born seeds without fake Fund", async () => {
+test("discover-daemon generator-pressure CLI handles no born seeds without fake Fund", async () => {
   const root = await tempRoot();
 
   const response = await executeCli(
@@ -3938,7 +3975,7 @@ test("discover-daemon generator-pressure CLI pressures born seeds without fake F
     (response.data as Record<string, unknown>).kind,
     "generator_born_hard_seed_pressure",
   );
-  assert.equal((response.data as Record<string, unknown>).seedsLoaded, 2);
+  assert.equal((response.data as Record<string, unknown>).seedsLoaded, 0);
   assert.equal(
     (response.data as Record<string, unknown>).insightCandidatesCreated,
     0,

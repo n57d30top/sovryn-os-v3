@@ -1032,7 +1032,13 @@ export type MinimumRuntimeOvernightOptions = {
   minRuntimeMs?: number;
   runtimeLimitMs?: number;
   heartbeatMs?: number;
+  abortSignal?: AbortSignal;
 };
+
+export type MinimumRuntimeOvernightInterruptSignal =
+  | "SIGINT"
+  | "SIGTERM"
+  | "abort_signal";
 
 export type MechanismDesignedOvernightWave = {
   waveId: string;
@@ -1087,6 +1093,48 @@ export type MinimumRuntimeOvernightRunReport = {
   deathCauseDistribution: Record<string, number>;
   strongestSurvivingCandidate: string | null;
   remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type MinimumRuntimeOvernightProgressReport = {
+  kind: "minimum_runtime_overnight_progress";
+  status: "running" | "checkpointed";
+  wallClockStart: string;
+  lastHeartbeatAt: string;
+  elapsedMs: number;
+  minimumRuntimeMs: number;
+  runtimeLimitMs: number | null;
+  minimumRuntimeReached: boolean;
+  checkpointUsed: string | null;
+  currentIteration: number;
+  completedWaveExecutions: number;
+  latestWave: {
+    waveId: string;
+    iteration: number;
+    domain: DiscoveryDomain;
+    deathCause: string;
+  } | null;
+  counters: {
+    realChecksFormalEvaluations: number;
+    baselineRivalChecks: number;
+    counterexampleControlChecks: number;
+    holdoutReplayRecomputeChecks: number;
+    mechanismProofPressureChecks: number;
+    frozenPredictions: number;
+    hardSeedsBorn: number;
+    insightCandidatesCreated: number;
+    discoveryCandidatesCreated: number;
+  };
+  deathCauseDistribution: Record<string, number>;
+  currentFundState: {
+    candidatePresent: boolean;
+    fundFound: boolean;
+    notificationAllowed: boolean;
+    failedGates: string[];
+  };
+  interrupted: boolean;
+  interruptSignal: MinimumRuntimeOvernightInterruptSignal | null;
   artifactRefs: string[];
   evidenceHash: string;
 };
@@ -10455,37 +10503,107 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     const wallClockStart = new Date(startedAtMs).toISOString();
     const checkpointUsed = await this.checkpointUsed();
     const waveRows: MechanismDesignedOvernightWave[] = [];
+    const abortController = new AbortController();
+    let interruptSignal: MinimumRuntimeOvernightInterruptSignal | null = null;
     let iteration = 0;
 
-    while (true) {
-      const elapsedBeforeIteration = Date.now() - startedAtMs;
-      if (iteration > 0 && elapsedBeforeIteration >= minRuntimeMs) break;
-      if (
-        iteration > 0 &&
-        runtimeLimitMs !== null &&
-        elapsedBeforeIteration >= runtimeLimitMs
-      ) {
-        break;
-      }
-      iteration += 1;
-      for (const spec of mechanismDesignedOvernightWaveSpecs()) {
-        waveRows.push(mechanismDesignedOvernightWave(spec, iteration));
-      }
-      const elapsed = Date.now() - startedAtMs;
-      if (elapsed >= minRuntimeMs) break;
-      if (runtimeLimitMs !== null && elapsed >= runtimeLimitMs) break;
-      const remainingToMinimum = Math.max(0, minRuntimeMs - elapsed);
-      const remainingToRuntimeLimit =
-        runtimeLimitMs === null
-          ? Number.POSITIVE_INFINITY
-          : Math.max(0, runtimeLimitMs - elapsed);
-      const waitMs = Math.min(
-        heartbeatMs,
-        remainingToMinimum,
-        remainingToRuntimeLimit,
+    const requestStop = (signal: MinimumRuntimeOvernightInterruptSignal) => {
+      interruptSignal ??= signal;
+      abortController.abort();
+    };
+    const removeSignalHandlers = this.installSignalHandlers(requestStop);
+    const externalAbortListener = () => requestStop("abort_signal");
+    if (this.options.abortSignal?.aborted) {
+      requestStop("abort_signal");
+    } else {
+      this.options.abortSignal?.addEventListener(
+        "abort",
+        externalAbortListener,
+        {
+          once: true,
+        },
       );
-      if (waitMs <= 0) break;
-      await delay(waitMs);
+    }
+
+    try {
+      await this.writeProgress({
+        status: "running",
+        startedAtMs,
+        wallClockStart,
+        minRuntimeMs,
+        runtimeLimitMs,
+        checkpointUsed,
+        currentIteration: iteration,
+        waves: waveRows,
+        interruptSignal,
+      });
+
+      while (true) {
+        const elapsedBeforeIteration = Date.now() - startedAtMs;
+        if (interruptSignal) break;
+        if (iteration > 0 && elapsedBeforeIteration >= minRuntimeMs) break;
+        if (
+          iteration > 0 &&
+          runtimeLimitMs !== null &&
+          elapsedBeforeIteration >= runtimeLimitMs
+        ) {
+          break;
+        }
+        iteration += 1;
+        for (const spec of mechanismDesignedOvernightWaveSpecs()) {
+          if (interruptSignal) break;
+          waveRows.push(mechanismDesignedOvernightWave(spec, iteration));
+          await this.writeProgress({
+            status: "running",
+            startedAtMs,
+            wallClockStart,
+            minRuntimeMs,
+            runtimeLimitMs,
+            checkpointUsed,
+            currentIteration: iteration,
+            waves: waveRows,
+            interruptSignal,
+          });
+        }
+        const elapsed = Date.now() - startedAtMs;
+        if (interruptSignal) break;
+        if (elapsed >= minRuntimeMs) break;
+        if (runtimeLimitMs !== null && elapsed >= runtimeLimitMs) break;
+        const remainingToMinimum = Math.max(0, minRuntimeMs - elapsed);
+        const remainingToRuntimeLimit =
+          runtimeLimitMs === null
+            ? Number.POSITIVE_INFINITY
+            : Math.max(0, runtimeLimitMs - elapsed);
+        const waitMs = Math.min(
+          heartbeatMs,
+          remainingToMinimum,
+          remainingToRuntimeLimit,
+        );
+        if (waitMs <= 0) break;
+        await this.writeProgress({
+          status: "running",
+          startedAtMs,
+          wallClockStart,
+          minRuntimeMs,
+          runtimeLimitMs,
+          checkpointUsed,
+          currentIteration: iteration,
+          waves: waveRows,
+          interruptSignal,
+        });
+        try {
+          await delay(waitMs, undefined, { signal: abortController.signal });
+        } catch (error) {
+          if (!isAbortError(error)) throw error;
+          break;
+        }
+      }
+    } finally {
+      removeSignalHandlers();
+      this.options.abortSignal?.removeEventListener(
+        "abort",
+        externalAbortListener,
+      );
     }
 
     const durationMs = Date.now() - startedAtMs;
@@ -10549,9 +10667,26 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       strongestSurvivingCandidate: null,
       remainingBottleneck:
         "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
-      artifactRefs: minimumRuntimeOvernightArtifactRefs(nextCheckpointRef),
+      artifactRefs: minimumRuntimeOvernightArtifactRefs(
+        nextCheckpointRef,
+        interruptSignal !== null,
+      ),
     });
     await this.writeArtifacts(report, waveRows);
+    await this.writeProgress({
+      status: "checkpointed",
+      startedAtMs,
+      wallClockStart,
+      minRuntimeMs,
+      runtimeLimitMs,
+      checkpointUsed,
+      currentIteration: iteration,
+      waves: waveRows,
+      interruptSignal,
+    });
+    if (interruptSignal) {
+      await this.writeInterruptCheckpoint(report, interruptSignal);
+    }
     return report;
   }
 
@@ -10631,6 +10766,177 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       minimumRuntimeNextCheckpointMarkdown(report),
+    );
+  }
+
+  private installSignalHandlers(
+    requestStop: (signal: MinimumRuntimeOvernightInterruptSignal) => void,
+  ): () => void {
+    const onSigint = () => requestStop("SIGINT");
+    const onSigterm = () => requestStop("SIGTERM");
+    process.once("SIGINT", onSigint);
+    process.once("SIGTERM", onSigterm);
+    return () => {
+      process.removeListener("SIGINT", onSigint);
+      process.removeListener("SIGTERM", onSigterm);
+    };
+  }
+
+  private async writeProgress(input: {
+    status: "running" | "checkpointed";
+    startedAtMs: number;
+    wallClockStart: string;
+    minRuntimeMs: number;
+    runtimeLimitMs: number | null;
+    checkpointUsed: string | null;
+    currentIteration: number;
+    waves: MechanismDesignedOvernightWave[];
+    interruptSignal: MinimumRuntimeOvernightInterruptSignal | null;
+  }): Promise<MinimumRuntimeOvernightProgressReport> {
+    const elapsedMs = Date.now() - input.startedAtMs;
+    const latestWave = input.waves.at(-1) ?? null;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const report: MinimumRuntimeOvernightProgressReport = withEvidenceHash({
+      kind: "minimum_runtime_overnight_progress" as const,
+      status: input.status,
+      wallClockStart: input.wallClockStart,
+      lastHeartbeatAt: new Date().toISOString(),
+      elapsedMs,
+      minimumRuntimeMs: input.minRuntimeMs,
+      runtimeLimitMs: input.runtimeLimitMs,
+      minimumRuntimeReached: elapsedMs >= input.minRuntimeMs,
+      checkpointUsed: input.checkpointUsed,
+      currentIteration: input.currentIteration,
+      completedWaveExecutions: input.waves.length,
+      latestWave: latestWave
+        ? {
+            waveId: latestWave.waveId,
+            iteration: latestWave.iteration,
+            domain: latestWave.domain,
+            deathCause: latestWave.deathCause,
+          }
+        : null,
+      counters: {
+        realChecksFormalEvaluations: sumOvernightBy(
+          input.waves,
+          "realChecksFormalEvaluations",
+        ),
+        baselineRivalChecks: sumOvernightBy(input.waves, "baselineRivalChecks"),
+        counterexampleControlChecks: sumOvernightBy(
+          input.waves,
+          "counterexampleControlChecks",
+        ),
+        holdoutReplayRecomputeChecks: sumOvernightBy(
+          input.waves,
+          "holdoutReplayRecomputeChecks",
+        ),
+        mechanismProofPressureChecks: sumOvernightBy(
+          input.waves,
+          "mechanismProofPressureChecks",
+        ),
+        frozenPredictions: sumOvernightBy(input.waves, "frozenPredictions"),
+        hardSeedsBorn: sumOvernightBy(input.waves, "hardSeedsBorn"),
+        insightCandidatesCreated: sumOvernightBy(
+          input.waves,
+          "insightCandidatesCreated",
+        ),
+        discoveryCandidatesCreated: sumOvernightBy(
+          input.waves,
+          "discoveryCandidatesCreated",
+        ),
+      },
+      deathCauseDistribution: minimumRuntimeDeathCauseDistribution(input.waves),
+      currentFundState: {
+        candidatePresent: false,
+        fundFound: fundGateResult.passed,
+        notificationAllowed: fundGateResult.notificationAllowed,
+        failedGates: fundGateResult.failedGates,
+      },
+      interrupted: input.interruptSignal !== null,
+      interruptSignal: input.interruptSignal,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/progress.json`,
+        `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/heartbeat.json`,
+        `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/RUNNING_CHECKPOINT.json`,
+      ],
+    });
+    const root = this.runRoot();
+    await writeJson(join(root, "progress.json"), report);
+    await writeJson(
+      join(root, "heartbeat.json"),
+      withEvidenceHash({
+        kind: "minimum_runtime_overnight_heartbeat" as const,
+        status: report.status,
+        pid: process.pid,
+        lastHeartbeatAt: report.lastHeartbeatAt,
+        elapsedMs: report.elapsedMs,
+        minimumRuntimeReached: report.minimumRuntimeReached,
+        currentIteration: report.currentIteration,
+        completedWaveExecutions: report.completedWaveExecutions,
+        latestWaveId: report.latestWave?.waveId ?? null,
+        latestDeathCause: report.latestWave?.deathCause ?? null,
+        fundFound: report.currentFundState.fundFound,
+        interrupted: report.interrupted,
+        interruptSignal: report.interruptSignal,
+      }),
+    );
+    await writeJson(join(root, "RUNNING_CHECKPOINT.json"), {
+      kind: "minimum_runtime_overnight_running_checkpoint",
+      status: report.status,
+      checkpointUsed: report.checkpointUsed,
+      terminalStatusIfStoppedNow: report.currentFundState.fundFound
+        ? "FUND_FOUND"
+        : report.minimumRuntimeReached
+          ? "continue_searching_checkpointed_after_min_runtime"
+          : "continue_searching_checkpointed_due_to_runtime_limit",
+      completedWaveExecutions: report.completedWaveExecutions,
+      latestWave: report.latestWave,
+      counters: report.counters,
+      deathCauseDistribution: report.deathCauseDistribution,
+      fundFound: report.currentFundState.fundFound,
+      interrupted: report.interrupted,
+      interruptSignal: report.interruptSignal,
+      progressRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/progress.json`,
+      heartbeatRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/heartbeat.json`,
+      evidenceHash: hashEvidence(report),
+    });
+    return report;
+  }
+
+  private async writeInterruptCheckpoint(
+    report: MinimumRuntimeOvernightRunReport,
+    interruptSignal: MinimumRuntimeOvernightInterruptSignal,
+  ): Promise<void> {
+    const root = this.runRoot();
+    await writeJson(join(root, "INTERRUPT_CHECKPOINT.json"), {
+      kind: "minimum_runtime_overnight_interrupt_checkpoint",
+      interruptSignal,
+      terminalStatus: report.terminalStatus,
+      minimumRuntimeReached: report.minimumRuntimeReached,
+      durationMs: report.durationMs,
+      fundFound: report.fundFound,
+      reportRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/latest.json`,
+      progressRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/progress.json`,
+      remainingBottleneck: report.remainingBottleneck,
+      evidenceHash: hashEvidence({
+        interruptSignal,
+        terminalStatus: report.terminalStatus,
+        durationMs: report.durationMs,
+        fundFound: report.fundFound,
+      }),
+    });
+    await writeText(
+      join(root, "INTERRUPT_CHECKPOINT.md"),
+      [
+        "# Interrupt Checkpoint",
+        "",
+        `Interrupt signal: ${interruptSignal}.`,
+        `Terminal status: ${report.terminalStatus}.`,
+        `Minimum runtime reached: ${String(report.minimumRuntimeReached)}.`,
+        `Fund found: ${String(report.fundFound)}.`,
+        "",
+        report.remainingBottleneck,
+      ].join("\n"),
     );
   }
 }
@@ -10824,10 +11130,14 @@ function minimumRuntimeDeathCauseDistribution(
 
 function minimumRuntimeOvernightArtifactRefs(
   nextCheckpointRef: string,
+  includeInterruptCheckpoint = false,
 ): string[] {
   const root = `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}`;
-  return [
+  const refs = [
     `${root}/latest.json`,
+    `${root}/progress.json`,
+    `${root}/heartbeat.json`,
+    `${root}/RUNNING_CHECKPOINT.json`,
     `${root}/WAVE_EXECUTIONS.json`,
     `${root}/FROZEN_PREDICTIONS.json`,
     `${root}/DEATH_CAUSE_DISTRIBUTION.json`,
@@ -10837,6 +11147,18 @@ function minimumRuntimeOvernightArtifactRefs(
     `${root}/NEXT_CHECKPOINT.md`,
     nextCheckpointRef,
   ];
+  if (includeInterruptCheckpoint) {
+    refs.push(`${root}/INTERRUPT_CHECKPOINT.json`);
+    refs.push(`${root}/INTERRUPT_CHECKPOINT.md`);
+  }
+  return refs;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  );
 }
 
 function minimumRuntimeExperimentsMarkdown(

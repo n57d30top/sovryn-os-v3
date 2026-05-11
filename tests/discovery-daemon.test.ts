@@ -3718,6 +3718,9 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
   assert.equal(report.deathCauseDistribution.no_death_cause ?? 0, 0);
   for (const artifact of [
     "latest.json",
+    "progress.json",
+    "heartbeat.json",
+    "RUNNING_CHECKPOINT.json",
     "WAVE_EXECUTIONS.json",
     "FROZEN_PREDICTIONS.json",
     "DEATH_CAUSE_DISTRIBUTION.json",
@@ -3732,10 +3735,98 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
       artifact,
     );
   }
+  const progress = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "overnight-min-runtime", "progress.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(progress.kind, "minimum_runtime_overnight_progress");
+  assert.equal(progress.status, "checkpointed");
+  assert.equal(progress.minimumRuntimeReached, true);
+  assert.equal(progress.completedWaveExecutions, 6);
+  assert.equal(
+    (progress.currentFundState as Record<string, unknown>).fundFound,
+    false,
+  );
+  const heartbeat = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "overnight-min-runtime", "heartbeat.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(heartbeat.kind, "minimum_runtime_overnight_heartbeat");
+  assert.equal(heartbeat.completedWaveExecutions, 6);
+  const runningCheckpoint = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "RUNNING_CHECKPOINT.json",
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(
+    runningCheckpoint.kind,
+    "minimum_runtime_overnight_running_checkpoint",
+  );
   assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const abort = new AbortController();
+  abort.abort();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 60_000,
+    abortSignal: abort.signal,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(
+    report.artifactRefs.includes(
+      ".sovryn/discovery-daemon/overnight-min-runtime/INTERRUPT_CHECKPOINT.json",
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "INTERRUPT_CHECKPOINT.json",
+      ),
+    ),
+    true,
+  );
+  const progress = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "overnight-min-runtime", "progress.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(progress.status, "checkpointed");
+  assert.equal(progress.interrupted, true);
+  assert.equal(progress.interruptSignal, "abort_signal");
+  assert.equal(
+    (progress.currentFundState as Record<string, unknown>).fundFound,
     false,
   );
 });

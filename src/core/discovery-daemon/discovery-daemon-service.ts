@@ -1072,7 +1072,12 @@ export type MechanismDesignedOvernightWave = {
   counterexampleControlChecks: number;
   holdoutReplayRecomputeChecks: number;
   mechanismProofPressureChecks: number;
+  hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
+  seedBirthStatus: string;
+  seedBirthBlockers: string[];
+  baselineExplainedBy: string[];
+  pipelinePromotionBlockedReason: string | null;
   insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
   deathCause: string;
@@ -1103,6 +1108,7 @@ export type MinimumRuntimeOvernightRunReport = {
   counterexampleControlChecks: number;
   holdoutReplayRecomputeChecks: number;
   mechanismProofPressureChecks: number;
+  hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
   insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
@@ -1145,6 +1151,7 @@ export type MinimumRuntimeOvernightProgressReport = {
     holdoutReplayRecomputeChecks: number;
     mechanismProofPressureChecks: number;
     frozenPredictions: number;
+    hardSeedBirthAttempts: number;
     hardSeedsBorn: number;
     insightCandidatesCreated: number;
     discoveryCandidatesCreated: number;
@@ -10733,6 +10740,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         waveRows,
         "mechanismProofPressureChecks",
       ),
+      hardSeedBirthAttempts: sumOvernightBy(waveRows, "hardSeedBirthAttempts"),
       hardSeedsBorn: sumOvernightBy(waveRows, "hardSeedsBorn"),
       insightCandidatesCreated: sumOvernightBy(
         waveRows,
@@ -10965,6 +10973,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           "mechanismProofPressureChecks",
         ),
         frozenPredictions: sumOvernightBy(input.waves, "frozenPredictions"),
+        hardSeedBirthAttempts: sumOvernightBy(
+          input.waves,
+          "hardSeedBirthAttempts",
+        ),
         hardSeedsBorn: sumOvernightBy(input.waves, "hardSeedsBorn"),
         insightCandidatesCreated: sumOvernightBy(
           input.waves,
@@ -11108,6 +11120,8 @@ type MinimumRuntimeExperimentInput = {
   measuredVariable: string;
   measuredOutcome: number | null;
   residual: number | null;
+  baselineExplainedBy: string[];
+  promotionBlockedReason: string | null;
 };
 
 function mechanismDesignedOvernightWaveSpecs(
@@ -11157,7 +11171,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 16,
       holdoutReplayRecomputeChecks: 10,
       mechanismProofPressureChecks: 6,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 4,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "baseline_dominated",
@@ -11189,7 +11208,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 14,
       holdoutReplayRecomputeChecks: 8,
       mechanismProofPressureChecks: 5,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 2,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "no_cross_source_support",
@@ -11221,7 +11245,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 13,
       holdoutReplayRecomputeChecks: 8,
       mechanismProofPressureChecks: 5,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 2,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "baseline_dominated",
@@ -11253,7 +11282,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 20,
       holdoutReplayRecomputeChecks: 8,
       mechanismProofPressureChecks: 10,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 3,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "counterexample_dense",
@@ -11285,7 +11319,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 10,
       holdoutReplayRecomputeChecks: 8,
       mechanismProofPressureChecks: 3,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 3,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "rival_theory_stronger",
@@ -11317,7 +11356,12 @@ function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
       counterexampleControlChecks: 10,
       holdoutReplayRecomputeChecks: 8,
       mechanismProofPressureChecks: 3,
+      hardSeedBirthAttempts: 0,
       hardSeedsBorn: 2,
+      seedBirthStatus: "static_wave_spec_without_runtime_evidence",
+      seedBirthBlockers: [],
+      baselineExplainedBy: [],
+      pipelinePromotionBlockedReason: null,
       insightCandidatesCreated: 0,
       discoveryCandidatesCreated: 0,
       deathCause: "baseline_dominated",
@@ -11418,6 +11462,7 @@ function minimumRuntimeApplyExperimentInput(
   input: MinimumRuntimeExperimentInput | undefined,
 ): MechanismDesignedOvernightWaveSpec {
   if (!input) return spec;
+  const birthAssessment = minimumRuntimeHardSeedBirthAssessment(spec, input);
   return {
     ...spec,
     runtimeInputStatus: input.runtimeInputStatus,
@@ -11428,6 +11473,37 @@ function minimumRuntimeApplyExperimentInput(
     measuredVariable: input.measuredVariable,
     measuredOutcome: input.measuredOutcome,
     residual: input.residual,
+    baselineExplainedBy: input.baselineExplainedBy,
+    pipelinePromotionBlockedReason: input.promotionBlockedReason,
+    hardSeedBirthAttempts: spec.hardSeedsBorn,
+    hardSeedsBorn: birthAssessment.allowed ? spec.hardSeedsBorn : 0,
+    seedBirthStatus: birthAssessment.allowed
+      ? "born_from_runtime_pipeline_evidence"
+      : "blocked_by_runtime_pipeline_evidence",
+    seedBirthBlockers: birthAssessment.blockers,
+  };
+}
+
+function minimumRuntimeHardSeedBirthAssessment(
+  spec: MechanismDesignedOvernightWaveSpec,
+  input: MinimumRuntimeExperimentInput,
+): { allowed: boolean; blockers: string[] } {
+  const blockers = uniqueStrings([
+    input.runtimeInputStatus !== "loaded_from_tool_expansion_seed_and_pipeline"
+      ? "missing_tool_expansion_seed_binding"
+      : "",
+    input.baselineExplainedBy.length > 0
+      ? `baseline_explains_signal:${input.baselineExplainedBy.join(",")}`
+      : "",
+    input.promotionBlockedReason
+      ? `promotion_blocked:${input.promotionBlockedReason}`
+      : "",
+    input.residual === null ? "missing_residual_measurement" : "",
+    spec.hardSeedsBorn <= 0 ? "no_seed_birth_attempts_configured" : "",
+  ]).filter(Boolean);
+  return {
+    allowed: blockers.length === 0,
+    blockers,
   };
 }
 
@@ -11494,9 +11570,30 @@ async function minimumRuntimeExperimentInputs(
         numberOrNull(seed?.measuredOutcome) ??
         numberOrNull(pipeline.measuredOutcome),
       residual: numberOrNull(seed?.residual) ?? numberOrNull(pipeline.residual),
+      baselineExplainedBy: minimumRuntimeBaselineExplainedBy(
+        pipeline.baselineResults,
+      ),
+      promotionBlockedReason:
+        stringValue(seed?.promotionBlockedReason) ||
+        stringValue(pipeline.promotionBlockedReason) ||
+        null,
     });
   }
   return inputs;
+}
+
+function minimumRuntimeBaselineExplainedBy(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(
+    value.filter(isRecord).flatMap((baseline) => {
+      if (baseline.explainsSignal !== true) return [];
+      return [
+        stringValue(baseline.baseline) ||
+          stringValue(baseline.name) ||
+          "unnamed_baseline",
+      ];
+    }),
+  );
 }
 
 function minimumRuntimeWaveIdForPipeline(pipelineId: string): string | null {
@@ -11559,8 +11656,8 @@ function minimumRuntimeDeathCauseDistribution(
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const wave of waves) {
-    counts[wave.deathCause] =
-      (counts[wave.deathCause] ?? 0) + wave.hardSeedsBorn;
+    const count = Math.max(wave.hardSeedsBorn, wave.hardSeedBirthAttempts);
+    counts[wave.deathCause] = (counts[wave.deathCause] ?? 0) + count;
   }
   counts.unknown_requires_manual_review ??= 0;
   return counts;
@@ -11681,11 +11778,11 @@ function minimumRuntimeExperimentsMarkdown(
   return [
     "# Mechanism Designed Overnight Experiments",
     "",
-    "| Wave | Iteration | Variant | Runtime input | Parent seed | Parent pipeline | Target strategy | Baseline/rival design | Domain | Tools | Mechanism | Rival | Measured variable | Measured outcome | Residual | Checks | Death cause |",
-    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+    "| Wave | Iteration | Variant | Runtime input | Seed birth | Attempts | Born | Blockers | Parent seed | Parent pipeline | Target strategy | Baseline/rival design | Domain | Tools | Mechanism | Rival | Measured variable | Measured outcome | Residual | Baseline explained by | Promotion blocked reason | Checks | Death cause |",
+    "| --- | ---: | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | ---: | --- |",
     ...waves.map(
       (wave) =>
-        `| ${wave.waveId} | ${wave.iteration} | ${wave.generatorVariant} | ${wave.runtimeInputStatus} | ${wave.parentSeedIds.join(", ") || "none"} | ${wave.parentPipelineIds.join(", ") || "none"} | ${wave.rawTargetStrategy} | ${wave.baselineRivalDesign} | ${wave.domain} | ${wave.toolFamilies.join(", ")} | ${wave.candidateMechanism} | ${wave.rivalMechanism} | ${wave.measuredVariable} | ${wave.measuredOutcome ?? "n/a"} | ${wave.residual ?? "n/a"} | ${wave.realChecksFormalEvaluations} | ${wave.deathCause} |`,
+        `| ${wave.waveId} | ${wave.iteration} | ${wave.generatorVariant} | ${wave.runtimeInputStatus} | ${wave.seedBirthStatus} | ${wave.hardSeedBirthAttempts} | ${wave.hardSeedsBorn} | ${wave.seedBirthBlockers.join("; ") || "none"} | ${wave.parentSeedIds.join(", ") || "none"} | ${wave.parentPipelineIds.join(", ") || "none"} | ${wave.rawTargetStrategy} | ${wave.baselineRivalDesign} | ${wave.domain} | ${wave.toolFamilies.join(", ")} | ${wave.candidateMechanism} | ${wave.rivalMechanism} | ${wave.measuredVariable} | ${wave.measuredOutcome ?? "n/a"} | ${wave.residual ?? "n/a"} | ${wave.baselineExplainedBy.join(", ") || "none"} | ${wave.pipelinePromotionBlockedReason ?? "none"} | ${wave.realChecksFormalEvaluations} | ${wave.deathCause} |`,
     ),
   ].join("\n");
 }
@@ -11712,6 +11809,9 @@ function minimumRuntimeComplianceMarkdown(
     `Counterexample/control checks: ${report.counterexampleControlChecks}.`,
     `Holdout/replay/recompute checks: ${report.holdoutReplayRecomputeChecks}.`,
     `Mechanism/proof pressure checks: ${report.mechanismProofPressureChecks}.`,
+    "",
+    `Hard seed birth attempts: ${report.hardSeedBirthAttempts}.`,
+    `Hard seeds born after evidence gate: ${report.hardSeedsBorn}.`,
     "",
     report.remainingBottleneck,
   ].join("\n");

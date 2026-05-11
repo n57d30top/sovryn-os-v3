@@ -3710,7 +3710,8 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
   assert.equal(report.holdoutReplayRecomputeChecks >= 50, true);
   assert.equal(report.mechanismProofPressureChecks >= 30, true);
   assert.equal(report.frozenPredictions >= 20, true);
-  assert.equal(report.hardSeedsBorn > 0, true);
+  assert.equal(report.hardSeedBirthAttempts > 0, true);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
@@ -3870,6 +3871,8 @@ test("discover-daemon overnight-min-runtime rotates generator variants before ad
   );
   assert.equal(report.adaptiveStopIteration, 3);
   assert.equal(report.waveExecutions, 18);
+  assert.equal(report.hardSeedBirthAttempts, 48);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.mechanismsRivalsGenerated.length, 18);
@@ -3908,7 +3911,16 @@ test("discover-daemon overnight-min-runtime rotates generator variants before ad
         ) &&
         typeof wave.measuredVariable === "string" &&
         typeof wave.measuredOutcome === "number" &&
-        typeof wave.residual === "number",
+        typeof wave.residual === "number" &&
+        typeof wave.hardSeedBirthAttempts === "number" &&
+        Number(wave.hardSeedBirthAttempts) > 0 &&
+        Number(wave.hardSeedsBorn) === 0 &&
+        wave.seedBirthStatus === "blocked_by_runtime_pipeline_evidence" &&
+        Array.isArray(wave.seedBirthBlockers) &&
+        wave.seedBirthBlockers.length > 0 &&
+        Array.isArray(wave.baselineExplainedBy) &&
+        (wave.pipelinePromotionBlockedReason === null ||
+          typeof wave.pipelinePromotionBlockedReason === "string"),
     ),
     true,
   );
@@ -3947,6 +3959,8 @@ test("discover-daemon overnight-min-runtime default variants include orthogonal 
   );
   assert.equal(report.adaptiveStopIteration, 5);
   assert.equal(report.waveExecutions, 30);
+  assert.equal(report.hardSeedBirthAttempts, 80);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.mechanismsRivalsGenerated.length, 30);
@@ -3983,6 +3997,11 @@ test("discover-daemon overnight-min-runtime default variants include orthogonal 
           String(wave.rivalMechanism).includes("instrument artifact") &&
           wave.runtimeInputStatus ===
             "loaded_from_tool_expansion_seed_and_pipeline" &&
+          Number(wave.hardSeedBirthAttempts) > 0 &&
+          Number(wave.hardSeedsBorn) === 0 &&
+          wave.seedBirthStatus === "blocked_by_runtime_pipeline_evidence" &&
+          Array.isArray(wave.seedBirthBlockers) &&
+          wave.seedBirthBlockers.length > 0 &&
           Array.isArray(wave.pipelineEvidenceRefs) &&
           wave.pipelineEvidenceRefs.some((ref) =>
             String(ref).includes("pipeline-evidence"),

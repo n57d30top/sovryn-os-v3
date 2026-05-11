@@ -42,6 +42,7 @@ import {
   MechanismPlanExecutor,
   MechanismRouter,
   NontrivialPatternPreGate,
+  parseDimacsGraph,
   publicCorpusBaseRef,
   seedDiscoveryDaemonDomains,
   SilentSearchLoopRunner,
@@ -90,6 +91,7 @@ const commands = [
   "generator-pressure",
   "generator-insight-closure",
   "generator-fund-closure",
+  "dimacs-boundary-closure",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -4058,6 +4060,90 @@ test("generator-born fund closure packages predictions and keeps non-discovery c
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+});
+
+test("DIMACS boundary closure parses graph instances and kills known-family residual", async () => {
+  const parsed = parseDimacsGraph({
+    text: [
+      "c tiny DIMACS example",
+      "p edge 5 5",
+      "e 1 2",
+      "e 2 3",
+      "e 3 4",
+      "e 4 5",
+      "e 5 1",
+    ].join("\n"),
+    fileName: "tiny-cycle.col",
+    sourceUrl: "https://example.org/tiny-cycle.col",
+    localArtifactPath:
+      ".sovryn/discovery-daemon/dimacs-boundary-closure/raw/tiny-cycle.col",
+    loadedVia: "fixture_fallback",
+    spec: {
+      fileName: "tiny-cycle.col",
+      family: "MYC",
+      role: "prediction",
+      expectedColor: 3,
+      nonObvious: false,
+    },
+  });
+  assert.equal(parsed.declaredNodes, 5);
+  assert.equal(parsed.parsedEdges, 5);
+  assert.equal(parsed.residualVsClique, 1);
+
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorInsightClosure();
+  const previousFixtureOnly = process.env.SOVRYN_DIMACS_FIXTURE_ONLY;
+  process.env.SOVRYN_DIMACS_FIXTURE_ONLY = "1";
+  try {
+    const report = await service.dimacsBoundaryClosure();
+
+    assert.equal(report.kind, "dimacs_graph_coloring_boundary_closure");
+    assert.equal(report.status, "continue_searching_checkpointed");
+    assert.equal(report.instancesLoaded, 12);
+    assert.equal(report.predictionsFrozen, 12);
+    assert.equal(report.predictionsExecuted, 12);
+    assert.equal(report.nonObviousPredictions >= 3, true);
+    assert.equal(report.killed, true);
+    assert.equal(report.primaryDeathCause, "known_trivial");
+    assert.equal(report.discoveryCandidatesCreated, 0);
+    assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+    assert.equal(report.fundFound, false);
+    for (const artifact of [
+      "DIMACS_CANDIDATE_PROFILE.md",
+      "DIMACS_INSTANCE_RECEIPTS.json",
+      "DIMACS_PARSED_INSTANCES.json",
+      "DIMACS_FROZEN_PREDICTIONS.json",
+      "DIMACS_BASELINE_RIVAL_RESULTS.json",
+      "DIMACS_COUNTEREXAMPLE_RESULTS.json",
+      "DIMACS_HOLDOUT_REPLAY_RESULTS.json",
+      "DIMACS_PROOF_MECHANISM_PRESSURE.json",
+      "DIMACS_PROMOTION_DECISION.md",
+      "FUND_GATE_RESULTS.md",
+      "NEXT_CHECKPOINT.md",
+      "latest.json",
+    ]) {
+      assert.equal(
+        await exists(
+          join(root, daemonRoot, "dimacs-boundary-closure", artifact),
+        ),
+        true,
+        artifact,
+      );
+    }
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  } finally {
+    if (previousFixtureOnly === undefined) {
+      delete process.env.SOVRYN_DIMACS_FIXTURE_ONLY;
+    } else {
+      process.env.SOVRYN_DIMACS_FIXTURE_ONLY = previousFixtureOnly;
+    }
+  }
 });
 
 test("discover-daemon generator CLIs are bounded and non-funding", async () => {

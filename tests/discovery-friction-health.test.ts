@@ -464,6 +464,10 @@ test("health friction exposes generator closure non-discovery yield as fake-gree
   };
   assert.equal(data.generatorFamilyYield.runAvailable, true);
   assert.equal(data.generatorFamilyYield.hardSeedsBorn, 6);
+  assert.equal(data.generatorFamilyYield.replacementRequired, true);
+  assert.deepEqual(data.generatorFamilyYield.replacementFamilies, [
+    "satlib_bounded_sat_boundary_generator",
+  ]);
   assert.equal(data.generatorFamilyYield.closureRunAvailable, true);
   assert.equal(data.generatorFamilyYield.closureCandidateCount, 6);
   assert.equal(data.generatorFamilyYield.discoveryScoredClosureCandidates, 0);

@@ -4035,6 +4035,16 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
 
   const postClosureAudit = await service.generatorAudit();
   assert.equal(postClosureAudit.passed, false);
+  assert.equal(postClosureAudit.replacementRequired, true);
+  assert.equal(
+    postClosureAudit.replacementRequirements.every(
+      (item) =>
+        item.status === "replacement_required" &&
+        item.dominantBlocker ===
+          "post_closure_non_discovery:pipeline_fund_candidate",
+    ),
+    true,
+  );
   assert.equal(postClosureAudit.closureYield.closureRunFound, true);
   assert.equal(postClosureAudit.closureYield.closureCandidateCount, 6);
   assert.equal(postClosureAudit.closureYield.discoveryScoredCandidates, 0);
@@ -4191,6 +4201,16 @@ test("mechanism-first generator audit exposes closure fake-green when all closur
 
   assert.equal(audit.kind, "mechanism_first_generator_audit");
   assert.equal(audit.passed, false);
+  assert.equal(audit.replacementRequired, true);
+  assert.equal(
+    audit.replacementRequirements.every(
+      (item) =>
+        item.status === "replacement_required" &&
+        item.dominantBlocker ===
+          "post_closure_non_discovery:pipeline_fund_candidate",
+    ),
+    true,
+  );
   assert.equal(audit.closureYield.closureRunFound, true);
   assert.equal(audit.closureYield.closureCandidateCount, 2);
   assert.equal(audit.closureYield.discoveryScoredCandidates, 0);

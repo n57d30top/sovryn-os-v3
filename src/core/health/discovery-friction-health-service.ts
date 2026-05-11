@@ -1095,15 +1095,6 @@ export class DiscoveryFrictionHealthService {
     const replacementRequirements = Array.isArray(run?.replacementRequirements)
       ? run.replacementRequirements
       : [];
-    const replacementRequired =
-      run?.replacementRequired === true ||
-      replacementRequirements.some(
-        (item) => item.status === "replacement_required",
-      );
-    const replacementFamilies = replacementRequirements
-      .filter((item) => item.status === "replacement_required")
-      .map((item) => item.generatorId)
-      .filter((item): item is string => typeof item === "string");
     const blockedOutputsByCause =
       run?.blockedOutputsByCause === undefined
         ? {}
@@ -1144,6 +1135,20 @@ export class DiscoveryFrictionHealthService {
       closureCandidateCount > 0 &&
       discoveryScoredClosureCandidates === 0 &&
       nonDiscoveryClassifiedClosureCandidates === closureCandidateCount;
+    const replacementRequired =
+      allClosedAsNonDiscovery ||
+      run?.replacementRequired === true ||
+      replacementRequirements.some(
+        (item) => item.status === "replacement_required",
+      );
+    const replacementFamilies = allClosedAsNonDiscovery
+      ? replacementRequirements
+          .map((item) => item.generatorId)
+          .filter((item): item is string => typeof item === "string")
+      : replacementRequirements
+          .filter((item) => item.status === "replacement_required")
+          .map((item) => item.generatorId)
+          .filter((item): item is string => typeof item === "string");
     return {
       runAvailable: run !== null,
       runtimeChecks,

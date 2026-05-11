@@ -11467,14 +11467,24 @@ export class MechanismFirstEvidenceGeneratorService {
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
     const closureYield = generatorClosureYieldSignal(closure);
-    const replacementRequirements =
+    const baseReplacementRequirements =
       latest?.replacementRequirements ??
       generatorFamilyReplacementRequirements(outputs, registry.families);
+    const replacementRequirements =
+      closureYield.allClosedAsNonDiscovery &&
+      baseReplacementRequirements.length > 0
+        ? generatorClosureReplacementRequirements(
+            baseReplacementRequirements,
+            registry.families,
+            closureYield,
+          )
+        : baseReplacementRequirements;
     const replacementRequired =
-      latest?.replacementRequired ??
-      replacementRequirements.some(
-        (item) => item.status === "replacement_required",
-      );
+      closureYield.allClosedAsNonDiscovery ||
+      (latest?.replacementRequired ??
+        replacementRequirements.some(
+          (item) => item.status === "replacement_required",
+        ));
     const requiredFamilyIds =
       auditSet === "replacement"
         ? [
@@ -21407,6 +21417,39 @@ function generatorFamilyReplacementRequirements(
       requiredChange: replacementRequired
         ? generatorReplacementRequiredChange(dominantBlocker, family)
         : "No replacement required from the latest run.",
+    };
+  });
+}
+
+function generatorClosureReplacementRequirements(
+  requirements: GeneratorFamilyReplacementRequirement[],
+  families: MechanismFirstGeneratorFamily[],
+  closureYield: GeneratorClosureYieldSignal,
+): GeneratorFamilyReplacementRequirement[] {
+  const dominantBlocker = `post_closure_non_discovery:${closureYield.dominantFundClass ?? "non_discovery"}`;
+  const byGenerator = new Map(
+    requirements.map((requirement) => [requirement.generatorId, requirement]),
+  );
+  const familyIds: MechanismFirstGeneratorFamilyId[] =
+    families.length > 0
+      ? families.map((family) => family.generatorId)
+      : requirements.map((requirement) => requirement.generatorId);
+  return Array.from(new Set(familyIds)).map((generatorId) => {
+    const current = byGenerator.get(generatorId);
+    const blockerCounts = {
+      ...(current?.blockerCounts ?? {}),
+      [dominantBlocker]: closureYield.nonDiscoveryClassifiedCandidates,
+    };
+    return {
+      generatorId,
+      status: "replacement_required" as const,
+      runtimeChecks: current?.runtimeChecks ?? 0,
+      hardSeedsBorn: current?.hardSeedsBorn ?? 0,
+      blockedOutputs: current?.blockedOutputs ?? 0,
+      dominantBlocker,
+      blockerCounts,
+      requiredChange:
+        "Closure classified every generator-born candidate as a non-discovery FundClass; redesign the external problem anchor, measurable outcome, and mechanism-vs-rival test so born seeds can plausibly produce discovery-scored evidence before another long run.",
     };
   });
 }

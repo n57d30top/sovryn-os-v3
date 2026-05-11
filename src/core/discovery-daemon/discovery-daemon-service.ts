@@ -10514,7 +10514,7 @@ const minimumRuntimeOvernightDir = "overnight-min-runtime" as const;
 const eightHoursMs = 8 * 60 * 60 * 1000;
 const defaultOvernightHeartbeatMs = 60 * 60 * 1000;
 const defaultOvernightStagnationIterationLimit = 3;
-const defaultOvernightGeneratorVariantLimit = 4;
+const defaultOvernightGeneratorVariantLimit = 5;
 
 export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
   constructor(
@@ -11376,6 +11376,22 @@ function minimumRuntimeGeneratorVariants(
       deathCauseOverrides: {
         "wave-4-formal-bounded-property": "no_nontrivial_residual",
         "wave-6-repo-reproduction-outcome-labels": "rival_theory_stronger",
+      },
+    },
+    {
+      id: "orthogonal-instrument-remeasurement",
+      rawTargetStrategy:
+        "require an independent tool, representation, source slice, or formal encoding to remeasure the target outcome before residual scoring",
+      baselineRivalDesign:
+        "instrument-swap agreement plus representation ablation before any mechanism claim can survive",
+      mechanismFocus: "orthogonal-instrument-stable mechanism",
+      rivalFocus:
+        "instrument artifact, representation leakage, and measurement-procedure rival",
+      deathCauseOverrides: {
+        "wave-1-mechanism-designed-materials": "rival_theory_stronger",
+        "wave-2-mechanism-designed-astrophysics": "no_cross_source_support",
+        "wave-3-mechanism-designed-climate-energy": "counterexample_dense",
+        "wave-5-benchmark-protocol-delta": "rival_theory_stronger",
       },
     },
   ];

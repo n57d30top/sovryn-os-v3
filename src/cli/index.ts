@@ -1828,7 +1828,7 @@ async function discoverDaemonCommand(
           ? flagInt(parsed.flags, "--stagnation-iteration-limit", 3)
           : undefined,
         generatorVariantLimit: parsed.flags.has("--generator-variant-limit")
-          ? flagInt(parsed.flags, "--generator-variant-limit", 4)
+          ? flagInt(parsed.flags, "--generator-variant-limit", 5)
           : undefined,
       });
     case "cycle":

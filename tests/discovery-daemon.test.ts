@@ -3923,6 +3923,80 @@ test("discover-daemon overnight-min-runtime rotates generator variants before ad
   );
 });
 
+test("discover-daemon overnight-min-runtime default variants include orthogonal instrument remeasurement", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.mechanismFirstPressure();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 1,
+    stagnationIterationLimit: 2,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.adaptiveStopTriggered, true);
+  assert.equal(
+    report.adaptiveStopReason,
+    "generator_variants_exhausted_without_candidate_birth",
+  );
+  assert.equal(report.adaptiveStopIteration, 5);
+  assert.equal(report.waveExecutions, 30);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.mechanismsRivalsGenerated.length, 30);
+
+  const waveLedger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "overnight-min-runtime", "WAVE_EXECUTIONS.json"),
+      "utf8",
+    ),
+  ) as { waves: Array<Record<string, unknown>> };
+  const variants = Array.from(
+    new Set(waveLedger.waves.map((wave) => wave.generatorVariant)),
+  );
+  assert.deepEqual(variants, [
+    "cross-source-residual",
+    "mechanism-falsifier",
+    "holdout-first",
+    "null-model-ablation",
+    "orthogonal-instrument-remeasurement",
+  ]);
+  assert.equal(
+    waveLedger.waves
+      .filter(
+        (wave) =>
+          wave.generatorVariant === "orthogonal-instrument-remeasurement",
+      )
+      .every(
+        (wave) =>
+          String(wave.rawTargetStrategy).includes("independent tool") &&
+          String(wave.baselineRivalDesign).includes("instrument-swap") &&
+          String(wave.candidateMechanism).includes(
+            "orthogonal-instrument-stable",
+          ) &&
+          String(wave.rivalMechanism).includes("instrument artifact") &&
+          wave.runtimeInputStatus ===
+            "loaded_from_tool_expansion_seed_and_pipeline" &&
+          Array.isArray(wave.pipelineEvidenceRefs) &&
+          wave.pipelineEvidenceRefs.some((ref) =>
+            String(ref).includes("pipeline-evidence"),
+          ),
+      ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

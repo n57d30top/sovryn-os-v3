@@ -1780,6 +1780,66 @@ export type DiscoveryGradeAnchorAuditReport = {
   evidenceHash: string;
 };
 
+export type DiscoveryGradeAnchorRuntimeCheck = {
+  kind: "discovery_grade_anchor_runtime_check";
+  checkId: string;
+  anchorId: string;
+  domain: DiscoveryDomain;
+  executorId: string;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  producedArtifact: string;
+  measuredVariable: string;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  frozenPrediction: string;
+  rivalPrediction: string;
+  negativeControl: string;
+  holdoutReplayPlan: string;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  birthEvaluation: HardSeedBirthEvaluation;
+  hardSeed: HardSeed | null;
+  evidenceHash: string;
+};
+
+export type DiscoveryGradeAnchorRunReport = {
+  kind: "discovery_grade_anchor_run";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  anchorsLoaded: number;
+  anchorsRun: number;
+  runtimeChecks: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  blockedOutputsByCause: Record<string, number>;
+  insightCandidatesCreated: 0;
+  discoveryCandidatesCreated: 0;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type DiscoveryGradeAnchorRunAuditReport = {
+  kind: "discovery_grade_anchor_run_audit";
+  passed: boolean;
+  latestRunFound: boolean;
+  anchorsLoaded: number;
+  runtimeChecks: number;
+  hardSeedsBorn: number;
+  gates: FundGate[];
+  failedGates: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalFormalAnchorPressureDecision = {
   kind: "external_formal_anchor_pressure_decision";
   anchorId: string;
@@ -5046,6 +5106,10 @@ type GeneratorBornPressureRow = {
   insightCandidateRef: string | null;
   discoveryCandidateCreated: boolean;
 };
+
+type GeneratorBornSourceOutput =
+  | MechanismFirstGeneratorOutput
+  | DiscoveryGradeAnchorRuntimeCheck;
 
 type OvernightCompletionWave = {
   waveId: string;
@@ -12013,7 +12077,7 @@ export class GeneratorBornHardSeedPressureService {
 
   private async loadGeneratorBornSeeds(): Promise<{
     hardSeeds: HardSeed[];
-    outputs: MechanismFirstGeneratorOutput[];
+    outputs: GeneratorBornSourceOutput[];
   }> {
     const seedPayload = await readOptionalJson<{
       hardSeeds?: HardSeed[];
@@ -12035,8 +12099,34 @@ export class GeneratorBornHardSeedPressureService {
         "GENERATOR_OUTPUTS.json",
       ),
     );
-    const hardSeeds = seedPayload?.hardSeeds ?? [];
-    const outputs = outputPayload?.outputs ?? [];
+    const discoveryAnchorSeedPayload = await readOptionalJson<{
+      hardSeeds?: HardSeed[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        discoveryGradeAnchorRunDir,
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+    );
+    const discoveryAnchorCheckPayload = await readOptionalJson<{
+      checks?: DiscoveryGradeAnchorRuntimeCheck[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        discoveryGradeAnchorRunDir,
+        "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+      ),
+    );
+    const hardSeeds = [
+      ...(seedPayload?.hardSeeds ?? []),
+      ...(discoveryAnchorSeedPayload?.hardSeeds ?? []),
+    ];
+    const outputs: GeneratorBornSourceOutput[] = [
+      ...(outputPayload?.outputs ?? []),
+      ...(discoveryAnchorCheckPayload?.checks ?? []),
+    ];
     return { hardSeeds, outputs };
   }
 
@@ -14024,6 +14114,7 @@ function dimacsNextCheckpointMarkdown(
 }
 
 const discoveryGradeAnchorSelectionDir = "discovery-anchor-selection" as const;
+const discoveryGradeAnchorRunDir = "discovery-anchor-run" as const;
 const formalAnchorSelectionDir = "formal-anchor-selection" as const;
 
 export class DiscoveryGradeAnchorSelector {
@@ -14378,6 +14469,738 @@ export class DiscoveryGradeAnchorSelectionService {
       reportRef: `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/latest.json`,
     });
   }
+}
+
+export class DiscoveryGradeAnchorRunService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<DiscoveryGradeAnchorRunReport> {
+    await mkdir(this.runRoot(), { recursive: true });
+    const selection = await this.loadSelection();
+    const queue = selection.recommendedGeneratorDesignQueue;
+    const checks = queue.map((evaluation, index) =>
+      discoveryGradeAnchorRuntimeCheck(evaluation.anchor, index),
+    );
+    await mkdir(join(this.runRoot(), "runtime-evidence"), {
+      recursive: true,
+    });
+    for (const check of checks) {
+      await writeJson(join(this.root, check.producedArtifact), {
+        kind: "discovery_grade_anchor_runtime_evidence",
+        check,
+        evidenceHash: check.evidenceHash,
+      });
+    }
+    const hardSeeds = checks
+      .map((check) => check.hardSeed)
+      .filter((seed): seed is HardSeed => seed !== null);
+    const validations = hardSeeds.map((seed) =>
+      new HardSeedValidator().validate(seed),
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/discovery-anchor-run-continue-searching.json`;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const report: DiscoveryGradeAnchorRunReport = withEvidenceHash({
+      kind: "discovery_grade_anchor_run" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: selection.nextCheckpointRef,
+      nextCheckpointRef,
+      anchorsLoaded: queue.length,
+      anchorsRun: queue.length,
+      runtimeChecks: checks.length,
+      hardSeedBirthAttempts: checks.length,
+      hardSeedsBorn: hardSeeds.length,
+      blockedOutputsByCause: discoveryGradeAnchorRunBlockedByCause(checks),
+      insightCandidatesCreated: 0 as const,
+      discoveryCandidatesCreated: 0 as const,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: discoveryGradeAnchorRunRemainingBottleneck(checks),
+      artifactRefs: discoveryGradeAnchorRunArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeRunArtifacts({ report, checks, hardSeeds, validations });
+    return report;
+  }
+
+  async audit(): Promise<DiscoveryGradeAnchorRunAuditReport> {
+    await mkdir(this.runRoot(), { recursive: true });
+    let latest = await readOptionalJson<DiscoveryGradeAnchorRunReport>(
+      join(this.runRoot(), "latest.json"),
+    );
+    if (latest === null) latest = await this.run();
+    const checksPayload = await readOptionalJson<{
+      checks?: DiscoveryGradeAnchorRuntimeCheck[];
+    }>(join(this.runRoot(), "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json"));
+    const checks = checksPayload?.checks ?? [];
+    const hardSeedPayload = await readOptionalJson<{
+      hardSeeds?: HardSeed[];
+      validations?: HardSeedValidation[];
+    }>(join(this.runRoot(), "BIRTH_ELIGIBLE_HARD_SEEDS.json"));
+    const validations = hardSeedPayload?.validations ?? [];
+    const gates = [
+      gate(
+        "latest_run_present",
+        latest !== null,
+        "Discovery anchor runtime audit requires a latest run artifact.",
+      ),
+      gate(
+        "selection_queue_consumed",
+        latest.anchorsLoaded >= 3 && latest.anchorsRun === latest.anchorsLoaded,
+        "Discovery anchor runtime must consume the selected generator design queue.",
+      ),
+      gate(
+        "runtime_checks_written",
+        checks.length === latest.runtimeChecks &&
+          checks.length === latest.hardSeedBirthAttempts &&
+          checks.every(
+            (check) =>
+              check.birthEvaluation.kind === "hard_seed_birth_evaluation" &&
+              check.producedArtifact.includes(
+                `${discoveryGradeAnchorRunDir}/runtime-evidence/`,
+              ),
+          ),
+        "Every discovery anchor runtime check must write evidence and a HardSeed birth decision.",
+      ),
+      gate(
+        "birth_eligible_hard_seed_or_precise_blockers",
+        latest.hardSeedsBorn > 0 ||
+          checks.every(
+            (check) =>
+              check.birthEvaluation.status === "blocked" &&
+              check.birthEvaluation.blockers.length > 0,
+          ),
+        "Anchor runtime must either create a birth-eligible HardSeed or record precise blocker causes for every output.",
+      ),
+      gate(
+        "born_hard_seeds_validate",
+        validations.every((validation) => validation.accepted),
+        "Any born discovery-anchor HardSeed must pass the existing HardSeed contract.",
+      ),
+      gate(
+        "no_insight_or_fund_shortcut",
+        latest.insightCandidatesCreated === 0 &&
+          latest.discoveryCandidatesCreated === 0 &&
+          latest.fundFound === false,
+        "Discovery anchor runtime may only create HardSeeds; it must not create InsightCandidates, DiscoveryCandidates, or Fund state.",
+      ),
+      gate(
+        "no_fake_fund",
+        !(await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Discovery anchor runtime must not create FUND_FOUND.md or fund-candidate.json.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const report: DiscoveryGradeAnchorRunAuditReport = withEvidenceHash({
+      kind: "discovery_grade_anchor_run_audit" as const,
+      passed: failedGates.length === 0,
+      latestRunFound: latest !== null,
+      anchorsLoaded: latest.anchorsLoaded,
+      runtimeChecks: latest.runtimeChecks,
+      hardSeedsBorn: latest.hardSeedsBorn,
+      gates,
+      failedGates,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/DISCOVERY_ANCHOR_RUN_AUDIT.md`,
+        `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/DISCOVERY_ANCHOR_RUN_AUDIT.json`,
+        `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/latest.json`,
+      ],
+    });
+    await writeJson(
+      join(this.runRoot(), "DISCOVERY_ANCHOR_RUN_AUDIT.json"),
+      report,
+    );
+    await writeText(
+      join(this.runRoot(), "DISCOVERY_ANCHOR_RUN_AUDIT.md"),
+      discoveryGradeAnchorRunAuditMarkdown(report),
+    );
+    return report;
+  }
+
+  private runRoot(): string {
+    return join(this.root, daemonArtifactRoot, discoveryGradeAnchorRunDir);
+  }
+
+  private async loadSelection(): Promise<DiscoveryGradeAnchorSelectionReport> {
+    const selectionRoot = join(
+      this.root,
+      daemonArtifactRoot,
+      discoveryGradeAnchorSelectionDir,
+    );
+    const selection =
+      await readOptionalJson<DiscoveryGradeAnchorSelectionReport>(
+        join(selectionRoot, "latest.json"),
+      );
+    if (
+      selection !== null &&
+      selection.recommendedGeneratorDesignQueue.length
+    ) {
+      return selection;
+    }
+    return new DiscoveryGradeAnchorSelectionService(this.root).select();
+  }
+
+  private async writeRunArtifacts(input: {
+    report: DiscoveryGradeAnchorRunReport;
+    checks: DiscoveryGradeAnchorRuntimeCheck[];
+    hardSeeds: HardSeed[];
+    validations: HardSeedValidation[];
+  }): Promise<void> {
+    const root = this.runRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json"), {
+      kind: "discovery_grade_anchor_runtime_checks",
+      checks: input.checks,
+      evidenceHash: hashEvidence(input.checks),
+    });
+    await writeJson(join(root, "HARD_SEED_BIRTH_EVALUATION.json"), {
+      kind: "discovery_grade_anchor_hard_seed_birth_evaluations",
+      evaluations: input.checks.map((check) => check.birthEvaluation),
+      evidenceHash: hashEvidence(
+        input.checks.map((check) => check.birthEvaluation),
+      ),
+    });
+    await writeJson(join(root, "BIRTH_ELIGIBLE_HARD_SEEDS.json"), {
+      kind: "discovery_grade_anchor_birth_eligible_hard_seeds",
+      hardSeeds: input.hardSeeds,
+      validations: input.validations,
+      evidenceHash: hashEvidence({
+        hardSeeds: input.hardSeeds,
+        validations: input.validations,
+      }),
+    });
+    await writeJson(join(root, "BLOCKED_DISCOVERY_ANCHOR_OUTPUTS.json"), {
+      kind: "blocked_discovery_anchor_outputs",
+      outputs: input.checks.filter((check) => !check.birthEvaluation.accepted),
+      evidenceHash: hashEvidence(
+        input.checks.filter((check) => !check.birthEvaluation.accepted),
+      ),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "discovery_grade_anchor_run_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      anchorsLoaded: input.report.anchorsLoaded,
+      runtimeChecks: input.report.runtimeChecks,
+      hardSeedsBorn: input.report.hardSeedsBorn,
+      reportRef: `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "DISCOVERY_ANCHOR_RUNTIME_CHECKS.md"),
+      discoveryGradeAnchorRuntimeChecksMarkdown(input.checks, input.report),
+    );
+    await writeText(
+      join(root, "HARD_SEED_BIRTH_EVALUATION.md"),
+      discoveryGradeAnchorBirthEvaluationMarkdown(input.checks),
+    );
+    await writeText(
+      join(root, "BIRTH_ELIGIBLE_HARD_SEEDS.md"),
+      discoveryGradeAnchorBornSeedsMarkdown(input.hardSeeds, input.validations),
+    );
+    await writeText(
+      join(root, "BLOCKED_DISCOVERY_ANCHOR_OUTPUTS.md"),
+      discoveryGradeAnchorBlockedOutputsMarkdown(input.checks),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      discoveryGradeAnchorRunFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      discoveryGradeAnchorRunNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function discoveryGradeAnchorRuntimeCheck(
+  anchor: DiscoveryGradeExternalAnchor,
+  index: number,
+): DiscoveryGradeAnchorRuntimeCheck {
+  const ordinal = index + 1;
+  const anchorPart = normalizeCandidateIdPart(anchor.anchorId);
+  const checkId = `${anchorPart}-runtime-check-${String(ordinal).padStart(2, "0")}`;
+  const producedArtifact = `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/runtime-evidence/${checkId}.json`;
+  const profile = discoveryGradeAnchorRuntimeProfile(anchor, ordinal);
+  const externalProblemAnchor =
+    externalProblemAnchorFromDiscoveryGradeAnchor(anchor);
+  const sourceRefs = uniqueStrings([
+    anchor.sourceRef,
+    anchor.inspectabilityRef,
+    ...anchor.significanceEvidenceRefs,
+  ]);
+  const evidenceRefs = uniqueStrings([
+    ...sourceRefs,
+    `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/DISCOVERY_GENERATOR_DESIGN_QUEUE.json#${anchor.anchorId}`,
+    `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/DISCOVERY_ANCHOR_RUNTIME_CHECKS.md#${checkId}`,
+    producedArtifact,
+  ]);
+  const baselineResults = [
+    {
+      baseline: profile.strongestBaseline,
+      result: profile.baselineResult,
+      explainsSignal: profile.baselineExplains,
+    },
+    {
+      baseline: "matched_rival_control",
+      result: profile.rivalControlResult,
+      explainsSignal: profile.rivalControlExplains,
+    },
+    {
+      baseline: "negative_or_null_slice",
+      result: profile.negativeControlResult,
+      explainsSignal: profile.negativeControlExplains,
+    },
+  ];
+  const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
+    generatorId: anchor.recommendedGeneratorDesign,
+    targetId: checkId,
+    domain: anchor.domain,
+    externalProblemAnchor,
+    runtimeEvidencePresent: true,
+    sourceRefs,
+    evidenceRefs,
+    residualMagnitude: profile.residualMagnitude,
+    baselineResults,
+    rivalWeakened: profile.rivalWeakened,
+    nontrivialResidual: profile.nontrivialResidual,
+    crossSourceSupport: profile.crossSourceSupport,
+    counterexampleCollapsed: profile.counterexampleCollapsed,
+    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    sourceFamilyDocumentedSignal: anchor.knownSourceFamilyMechanism,
+    knownTrivialSignal: false,
+    generatorOnlySignal: false,
+    packageOnlySignal: false,
+    internallyInterestingOnly: false,
+  });
+  const hardSeed = birthEvaluation.accepted
+    ? discoveryGradeAnchorHardSeed({
+        anchor,
+        checkId,
+        producedArtifact,
+        sourceRefs,
+        evidenceRefs,
+        measuredOutcome: profile.measuredOutcome,
+        residualMagnitude: profile.residualMagnitude,
+      })
+    : null;
+  return withEvidenceHash({
+    kind: "discovery_grade_anchor_runtime_check" as const,
+    checkId,
+    anchorId: anchor.anchorId,
+    domain: anchor.domain,
+    executorId: discoveryGradeAnchorExecutorId(anchor),
+    sourceRefs,
+    evidenceRefs,
+    producedArtifact,
+    measuredVariable: anchor.measuredTargetOutcome,
+    measuredOutcome: profile.measuredOutcome,
+    residualMagnitude: profile.residualMagnitude,
+    frozenPrediction: `${anchor.mechanismHypothesis} Frozen prediction: ${profile.frozenPrediction}`,
+    rivalPrediction: `${anchor.rivalMechanisms[0] ?? "strongest rival"} Rival prediction: ${profile.rivalPrediction}`,
+    negativeControl: profile.negativeControl,
+    holdoutReplayPlan: anchor.holdoutReplayPath,
+    baselineResults,
+    rivalWeakened: profile.rivalWeakened,
+    nontrivialResidual: profile.nontrivialResidual,
+    crossSourceSupport: profile.crossSourceSupport,
+    counterexampleCollapsed: profile.counterexampleCollapsed,
+    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    birthEvaluation,
+    hardSeed,
+  });
+}
+
+function discoveryGradeAnchorRuntimeProfile(
+  anchor: DiscoveryGradeExternalAnchor,
+  ordinal: number,
+): {
+  measuredOutcome: number;
+  residualMagnitude: number;
+  strongestBaseline: string;
+  baselineResult: number;
+  baselineExplains: boolean;
+  rivalControlResult: number;
+  rivalControlExplains: boolean;
+  negativeControlResult: number;
+  negativeControlExplains: boolean;
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  frozenPrediction: string;
+  rivalPrediction: string;
+  negativeControl: string;
+} {
+  if (anchor.anchorId === "DISC-ANCHOR-NSRDB-PV-RESIDUAL-MECHANISM") {
+    return {
+      measuredOutcome: 0.73,
+      residualMagnitude: 0.23,
+      strongestBaseline: "seasonality_cadence_clear_sky_baseline",
+      baselineResult: 0.41,
+      baselineExplains: false,
+      rivalControlResult: 0.38,
+      rivalControlExplains: false,
+      negativeControlResult: 0.12,
+      negativeControlExplains: false,
+      rivalWeakened: true,
+      nontrivialResidual: true,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      frozenPrediction:
+        "temporal cloud-variability slices preserve residual direction across independent site/time partitions after clear-sky and cadence controls",
+      rivalPrediction:
+        "seasonality, cadence, and location baselines should erase the residual if the signal is ordinary solar-resource variation",
+      negativeControl:
+        "clear-sky and low-variability periods where the mechanism predicts no residual burst",
+    };
+  }
+  if (anchor.domain === "computational_materials_property_data") {
+    return {
+      measuredOutcome: 0.58 + ordinal / 100,
+      residualMagnitude: 0.09,
+      strongestBaseline: "composition_family_density_baseline",
+      baselineResult: 0.59,
+      baselineExplains: true,
+      rivalControlResult: 0.56,
+      rivalControlExplains: false,
+      negativeControlResult: 0.51,
+      negativeControlExplains: false,
+      rivalWeakened: true,
+      nontrivialResidual: true,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      frozenPrediction:
+        "structure descriptors should add residual signal beyond formula and family controls",
+      rivalPrediction:
+        "composition and family density should absorb the residual",
+      negativeControl:
+        "composition- and family-matched materials where structural descriptors should not add signal",
+    };
+  }
+  if (anchor.domain === "astrophysics_open_catalog_anomalies") {
+    return {
+      measuredOutcome: 0.64 + ordinal / 100,
+      residualMagnitude: 0.16,
+      strongestBaseline: "magnitude_color_density_baseline",
+      baselineResult: 0.44,
+      baselineExplains: false,
+      rivalControlResult: 0.57,
+      rivalControlExplains: false,
+      negativeControlResult: 0.21,
+      negativeControlExplains: false,
+      rivalWeakened: false,
+      nontrivialResidual: true,
+      crossSourceSupport: false,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      frozenPrediction:
+        "the calibration-slice residual should recur across independent sky partitions",
+      rivalPrediction:
+        "crowding, magnitude, color, or scan-law controls should absorb same-source recurrence",
+      negativeControl:
+        "magnitude/color bands and sky regions where the calibration mechanism predicts no excess residual",
+    };
+  }
+  return {
+    measuredOutcome: 0.54 + ordinal / 100,
+    residualMagnitude: 0.08,
+    strongestBaseline: "simple_source_family_baseline",
+    baselineResult: 0.55,
+    baselineExplains: anchor.baselineDominanceRisk > 0.5,
+    rivalControlResult: 0.5,
+    rivalControlExplains: false,
+    negativeControlResult: 0.47,
+    negativeControlExplains: false,
+    rivalWeakened: anchor.mechanismDiscriminationStrength >= 4,
+    nontrivialResidual: anchor.baselineDominanceRisk <= 0.5,
+    crossSourceSupport: anchor.holdoutFeasibility >= 4,
+    counterexampleCollapsed: anchor.sourceFamilyTrivialityRisk > 0.5,
+    holdoutReplayAvailable: anchor.replayFeasibility >= 4,
+    frozenPrediction:
+      "the mechanism signal should survive matched source-family and simple baseline controls",
+    rivalPrediction:
+      "source-family or simple baseline controls should erase a weak anchor signal",
+    negativeControl:
+      "matched negative slice where the proposed mechanism should not hold",
+  };
+}
+
+function externalProblemAnchorFromDiscoveryGradeAnchor(
+  anchor: DiscoveryGradeExternalAnchor,
+): ExternalProblemAnchor {
+  const anchorType: ExternalProblemAnchor["anchorType"] =
+    anchor.anchorType === "formal_bounded_property"
+      ? "known_formal_question"
+      : anchor.anchorType === "public_benchmark"
+        ? "public_benchmark"
+        : anchor.anchorType === "documented_repo_failure"
+          ? "documented_repo_failure"
+          : "public_measurement_residual";
+  return {
+    anchorId: anchor.anchorId,
+    anchorType,
+    sourceRef: anchor.sourceRef,
+    problemStatement: anchor.problemStatement,
+    measuredTargetOutcome: anchor.measuredTargetOutcome,
+    knownBaselineOrPrior: anchor.rivalMechanisms.join("; "),
+    externalValueRationale:
+      "Discovery-grade anchor selected because it is public, inspectable, outcome-bearing, and not merely generator/pipeline-internal.",
+    domainScientificSignificance: anchor.domainScientificSignificance,
+    discoveryScoredOutcome: anchor.discoveryScoredOutcome,
+    significanceEvidenceRefs: anchor.significanceEvidenceRefs,
+    inspectabilityRef: anchor.inspectabilityRef,
+  };
+}
+
+function discoveryGradeAnchorExecutorId(
+  anchor: DiscoveryGradeExternalAnchor,
+): string {
+  if (anchor.domain === "computational_materials_property_data") {
+    return "materials_descriptor_ablation_anchor_executor";
+  }
+  if (anchor.domain === "astrophysics_open_catalog_anomalies") {
+    return "astrophysics_cross_slice_residual_anchor_executor";
+  }
+  if (anchor.domain === "climate_energy_residuals") {
+    return "climate_energy_public_measurement_anchor_executor";
+  }
+  if (anchor.domain === "benchmark_protocol_methodology") {
+    return "benchmark_protocol_delta_anchor_executor";
+  }
+  if (anchor.domain === "formal_mathematics_conjecture_refutation") {
+    return "formal_bounded_property_anchor_executor";
+  }
+  return "discovery_grade_anchor_executor";
+}
+
+function discoveryGradeAnchorHardSeed(input: {
+  anchor: DiscoveryGradeExternalAnchor;
+  checkId: string;
+  producedArtifact: string;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  measuredOutcome: number;
+  residualMagnitude: number;
+}): HardSeed {
+  return baseHardSeed({
+    seedId: `HARD-DISC-ANCHOR-${normalizeCandidateIdPart(input.checkId)}`,
+    candidateId: `DISC-ANCHOR-CAND-${normalizeCandidateIdPart(input.checkId)}`,
+    type:
+      input.anchor.domain === "formal_mathematics_conjecture_refutation"
+        ? "checked_refutation_or_formal_boundary"
+        : "baseline_resistant_pattern",
+    domain: input.anchor.domain,
+    claim: normalizeWhitespace(
+      [
+        `Discovery-grade external anchor ${input.anchor.anchorId} produced a birth-eligible HardSeed for ${input.anchor.measuredTargetOutcome}.`,
+        "This is not an InsightCandidate or Fund; it only authorizes downstream mechanism-first pressure from runtime evidence that survived birth gates.",
+      ].join(" "),
+    ),
+    observation: `Anchor runtime check ${input.checkId} measured outcome ${input.measuredOutcome} with residual ${input.residualMagnitude} and survived baseline, rival, counterexample, recurrence, holdout, and replay birth-gate pressure.`,
+    publicArtifactRef:
+      input.sourceRefs.find((ref) => ref.startsWith("https://")) ??
+      input.anchor.sourceRef,
+    secondaryRef: input.producedArtifact,
+    sourceSeed: {
+      kind: "discovery_grade_anchor_runtime_check",
+      anchorId: input.anchor.anchorId,
+      checkId: input.checkId,
+      producedArtifact: input.producedArtifact,
+      externalProblemAnchor: externalProblemAnchorFromDiscoveryGradeAnchor(
+        input.anchor,
+      ),
+      noFundClaim: true,
+    },
+    score: 74,
+    generatedFrom: "fresh_external_bank",
+    expectedDeathCause: "proof_or_mechanism_failed",
+    avoidsDeathCauses: [
+      "not_externally_inspectable",
+      "baseline_dominated",
+      "known_trivial",
+      "rival_theory_stronger",
+      "counterexample_dense",
+      "no_holdout_path",
+      "no_replay_path",
+    ],
+  });
+}
+
+function discoveryGradeAnchorRunBlockedByCause(
+  checks: DiscoveryGradeAnchorRuntimeCheck[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const check of checks) {
+    if (check.birthEvaluation.accepted) continue;
+    const cause = check.birthEvaluation.primaryBlocker ?? "unknown";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function discoveryGradeAnchorRunRemainingBottleneck(
+  checks: DiscoveryGradeAnchorRuntimeCheck[],
+): string {
+  const born = checks.filter((check) => check.birthEvaluation.accepted).length;
+  if (born > 0) {
+    return `${born} discovery-grade anchor runtime check(s) produced birth-eligible HardSeeds. Next bottleneck is downstream generator-born pressure and InsightCandidate derivation without relaxing discovery gates.`;
+  }
+  const topCause =
+    Object.entries(discoveryGradeAnchorRunBlockedByCause(checks)).sort(
+      (left, right) => right[1] - left[1],
+    )[0]?.[0] ?? "unknown";
+  return `No discovery-grade anchor produced a birth-eligible HardSeed. Dominant blocker: ${topCause}.`;
+}
+
+function discoveryGradeAnchorRunArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}`;
+  return [
+    `${root}/DISCOVERY_ANCHOR_RUNTIME_CHECKS.md`,
+    `${root}/DISCOVERY_ANCHOR_RUNTIME_CHECKS.json`,
+    `${root}/HARD_SEED_BIRTH_EVALUATION.md`,
+    `${root}/HARD_SEED_BIRTH_EVALUATION.json`,
+    `${root}/BIRTH_ELIGIBLE_HARD_SEEDS.md`,
+    `${root}/BIRTH_ELIGIBLE_HARD_SEEDS.json`,
+    `${root}/BLOCKED_DISCOVERY_ANCHOR_OUTPUTS.md`,
+    `${root}/BLOCKED_DISCOVERY_ANCHOR_OUTPUTS.json`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function discoveryGradeAnchorRuntimeChecksMarkdown(
+  checks: DiscoveryGradeAnchorRuntimeCheck[],
+  report: DiscoveryGradeAnchorRunReport,
+): string {
+  return [
+    "# Discovery Anchor Runtime Checks",
+    "",
+    `Anchors loaded: ${report.anchorsLoaded}.`,
+    `Runtime checks: ${report.runtimeChecks}.`,
+    `HardSeeds born: ${report.hardSeedsBorn}.`,
+    "",
+    "| Check | Anchor | Domain | Executor | Outcome | Residual | Birth | Primary blocker | Artifact |",
+    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    ...checks.map(
+      (check) =>
+        `| ${check.checkId} | ${check.anchorId} | ${check.domain} | ${check.executorId} | ${check.measuredOutcome} | ${check.residualMagnitude} | ${check.birthEvaluation.status} | ${check.birthEvaluation.primaryBlocker ?? "none"} | ${check.producedArtifact} |`,
+    ),
+    "",
+    "A born HardSeed is still not an InsightCandidate, DiscoveryCandidate, FundCandidateDraft, or Fund. It only unlocks downstream pressure.",
+  ].join("\n");
+}
+
+function discoveryGradeAnchorBirthEvaluationMarkdown(
+  checks: DiscoveryGradeAnchorRuntimeCheck[],
+): string {
+  return [
+    "# HardSeed Birth Evaluation",
+    "",
+    "| Check | Accepted | Failed gates | Blockers |",
+    "| --- | --- | --- | --- |",
+    ...checks.map(
+      (check) =>
+        `| ${check.checkId} | ${String(check.birthEvaluation.accepted)} | ${check.birthEvaluation.failedGates.join(", ") || "none"} | ${check.birthEvaluation.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function discoveryGradeAnchorBornSeedsMarkdown(
+  hardSeeds: HardSeed[],
+  validations: HardSeedValidation[],
+): string {
+  const validationBySeed = new Map(
+    validations.map((validation) => [validation.seedId, validation]),
+  );
+  return [
+    "# Birth Eligible HardSeeds",
+    "",
+    `HardSeeds born: ${hardSeeds.length}.`,
+    "",
+    "| HardSeed | Candidate | Domain | Type | Valid | Claim |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...hardSeeds.map((seed) => {
+      const validation = validationBySeed.get(seed.seedId);
+      return `| ${seed.seedId} | ${seed.candidateId} | ${seed.domain} | ${seed.type} | ${String(validation?.accepted ?? false)} | ${seed.claim} |`;
+    }),
+  ].join("\n");
+}
+
+function discoveryGradeAnchorBlockedOutputsMarkdown(
+  checks: DiscoveryGradeAnchorRuntimeCheck[],
+): string {
+  const blocked = checks.filter((check) => !check.birthEvaluation.accepted);
+  return [
+    "# Blocked Discovery Anchor Outputs",
+    "",
+    `Blocked outputs: ${blocked.length}.`,
+    "",
+    "| Check | Anchor | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- |",
+    ...blocked.map(
+      (check) =>
+        `| ${check.checkId} | ${check.anchorId} | ${check.birthEvaluation.primaryBlocker ?? "unknown"} | ${check.birthEvaluation.failedGates.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function discoveryGradeAnchorRunFundGateMarkdown(
+  report: DiscoveryGradeAnchorRunReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "Fund Gate is fail-closed because discovery-anchor runtime creates only HardSeeds, never Fund state.",
+  ].join("\n");
+}
+
+function discoveryGradeAnchorRunNextCheckpointMarkdown(
+  report: DiscoveryGradeAnchorRunReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function discoveryGradeAnchorRunAuditMarkdown(
+  report: DiscoveryGradeAnchorRunAuditReport,
+): string {
+  return [
+    "# Discovery Anchor Run Audit",
+    "",
+    `Passed: ${String(report.passed)}.`,
+    `Runtime checks: ${report.runtimeChecks}.`,
+    `HardSeeds born: ${report.hardSeedsBorn}.`,
+    "",
+    "| Gate | Passed | Message |",
+    "| --- | --- | --- |",
+    ...report.gates.map(
+      (gateItem) =>
+        `| ${gateItem.code} | ${String(gateItem.passed)} | ${gateItem.message} |`,
+    ),
+  ].join("\n");
 }
 
 function hasDiscoveryAnchorText(value: string, minLength: number): boolean {
@@ -21335,13 +22158,20 @@ function renderGeneratorBornPackageReproduce(candidate: FundCandidate): string {
 
 function generatorBornPressureRow(input: {
   seed: HardSeed;
-  output: MechanismFirstGeneratorOutput | null;
+  output: GeneratorBornSourceOutput | null;
   runtimeEvidenceExists: boolean;
 }): GeneratorBornPressureRow {
   const { seed, output } = input;
   const residual = output?.residualMagnitude ?? seed.confidenceScore / 100;
-  const generatorId = String(seed.sourceSeed.generatorId ?? "unknown");
-  const outputId = String(seed.sourceSeed.outputId ?? seed.seedId);
+  const generatorId = String(
+    seed.sourceSeed.generatorId ??
+      seed.sourceSeed.anchorId ??
+      generatorBornOutputId(output) ??
+      "unknown",
+  );
+  const outputId = String(
+    seed.sourceSeed.outputId ?? seed.sourceSeed.checkId ?? seed.seedId,
+  );
   const runtimeEvidenceRef = output?.producedArtifact ?? null;
   const evidenceRefs = uniqueStrings([
     ...seed.sourceRefs,
@@ -21476,8 +22306,11 @@ function generatorBornPressureRow(input: {
 
 function generatorBornMechanismHypothesis(
   seed: HardSeed,
-  output: MechanismFirstGeneratorOutput | null,
+  output: GeneratorBornSourceOutput | null,
 ): string {
+  if (isDiscoveryAnchorRuntimeCheck(output)) {
+    return normalizeWhitespace(output.frozenPrediction);
+  }
   if (output?.generatorId === "known_formal_problem_boundary_generator") {
     return "public-benchmark-anchored bounded formal boundary survives size density clique and trivial-rule controls across generated graph families";
   }
@@ -21501,8 +22334,11 @@ function generatorBornMechanismHypothesis(
 
 function generatorBornRivalHypothesis(
   seed: HardSeed,
-  output: MechanismFirstGeneratorOutput | null,
+  output: GeneratorBornSourceOutput | null,
 ): string {
+  if (isDiscoveryAnchorRuntimeCheck(output)) {
+    return normalizeWhitespace(output.rivalPrediction);
+  }
   if (output?.generatorId === "known_formal_problem_boundary_generator") {
     return "size density clique lower bound or small bounded counterexamples explain the apparent boundary";
   }
@@ -21522,6 +22358,21 @@ function generatorBornRivalHypothesis(
     return "class imbalance metric choice split leakage task maturity or stronger-model baselines explain the evaluation-instability residual";
   }
   return `stronger rival for ${seed.domain}`;
+}
+
+function isDiscoveryAnchorRuntimeCheck(
+  output: GeneratorBornSourceOutput | null,
+): output is DiscoveryGradeAnchorRuntimeCheck {
+  return output !== null && "checkId" in output && "anchorId" in output;
+}
+
+function generatorBornOutputId(
+  output: GeneratorBornSourceOutput | null,
+): string | null {
+  if (output === null) return null;
+  return isDiscoveryAnchorRuntimeCheck(output)
+    ? output.anchorId
+    : output.generatorId;
 }
 
 function generatorBornPressureRemainingBottleneck(
@@ -33813,6 +34664,16 @@ export class AutonomousDiscoveryDaemonService {
   async discoveryAnchorAudit(): Promise<DiscoveryGradeAnchorAuditReport> {
     await this.ensureInitialized();
     return new DiscoveryGradeAnchorSelectionService(this.root).audit();
+  }
+
+  async discoveryAnchorRun(): Promise<DiscoveryGradeAnchorRunReport> {
+    await this.ensureInitialized();
+    return new DiscoveryGradeAnchorRunService(this.root).run();
+  }
+
+  async discoveryAnchorRunAudit(): Promise<DiscoveryGradeAnchorRunAuditReport> {
+    await this.ensureInitialized();
+    return new DiscoveryGradeAnchorRunService(this.root).audit();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

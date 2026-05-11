@@ -100,6 +100,8 @@ const commands = [
   "formal-anchor-pressure",
   "discovery-anchor-select",
   "discovery-anchor-audit",
+  "discovery-anchor-run",
+  "discovery-anchor-run-audit",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -4888,6 +4890,102 @@ test("discover-daemon discovery anchor CLIs are bounded and non-funding", async 
   );
 });
 
+test("discover-daemon discovery anchor run consumes generator design queue and creates only HardSeeds", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.discoveryAnchorSelect();
+
+  const run = await service.discoveryAnchorRun();
+
+  assert.equal(run.kind, "discovery_grade_anchor_run");
+  assert.equal(run.status, "continue_searching_checkpointed");
+  assert.equal(run.anchorsLoaded, 3);
+  assert.equal(run.anchorsRun, 3);
+  assert.equal(run.runtimeChecks, 3);
+  assert.equal(run.hardSeedBirthAttempts, 3);
+  assert.equal(run.hardSeedsBorn >= 1, true);
+  assert.equal(run.insightCandidatesCreated, 0);
+  assert.equal(run.discoveryCandidatesCreated, 0);
+  assert.equal(run.fundFound, false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "discovery-anchor-run", "latest.json")),
+    true,
+  );
+
+  const bornPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "discovery-anchor-run",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeeds: Array<{ seedId: string }>;
+    validations: Array<{ accepted: boolean }>;
+  };
+  assert.equal(bornPayload.hardSeeds.length, run.hardSeedsBorn);
+  assert.equal(
+    bornPayload.validations.every((validation) => validation.accepted),
+    true,
+  );
+
+  const audit = await service.discoveryAnchorRunAudit();
+  assert.equal(audit.kind, "discovery_grade_anchor_run_audit");
+  assert.equal(audit.passed, true);
+  assert.deepEqual(audit.failedGates, []);
+
+  const pressure = await service.generatorPressure();
+  assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
+  assert.equal(pressure.seedsLoaded >= run.hardSeedsBorn, true);
+  assert.equal(pressure.insightCandidatesCreated >= 1, true);
+  assert.equal(pressure.discoveryCandidatesCreated, 0);
+  assert.equal(pressure.fundFound, false);
+
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon discovery anchor run CLIs are bounded and non-funding", async () => {
+  const root = await tempRoot();
+
+  const run = await executeCli(
+    ["discover-daemon", "discovery-anchor-run", "--json"],
+    root,
+  );
+  assert.equal(run.ok, true, JSON.stringify(run.errors));
+  assert.equal(
+    (run.data as Record<string, unknown>).kind,
+    "discovery_grade_anchor_run",
+  );
+  assert.equal(
+    Number((run.data as Record<string, unknown>).hardSeedsBorn) >= 1,
+    true,
+  );
+
+  const audit = await executeCli(
+    ["discover-daemon", "discovery-anchor-run-audit", "--json"],
+    root,
+  );
+  assert.equal(audit.ok, true, JSON.stringify(audit.errors));
+  assert.equal(
+    (audit.data as Record<string, unknown>).kind,
+    "discovery_grade_anchor_run_audit",
+  );
+  assert.equal((audit.data as Record<string, unknown>).passed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("formal anchor pilot creates only external bounded hard seeds and no fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -7174,6 +7272,26 @@ const cliScenarios: {
     name: "formal-anchor-pressure",
     args: ["discover-daemon", "formal-anchor-pressure", "--json"],
     expectedKind: "external_formal_anchor_pressure",
+  },
+  {
+    name: "discovery-anchor-select",
+    args: ["discover-daemon", "discovery-anchor-select", "--json"],
+    expectedKind: "discovery_grade_anchor_selection",
+  },
+  {
+    name: "discovery-anchor-audit",
+    args: ["discover-daemon", "discovery-anchor-audit", "--json"],
+    expectedKind: "discovery_grade_anchor_audit",
+  },
+  {
+    name: "discovery-anchor-run",
+    args: ["discover-daemon", "discovery-anchor-run", "--json"],
+    expectedKind: "discovery_grade_anchor_run",
+  },
+  {
+    name: "discovery-anchor-run-audit",
+    args: ["discover-daemon", "discovery-anchor-run-audit", "--json"],
+    expectedKind: "discovery_grade_anchor_run_audit",
   },
   {
     name: "cycle",

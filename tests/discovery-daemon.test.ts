@@ -27,6 +27,7 @@ import {
   discoveryDaemonDomains,
   discoveryDaemonInternalStatuses,
   DiscoveryDomainRotator,
+  ExternalFormalAnchorSelector,
   FreshTargetSampler,
   FundCandidateDraftValidator,
   FundGateEvaluator,
@@ -92,6 +93,9 @@ const commands = [
   "generator-insight-closure",
   "generator-fund-closure",
   "dimacs-boundary-closure",
+  "formal-anchor-select",
+  "formal-anchor-pilot",
+  "formal-anchor-audit",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -4146,6 +4150,170 @@ test("DIMACS boundary closure parses graph instances and kills known-family resi
   }
 });
 
+test("external formal anchor selector rejects weak anchors and accepts bounded external pilots", () => {
+  const selector = new ExternalFormalAnchorSelector();
+  const baseAnchor = {
+    anchorId: "EXT-TEST-FORMAL-ANCHOR",
+    domain: "formal_mathematics_conjecture_refutation" as const,
+    sourceRef: "https://example.org/formal-anchor",
+    inspectabilityRef: "https://example.org/formal-anchor",
+    problemAnchor: "External bounded formal anchor for selector testing.",
+    measurableFormalOutcome:
+      "bounded target outcome with formal checks and counterexample pressure",
+    candidateMechanismHypothesis:
+      "candidate mechanism survives simple baseline and rival controls",
+    rivalMechanisms: [
+      "known theorem explains the outcome",
+      "size baseline explains the outcome",
+      "generator artifact explains the outcome",
+    ],
+    falsifier: "A bounded counterexample or known prior explains the signal.",
+    boundedSearchPlan:
+      "Generate bounded formal objects and run exact property checks.",
+    counterexamplePath:
+      "Generate negative controls where the mechanism should fail.",
+    replayPath: "Replay deterministic formal object generation.",
+    nontrivialityCriteria:
+      "The signal survives known-prior, baseline, counterexample, and replay pressure.",
+    knownTrivialKillCriteria:
+      "Kill if source-family documentation or simple baselines explain it.",
+    unresolvedPotential: 4,
+    publicInspectability: 4,
+    boundedCheckability: 5,
+    counterexampleFeasibility: 5,
+    proofMechanismFeasibility: 4,
+    sourceFamilyTrivialityRisk: 0.25,
+    knownSourceFamilyMechanism: false,
+    hasExternalSource: true,
+    hasBoundedCheckPath: true,
+  };
+
+  assert.equal(selector.evaluate(baseAnchor).status, "pilot_ready");
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "EXT-TEST-KNOWN-SOURCE",
+      knownSourceFamilyMechanism: true,
+      sourceFamilyTrivialityRisk: 0.92,
+    }).status,
+    "rejected_known_source_family",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "EXT-TEST-NO-SOURCE",
+      sourceRef: "local-generator://missing-source",
+      inspectabilityRef: "local-generator://missing-source",
+      hasExternalSource: false,
+    }).status,
+    "rejected_missing_external_source",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "EXT-TEST-NO-BOUNDED-CHECK",
+      hasBoundedCheckPath: false,
+    }).status,
+    "rejected_missing_bounded_check",
+  );
+});
+
+test("formal anchor pilot creates only external bounded hard seeds and no fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const selection = await service.formalAnchorSelect();
+
+  assert.equal(selection.kind, "external_formal_anchor_selection");
+  assert.equal(selection.anchorsEvaluated >= 25, true);
+  assert.equal(selection.top5Anchors.length, 5);
+  assert.equal(selection.rejectedKnownSourceFamily >= 1, true);
+  assert.equal(
+    selection.top5Anchors.every(
+      (item) =>
+        item.status === "pilot_ready" &&
+        item.anchor.sourceRef.startsWith("https://") &&
+        item.anchor.hasBoundedCheckPath,
+    ),
+    true,
+  );
+
+  const pilot = await service.formalAnchorPilot();
+
+  assert.equal(pilot.kind, "external_formal_anchor_pilot");
+  assert.equal(pilot.status, "continue_searching_checkpointed");
+  assert.equal(pilot.anchorsPiloted, 3);
+  assert.equal(pilot.hardSeedBirthAttempts, 3);
+  assert.equal(pilot.hardSeedsBorn >= 1, true);
+  assert.equal(pilot.insightCandidatesCreated, pilot.hardSeedsBorn);
+  assert.equal(pilot.discoveryCandidatesCreated, 0);
+  assert.equal(pilot.fundFound, false);
+  assert.deepEqual(pilot.fundGateResult.failedGates, ["candidate_present"]);
+  for (const artifact of [
+    "DIMACS_FAILURE_LESSONS.md",
+    "EXTERNAL_FORMAL_ANCHOR_SELECTOR.md",
+    "EXTERNAL_FORMAL_ANCHORS_EVALUATED.json",
+    "TOP5_FORMAL_ANCHORS.md",
+    "TOP3_FORMAL_PILOT_CHECKS.md",
+    "TOP3_FORMAL_PILOT_CHECKS.json",
+    "HARD_SEED_BIRTH_DECISIONS.md",
+    "HARD_SEED_BIRTH_DECISIONS.json",
+    "INSIGHT_CANDIDATE_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "formal-anchor-selection", artifact)),
+      true,
+      artifact,
+    );
+  }
+  const pilotRows = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "formal-anchor-selection",
+        "TOP3_FORMAL_PILOT_CHECKS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      anchorId: string;
+      birthEvaluation: { accepted: boolean; primaryBlocker: string | null };
+      hardSeed: unknown | null;
+      knownTrivial: boolean;
+    }>;
+  };
+  assert.equal(
+    pilotRows.results.some(
+      (row) => row.birthEvaluation.accepted && row.hardSeed !== null,
+    ),
+    true,
+  );
+  assert.equal(
+    pilotRows.results.some(
+      (row) =>
+        row.knownTrivial &&
+        !row.birthEvaluation.accepted &&
+        row.hardSeed === null,
+    ),
+    true,
+  );
+  const audit = await service.formalAnchorAudit();
+  assert.equal(audit.kind, "external_formal_anchor_audit");
+  assert.equal(audit.passed, true);
+  assert.deepEqual(audit.failedGates, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon generator CLIs are bounded and non-funding", async () => {
   const root = await tempRoot();
 
@@ -5528,6 +5696,21 @@ const cliScenarios: {
     name: "generator-fund-closure",
     args: ["discover-daemon", "generator-fund-closure", "--json"],
     expectedKind: "generator_born_fund_closure",
+  },
+  {
+    name: "formal-anchor-select",
+    args: ["discover-daemon", "formal-anchor-select", "--json"],
+    expectedKind: "external_formal_anchor_selection",
+  },
+  {
+    name: "formal-anchor-pilot",
+    args: ["discover-daemon", "formal-anchor-pilot", "--json"],
+    expectedKind: "external_formal_anchor_pilot",
+  },
+  {
+    name: "formal-anchor-audit",
+    args: ["discover-daemon", "formal-anchor-audit", "--json"],
+    expectedKind: "external_formal_anchor_audit",
   },
   {
     name: "cycle",

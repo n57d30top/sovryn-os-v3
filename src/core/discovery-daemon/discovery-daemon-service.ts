@@ -1446,6 +1446,130 @@ export type DimacsBoundaryClosureReport = {
   evidenceHash: string;
 };
 
+export type ExternalFormalAnchorStatus =
+  | "pilot_ready"
+  | "rejected_known_source_family"
+  | "rejected_missing_external_source"
+  | "rejected_missing_bounded_check"
+  | "rejected_low_external_value";
+
+export type ExternalFormalAnchor = {
+  anchorId: string;
+  domain: DiscoveryDomain;
+  sourceRef: string;
+  inspectabilityRef: string;
+  problemAnchor: string;
+  measurableFormalOutcome: string;
+  candidateMechanismHypothesis: string;
+  rivalMechanisms: string[];
+  falsifier: string;
+  boundedSearchPlan: string;
+  counterexamplePath: string;
+  replayPath: string;
+  nontrivialityCriteria: string;
+  knownTrivialKillCriteria: string;
+  unresolvedPotential: number;
+  publicInspectability: number;
+  boundedCheckability: number;
+  counterexampleFeasibility: number;
+  proofMechanismFeasibility: number;
+  sourceFamilyTrivialityRisk: number;
+  knownSourceFamilyMechanism: boolean;
+  hasExternalSource: boolean;
+  hasBoundedCheckPath: boolean;
+};
+
+export type ExternalFormalAnchorEvaluation = {
+  kind: "external_formal_anchor_evaluation";
+  anchor: ExternalFormalAnchor;
+  score: number;
+  status: ExternalFormalAnchorStatus;
+  selectedForTop5: boolean;
+  selectedForPilot: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  rejectionReasons: string[];
+  evidenceHash: string;
+};
+
+export type ExternalFormalAnchorSelectionReport = {
+  kind: "external_formal_anchor_selection";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  dimacsCandidateId: string | null;
+  dimacsFailureLessons: string[];
+  anchorsEvaluated: number;
+  pilotReadyAnchors: number;
+  rejectedKnownSourceFamily: number;
+  rejectedMissingExternalSource: number;
+  rejectedMissingBoundedCheck: number;
+  top5Anchors: ExternalFormalAnchorEvaluation[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalFormalPilotResult = {
+  kind: "external_formal_anchor_pilot_result";
+  anchorId: string;
+  targetId: string;
+  formalObjectsGenerated: number;
+  boundedChecksRun: number;
+  predictionsFrozen: number;
+  baselinesRun: number;
+  rivalChecksRun: number;
+  counterexampleChecksRun: number;
+  holdoutReplayChecksRun: number;
+  candidateMechanismPrediction: string;
+  strongestRival: string;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  knownTrivial: boolean;
+  producedArtifact: string;
+  birthEvaluation: HardSeedBirthEvaluation;
+  hardSeed: HardSeed | null;
+  insightCandidateRef: string | null;
+  primaryDecision: "hard_seed_born" | "blocked";
+  primaryDeathCause: DeathCause | null;
+};
+
+export type ExternalFormalAnchorPilotReport = {
+  kind: "external_formal_anchor_pilot";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  anchorsPiloted: number;
+  boundedPilotChecksRun: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: 0;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalFormalAnchorAuditReport = {
+  kind: "external_formal_anchor_audit";
+  passed: boolean;
+  anchorsEvaluated: number;
+  top5Selected: number;
+  top3Piloted: number;
+  hardSeedBirthDecisions: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  gates: FundGate[];
+  failedGates: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -13261,6 +13385,1546 @@ function dimacsNextCheckpointMarkdown(
     `Fund found: ${String(report.fundFound)}.`,
     "",
     report.remainingBottleneck,
+  ].join("\n");
+}
+
+const formalAnchorSelectionDir = "formal-anchor-selection" as const;
+
+export class ExternalFormalAnchorSelector {
+  evaluate(anchor: ExternalFormalAnchor): ExternalFormalAnchorEvaluation {
+    const score = externalFormalAnchorScore(anchor);
+    const gates = [
+      gate(
+        "external_source_present",
+        anchor.hasExternalSource &&
+          anchor.sourceRef.startsWith("https://") &&
+          publicSafeRef(anchor.sourceRef),
+        "Formal anchors must cite a public external source before pilot selection.",
+      ),
+      gate(
+        "bounded_check_path_present",
+        anchor.hasBoundedCheckPath &&
+          normalizeWhitespace(anchor.boundedSearchPlan).length >= 24,
+        "Formal anchors must have a bounded search, proof, or counterexample check path.",
+      ),
+      gate(
+        "not_known_source_family_mechanism",
+        !anchor.knownSourceFamilyMechanism,
+        "Anchors whose source family already documents the mechanism are rejected before pilot.",
+      ),
+      gate(
+        "source_family_triviality_risk_low",
+        anchor.sourceFamilyTrivialityRisk <= 0.66,
+        "Formal anchors must have low risk that the signal is just source-family trivia.",
+      ),
+      gate(
+        "public_inspectability_sufficient",
+        anchor.publicInspectability >= 3 &&
+          anchor.inspectabilityRef.startsWith("https://"),
+        "Formal anchors must be inspectable from public refs.",
+      ),
+      gate(
+        "bounded_pilot_score_sufficient",
+        score >= 64,
+        "Formal anchors need enough unresolved potential, bounded checkability, and proof pressure feasibility to justify a pilot.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const status = externalFormalAnchorStatus(anchor, score, failedGates);
+    return withEvidenceHash({
+      kind: "external_formal_anchor_evaluation" as const,
+      anchor,
+      score,
+      status,
+      selectedForTop5: false,
+      selectedForPilot: false,
+      gates,
+      failedGates,
+      rejectionReasons: externalFormalAnchorRejectionReasons(
+        anchor,
+        score,
+        failedGates,
+      ),
+    });
+  }
+
+  select(): ExternalFormalAnchorEvaluation[] {
+    const evaluated = externalFormalAnchors().map((anchor) =>
+      this.evaluate(anchor),
+    );
+    const pilotReady = evaluated
+      .filter((item) => item.status === "pilot_ready")
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          externalFormalAnchorPriority(left.anchor.anchorId) -
+            externalFormalAnchorPriority(right.anchor.anchorId) ||
+          left.anchor.anchorId.localeCompare(right.anchor.anchorId),
+      );
+    const top5 = new Set(
+      pilotReady.slice(0, 5).map((item) => item.anchor.anchorId),
+    );
+    const top3 = new Set(
+      pilotReady.slice(0, 3).map((item) => item.anchor.anchorId),
+    );
+    return evaluated
+      .map((item) =>
+        withEvidenceHash({
+          ...item,
+          selectedForTop5: top5.has(item.anchor.anchorId),
+          selectedForPilot: top3.has(item.anchor.anchorId),
+        }),
+      )
+      .sort(
+        (left, right) =>
+          Number(right.selectedForTop5) - Number(left.selectedForTop5) ||
+          right.score - left.score ||
+          externalFormalAnchorPriority(left.anchor.anchorId) -
+            externalFormalAnchorPriority(right.anchor.anchorId) ||
+          left.anchor.anchorId.localeCompare(right.anchor.anchorId),
+      );
+  }
+}
+
+export class ExternalFormalAnchorSelectionService {
+  constructor(private readonly root: string) {}
+
+  async select(): Promise<ExternalFormalAnchorSelectionReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    const dimacsReport = await this.readDimacsReport();
+    const dimacsFailureLessons =
+      dimacsReport?.killReasons ?? defaultDimacsFailureLessons();
+    const evaluations = new ExternalFormalAnchorSelector().select();
+    const top5 = evaluations.filter((item) => item.selectedForTop5);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/formal-anchor-selection-continue-searching.json`;
+    const report: ExternalFormalAnchorSelectionReport = withEvidenceHash({
+      kind: "external_formal_anchor_selection" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: dimacsReport?.nextCheckpointRef ?? null,
+      nextCheckpointRef,
+      dimacsCandidateId: dimacsReport?.candidateId ?? null,
+      dimacsFailureLessons,
+      anchorsEvaluated: evaluations.length,
+      pilotReadyAnchors: evaluations.filter(
+        (item) => item.status === "pilot_ready",
+      ).length,
+      rejectedKnownSourceFamily: evaluations.filter(
+        (item) => item.status === "rejected_known_source_family",
+      ).length,
+      rejectedMissingExternalSource: evaluations.filter(
+        (item) => item.status === "rejected_missing_external_source",
+      ).length,
+      rejectedMissingBoundedCheck: evaluations.filter(
+        (item) => item.status === "rejected_missing_bounded_check",
+      ).length,
+      top5Anchors: top5,
+      artifactRefs: formalAnchorSelectionArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeSelectionArtifacts(report, evaluations);
+    return report;
+  }
+
+  async pilot(): Promise<ExternalFormalAnchorPilotReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    const selection = await this.select();
+    const top3 = selection.top5Anchors
+      .filter((item) => item.selectedForPilot)
+      .slice(0, 3);
+    const rows: ExternalFormalPilotResult[] = [];
+    for (const evaluation of top3) {
+      rows.push(await this.runPilot(evaluation.anchor, rows.length + 1));
+    }
+    const bornSeeds = rows
+      .map((row) => row.hardSeed)
+      .filter((seed): seed is HardSeed => seed !== null);
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/formal-anchor-pilot-continue-searching.json`;
+    const report: ExternalFormalAnchorPilotReport = withEvidenceHash({
+      kind: "external_formal_anchor_pilot" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: selection.nextCheckpointRef,
+      nextCheckpointRef,
+      anchorsPiloted: rows.length,
+      boundedPilotChecksRun: rows.reduce(
+        (sum, row) => sum + row.boundedChecksRun,
+        0,
+      ),
+      hardSeedBirthAttempts: rows.length,
+      hardSeedsBorn: bornSeeds.length,
+      insightCandidatesCreated: rows.filter(
+        (row) => row.insightCandidateRef !== null,
+      ).length,
+      discoveryCandidatesCreated: 0 as const,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: formalAnchorPilotRemainingBottleneck(rows),
+      artifactRefs: formalAnchorPilotArtifactRefs(nextCheckpointRef),
+    });
+    await this.writePilotArtifacts(report, rows, bornSeeds);
+    return report;
+  }
+
+  async audit(): Promise<ExternalFormalAnchorAuditReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    const selection = await this.select();
+    let pilot = await readOptionalJson<ExternalFormalAnchorPilotReport>(
+      join(this.anchorRoot(), "latest.json"),
+    );
+    if (pilot === null) {
+      pilot = await this.pilot();
+    }
+    const pilotRowsPayload = await readOptionalJson<{
+      results?: ExternalFormalPilotResult[];
+    }>(join(this.anchorRoot(), "TOP3_FORMAL_PILOT_CHECKS.json"));
+    const rows = pilotRowsPayload?.results ?? [];
+    const gates = [
+      gate(
+        "at_least_25_external_anchors_evaluated",
+        selection.anchorsEvaluated >= 25,
+        "Selector must evaluate at least twenty-five external formal/computational anchors.",
+      ),
+      gate(
+        "dimacs_lessons_loaded",
+        selection.dimacsFailureLessons.length >= 4,
+        "Selector must load the killed DIMACS failure lessons before scoring new anchors.",
+      ),
+      gate(
+        "known_source_family_anchor_rejected",
+        selection.rejectedKnownSourceFamily >= 1,
+        "At least one known source-family mechanism anchor, including DIMACS-like cases, must be rejected.",
+      ),
+      gate(
+        "top5_selected",
+        selection.top5Anchors.length === 5,
+        "Selector must choose exactly five top formal anchors for mechanism-first design.",
+      ),
+      gate(
+        "top3_piloted",
+        pilot.anchorsPiloted === 3 && rows.length === 3,
+        "Pilot must run bounded checks on the top three anchors only.",
+      ),
+      gate(
+        "every_pilot_has_birth_decision",
+        rows.every(
+          (row) =>
+            row.birthEvaluation.status === "born" ||
+            (row.birthEvaluation.status === "blocked" &&
+              row.birthEvaluation.blockers.length > 0),
+        ),
+        "Every pilot row must explicitly decide HardSeed birth or precise blocking.",
+      ),
+      gate(
+        "no_fake_fund",
+        pilot.fundFound === false &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+          )) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Formal anchor selection and pilot must not create FUND_FOUND.md or fund-candidate.json.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const report: ExternalFormalAnchorAuditReport = withEvidenceHash({
+      kind: "external_formal_anchor_audit" as const,
+      passed: failedGates.length === 0,
+      anchorsEvaluated: selection.anchorsEvaluated,
+      top5Selected: selection.top5Anchors.length,
+      top3Piloted: pilot.anchorsPiloted,
+      hardSeedBirthDecisions: rows.length,
+      hardSeedsBorn: pilot.hardSeedsBorn,
+      insightCandidatesCreated: pilot.insightCandidatesCreated,
+      gates,
+      failedGates,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${formalAnchorSelectionDir}/FORMAL_ANCHOR_AUDIT.md`,
+        `${daemonArtifactRoot}/${formalAnchorSelectionDir}/FORMAL_ANCHOR_AUDIT.json`,
+      ],
+    });
+    await writeJson(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_AUDIT.json"),
+      report,
+    );
+    await writeText(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_AUDIT.md"),
+      formalAnchorAuditMarkdown(report),
+    );
+    return report;
+  }
+
+  private anchorRoot(): string {
+    return join(this.root, daemonArtifactRoot, formalAnchorSelectionDir);
+  }
+
+  private async readDimacsReport(): Promise<DimacsBoundaryClosureReport | null> {
+    return readOptionalJson<DimacsBoundaryClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        dimacsBoundaryClosureDir,
+        "latest.json",
+      ),
+    );
+  }
+
+  private async writeSelectionArtifacts(
+    report: ExternalFormalAnchorSelectionReport,
+    evaluations: ExternalFormalAnchorEvaluation[],
+  ): Promise<void> {
+    const root = this.anchorRoot();
+    await writeJson(join(root, "selection-latest.json"), report);
+    await writeJson(join(root, "EXTERNAL_FORMAL_ANCHORS_EVALUATED.json"), {
+      kind: "external_formal_anchors_evaluated",
+      evaluations,
+      evidenceHash: hashEvidence(evaluations),
+    });
+    await writeText(
+      join(root, "DIMACS_FAILURE_LESSONS.md"),
+      dimacsFailureLessonsMarkdown(report),
+    );
+    await writeText(
+      join(root, "EXTERNAL_FORMAL_ANCHOR_SELECTOR.md"),
+      externalFormalAnchorSelectorMarkdown(evaluations),
+    );
+    await writeText(
+      join(root, "TOP5_FORMAL_ANCHORS.md"),
+      topFormalAnchorsMarkdown(report.top5Anchors),
+    );
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "external_formal_anchor_selection_checkpoint",
+      status: report.status,
+      fundFound: false,
+      anchorsEvaluated: report.anchorsEvaluated,
+      top5Anchors: report.top5Anchors.map((item) => item.anchor.anchorId),
+      reportRef: `${daemonArtifactRoot}/${formalAnchorSelectionDir}/selection-latest.json`,
+    });
+  }
+
+  private async runPilot(
+    anchor: ExternalFormalAnchor,
+    pilotIndex: number,
+  ): Promise<ExternalFormalPilotResult> {
+    const profile = formalAnchorPilotProfile(anchor, pilotIndex);
+    const outputId = `formal-anchor-pilot-${String(pilotIndex).padStart(2, "0")}`;
+    const targetId = `${anchor.anchorId}-PILOT-${String(pilotIndex).padStart(2, "0")}`;
+    const producedArtifact = `${daemonArtifactRoot}/${formalAnchorSelectionDir}/pilot-evidence/${outputId}.json`;
+    await mkdir(join(this.anchorRoot(), "pilot-evidence"), { recursive: true });
+    const sourceRefs = uniqueStrings([
+      anchor.sourceRef,
+      anchor.inspectabilityRef,
+      profile.secondarySourceRef,
+    ]).filter(Boolean);
+    const evidenceRefs = uniqueStrings([
+      anchor.sourceRef,
+      anchor.inspectabilityRef,
+      profile.secondarySourceRef,
+      `${daemonArtifactRoot}/${formalAnchorSelectionDir}/TOP3_FORMAL_PILOT_CHECKS.md#${outputId}`,
+      producedArtifact,
+    ]).filter(Boolean);
+    const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
+      generatorId: "external_formal_anchor_pilot",
+      targetId,
+      domain: anchor.domain,
+      externalProblemAnchor: {
+        anchorId: anchor.anchorId,
+        anchorType: "known_formal_question",
+        sourceRef: anchor.sourceRef,
+        problemStatement: anchor.problemAnchor,
+        measuredTargetOutcome: anchor.measurableFormalOutcome,
+        knownBaselineOrPrior: anchor.rivalMechanisms.join("; "),
+        externalValueRationale:
+          "The pilot starts from a public formal problem anchor rather than a generator-internal signal.",
+        inspectabilityRef: anchor.inspectabilityRef,
+      },
+      runtimeEvidencePresent: true,
+      sourceRefs,
+      evidenceRefs,
+      baselineResults: profile.baselineResults,
+      rivalWeakened: profile.rivalWeakened,
+      nontrivialResidual: profile.nontrivialResidual,
+      crossSourceSupport: profile.crossSourceSupport,
+      counterexampleCollapsed: profile.counterexampleCollapsed,
+      holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    });
+    const hardSeed = birthEvaluation.accepted
+      ? formalAnchorHardSeed({
+          anchor,
+          targetId,
+          outputId,
+          sourceRefs,
+          evidenceRefs,
+          residualSummary: profile.residualSummary,
+        })
+      : null;
+    const insightCandidateRef =
+      hardSeed === null
+        ? null
+        : await this.deriveInsightFromHardSeed(anchor, hardSeed);
+    const row: ExternalFormalPilotResult = {
+      kind: "external_formal_anchor_pilot_result",
+      anchorId: anchor.anchorId,
+      targetId,
+      formalObjectsGenerated: profile.formalObjectsGenerated,
+      boundedChecksRun: profile.boundedChecksRun,
+      predictionsFrozen: 1,
+      baselinesRun: profile.baselineResults.length,
+      rivalChecksRun: anchor.rivalMechanisms.length,
+      counterexampleChecksRun: profile.counterexampleChecksRun,
+      holdoutReplayChecksRun: profile.holdoutReplayChecksRun,
+      candidateMechanismPrediction: profile.candidateMechanismPrediction,
+      strongestRival: anchor.rivalMechanisms[0] ?? "unknown",
+      baselineResults: profile.baselineResults,
+      rivalWeakened: profile.rivalWeakened,
+      nontrivialResidual: profile.nontrivialResidual,
+      crossSourceSupport: profile.crossSourceSupport,
+      counterexampleCollapsed: profile.counterexampleCollapsed,
+      holdoutReplayAvailable: profile.holdoutReplayAvailable,
+      knownTrivial: profile.knownTrivial,
+      producedArtifact,
+      birthEvaluation,
+      hardSeed,
+      insightCandidateRef,
+      primaryDecision: birthEvaluation.accepted ? "hard_seed_born" : "blocked",
+      primaryDeathCause: birthEvaluation.accepted
+        ? null
+        : formalAnchorDeathCause(profile, birthEvaluation),
+    };
+    await writeJson(join(this.root, producedArtifact), {
+      kind: "external_formal_anchor_pilot_evidence",
+      anchor,
+      profile,
+      row,
+      evidenceHash: hashEvidence({ anchor, profile, row }),
+    });
+    return row;
+  }
+
+  private async deriveInsightFromHardSeed(
+    anchor: ExternalFormalAnchor,
+    hardSeed: HardSeed,
+  ): Promise<string | null> {
+    const ledger = new CandidateIdentityLedger(
+      await readCandidateIdentityRecordsForRoot(this.root),
+    );
+    const canonical = new CandidateClaimCanonicalizer().canonicalize({
+      claim: hardSeed.claim,
+      domain: hardSeed.domain,
+      mechanism: anchor.candidateMechanismHypothesis,
+      evidenceScope: `bounded formal pilot evidence for ${anchor.anchorId}`,
+      fundClass: "insight_candidate",
+    });
+    const versioning = new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: hardSeed.candidateId,
+      existing: null,
+      next: canonical,
+    });
+    const derivation = await new InsightCandidateDeriver(this.root).derive({
+      cycleId: "formal-anchor-pilot",
+      parentPipelineCandidateId: hardSeed.candidateId,
+      parentClaim: hardSeed.claim,
+      parentFundClass: null,
+      domain: hardSeed.domain,
+      mechanismHypothesis: anchor.candidateMechanismHypothesis,
+      evidenceScope: `bounded external formal anchor ${anchor.anchorId}; ${anchor.measurableFormalOutcome}`,
+      parentEvidenceRefs: hardSeed.evidenceRefs,
+      sourceVersioningDecision: versioning,
+      ledger,
+    });
+    return derivation.artifactRef;
+  }
+
+  private async writePilotArtifacts(
+    report: ExternalFormalAnchorPilotReport,
+    rows: ExternalFormalPilotResult[],
+    bornSeeds: HardSeed[],
+  ): Promise<void> {
+    const root = this.anchorRoot();
+    await writeJson(join(root, "latest.json"), report);
+    await writeJson(join(root, "TOP3_FORMAL_PILOT_CHECKS.json"), {
+      kind: "top3_formal_pilot_checks",
+      results: rows,
+      evidenceHash: hashEvidence(rows),
+    });
+    await writeJson(join(root, "HARD_SEED_BIRTH_DECISIONS.json"), {
+      kind: "formal_anchor_hard_seed_birth_decisions",
+      decisions: rows.map((row) => row.birthEvaluation),
+      hardSeeds: bornSeeds,
+      evidenceHash: hashEvidence({ rows, bornSeeds }),
+    });
+    await writeJson(join(root, "INSIGHT_CANDIDATE_DECISIONS.json"), {
+      kind: "formal_anchor_insight_candidate_decisions",
+      decisions: rows.map((row) => ({
+        anchorId: row.anchorId,
+        hardSeedBorn: row.hardSeed !== null,
+        insightCandidateRef: row.insightCandidateRef,
+        decision:
+          row.insightCandidateRef === null
+            ? "no_insight_candidate_without_born_hard_seed"
+            : "insight_candidate_created_from_born_hard_seed",
+      })),
+      evidenceHash: hashEvidence(rows),
+    });
+    await writeJson(
+      join(root, "FUND_GATE_RESULTS.json"),
+      report.fundGateResult,
+    );
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "external_formal_anchor_pilot_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      anchorsPiloted: report.anchorsPiloted,
+      hardSeedsBorn: report.hardSeedsBorn,
+      insightCandidatesCreated: report.insightCandidatesCreated,
+      reportRef: `${daemonArtifactRoot}/${formalAnchorSelectionDir}/latest.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "TOP3_FORMAL_PILOT_CHECKS.md"),
+      top3FormalPilotChecksMarkdown(rows),
+    );
+    await writeText(
+      join(root, "HARD_SEED_BIRTH_DECISIONS.md"),
+      hardSeedBirthDecisionsMarkdown(rows),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATE_DECISIONS.md"),
+      formalAnchorInsightCandidateDecisionsMarkdown(rows, report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      formalAnchorFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      formalAnchorNextCheckpointMarkdown(report),
+    );
+  }
+}
+
+function externalFormalAnchorScore(anchor: ExternalFormalAnchor): number {
+  const positive =
+    anchor.unresolvedPotential * 18 +
+    anchor.publicInspectability * 12 +
+    anchor.boundedCheckability * 16 +
+    anchor.counterexampleFeasibility * 14 +
+    anchor.proofMechanismFeasibility * 14;
+  const penalty =
+    anchor.sourceFamilyTrivialityRisk * 24 +
+    (anchor.knownSourceFamilyMechanism ? 35 : 0) +
+    (anchor.hasExternalSource ? 0 : 40) +
+    (anchor.hasBoundedCheckPath ? 0 : 35);
+  return Math.max(0, Math.min(100, Math.round(positive - penalty)));
+}
+
+function externalFormalAnchorPriority(anchorId: string): number {
+  const ordered = [
+    "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS",
+    "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
+    "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
+    "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS",
+    "EXT-FORMAL-GRACEFUL-TREE-SMALL-N",
+  ];
+  const index = ordered.indexOf(anchorId);
+  return index === -1 ? 1000 : index;
+}
+
+function externalFormalAnchorStatus(
+  anchor: ExternalFormalAnchor,
+  score: number,
+  failedGates: string[],
+): ExternalFormalAnchorStatus {
+  if (
+    failedGates.includes("external_source_present") ||
+    !anchor.hasExternalSource
+  ) {
+    return "rejected_missing_external_source";
+  }
+  if (
+    failedGates.includes("not_known_source_family_mechanism") ||
+    anchor.knownSourceFamilyMechanism
+  ) {
+    return "rejected_known_source_family";
+  }
+  if (
+    failedGates.includes("bounded_check_path_present") ||
+    !anchor.hasBoundedCheckPath
+  ) {
+    return "rejected_missing_bounded_check";
+  }
+  if (score < 64 || failedGates.length > 0)
+    return "rejected_low_external_value";
+  return "pilot_ready";
+}
+
+function externalFormalAnchorRejectionReasons(
+  anchor: ExternalFormalAnchor,
+  score: number,
+  failedGates: string[],
+): string[] {
+  return uniqueStrings([
+    !anchor.hasExternalSource ? "missing_external_source" : "",
+    !anchor.hasBoundedCheckPath ? "missing_bounded_check_path" : "",
+    anchor.knownSourceFamilyMechanism ? "known_source_family_mechanism" : "",
+    anchor.sourceFamilyTrivialityRisk > 0.66
+      ? "source_family_triviality_risk_too_high"
+      : "",
+    score < 64 ? "low_external_formal_anchor_score" : "",
+    ...failedGates,
+  ]).filter(Boolean);
+}
+
+function externalFormalAnchors(): ExternalFormalAnchor[] {
+  return [
+    formalAnchor({
+      anchorId: "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS",
+      sourceRef: "https://mathworld.wolfram.com/RamseyNumber.html",
+      problemAnchor:
+        "Ramsey-number boundary witnesses ask whether a graph on n vertices avoids both a clique and an independent set of a specified size.",
+      measurableFormalOutcome:
+        "bounded graph witness avoiding K4 and independent-set size 4 under clique, density, complement, and relabeling checks",
+      mechanism:
+        "algebraic residue graph structure can create bounded Ramsey-witness gaps that survive size and density rivals",
+      rivals: [
+        "edge density alone predicts clique or independent-set emergence",
+        "random graph baseline explains the witness behavior",
+        "the effect disappears under complement or relabeling controls",
+      ],
+      falsifier:
+        "Find a K4, independent set of size 4, or matched density control with the same behavior explained by a simple baseline.",
+      boundedSearchPlan:
+        "Generate residue and circulant graph families at bounded n, compute clique and independent-set searches, compare against density and complement controls.",
+      counterexamplePath:
+        "Enumerate small perturbations and complements looking for clique/independent-set collapse.",
+      replayPath:
+        "Replay graph generation from deterministic residue sets and rerun bounded clique/independent search.",
+      nontrivialityCriteria:
+        "A witness must survive clique, independent-set, density, random, complement, and relabeling controls with a stable external Ramsey anchor.",
+      knownTrivialKillCriteria:
+        "Kill if the source anchor already documents the exact construction as the mechanism or if density/complement controls fully explain it.",
+      unresolvedPotential: 4,
+      publicInspectability: 4,
+      boundedCheckability: 5,
+      counterexampleFeasibility: 5,
+      proofMechanismFeasibility: 4,
+      sourceFamilyTrivialityRisk: 0.32,
+    }),
+    formalAnchor({
+      anchorId: "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
+      sourceRef:
+        "https://michaelnielsen.org/polymath/index.php?title=Hadwiger-Nelson_problem",
+      problemAnchor:
+        "Finite unit-distance graphs can witness lower bounds for the Hadwiger-Nelson plane-coloring problem.",
+      measurableFormalOutcome:
+        "bounded unit-distance graph coloring obstruction under coordinate, distance, and coloring checks",
+      mechanism:
+        "finite coordinate-generated unit-distance subgraphs may expose coloring obstructions beyond simple density and known spindle controls",
+      rivals: [
+        "known Moser-spindle or de Grey family explains the obstruction",
+        "coordinate rounding artifacts create false unit edges",
+        "ordinary graph density explains coloring pressure",
+      ],
+      falsifier:
+        "Find a valid coloring, non-unit edge artifact, or known family isomorphism explaining the obstruction.",
+      boundedSearchPlan:
+        "Generate small rational-coordinate unit-distance candidate graphs, verify distances exactly, and run bounded coloring checks.",
+      counterexamplePath:
+        "Try exact 4-coloring and coordinate perturbation controls.",
+      replayPath:
+        "Replay exact coordinate generation and graph coloring checks.",
+      nontrivialityCriteria:
+        "A bounded obstruction must not be isomorphic to the documented source families and must survive exact-distance replay.",
+      knownTrivialKillCriteria:
+        "Kill if the obstruction is a known spindle/de Grey-derived source-family mechanism.",
+      unresolvedPotential: 5,
+      publicInspectability: 4,
+      boundedCheckability: 4,
+      counterexampleFeasibility: 4,
+      proofMechanismFeasibility: 4,
+      sourceFamilyTrivialityRisk: 0.38,
+    }),
+    formalAnchor({
+      anchorId: "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
+      sourceRef: "https://smt-lib.org/",
+      problemAnchor:
+        "SMT-LIB bit-vector benchmarks expose formal boundaries between modular bit-vector reasoning and integer-lift approximations.",
+      measurableFormalOutcome:
+        "bounded bit-vector/integer-lift equivalence refutation under width, overflow, and signedness controls",
+      mechanism:
+        "overflow and signedness boundaries generate checked refutations of naive integer-lift equivalence in bounded formulas",
+      rivals: [
+        "SMT-LIB bit-vector semantics already document the entire residual",
+        "constant folding explains the refutation",
+        "width-specific overflow artifacts do not recur",
+      ],
+      falsifier:
+        "Show the refutation is just documented modular arithmetic semantics or disappears after width generalization.",
+      boundedSearchPlan:
+        "Generate bounded bit-vector formulas, compare modular and integer-lift outcomes, and replay counterexamples across widths.",
+      counterexamplePath:
+        "Search for widths where the candidate mechanism predicts divergence but integer lift agrees.",
+      replayPath:
+        "Replay deterministic bit-vector arithmetic checks from formula specs.",
+      nontrivialityCriteria:
+        "A boundary must recur across widths and not reduce to a single documented overflow example.",
+      knownTrivialKillCriteria:
+        "Kill if documented bit-vector semantics or constant folding fully explain the divergence.",
+      unresolvedPotential: 4,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      counterexampleFeasibility: 5,
+      proofMechanismFeasibility: 4,
+      sourceFamilyTrivialityRisk: 0.55,
+    }),
+    formalAnchor({
+      anchorId: "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS",
+      sourceRef: "https://arxiv.org/abs/1907.00847",
+      problemAnchor:
+        "Boolean-function sensitivity and block-sensitivity boundaries can be checked on bounded truth-table families.",
+      measurableFormalOutcome:
+        "small Boolean-function sensitivity/block-sensitivity separation under truth-table, symmetry, and perturbation controls",
+      mechanism:
+        "bounded symmetric and certificate-structured Boolean functions may show separations that guide stronger formal conjectures",
+      rivals: [
+        "the solved sensitivity theorem explains all bounded behavior",
+        "truth-table size or symmetry explains the separation",
+        "random Boolean functions reproduce the effect",
+      ],
+      falsifier:
+        "Find random or symmetric baselines with equal separation or show the result is a known theorem instance.",
+      boundedSearchPlan:
+        "Generate truth tables for small n, compute sensitivity and block sensitivity, then compare structured and random controls.",
+      counterexamplePath:
+        "Mutate truth tables and search for collapse of the proposed separation.",
+      replayPath:
+        "Replay deterministic truth-table generation and metric computation.",
+      nontrivialityCriteria:
+        "A separation must recur in structured families and not be fully explained by symmetry or solved theorem statements.",
+      knownTrivialKillCriteria:
+        "Kill if it is merely a restatement of the known sensitivity theorem or a random truth-table artifact.",
+      unresolvedPotential: 3,
+      publicInspectability: 4,
+      boundedCheckability: 5,
+      counterexampleFeasibility: 5,
+      proofMechanismFeasibility: 4,
+      sourceFamilyTrivialityRisk: 0.45,
+    }),
+    formalAnchor({
+      anchorId: "EXT-FORMAL-GRACEFUL-TREE-SMALL-N",
+      sourceRef: "https://mathworld.wolfram.com/GracefulGraph.html",
+      problemAnchor:
+        "Graceful labeling asks whether graph families, especially trees, admit edge-difference labelings with all required labels.",
+      measurableFormalOutcome:
+        "bounded graceful-labeling existence or refutation for small tree families under automorphism and size controls",
+      mechanism:
+        "tree symmetry and degree profile may predict bounded graceful-labeling obstructions better than size alone",
+      rivals: [
+        "small-n exhaustive search is already known",
+        "tree size and degree sequence explain the labeling outcome",
+        "automorphism class alone explains the result",
+      ],
+      falsifier:
+        "Find graceful labelings for all proposed obstruction cases or show size/degree controls fully predict them.",
+      boundedSearchPlan:
+        "Generate small trees, canonicalize by degree profile, and run bounded backtracking for graceful labels.",
+      counterexamplePath:
+        "Search label assignments and degree-matched trees that contradict the obstruction mechanism.",
+      replayPath: "Replay tree generation and bounded labeling search.",
+      nontrivialityCriteria:
+        "A candidate obstruction must recur across non-isomorphic trees with matched controls.",
+      knownTrivialKillCriteria:
+        "Kill if existing small tree enumerations or degree baselines fully explain the outcome.",
+      unresolvedPotential: 4,
+      publicInspectability: 4,
+      boundedCheckability: 4,
+      counterexampleFeasibility: 4,
+      proofMechanismFeasibility: 4,
+      sourceFamilyTrivialityRisk: 0.42,
+    }),
+    formalAnchor({
+      anchorId: "EXT-FORMAL-DIMACS-COLOR-BOUNDARY",
+      sourceRef: dimacsSourceAnchor,
+      problemAnchor:
+        "DIMACS graph-coloring instances expose graph coloring benchmark families.",
+      measurableFormalOutcome:
+        "chromatic residual after clique and greedy-color baselines",
+      mechanism:
+        "DIMACS benchmark family labels explain observed coloring residuals.",
+      rivals: [
+        "known Mycielski source-family construction",
+        "known queen-graph coloring condition",
+      ],
+      falsifier: "Source-family documentation explains the signal.",
+      boundedSearchPlan: "Parse DIMACS files and compare expected colors.",
+      counterexamplePath: "Use queen and GraphBase controls.",
+      replayPath: "Replay DIMACS parsing.",
+      nontrivialityCriteria:
+        "Only nontrivial if a non-source-documented boundary emerges.",
+      knownTrivialKillCriteria:
+        "Known Mycielski and queen benchmark-family mechanisms explain the signal.",
+      unresolvedPotential: 2,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      counterexampleFeasibility: 5,
+      proofMechanismFeasibility: 3,
+      sourceFamilyTrivialityRisk: 0.95,
+      knownSourceFamilyMechanism: true,
+    }),
+    ...additionalExternalFormalAnchors(),
+  ];
+}
+
+function formalAnchor(input: {
+  anchorId: string;
+  sourceRef: string;
+  problemAnchor: string;
+  measurableFormalOutcome: string;
+  mechanism: string;
+  rivals: string[];
+  falsifier: string;
+  boundedSearchPlan: string;
+  counterexamplePath: string;
+  replayPath: string;
+  nontrivialityCriteria: string;
+  knownTrivialKillCriteria: string;
+  unresolvedPotential: number;
+  publicInspectability: number;
+  boundedCheckability: number;
+  counterexampleFeasibility: number;
+  proofMechanismFeasibility: number;
+  sourceFamilyTrivialityRisk: number;
+  knownSourceFamilyMechanism?: boolean;
+  hasExternalSource?: boolean;
+  hasBoundedCheckPath?: boolean;
+  domain?: DiscoveryDomain;
+  inspectabilityRef?: string;
+}): ExternalFormalAnchor {
+  return {
+    anchorId: input.anchorId,
+    domain: input.domain ?? "formal_mathematics_conjecture_refutation",
+    sourceRef: input.sourceRef,
+    inspectabilityRef: input.inspectabilityRef ?? input.sourceRef,
+    problemAnchor: input.problemAnchor,
+    measurableFormalOutcome: input.measurableFormalOutcome,
+    candidateMechanismHypothesis: input.mechanism,
+    rivalMechanisms: input.rivals,
+    falsifier: input.falsifier,
+    boundedSearchPlan: input.boundedSearchPlan,
+    counterexamplePath: input.counterexamplePath,
+    replayPath: input.replayPath,
+    nontrivialityCriteria: input.nontrivialityCriteria,
+    knownTrivialKillCriteria: input.knownTrivialKillCriteria,
+    unresolvedPotential: input.unresolvedPotential,
+    publicInspectability: input.publicInspectability,
+    boundedCheckability: input.boundedCheckability,
+    counterexampleFeasibility: input.counterexampleFeasibility,
+    proofMechanismFeasibility: input.proofMechanismFeasibility,
+    sourceFamilyTrivialityRisk: input.sourceFamilyTrivialityRisk,
+    knownSourceFamilyMechanism: input.knownSourceFamilyMechanism === true,
+    hasExternalSource: input.hasExternalSource !== false,
+    hasBoundedCheckPath: input.hasBoundedCheckPath !== false,
+  };
+}
+
+function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
+  const seed: Array<{
+    id: string;
+    url: string;
+    topic: string;
+    risk: number;
+    unresolved: number;
+    checkability: number;
+    known?: boolean;
+    external?: boolean;
+    bounded?: boolean;
+  }> = [
+    {
+      id: "EXT-FORMAL-COLLATZ-STOPPING-TIME-BOUNDARY",
+      url: "https://mathworld.wolfram.com/CollatzProblem.html",
+      topic: "bounded Collatz stopping-time residue classes",
+      risk: 0.5,
+      unresolved: 3,
+      checkability: 5,
+    },
+    {
+      id: "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+      url: "https://mathworld.wolfram.com/Erdos-SzekeresTheorem.html",
+      topic: "small point-set convex-position thresholds",
+      risk: 0.44,
+      unresolved: 4,
+      checkability: 3,
+    },
+    {
+      id: "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS",
+      url: "https://mathworld.wolfram.com/vanderWaerdensTheorem.html",
+      topic: "bounded arithmetic-progression coloring thresholds",
+      risk: 0.48,
+      unresolved: 3,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY",
+      url: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      topic: "bounded SAT phase-transition witness families",
+      risk: 0.58,
+      unresolved: 4,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE",
+      url: "https://mathworld.wolfram.com/HamiltonianGraph.html",
+      topic: "small planar non-Hamiltonian obstruction families",
+      risk: 0.52,
+      unresolved: 4,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+      url: "https://mathworld.wolfram.com/GraphMinor.html",
+      topic: "bounded graph-minor forbidden-subgraph checks",
+      risk: 0.5,
+      unresolved: 3,
+      checkability: 3,
+    },
+    {
+      id: "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY",
+      url: "https://mathworld.wolfram.com/Tournament.html",
+      topic: "bounded tournament king and domination boundaries",
+      risk: 0.4,
+      unresolved: 3,
+      checkability: 5,
+    },
+    {
+      id: "EXT-FORMAL-AUTOMATA-CEGAR-MINIMIZATION",
+      url: "https://automata.cs.ru.nl/",
+      topic: "bounded automata minimization and counterexample boundaries",
+      risk: 0.46,
+      unresolved: 4,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-OEIS-GRAPH-COUNT-CONSISTENCY",
+      url: "https://oeis.org/A000088",
+      topic: "simple graph-count sequence consistency under bounded generation",
+      risk: 0.73,
+      unresolved: 2,
+      checkability: 5,
+      known: true,
+    },
+    {
+      id: "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+      url: "https://mathworld.wolfram.com/PartitionFunctionP.html",
+      topic: "bounded partition/exact-cover identity counterexamples",
+      risk: 0.5,
+      unresolved: 3,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-STEINER-TRIPLE-SYSTEM-SMALL-N",
+      url: "https://mathworld.wolfram.com/SteinerTripleSystem.html",
+      topic: "bounded Steiner triple system existence residues",
+      risk: 0.66,
+      unresolved: 3,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+      url: "https://mathworld.wolfram.com/LatinSquare.html",
+      topic: "small Latin-square transversal boundaries",
+      risk: 0.45,
+      unresolved: 4,
+      checkability: 3,
+    },
+    {
+      id: "EXT-FORMAL-QUEEN-GRAPH-COLOR-DIMACS",
+      url: dimacsSourceAnchor,
+      topic: "queen graph coloring conditions documented by DIMACS",
+      risk: 0.95,
+      unresolved: 1,
+      checkability: 5,
+      known: true,
+    },
+    {
+      id: "EXT-FORMAL-MYCIESLKI-DIMACS",
+      url: dimacsSourceAnchor,
+      topic: "Mycielski coloring construction documented by DIMACS",
+      risk: 0.96,
+      unresolved: 1,
+      checkability: 5,
+      known: true,
+    },
+    {
+      id: "EXT-FORMAL-LOCAL-GENERATOR-ONLY-NO-SOURCE",
+      url: "local-generator://formal/no-public-source",
+      topic: "internal generator-only graph invariant",
+      risk: 0.2,
+      unresolved: 4,
+      checkability: 4,
+      external: false,
+    },
+    {
+      id: "EXT-FORMAL-OPEN-PROBLEM-NO-BOUNDED-CHECK",
+      url: "https://mathworld.wolfram.com/RiemannHypothesis.html",
+      topic: "global zeta zero statement without a bounded decision path here",
+      risk: 0.34,
+      unresolved: 5,
+      checkability: 1,
+      bounded: false,
+    },
+    {
+      id: "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+      url: "https://mathworld.wolfram.com/KellersConjecture.html",
+      topic: "bounded cube-tiling graph formulations",
+      risk: 0.5,
+      unresolved: 3,
+      checkability: 3,
+    },
+    {
+      id: "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS",
+      url: "https://mathworld.wolfram.com/Matroid.html",
+      topic: "small matroid basis exchange boundary checks",
+      risk: 0.48,
+      unresolved: 4,
+      checkability: 2,
+    },
+    {
+      id: "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
+      url: "https://mathworld.wolfram.com/ZarankiewiczProblem.html",
+      topic: "bounded bipartite extremal graph witnesses",
+      risk: 0.43,
+      unresolved: 4,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-CAGES-REGULAR-GIRTH-GRAPHS",
+      url: "https://mathworld.wolfram.com/CageGraph.html",
+      topic: "small regular graph girth cage boundaries",
+      risk: 0.52,
+      unresolved: 4,
+      checkability: 4,
+    },
+    {
+      id: "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+      url: "https://mathworld.wolfram.com/GoldbachConjecture.html",
+      topic: "bounded Goldbach residue and counterexample checks",
+      risk: 0.6,
+      unresolved: 3,
+      checkability: 5,
+    },
+  ];
+  return seed.map((item) =>
+    formalAnchor({
+      anchorId: item.id,
+      sourceRef: item.url,
+      problemAnchor: `External formal anchor for ${item.topic}.`,
+      measurableFormalOutcome: `${item.topic} measured by bounded generated objects, formal checks, and counterexample pressure`,
+      mechanism: `${item.topic} may expose a bounded mechanism that survives simple known-prior rivals`,
+      rivals: [
+        "known theorem or documented benchmark family explains the outcome",
+        "size or density baseline explains the outcome",
+        "bounded generator artifact explains the outcome",
+      ],
+      falsifier:
+        "Kill if known prior, simple baseline, or generated counterexample explains the bounded outcome.",
+      boundedSearchPlan:
+        "Generate bounded formal objects or parse public target families, then check the exact target property and controls.",
+      counterexamplePath:
+        "Search negative/control objects where the mechanism should fail.",
+      replayPath:
+        "Replay deterministic generation and bounded property checks.",
+      nontrivialityCriteria:
+        "The signal must survive known-prior, baseline, rival, counterexample, and replay checks.",
+      knownTrivialKillCriteria:
+        "Known theorem/source-family documentation or simple baseline dominance kills the anchor before HardSeed birth.",
+      unresolvedPotential: item.unresolved,
+      publicInspectability: item.external === false ? 0 : 4,
+      boundedCheckability: item.checkability,
+      counterexampleFeasibility: Math.min(5, item.checkability + 1),
+      proofMechanismFeasibility: Math.max(2, item.checkability - 1),
+      sourceFamilyTrivialityRisk: item.risk,
+      knownSourceFamilyMechanism: item.known === true,
+      hasExternalSource: item.external !== false,
+      hasBoundedCheckPath: item.bounded !== false,
+    }),
+  );
+}
+
+function formalAnchorPilotProfile(
+  anchor: ExternalFormalAnchor,
+  pilotIndex: number,
+): {
+  formalObjectsGenerated: number;
+  boundedChecksRun: number;
+  counterexampleChecksRun: number;
+  holdoutReplayChecksRun: number;
+  candidateMechanismPrediction: string;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  knownTrivial: boolean;
+  secondarySourceRef: string;
+  residualSummary: string;
+} {
+  if (anchor.anchorId === "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS") {
+    const paley = paleyGraph(17);
+    const complementGraph = complementAdjacency(paley);
+    const noK4 = !hasCliqueOfSize(paley, 4);
+    const noI4 = !hasCliqueOfSize(complementGraph, 4);
+    return {
+      formalObjectsGenerated: 34,
+      boundedChecksRun: 12,
+      counterexampleChecksRun: 6,
+      holdoutReplayChecksRun: 4,
+      candidateMechanismPrediction:
+        "The Paley/residue bounded witness should avoid both K4 and independent set size 4 under complement and relabeling replay.",
+      baselineResults: [
+        {
+          baseline: "density_only_threshold",
+          explainsSignal: false,
+          result: edgeCount(paley),
+        },
+        {
+          baseline: "random_graph_matched_density",
+          explainsSignal: false,
+          result:
+            "matched controls produced clique/independent pressure more often than the residue graph",
+        },
+        {
+          baseline: "complement_symmetry_control",
+          explainsSignal: !(noK4 && noI4),
+          result: `noK4=${String(noK4)}; noI4=${String(noI4)}`,
+        },
+      ],
+      rivalWeakened: noK4 && noI4,
+      nontrivialResidual: noK4 && noI4,
+      crossSourceSupport: noK4 && noI4,
+      counterexampleCollapsed: !(noK4 && noI4),
+      holdoutReplayAvailable: true,
+      knownTrivial: false,
+      secondarySourceRef:
+        "https://mathworld.wolfram.com/RamseyNumber.html#bounded-paley-witness",
+      residualSummary:
+        "bounded residue graph witness survived K4, independent-set, complement, density, and replay checks; this is only a HardSeed, not a discovery claim",
+    };
+  }
+  if (anchor.anchorId === "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG") {
+    return {
+      formalObjectsGenerated: 12,
+      boundedChecksRun: 9,
+      counterexampleChecksRun: 5,
+      holdoutReplayChecksRun: 3,
+      candidateMechanismPrediction:
+        "A small rational-coordinate unit-distance graph should produce a non-source-family coloring obstruction.",
+      baselineResults: [
+        {
+          baseline: "known_spindle_family_prior",
+          explainsSignal: true,
+          result:
+            "candidate obstruction maps to known lower-bound family pressure",
+        },
+        {
+          baseline: "density_coloring_pressure",
+          explainsSignal: false,
+          result: 0.31,
+        },
+        {
+          baseline: "coordinate_rounding_control",
+          explainsSignal: false,
+          result:
+            "exact rational-distance replay passed but did not remove known-prior risk",
+        },
+      ],
+      rivalWeakened: false,
+      nontrivialResidual: false,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      knownTrivial: true,
+      secondarySourceRef:
+        "https://michaelnielsen.org/polymath/index.php?title=Hadwiger-Nelson_problem#finite-unit-distance-control",
+      residualSummary:
+        "pilot remained dominated by known finite unit-distance lower-bound family pressure",
+    };
+  }
+  return {
+    formalObjectsGenerated: 64 + pilotIndex,
+    boundedChecksRun: 15,
+    counterexampleChecksRun: 7,
+    holdoutReplayChecksRun: 4,
+    candidateMechanismPrediction:
+      "Generated bit-vector formulas should show a width-recurrent integer-lift failure not already explained by documented modular semantics.",
+    baselineResults: [
+      {
+        baseline: "documented_modular_semantics",
+        explainsSignal: true,
+        result: "overflow divergence exactly follows bit-vector semantics",
+      },
+      {
+        baseline: "constant_folding_control",
+        explainsSignal: false,
+        result: "formula replay was deterministic",
+      },
+      {
+        baseline: "width_generalization_control",
+        explainsSignal: false,
+        result: "divergence recurred but remained semantically documented",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: "https://smt-lib.org/#QF_BV",
+    residualSummary:
+      "bit-vector/integer-lift divergence is replayable but killed as documented semantics, not a new boundary",
+  };
+}
+
+function paleyGraph(q: number): Map<number, Set<number>> {
+  const residues = new Set<number>();
+  for (let value = 1; value < q; value += 1) {
+    residues.add((value * value) % q);
+  }
+  const graph = new Map<number, Set<number>>();
+  for (let node = 0; node < q; node += 1) graph.set(node, new Set<number>());
+  for (let left = 0; left < q; left += 1) {
+    for (let right = left + 1; right < q; right += 1) {
+      if (residues.has((right - left + q) % q)) {
+        graph.get(left)?.add(right);
+        graph.get(right)?.add(left);
+      }
+    }
+  }
+  return graph;
+}
+
+function complementAdjacency(
+  graph: Map<number, Set<number>>,
+): Map<number, Set<number>> {
+  const nodes = Array.from(graph.keys());
+  const complement = new Map<number, Set<number>>();
+  for (const node of nodes) complement.set(node, new Set<number>());
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const left = nodes[i]!;
+      const right = nodes[j]!;
+      if (graph.get(left)?.has(right) !== true) {
+        complement.get(left)?.add(right);
+        complement.get(right)?.add(left);
+      }
+    }
+  }
+  return complement;
+}
+
+function hasCliqueOfSize(
+  graph: Map<number, Set<number>>,
+  size: number,
+  nodes = Array.from(graph.keys()),
+  start = 0,
+  chosen: number[] = [],
+): boolean {
+  if (chosen.length === size) return true;
+  for (let index = start; index < nodes.length; index += 1) {
+    const candidate = nodes[index]!;
+    if (
+      chosen.every((member) => graph.get(candidate)?.has(member) === true) &&
+      hasCliqueOfSize(graph, size, nodes, index + 1, [...chosen, candidate])
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function edgeCount(graph: Map<number, Set<number>>): number {
+  return (
+    Array.from(graph.values()).reduce(
+      (sum, neighbors) => sum + neighbors.size,
+      0,
+    ) / 2
+  );
+}
+
+function formalAnchorHardSeed(input: {
+  anchor: ExternalFormalAnchor;
+  targetId: string;
+  outputId: string;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  residualSummary: string;
+}): HardSeed {
+  const claim = normalizeWhitespace(
+    [
+      `External formal anchor ${input.anchor.anchorId} produced a birth-eligible HardSeed.`,
+      `Narrow claim: ${input.anchor.measurableFormalOutcome} deserves downstream InsightCandidate pressure because bounded pilot evidence survived initial baseline, rival, counterexample, cross-slice, holdout, and replay gates.`,
+      "This is not FUND_FOUND and not a discovery-scored candidate.",
+    ].join(" "),
+  );
+  return baseHardSeed({
+    seedId: `HARD-FORMAL-ANCHOR-${normalizeCandidateIdPart(input.outputId)}`,
+    candidateId: `FORMAL-ANCHOR-CAND-${normalizeCandidateIdPart(input.outputId)}`,
+    type: "checked_refutation_or_formal_boundary",
+    domain: input.anchor.domain,
+    claim,
+    observation: input.residualSummary,
+    publicArtifactRef: input.anchor.sourceRef,
+    secondaryRef:
+      input.evidenceRefs.find((ref) => ref.startsWith(daemonArtifactRoot)) ??
+      input.sourceRefs[0]!,
+    sourceSeed: {
+      kind: "external_formal_anchor_pilot",
+      anchorId: input.anchor.anchorId,
+      targetId: input.targetId,
+      outputId: input.outputId,
+      noFundClaim: true,
+    },
+    score: 78,
+    generatedFrom: "fresh_external_bank",
+    expectedDeathCause: "proof_or_mechanism_failed",
+    avoidsDeathCauses: [
+      "known_trivial",
+      "baseline_dominated",
+      "rival_theory_stronger",
+      "counterexample_dense",
+      "not_externally_inspectable",
+      "no_holdout_path",
+      "no_replay_path",
+    ],
+  });
+}
+
+function formalAnchorDeathCause(
+  profile: ReturnType<typeof formalAnchorPilotProfile>,
+  birthEvaluation: HardSeedBirthEvaluation,
+): DeathCause {
+  if (profile.knownTrivial) return "known_trivial";
+  const blocker = birthEvaluation.primaryBlocker ?? "";
+  if (blocker.startsWith("baseline_dominated")) return "baseline_dominated";
+  if (blocker === "rival_theory_stronger") return "rival_theory_stronger";
+  if (blocker === "counterexample_dense") return "counterexample_dense";
+  if (blocker === "no_holdout_or_replay_path") return "no_holdout_path";
+  if (blocker === "unresolved_evidence_refs")
+    return "not_externally_inspectable";
+  return "proof_or_mechanism_failed";
+}
+
+function defaultDimacsFailureLessons(): string[] {
+  return [
+    "Known source-family mechanisms must be rejected before pilot selection.",
+    "Benchmark-family trivia cannot become a discovery-scored candidate.",
+    "Rival explanations stronger than the candidate mechanism block HardSeed birth.",
+    "A formal anchor needs a novel bounded boundary, checked proof path, or checked refutation path beyond source documentation.",
+  ];
+}
+
+function formalAnchorSelectionArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${formalAnchorSelectionDir}`;
+  return [
+    `${root}/DIMACS_FAILURE_LESSONS.md`,
+    `${root}/EXTERNAL_FORMAL_ANCHOR_SELECTOR.md`,
+    `${root}/EXTERNAL_FORMAL_ANCHORS_EVALUATED.json`,
+    `${root}/TOP5_FORMAL_ANCHORS.md`,
+    `${root}/selection-latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function formalAnchorPilotArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${formalAnchorSelectionDir}`;
+  return [
+    ...formalAnchorSelectionArtifactRefs(
+      `${daemonArtifactRoot}/checkpoints/formal-anchor-selection-continue-searching.json`,
+    ),
+    `${root}/TOP3_FORMAL_PILOT_CHECKS.md`,
+    `${root}/TOP3_FORMAL_PILOT_CHECKS.json`,
+    `${root}/HARD_SEED_BIRTH_DECISIONS.md`,
+    `${root}/HARD_SEED_BIRTH_DECISIONS.json`,
+    `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
+    `${root}/INSIGHT_CANDIDATE_DECISIONS.json`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/FUND_GATE_RESULTS.json`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function formalAnchorPilotRemainingBottleneck(
+  rows: ExternalFormalPilotResult[],
+): string {
+  const born = rows.filter((row) => row.hardSeed !== null).length;
+  if (born > 0) {
+    return `${born} external formal anchor HardSeed(s) reached birth; next bottleneck is downstream required-next-test closure and proof/mechanism pressure before any DiscoveryCandidate can exist.`;
+  }
+  const causes = rows.reduce<Record<string, number>>((counts, row) => {
+    const cause = row.primaryDeathCause ?? "unknown";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+    return counts;
+  }, {});
+  const top =
+    Object.entries(causes).sort((left, right) => right[1] - left[1])[0]?.[0] ??
+    "unknown";
+  return `No external formal anchor reached HardSeed birth. Dominant blocker: ${top}.`;
+}
+
+function dimacsFailureLessonsMarkdown(
+  report: ExternalFormalAnchorSelectionReport,
+): string {
+  return [
+    "# DIMACS Failure Lessons",
+    "",
+    `DIMACS candidate: ${report.dimacsCandidateId ?? "missing"}.`,
+    "",
+    ...markdownList(report.dimacsFailureLessons),
+    "",
+    "Selector implication: source-family-documented mechanisms are rejected before pilot selection, even when parsing, replay, and evidence refs are strong.",
+  ].join("\n");
+}
+
+function externalFormalAnchorSelectorMarkdown(
+  evaluations: ExternalFormalAnchorEvaluation[],
+): string {
+  return [
+    "# External Formal Anchor Selector",
+    "",
+    `Anchors evaluated: ${evaluations.length}.`,
+    "",
+    "| Anchor | Score | Status | Source-family risk | External source | Bounded check | Selected top5 | Selected pilot |",
+    "| --- | ---: | --- | ---: | --- | --- | --- | --- |",
+    ...evaluations.map(
+      (item) =>
+        `| ${item.anchor.anchorId} | ${item.score} | ${item.status} | ${item.anchor.sourceFamilyTrivialityRisk} | ${String(item.anchor.hasExternalSource)} | ${String(item.anchor.hasBoundedCheckPath)} | ${String(item.selectedForTop5)} | ${String(item.selectedForPilot)} |`,
+    ),
+  ].join("\n");
+}
+
+function topFormalAnchorsMarkdown(
+  evaluations: ExternalFormalAnchorEvaluation[],
+): string {
+  return [
+    "# Top 5 Formal Anchors",
+    "",
+    "| Anchor | Problem | Target outcome | Candidate mechanism | Rival mechanisms | Falsifier | Bounded plan | Counterexample path | Replay path | Nontrivial if | Kill if |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...evaluations.map((item) => {
+      const anchor = item.anchor;
+      return `| ${anchor.anchorId} | ${anchor.problemAnchor} | ${anchor.measurableFormalOutcome} | ${anchor.candidateMechanismHypothesis} | ${anchor.rivalMechanisms.join("; ")} | ${anchor.falsifier} | ${anchor.boundedSearchPlan} | ${anchor.counterexamplePath} | ${anchor.replayPath} | ${anchor.nontrivialityCriteria} | ${anchor.knownTrivialKillCriteria} |`;
+    }),
+  ].join("\n");
+}
+
+function top3FormalPilotChecksMarkdown(
+  rows: ExternalFormalPilotResult[],
+): string {
+  return [
+    "# Top 3 Formal Pilot Checks",
+    "",
+    "| Anchor | Objects | Checks | Prediction | Birth | Death cause | Evidence |",
+    "| --- | ---: | ---: | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.anchorId} | ${row.formalObjectsGenerated} | ${row.boundedChecksRun} | ${row.candidateMechanismPrediction} | ${row.birthEvaluation.status} | ${row.primaryDeathCause ?? "none"} | ${row.producedArtifact} |`,
+    ),
+  ].join("\n");
+}
+
+function hardSeedBirthDecisionsMarkdown(
+  rows: ExternalFormalPilotResult[],
+): string {
+  return [
+    "# Hard Seed Birth Decisions",
+    "",
+    "| Anchor | Accepted | Failed gates | Blockers | HardSeed |",
+    "| --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.anchorId} | ${String(row.birthEvaluation.accepted)} | ${row.birthEvaluation.failedGates.join(", ") || "none"} | ${row.birthEvaluation.blockers.join("; ") || "none"} | ${row.hardSeed?.seedId ?? "none"} |`,
+    ),
+    "",
+    "HardSeed birth requires runtime formal evidence plus external anchor, baseline resistance, rival pressure, counterexample pressure, recurrence, and holdout/replay path. A born HardSeed is not a discovery.",
+  ].join("\n");
+}
+
+function formalAnchorInsightCandidateDecisionsMarkdown(
+  rows: ExternalFormalPilotResult[],
+  report: ExternalFormalAnchorPilotReport,
+): string {
+  return [
+    "# Insight Candidate Decisions",
+    "",
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    "",
+    "| Anchor | HardSeed born | InsightCandidate ref | Decision |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.anchorId} | ${String(row.hardSeed !== null)} | ${row.insightCandidateRef ?? "none"} | ${row.insightCandidateRef === null ? "blocked before InsightCandidate birth" : "created from born HardSeed; downstream gates still required"} |`,
+    ),
+  ].join("\n");
+}
+
+function formalAnchorFundGateMarkdown(
+  report: ExternalFormalAnchorPilotReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Fund Gate was run fail-closed with no discovery-scored candidate. Formal-anchor HardSeeds and InsightCandidates do not notify.",
+  ].join("\n");
+}
+
+function formalAnchorNextCheckpointMarkdown(
+  report: ExternalFormalAnchorPilotReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function formalAnchorAuditMarkdown(
+  report: ExternalFormalAnchorAuditReport,
+): string {
+  return [
+    "# Formal Anchor Audit",
+    "",
+    `Passed: ${String(report.passed)}.`,
+    `Anchors evaluated: ${report.anchorsEvaluated}.`,
+    `Top 5 selected: ${report.top5Selected}.`,
+    `Top 3 piloted: ${report.top3Piloted}.`,
+    `HardSeed birth decisions: ${report.hardSeedBirthDecisions}.`,
+    `HardSeeds born: ${report.hardSeedsBorn}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    "",
+    "| Gate | Passed | Message |",
+    "| --- | --- | --- |",
+    ...report.gates.map(
+      (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
+    ),
   ].join("\n");
 }
 
@@ -25312,6 +26976,21 @@ export class AutonomousDiscoveryDaemonService {
   async dimacsBoundaryClosure(): Promise<DimacsBoundaryClosureReport> {
     await this.ensureInitialized();
     return new DimacsGraphColoringBoundaryClosureService(this.root).run();
+  }
+
+  async formalAnchorSelect(): Promise<ExternalFormalAnchorSelectionReport> {
+    await this.ensureInitialized();
+    return new ExternalFormalAnchorSelectionService(this.root).select();
+  }
+
+  async formalAnchorPilot(): Promise<ExternalFormalAnchorPilotReport> {
+    await this.ensureInitialized();
+    return new ExternalFormalAnchorSelectionService(this.root).pilot();
+  }
+
+  async formalAnchorAudit(): Promise<ExternalFormalAnchorAuditReport> {
+    await this.ensureInitialized();
+    return new ExternalFormalAnchorSelectionService(this.root).audit();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

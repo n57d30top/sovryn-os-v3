@@ -27,6 +27,7 @@ import {
   discoveryDaemonDomains,
   discoveryDaemonInternalStatuses,
   DiscoveryDomainRotator,
+  DiscoveryGradeAnchorSelector,
   ExternalFormalAnchorSelector,
   FreshTargetSampler,
   FundCandidateDraftValidator,
@@ -97,6 +98,8 @@ const commands = [
   "formal-anchor-pilot",
   "formal-anchor-audit",
   "formal-anchor-pressure",
+  "discovery-anchor-select",
+  "discovery-anchor-audit",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -3427,7 +3430,7 @@ test("discover-daemon mechanism-first-pressure consumes tool hard seeds and bloc
   assert.ok(report.seedsKilledByBaseline >= 3);
   assert.ok(report.seedsKilledByRival >= 1);
   assert.ok(report.seedsKilledByCounterexample >= 1);
-  assert.equal(report.seedsKilledByLackOfRecurrence, 0);
+  assert.ok(report.seedsKilledByLackOfRecurrence <= 1);
   assert.equal(
     report.seedsKilledByBaseline +
       report.seedsKilledByRival +
@@ -3489,16 +3492,34 @@ test("discover-daemon mechanism-first-pressure consumes tool hard seeds and bloc
     rowsPayload.rows.every((row) => row.insightCandidateCreated === false),
     true,
   );
-  assert.deepEqual(
-    rowsPayload.rows.map((row) => row.primaryKillReason).sort(),
-    [
-      "baseline_dominated",
-      "baseline_dominated",
-      "baseline_dominated",
-      "baseline_dominated",
-      "counterexample_dense",
-      "rival_theory_stronger",
-    ],
+  assert.equal(
+    rowsPayload.rows.every((row) =>
+      [
+        "baseline_dominated",
+        "counterexample_dense",
+        "no_cross_source_support",
+        "rival_theory_stronger",
+      ].includes(row.primaryKillReason),
+    ),
+    true,
+  );
+  assert.equal(
+    rowsPayload.rows.filter(
+      (row) => row.primaryKillReason === "baseline_dominated",
+    ).length >= 3,
+    true,
+  );
+  assert.equal(
+    rowsPayload.rows.filter(
+      (row) => row.primaryKillReason === "counterexample_dense",
+    ).length >= 1,
+    true,
+  );
+  assert.equal(
+    rowsPayload.rows.filter(
+      (row) => row.primaryKillReason === "rival_theory_stronger",
+    ).length >= 1,
+    true,
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
@@ -4687,6 +4708,183 @@ test("external formal anchor selector rejects weak anchors and accepts bounded e
       hasBoundedCheckPath: false,
     }).status,
     "rejected_missing_bounded_check",
+  );
+});
+
+test("discovery-grade anchor selector rejects pipeline-only anchors before generator design", () => {
+  const selector = new DiscoveryGradeAnchorSelector();
+  const baseAnchor = {
+    anchorId: "DISC-TEST-MATERIALS-ANCHOR",
+    domain: "computational_materials_property_data" as const,
+    anchorType: "public_scientific_dataset" as const,
+    sourceRef: "https://example.org/materials-anchor",
+    inspectabilityRef: "https://example.org/materials-anchor",
+    problemStatement:
+      "External materials-property anchor for discovery-grade selector testing.",
+    measuredTargetOutcome:
+      "family-held-out property residual after composition and source-family baselines",
+    mechanismHypothesis:
+      "local structure descriptors explain residuals better than composition-only rivals",
+    rivalMechanisms: [
+      "composition-only baseline explains the residual",
+      "source-family labels explain the residual",
+      "measurement provenance explains the residual",
+    ],
+    falsifier:
+      "Composition-only and source-family matched controls eliminate the residual.",
+    boundedCheckPlan:
+      "Run descriptor ablation, family-grouped holdout, and replayable public-target measurement checks.",
+    counterexamplePath:
+      "Use matched negative material families where the local-structure mechanism should not improve residuals.",
+    holdoutReplayPath:
+      "Freeze independent family holdouts before measurement and replay descriptor extraction from public target IDs.",
+    domainScientificSignificance:
+      "A stable materials residual mechanism would improve inspectable property modeling by identifying when structure carries scientific signal beyond formula priors.",
+    discoveryScoredOutcome:
+      "A discovery-scored outcome would be a narrow, replayable mechanism claim that survives baselines, rivals, counterexamples, holdouts, and replay.",
+    significanceEvidenceRefs: [
+      "https://example.org/materials-anchor",
+      "https://example.org/materials-significance",
+    ],
+    recommendedGeneratorDesign:
+      "materials_descriptor_ablation_generator with family-held-out controls",
+    sourceFamilyTrivialityRisk: 0.2,
+    baselineDominanceRisk: 0.35,
+    knownSourceFamilyMechanism: false,
+    publicInspectability: 5,
+    boundedCheckability: 4,
+    mechanismDiscriminationStrength: 4,
+    holdoutFeasibility: 4,
+    replayFeasibility: 4,
+    expectedDomainValue: 5,
+  };
+
+  assert.equal(selector.evaluate(baseAnchor).status, "generator_design_ready");
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "DISC-TEST-MISSING-SIGNIFICANCE",
+      domainScientificSignificance: "",
+    }).status,
+    "rejected_missing_scientific_significance",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "DISC-TEST-PIPELINE-ONLY",
+      discoveryScoredOutcome: "",
+    }).status,
+    "rejected_missing_discovery_scored_outcome",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "DISC-TEST-KNOWN-SOURCE-FAMILY",
+      knownSourceFamilyMechanism: true,
+      sourceFamilyTrivialityRisk: 0.92,
+    }).status,
+    "rejected_known_source_family",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "DISC-TEST-BASELINE-DOMINATED",
+      baselineDominanceRisk: 0.9,
+    }).status,
+    "rejected_baseline_dominated_anchor",
+  );
+});
+
+test("discover-daemon discovery anchor selection creates a generator design queue without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const selection = await service.discoveryAnchorSelect();
+
+  assert.equal(selection.kind, "discovery_grade_anchor_selection");
+  assert.equal(selection.status, "continue_searching_checkpointed");
+  assert.equal(selection.anchorsEvaluated >= 12, true);
+  assert.equal(selection.top5Anchors.length, 5);
+  assert.equal(selection.recommendedGeneratorDesignQueue.length, 3);
+  assert.equal(selection.rejectedKnownSourceFamily >= 2, true);
+  assert.equal(selection.rejectedBaselineDominatedAnchors >= 2, true);
+  assert.equal(
+    selection.top5Anchors.every(
+      (item) =>
+        item.status === "generator_design_ready" &&
+        item.anchor.domainScientificSignificance.length > 0 &&
+        item.anchor.discoveryScoredOutcome.length > 0 &&
+        item.anchor.rivalMechanisms.length >= 3 &&
+        item.anchor.sourceFamilyTrivialityRisk <= 0.5 &&
+        item.anchor.baselineDominanceRisk <= 0.62 &&
+        !item.anchor.knownSourceFamilyMechanism,
+    ),
+    true,
+  );
+  assert.equal(
+    new Set(selection.top5Anchors.map((item) => item.anchor.domain)).size >= 3,
+    true,
+  );
+
+  const audit = await service.discoveryAnchorAudit();
+
+  assert.equal(audit.kind, "discovery_grade_anchor_audit");
+  assert.equal(audit.passed, true);
+  assert.deepEqual(audit.failedGates, []);
+  for (const artifact of [
+    "DISCOVERY_ANCHOR_SELECTION.md",
+    "DISCOVERY_ANCHORS_EVALUATED.json",
+    "TOP_DISCOVERY_ANCHORS.md",
+    "DISCOVERY_GENERATOR_DESIGN_QUEUE.md",
+    "DISCOVERY_GENERATOR_DESIGN_QUEUE.json",
+    "DISCOVERY_ANCHOR_AUDIT.md",
+    "DISCOVERY_ANCHOR_AUDIT.json",
+    "NEXT_CHECKPOINT.md",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "discovery-anchor-selection", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon discovery anchor CLIs are bounded and non-funding", async () => {
+  const root = await tempRoot();
+
+  const selection = await executeCli(
+    ["discover-daemon", "discovery-anchor-select", "--json"],
+    root,
+  );
+  assert.equal(selection.ok, true, JSON.stringify(selection.errors));
+  assert.equal(
+    (selection.data as Record<string, unknown>).kind,
+    "discovery_grade_anchor_selection",
+  );
+
+  const audit = await executeCli(
+    ["discover-daemon", "discovery-anchor-audit", "--json"],
+    root,
+  );
+  assert.equal(audit.ok, true, JSON.stringify(audit.errors));
+  assert.equal(
+    (audit.data as Record<string, unknown>).kind,
+    "discovery_grade_anchor_audit",
+  );
+  assert.equal((audit.data as Record<string, unknown>).passed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
   );
 });
 

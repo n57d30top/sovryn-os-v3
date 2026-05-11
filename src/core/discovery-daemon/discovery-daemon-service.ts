@@ -1694,6 +1694,92 @@ export type ExternalFormalAnchorAuditReport = {
   evidenceHash: string;
 };
 
+export type DiscoveryGradeAnchorStatus =
+  | "generator_design_ready"
+  | "rejected_missing_external_source"
+  | "rejected_missing_scientific_significance"
+  | "rejected_missing_discovery_scored_outcome"
+  | "rejected_known_source_family"
+  | "rejected_baseline_dominated_anchor"
+  | "rejected_missing_bounded_check"
+  | "rejected_low_external_value";
+
+export type DiscoveryGradeExternalAnchor = {
+  anchorId: string;
+  domain: DiscoveryDomain;
+  anchorType:
+    | "public_scientific_dataset"
+    | "public_benchmark"
+    | "formal_bounded_property"
+    | "documented_repo_failure";
+  sourceRef: string;
+  inspectabilityRef: string;
+  problemStatement: string;
+  measuredTargetOutcome: string;
+  mechanismHypothesis: string;
+  rivalMechanisms: string[];
+  falsifier: string;
+  boundedCheckPlan: string;
+  counterexamplePath: string;
+  holdoutReplayPath: string;
+  domainScientificSignificance: string;
+  discoveryScoredOutcome: string;
+  significanceEvidenceRefs: string[];
+  recommendedGeneratorDesign: string;
+  sourceFamilyTrivialityRisk: number;
+  baselineDominanceRisk: number;
+  knownSourceFamilyMechanism: boolean;
+  publicInspectability: number;
+  boundedCheckability: number;
+  mechanismDiscriminationStrength: number;
+  holdoutFeasibility: number;
+  replayFeasibility: number;
+  expectedDomainValue: number;
+};
+
+export type DiscoveryGradeAnchorEvaluation = {
+  kind: "discovery_grade_anchor_evaluation";
+  anchor: DiscoveryGradeExternalAnchor;
+  score: number;
+  status: DiscoveryGradeAnchorStatus;
+  selectedForTop5: boolean;
+  selectedForGeneratorDesign: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  rejectionReasons: string[];
+  evidenceHash: string;
+};
+
+export type DiscoveryGradeAnchorSelectionReport = {
+  kind: "discovery_grade_anchor_selection";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  anchorsEvaluated: number;
+  generatorDesignReadyAnchors: number;
+  rejectedKnownSourceFamily: number;
+  rejectedBaselineDominatedAnchors: number;
+  rejectedMissingExternalSource: number;
+  rejectedMissingScientificSignificance: number;
+  rejectedMissingDiscoveryScoredOutcome: number;
+  top5Anchors: DiscoveryGradeAnchorEvaluation[];
+  recommendedGeneratorDesignQueue: DiscoveryGradeAnchorEvaluation[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type DiscoveryGradeAnchorAuditReport = {
+  kind: "discovery_grade_anchor_audit";
+  passed: boolean;
+  anchorsEvaluated: number;
+  top5Selected: number;
+  generatorDesignQueueSize: number;
+  gates: FundGate[];
+  failedGates: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalFormalAnchorPressureDecision = {
   kind: "external_formal_anchor_pressure_decision";
   anchorId: string;
@@ -13937,7 +14023,1071 @@ function dimacsNextCheckpointMarkdown(
   ].join("\n");
 }
 
+const discoveryGradeAnchorSelectionDir = "discovery-anchor-selection" as const;
 const formalAnchorSelectionDir = "formal-anchor-selection" as const;
+
+export class DiscoveryGradeAnchorSelector {
+  evaluate(
+    anchor: DiscoveryGradeExternalAnchor,
+  ): DiscoveryGradeAnchorEvaluation {
+    const score = discoveryGradeAnchorScore(anchor);
+    const gates = [
+      gate(
+        "external_source_present",
+        anchor.sourceRef.startsWith("https://") &&
+          publicSafeRef(anchor.sourceRef),
+        "Discovery anchors must cite a public external source.",
+      ),
+      gate(
+        "domain_scientific_significance_present",
+        hasDiscoveryAnchorText(anchor.domainScientificSignificance, 48),
+        "Discovery anchors must state domain scientific significance before generator design.",
+      ),
+      gate(
+        "discovery_scored_outcome_present",
+        hasDiscoveryAnchorText(anchor.discoveryScoredOutcome, 48),
+        "Discovery anchors must define a discovery-scored outcome before HardSeed birth.",
+      ),
+      gate(
+        "significance_evidence_refs_present",
+        anchor.significanceEvidenceRefs.length > 0 &&
+          anchor.significanceEvidenceRefs.every((ref) =>
+            ref.startsWith("https://"),
+          ),
+        "Discovery anchors must cite public significance evidence refs.",
+      ),
+      gate(
+        "measured_target_outcome_present",
+        hasDiscoveryAnchorText(anchor.measuredTargetOutcome, 24),
+        "Discovery anchors must define a measured target outcome.",
+      ),
+      gate(
+        "rival_mechanisms_sufficient",
+        anchor.rivalMechanisms.length >= 3,
+        "Discovery anchors must define at least three rival mechanisms or simple explanations.",
+      ),
+      gate(
+        "bounded_check_path_present",
+        hasDiscoveryAnchorText(anchor.boundedCheckPlan, 32),
+        "Discovery anchors must have a bounded runtime, formal, or measurement check path.",
+      ),
+      gate(
+        "falsifier_present",
+        hasDiscoveryAnchorText(anchor.falsifier, 24),
+        "Discovery anchors must define a falsifier before generator design.",
+      ),
+      gate(
+        "counterexample_path_present",
+        hasDiscoveryAnchorText(anchor.counterexamplePath, 24),
+        "Discovery anchors must include a counterexample or negative-control path.",
+      ),
+      gate(
+        "holdout_replay_path_present",
+        hasDiscoveryAnchorText(anchor.holdoutReplayPath, 24),
+        "Discovery anchors must include holdout and replay paths.",
+      ),
+      gate(
+        "not_known_source_family_mechanism",
+        !anchor.knownSourceFamilyMechanism,
+        "Known source-family or benchmark-family mechanisms are rejected before generator design.",
+      ),
+      gate(
+        "source_family_triviality_risk_low",
+        anchor.sourceFamilyTrivialityRisk <= 0.5,
+        "Discovery anchors must have low source-family triviality risk.",
+      ),
+      gate(
+        "baseline_dominance_risk_low",
+        anchor.baselineDominanceRisk <= 0.62,
+        "Discovery anchors with expected simple-baseline dominance are rejected before generator design.",
+      ),
+      gate(
+        "generator_design_score_sufficient",
+        score >= 72,
+        "Discovery anchors must score high enough on domain value, checkability, holdout, replay, and mechanism discrimination.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const status = discoveryGradeAnchorStatus(anchor, score, failedGates);
+    return withEvidenceHash({
+      kind: "discovery_grade_anchor_evaluation" as const,
+      anchor,
+      score,
+      status,
+      selectedForTop5: false,
+      selectedForGeneratorDesign: false,
+      gates,
+      failedGates,
+      rejectionReasons: discoveryGradeAnchorRejectionReasons(
+        anchor,
+        score,
+        failedGates,
+      ),
+    });
+  }
+
+  select(): DiscoveryGradeAnchorEvaluation[] {
+    const evaluated = discoveryGradeAnchors().map((anchor) =>
+      this.evaluate(anchor),
+    );
+    const ready = evaluated
+      .filter((item) => item.status === "generator_design_ready")
+      .sort(discoveryGradeAnchorEvaluationSort);
+    const top5 = new Set(ready.slice(0, 5).map((item) => item.anchor.anchorId));
+    const designQueue = new Set(
+      ready.slice(0, 3).map((item) => item.anchor.anchorId),
+    );
+    return evaluated
+      .map((item) =>
+        withEvidenceHash({
+          ...item,
+          selectedForTop5: top5.has(item.anchor.anchorId),
+          selectedForGeneratorDesign: designQueue.has(item.anchor.anchorId),
+        }),
+      )
+      .sort(
+        (left, right) =>
+          Number(right.selectedForTop5) - Number(left.selectedForTop5) ||
+          Number(right.selectedForGeneratorDesign) -
+            Number(left.selectedForGeneratorDesign) ||
+          discoveryGradeAnchorEvaluationSort(left, right),
+      );
+  }
+}
+
+export class DiscoveryGradeAnchorSelectionService {
+  constructor(private readonly root: string) {}
+
+  async select(): Promise<DiscoveryGradeAnchorSelectionReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    const evaluations = new DiscoveryGradeAnchorSelector().select();
+    const top5 = evaluations.filter((item) => item.selectedForTop5);
+    const designQueue = evaluations.filter(
+      (item) => item.selectedForGeneratorDesign,
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/discovery-anchor-selection-continue-searching.json`;
+    const report: DiscoveryGradeAnchorSelectionReport = withEvidenceHash({
+      kind: "discovery_grade_anchor_selection" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: await this.checkpointUsed(),
+      nextCheckpointRef,
+      anchorsEvaluated: evaluations.length,
+      generatorDesignReadyAnchors: evaluations.filter(
+        (item) => item.status === "generator_design_ready",
+      ).length,
+      rejectedKnownSourceFamily: evaluations.filter(
+        (item) =>
+          item.status === "rejected_known_source_family" ||
+          item.anchor.knownSourceFamilyMechanism,
+      ).length,
+      rejectedBaselineDominatedAnchors: evaluations.filter(
+        (item) => item.status === "rejected_baseline_dominated_anchor",
+      ).length,
+      rejectedMissingExternalSource: evaluations.filter(
+        (item) => item.status === "rejected_missing_external_source",
+      ).length,
+      rejectedMissingScientificSignificance: evaluations.filter(
+        (item) => item.status === "rejected_missing_scientific_significance",
+      ).length,
+      rejectedMissingDiscoveryScoredOutcome: evaluations.filter(
+        (item) => item.status === "rejected_missing_discovery_scored_outcome",
+      ).length,
+      top5Anchors: top5,
+      recommendedGeneratorDesignQueue: designQueue,
+      artifactRefs:
+        discoveryGradeAnchorSelectionArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeSelectionArtifacts(report, evaluations);
+    return report;
+  }
+
+  async audit(): Promise<DiscoveryGradeAnchorAuditReport> {
+    await mkdir(this.anchorRoot(), { recursive: true });
+    let selection = await readOptionalJson<DiscoveryGradeAnchorSelectionReport>(
+      join(this.anchorRoot(), "latest.json"),
+    );
+    if (selection === null) selection = await this.select();
+    const gates = [
+      gate(
+        "at_least_twelve_external_anchors_evaluated",
+        selection.anchorsEvaluated >= 12,
+        "Discovery anchor selector must evaluate a mixed external anchor universe before generator design.",
+      ),
+      gate(
+        "top5_selected",
+        selection.top5Anchors.length ===
+          Math.min(5, selection.generatorDesignReadyAnchors),
+        "Discovery anchor selector must select the strongest available top anchors.",
+      ),
+      gate(
+        "generator_design_queue_available",
+        selection.recommendedGeneratorDesignQueue.length >= 3,
+        "Discovery anchor selector must provide at least three high-quality anchors for next generator design.",
+      ),
+      gate(
+        "selected_anchors_have_scientific_significance",
+        selection.top5Anchors.every((item) =>
+          hasDiscoveryAnchorText(item.anchor.domainScientificSignificance, 48),
+        ),
+        "Selected anchors must carry explicit domain scientific significance.",
+      ),
+      gate(
+        "selected_anchors_have_discovery_scored_outcome",
+        selection.top5Anchors.every((item) =>
+          hasDiscoveryAnchorText(item.anchor.discoveryScoredOutcome, 48),
+        ),
+        "Selected anchors must define a discovery-scored outcome rather than pipeline success.",
+      ),
+      gate(
+        "selected_anchors_have_three_rivals",
+        selection.top5Anchors.every(
+          (item) => item.anchor.rivalMechanisms.length >= 3,
+        ),
+        "Selected anchors must define at least three rivals or simple explanations.",
+      ),
+      gate(
+        "selected_anchors_are_low_triviality_risk",
+        selection.top5Anchors.every(
+          (item) =>
+            item.anchor.sourceFamilyTrivialityRisk <= 0.5 &&
+            item.anchor.baselineDominanceRisk <= 0.62 &&
+            !item.anchor.knownSourceFamilyMechanism,
+        ),
+        "Selected anchors must avoid known source-family and expected baseline-dominated signals.",
+      ),
+      gate(
+        "selected_domains_are_diverse",
+        uniqueStrings(selection.top5Anchors.map((item) => item.anchor.domain))
+          .length >= 3,
+        "Selected anchors must cover at least three safe discovery domains.",
+      ),
+      gate(
+        "known_or_pipeline_only_anchors_rejected",
+        selection.rejectedKnownSourceFamily >= 2 &&
+          selection.rejectedBaselineDominatedAnchors >= 2,
+        "Selector must reject known benchmark/source-family and baseline-dominated anchors.",
+      ),
+      gate(
+        "no_fake_fund",
+        !(await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Discovery anchor selection must not create FUND_FOUND.md or fund-candidate.json.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const report: DiscoveryGradeAnchorAuditReport = withEvidenceHash({
+      kind: "discovery_grade_anchor_audit" as const,
+      passed: failedGates.length === 0,
+      anchorsEvaluated: selection.anchorsEvaluated,
+      top5Selected: selection.top5Anchors.length,
+      generatorDesignQueueSize:
+        selection.recommendedGeneratorDesignQueue.length,
+      gates,
+      failedGates,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/DISCOVERY_ANCHOR_AUDIT.md`,
+        `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/DISCOVERY_ANCHOR_AUDIT.json`,
+        `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/latest.json`,
+      ],
+    });
+    await writeJson(
+      join(this.anchorRoot(), "DISCOVERY_ANCHOR_AUDIT.json"),
+      report,
+    );
+    await writeText(
+      join(this.anchorRoot(), "DISCOVERY_ANCHOR_AUDIT.md"),
+      discoveryGradeAnchorAuditMarkdown(report),
+    );
+    return report;
+  }
+
+  private anchorRoot(): string {
+    return join(
+      this.root,
+      daemonArtifactRoot,
+      discoveryGradeAnchorSelectionDir,
+    );
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    for (const checkpoint of [
+      `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-after-min-runtime.json`,
+      `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-runtime-limit.json`,
+      `${daemonArtifactRoot}/checkpoints/generator-families-continue-searching.json`,
+    ]) {
+      if (await exists(join(this.root, checkpoint))) return checkpoint;
+    }
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    return state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+  }
+
+  private async writeSelectionArtifacts(
+    report: DiscoveryGradeAnchorSelectionReport,
+    evaluations: DiscoveryGradeAnchorEvaluation[],
+  ): Promise<void> {
+    const root = this.anchorRoot();
+    await writeJson(join(root, "latest.json"), report);
+    await writeJson(join(root, "DISCOVERY_ANCHORS_EVALUATED.json"), {
+      kind: "discovery_grade_anchors_evaluated",
+      evaluations,
+      evidenceHash: hashEvidence(evaluations),
+    });
+    await writeJson(join(root, "DISCOVERY_GENERATOR_DESIGN_QUEUE.json"), {
+      kind: "discovery_generator_design_queue",
+      anchors: report.recommendedGeneratorDesignQueue,
+      evidenceHash: hashEvidence(report.recommendedGeneratorDesignQueue),
+    });
+    await writeText(
+      join(root, "DISCOVERY_ANCHOR_SELECTION.md"),
+      discoveryGradeAnchorSelectionMarkdown(report, evaluations),
+    );
+    await writeText(
+      join(root, "TOP_DISCOVERY_ANCHORS.md"),
+      topDiscoveryGradeAnchorsMarkdown(report.top5Anchors),
+    );
+    await writeText(
+      join(root, "DISCOVERY_GENERATOR_DESIGN_QUEUE.md"),
+      discoveryGeneratorDesignQueueMarkdown(
+        report.recommendedGeneratorDesignQueue,
+      ),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      discoveryGradeAnchorNextCheckpointMarkdown(report),
+    );
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "discovery_grade_anchor_selection_checkpoint",
+      status: report.status,
+      fundFound: false,
+      anchorsEvaluated: report.anchorsEvaluated,
+      generatorDesignReadyAnchors: report.generatorDesignReadyAnchors,
+      recommendedGeneratorDesignQueue:
+        report.recommendedGeneratorDesignQueue.map(
+          (item) => item.anchor.anchorId,
+        ),
+      reportRef: `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/latest.json`,
+    });
+  }
+}
+
+function hasDiscoveryAnchorText(value: string, minLength: number): boolean {
+  return normalizeWhitespace(value).length >= minLength;
+}
+
+function discoveryGradeAnchorScore(
+  anchor: DiscoveryGradeExternalAnchor,
+): number {
+  const positive =
+    anchor.expectedDomainValue * 11 +
+    anchor.boundedCheckability * 10 +
+    anchor.mechanismDiscriminationStrength * 10 +
+    anchor.holdoutFeasibility * 8 +
+    anchor.replayFeasibility * 8 +
+    anchor.publicInspectability * 7 +
+    Math.min(anchor.rivalMechanisms.length, 4) * 4;
+  const riskPenalty =
+    anchor.sourceFamilyTrivialityRisk * 22 +
+    anchor.baselineDominanceRisk * 22 +
+    (anchor.knownSourceFamilyMechanism ? 30 : 0);
+  return Math.max(0, Math.min(100, Math.round(positive - riskPenalty)));
+}
+
+function discoveryGradeAnchorStatus(
+  anchor: DiscoveryGradeExternalAnchor,
+  score: number,
+  failedGates: string[],
+): DiscoveryGradeAnchorStatus {
+  if (failedGates.includes("external_source_present")) {
+    return "rejected_missing_external_source";
+  }
+  if (failedGates.includes("domain_scientific_significance_present")) {
+    return "rejected_missing_scientific_significance";
+  }
+  if (failedGates.includes("discovery_scored_outcome_present")) {
+    return "rejected_missing_discovery_scored_outcome";
+  }
+  if (
+    anchor.knownSourceFamilyMechanism ||
+    failedGates.includes("not_known_source_family_mechanism") ||
+    failedGates.includes("source_family_triviality_risk_low")
+  ) {
+    return "rejected_known_source_family";
+  }
+  if (failedGates.includes("baseline_dominance_risk_low")) {
+    return "rejected_baseline_dominated_anchor";
+  }
+  if (failedGates.includes("bounded_check_path_present")) {
+    return "rejected_missing_bounded_check";
+  }
+  if (score < 72 || failedGates.length > 0) {
+    return "rejected_low_external_value";
+  }
+  return "generator_design_ready";
+}
+
+function discoveryGradeAnchorRejectionReasons(
+  anchor: DiscoveryGradeExternalAnchor,
+  score: number,
+  failedGates: string[],
+): string[] {
+  return uniqueStrings([
+    ...failedGates,
+    anchor.knownSourceFamilyMechanism ? "known_source_family_mechanism" : "",
+    anchor.sourceFamilyTrivialityRisk > 0.5
+      ? "source_family_triviality_risk_too_high"
+      : "",
+    anchor.baselineDominanceRisk > 0.62
+      ? "baseline_dominance_risk_too_high"
+      : "",
+    anchor.rivalMechanisms.length < 3 ? "too_few_rival_mechanisms" : "",
+    score < 72 ? "low_discovery_anchor_score" : "",
+  ]).filter(Boolean);
+}
+
+function discoveryGradeAnchorEvaluationSort(
+  left: DiscoveryGradeAnchorEvaluation,
+  right: DiscoveryGradeAnchorEvaluation,
+): number {
+  return (
+    right.score - left.score ||
+    left.anchor.sourceFamilyTrivialityRisk -
+      right.anchor.sourceFamilyTrivialityRisk ||
+    left.anchor.baselineDominanceRisk - right.anchor.baselineDominanceRisk ||
+    left.anchor.anchorId.localeCompare(right.anchor.anchorId)
+  );
+}
+
+function discoveryGradeAnchors(): DiscoveryGradeExternalAnchor[] {
+  return [
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+      domain: "computational_materials_property_data",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://matbench.materialsproject.org/",
+      problemStatement:
+        "Matbench dielectric-property targets expose public materials-property outcomes where descriptor ablation can test whether chemistry/structure mechanisms predict residuals beyond composition-only baselines.",
+      measuredTargetOutcome:
+        "holdout dielectric-property residual after composition-only, size, and source-family baselines",
+      mechanismHypothesis:
+        "structure-derived local coordination descriptors explain recurring dielectric residuals better than composition-only and dataset-source baselines",
+      rivalMechanisms: [
+        "composition-only descriptors explain the residual",
+        "training-set density and material family explain the residual",
+        "measurement provenance or missingness explains the residual",
+      ],
+      falsifier:
+        "A composition-only or source-family matched baseline explains the residual on independent holdout slices.",
+      boundedCheckPlan:
+        "Run matminer or pymatgen descriptor extraction, ablate structural descriptors, compare against composition-only and family-matched baselines, then replay on held-out material families.",
+      counterexamplePath:
+        "Evaluate chemically similar families where the coordination mechanism should not change dielectric residuals.",
+      holdoutReplayPath:
+        "Freeze family-grouped holdouts before fitting and replay deterministic descriptor generation from public Matbench inputs.",
+      domainScientificSignificance:
+        "A stable residual mechanism for dielectric-property prediction would improve inspectable materials-property modeling and could expose where structure information adds scientific value beyond composition labels.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be an externally inspectable mechanism claim about dielectric residuals that survives family holdout, descriptor ablation, rival baselines, and replay.",
+      significanceEvidenceRefs: [
+        "https://matbench.materialsproject.org/",
+        "https://materialsproject.org/",
+      ],
+      recommendedGeneratorDesign:
+        "materials_descriptor_ablation_generator with family-grouped holdout and source-family matched controls",
+      sourceFamilyTrivialityRisk: 0.28,
+      baselineDominanceRisk: 0.42,
+      publicInspectability: 5,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 4,
+      replayFeasibility: 4,
+      expectedDomainValue: 5,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-MATERIALS-STABILITY-ABOVE-HULL",
+      domain: "computational_materials_property_data",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://next-gen.materialsproject.org/",
+      problemStatement:
+        "Materials Project stability outcomes expose formation-energy and energy-above-hull targets where local chemistry mechanisms can be tested against family and composition rivals.",
+      measuredTargetOutcome:
+        "energy-above-hull residual under composition, prototype, and source-family controls",
+      mechanismHypothesis:
+        "prototype-specific local environment descriptors explain a recurring stability residual beyond formula-only baselines",
+      rivalMechanisms: [
+        "composition and element prevalence explain the residual",
+        "prototype family labels explain the residual",
+        "calculation provenance explains the residual",
+      ],
+      falsifier:
+        "The residual disappears after prototype-family matching or calculation-provenance ablation.",
+      boundedCheckPlan:
+        "Sample public stability targets, freeze prototype-family holdouts, compare formula-only, family, and local-environment predictors, and replay descriptor extraction.",
+      counterexamplePath:
+        "Use same-composition or same-prototype controls where the mechanism predicts no residual advantage.",
+      holdoutReplayPath:
+        "Hold out source-family/prototype groups and replay from public Materials Project identifiers.",
+      domainScientificSignificance:
+        "A robust stability residual mechanism could clarify which structural descriptors matter for computational materials screening beyond formula priors.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a narrow, replayable stability-residual mechanism with public material identifiers and family-independent support.",
+      significanceEvidenceRefs: [
+        "https://next-gen.materialsproject.org/",
+        "https://docs.materialsproject.org/",
+      ],
+      recommendedGeneratorDesign:
+        "materials_descriptor_ablation_generator with prototype-family holdout",
+      sourceFamilyTrivialityRisk: 0.34,
+      baselineDominanceRisk: 0.5,
+      publicInspectability: 5,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 4,
+      replayFeasibility: 4,
+      expectedDomainValue: 5,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+      domain: "astrophysics_open_catalog_anomalies",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://www.cosmos.esa.int/web/gaia/earlydr3",
+      problemStatement:
+        "Gaia astrometric catalog quality fields enable mechanism-first residual tests where crowding, color, and magnitude rivals can be controlled before anomaly claims.",
+      measuredTargetOutcome:
+        "cross-slice recurrence of astrometric-excess residual after magnitude, color, sky-position, and source-density baselines",
+      mechanismHypothesis:
+        "a bounded calibration-slice mechanism predicts recurring excess-noise residuals across independent sky partitions better than crowding and magnitude rivals",
+      rivalMechanisms: [
+        "source crowding explains the residual",
+        "magnitude and color explain the residual",
+        "scan-law or sky-position cadence explains the residual",
+      ],
+      falsifier:
+        "Matched crowding, magnitude, color, or sky-position controls eliminate cross-slice recurrence.",
+      boundedCheckPlan:
+        "Load public Gaia slices, freeze sky-partition holdouts, fit simple quality baselines, and test residual recurrence across independent partitions.",
+      counterexamplePath:
+        "Evaluate negative sky regions and magnitude/color bands where the mechanism predicts no excess residual.",
+      holdoutReplayPath:
+        "Use predeclared sky partitions and replay query/result processing from public archive query specs.",
+      domainScientificSignificance:
+        "A recurrent residual mechanism in public astrometric quality data could improve interpretation of catalog systematics without claiming new astrophysical objects.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a narrow checked catalog-systematics mechanism that survives matched controls, independent sky holdout, replay, and counterexample slices.",
+      significanceEvidenceRefs: [
+        "https://www.cosmos.esa.int/web/gaia/earlydr3",
+        "https://gea.esac.esa.int/archive/",
+      ],
+      recommendedGeneratorDesign:
+        "public_measurement_residual_generator with sky-partition holdout and crowding/magnitude controls",
+      sourceFamilyTrivialityRisk: 0.3,
+      baselineDominanceRisk: 0.48,
+      publicInspectability: 5,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 4,
+      replayFeasibility: 3,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-NSRDB-PV-RESIDUAL-MECHANISM",
+      domain: "climate_energy_residuals",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://nsrdb.nrel.gov/",
+      problemStatement:
+        "NREL solar-resource data allow mechanism-first residual tests for forecast or irradiance errors after seasonality, cadence, location, and clear-sky baselines are frozen.",
+      measuredTargetOutcome:
+        "irradiance residual recurrence after seasonality, cadence, clear-sky, and station/location baselines",
+      mechanismHypothesis:
+        "local temporal cloud-variability structure predicts residual bursts beyond seasonality and cadence rivals",
+      rivalMechanisms: [
+        "seasonality explains the residual",
+        "measurement cadence explains the residual",
+        "location/source-family baselines explain the residual",
+      ],
+      falsifier:
+        "Seasonality/cadence/location matched controls eliminate residual recurrence on holdout time slices.",
+      boundedCheckPlan:
+        "Load public solar-resource slices, freeze time/location holdouts, compare seasonal, cadence, clear-sky, and temporal-variability predictors.",
+      counterexamplePath:
+        "Use clear-sky or low-variability periods where the mechanism predicts no residual burst.",
+      holdoutReplayPath:
+        "Hold out later time periods and distinct sites, then replay public data loading and baseline computation.",
+      domainScientificSignificance:
+        "A robust solar-resource residual mechanism could improve inspectable climate-energy data quality analysis and forecasting diagnostics.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a bounded residual mechanism that beats seasonality/cadence rivals on independent site or time holdouts.",
+      significanceEvidenceRefs: [
+        "https://nsrdb.nrel.gov/",
+        "https://developer.nrel.gov/docs/solar/nsrdb/",
+      ],
+      recommendedGeneratorDesign:
+        "public_measurement_residual_generator with time/site holdout and clear-sky negative controls",
+      sourceFamilyTrivialityRisk: 0.26,
+      baselineDominanceRisk: 0.52,
+      publicInspectability: 4,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 4,
+      replayFeasibility: 4,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-OPENML-PROTOCOL-SHIFT-DELTA",
+      domain: "benchmark_protocol_methodology",
+      anchorType: "public_benchmark",
+      sourceRef: "https://www.openml.org/",
+      problemStatement:
+        "OpenML benchmark tasks allow protocol perturbation tests where split, metric, class imbalance, and model-family rivals can be controlled before performance-delta claims.",
+      measuredTargetOutcome:
+        "protocol performance delta that recurs across tasks after class imbalance, dataset size, and model-family baselines",
+      mechanismHypothesis:
+        "split-induced distribution shift predicts performance deltas better than dataset size, class imbalance, or model maturity rivals",
+      rivalMechanisms: [
+        "class imbalance explains the delta",
+        "dataset size explains the delta",
+        "model-family or task popularity explains the delta",
+      ],
+      falsifier:
+        "Matched split controls remove the delta or class-imbalance baselines fully explain it.",
+      boundedCheckPlan:
+        "Run deterministic sklearn/OpenML task subsets, freeze task-family holdouts, perturb splits, and compare against imbalance/size/model baselines.",
+      counterexamplePath:
+        "Evaluate tasks where split shift should not occur and confirm the mechanism does not falsely fire.",
+      holdoutReplayPath:
+        "Use held-out OpenML tasks and replay from task IDs, split seeds, metrics, and model configs.",
+      domainScientificSignificance:
+        "A robust protocol-delta mechanism could improve benchmark methodology by showing when measured model performance is driven by split mechanism rather than algorithmic superiority.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a replayable benchmark-methodology mechanism that weakens at least one simple protocol rival across held-out public tasks.",
+      significanceEvidenceRefs: [
+        "https://www.openml.org/",
+        "https://scikit-learn.org/stable/",
+      ],
+      recommendedGeneratorDesign:
+        "benchmark_protocol_perturbation_generator with task-family holdout and split negative controls",
+      sourceFamilyTrivialityRisk: 0.36,
+      baselineDominanceRisk: 0.54,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 5,
+      replayFeasibility: 5,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-GHCN-HOMOGENEITY-RESIDUAL",
+      domain: "climate_energy_residuals",
+      anchorType: "public_scientific_dataset",
+      sourceRef:
+        "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily",
+      problemStatement:
+        "GHCN daily station data can test station-homogeneity residual mechanisms after seasonality, geography, missingness, and station-history rivals.",
+      measuredTargetOutcome:
+        "station residual discontinuity after seasonality, missingness, and neighboring-station baselines",
+      mechanismHypothesis:
+        "neighbor-disagreement structure predicts station discontinuity residuals beyond seasonality and missingness rivals",
+      rivalMechanisms: [
+        "seasonality explains the residual",
+        "station missingness explains the residual",
+        "geographic or instrument-family metadata explains the residual",
+      ],
+      falsifier:
+        "Neighbor and seasonality matched controls collapse the residual on held-out stations.",
+      boundedCheckPlan:
+        "Load public station slices, freeze held-out stations, compare neighbor, seasonality, and missingness baselines against discontinuity residuals.",
+      counterexamplePath:
+        "Use stations with stable neighbor agreement where the discontinuity mechanism should not fire.",
+      holdoutReplayPath:
+        "Hold out stations by geography and replay public station record loading from stable identifiers.",
+      domainScientificSignificance:
+        "A checked station-residual mechanism would improve inspectable public climate-data reliability analysis without making climate-impact claims.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a narrow data-quality residual mechanism with station holdout support and replayable public records.",
+      significanceEvidenceRefs: [
+        "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily",
+      ],
+      recommendedGeneratorDesign:
+        "public_measurement_residual_generator with station-family holdout and neighbor negative controls",
+      sourceFamilyTrivialityRisk: 0.35,
+      baselineDominanceRisk: 0.58,
+      publicInspectability: 5,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 3,
+      holdoutFeasibility: 4,
+      replayFeasibility: 4,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-DIMACS-COLOR-FAMILY",
+      domain: "formal_mathematics_conjecture_refutation",
+      anchorType: "formal_bounded_property",
+      sourceRef: dimacsSourceAnchor,
+      problemStatement:
+        "DIMACS graph-coloring families expose known benchmark-family mechanisms.",
+      measuredTargetOutcome: "chromatic residual in DIMACS coloring families",
+      mechanismHypothesis:
+        "benchmark-family labels explain coloring residuals in documented DIMACS sources",
+      rivalMechanisms: [
+        "known Mycielski construction",
+        "known queen-graph family",
+        "clique and greedy-color baselines",
+      ],
+      falsifier: "Public source-family documentation explains the signal.",
+      boundedCheckPlan: "Parse DIMACS instances and compare family baselines.",
+      counterexamplePath: "Use queen, Mycielski, and GraphBase controls.",
+      holdoutReplayPath: "Replay DIMACS parsing.",
+      domainScientificSignificance: "",
+      discoveryScoredOutcome:
+        "Would require a non-source-documented coloring boundary, which this anchor does not currently provide.",
+      significanceEvidenceRefs: [dimacsSourceAnchor],
+      recommendedGeneratorDesign: "reject_known_source_family_control",
+      sourceFamilyTrivialityRisk: 0.95,
+      baselineDominanceRisk: 0.86,
+      knownSourceFamilyMechanism: true,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      mechanismDiscriminationStrength: 2,
+      holdoutFeasibility: 3,
+      replayFeasibility: 5,
+      expectedDomainValue: 2,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-SMTLIB-QFBV-INTEGER-LIFT",
+      domain: "formal_mathematics_conjecture_refutation",
+      anchorType: "formal_bounded_property",
+      sourceRef: "https://smt-lib.org/",
+      problemStatement:
+        "SMT-LIB bit-vector semantics expose modular arithmetic boundaries.",
+      measuredTargetOutcome:
+        "bit-vector/integer-lift divergence under width controls",
+      mechanismHypothesis:
+        "overflow and signedness cause integer-lift divergence",
+      rivalMechanisms: [
+        "documented modular arithmetic semantics",
+        "constant folding",
+        "width-specific artifact",
+      ],
+      falsifier:
+        "The divergence is fully documented by the public SMT-LIB semantics.",
+      boundedCheckPlan:
+        "Generate bounded bit-vector formulas and compare integer-lift behavior.",
+      counterexamplePath:
+        "Search widths where integer lift agrees despite predicted divergence.",
+      holdoutReplayPath: "Replay deterministic formula generation.",
+      domainScientificSignificance:
+        "Formal semantics are externally inspectable, but this specific anchor is a negative control because the current signal is already documented.",
+      discoveryScoredOutcome: "",
+      significanceEvidenceRefs: ["https://smt-lib.org/"],
+      recommendedGeneratorDesign: "reject_known_semantics_control",
+      sourceFamilyTrivialityRisk: 0.82,
+      baselineDominanceRisk: 0.88,
+      knownSourceFamilyMechanism: true,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      mechanismDiscriminationStrength: 2,
+      holdoutFeasibility: 3,
+      replayFeasibility: 5,
+      expectedDomainValue: 3,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-SNAP-DEGREE-DOCUMENTED",
+      domain: "cross_domain_evaluation_fragility",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://snap.stanford.edu/data/",
+      problemStatement:
+        "SNAP network datasets include public graph families whose degree and community patterns are often source-family documented.",
+      measuredTargetOutcome:
+        "network cut or degree residual in a single source-family graph",
+      mechanismHypothesis:
+        "source-family degree distribution explains the observed residual",
+      rivalMechanisms: [
+        "degree sequence null explains the result",
+        "community size explains the result",
+        "source-family documentation explains the result",
+      ],
+      falsifier:
+        "Degree-preserving controls explain the residual without a new mechanism.",
+      boundedCheckPlan:
+        "Run degree-preserving nulls and matched network controls.",
+      counterexamplePath:
+        "Use degree-preserving rewires where the mechanism should disappear.",
+      holdoutReplayPath: "Replay graph loading from public SNAP source.",
+      domainScientificSignificance:
+        "Network residuals can have external value only when they survive null models and cross-family support.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would need a cross-family network mechanism, which this single-family anchor does not provide.",
+      significanceEvidenceRefs: ["https://snap.stanford.edu/data/"],
+      recommendedGeneratorDesign: "reject_single_source_family_control",
+      sourceFamilyTrivialityRisk: 0.45,
+      baselineDominanceRisk: 0.8,
+      knownSourceFamilyMechanism: false,
+      publicInspectability: 4,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 2,
+      holdoutFeasibility: 2,
+      replayFeasibility: 4,
+      expectedDomainValue: 3,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-REPO-MATURITY-DOCS-ONLY",
+      domain: "scientific_software_reproduction_mechanisms",
+      anchorType: "documented_repo_failure",
+      sourceRef: "https://pypi.org/",
+      problemStatement:
+        "Repository reproduction outcomes often correlate with package maturity, documentation, and source family.",
+      measuredTargetOutcome:
+        "package reproduction success label explained by documentation and maturity signals",
+      mechanismHypothesis:
+        "documentation and package maturity explain reproduction outcomes",
+      rivalMechanisms: [
+        "package age explains success",
+        "documentation completeness explains success",
+        "dependency count explains success",
+      ],
+      falsifier:
+        "Matched maturity/documentation controls leave an independent mechanism residual.",
+      boundedCheckPlan:
+        "Compare reproduction outcomes after maturity and documentation matching.",
+      counterexamplePath:
+        "Use mature packages with poor docs and young packages with strong docs.",
+      holdoutReplayPath: "Replay package metadata and reproduction labels.",
+      domainScientificSignificance:
+        "Scientific-software reproduction has external value, but documentation-only signals are not discovery-scored.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would require an independent mechanism beyond maturity/docs, which this anchor lacks.",
+      significanceEvidenceRefs: ["https://pypi.org/"],
+      recommendedGeneratorDesign: "reject_maturity_docs_only_control",
+      sourceFamilyTrivialityRisk: 0.42,
+      baselineDominanceRisk: 0.9,
+      knownSourceFamilyMechanism: false,
+      publicInspectability: 4,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 2,
+      holdoutFeasibility: 3,
+      replayFeasibility: 4,
+      expectedDomainValue: 3,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-EXOPLANET-TTV-RESIDUAL-SLICES",
+      domain: "astrophysics_open_catalog_anomalies",
+      anchorType: "public_scientific_dataset",
+      sourceRef: "https://exoplanetarchive.ipac.caltech.edu/",
+      problemStatement:
+        "Public exoplanet timing and catalog records can test narrow residual mechanisms while controlling for instrument, cadence, and publication-selection rivals.",
+      measuredTargetOutcome:
+        "timing or catalog residual recurrence after cadence, instrument, and publication-selection controls",
+      mechanismHypothesis:
+        "cadence-normalized timing-residual structure recurs across independent target slices beyond source/instrument rivals",
+      rivalMechanisms: [
+        "observation cadence explains the residual",
+        "instrument/source family explains the residual",
+        "publication selection explains the residual",
+      ],
+      falsifier:
+        "Cadence/instrument matched controls eliminate residual recurrence on independent targets.",
+      boundedCheckPlan:
+        "Load public catalog slices, freeze target-family holdouts, compare cadence and instrument baselines against residual recurrence.",
+      counterexamplePath:
+        "Evaluate negative target families where the timing mechanism predicts no recurrence.",
+      holdoutReplayPath:
+        "Use independent target-system holdouts and replay public catalog query specs.",
+      domainScientificSignificance:
+        "A replayable timing-residual mechanism could improve public exoplanet catalog diagnostics if it survives cadence and source-family rivals.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a narrow catalog-residual mechanism with independent target-family support and replayable public records.",
+      significanceEvidenceRefs: ["https://exoplanetarchive.ipac.caltech.edu/"],
+      recommendedGeneratorDesign:
+        "public_measurement_residual_generator with target-family holdout and cadence/instrument controls",
+      sourceFamilyTrivialityRisk: 0.38,
+      baselineDominanceRisk: 0.6,
+      publicInspectability: 5,
+      boundedCheckability: 4,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 3,
+      replayFeasibility: 3,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-SATLIB-PHASE-TRANSITION",
+      domain: "formal_mathematics_conjecture_refutation",
+      anchorType: "formal_bounded_property",
+      sourceRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      problemStatement:
+        "SATLIB random SAT instances expose satisfiability phase-transition behavior.",
+      measuredTargetOutcome:
+        "SAT/UNSAT boundary as clause-variable ratio changes",
+      mechanismHypothesis: "clause-variable ratio explains the boundary",
+      rivalMechanisms: [
+        "documented phase transition",
+        "instance size explains runtime",
+        "generator family explains satisfiability",
+      ],
+      falsifier:
+        "The boundary is the documented SAT phase transition and not a new mechanism.",
+      boundedCheckPlan: "Run bounded SAT checks across ratios.",
+      counterexamplePath: "Compare ratio-matched generated instances.",
+      holdoutReplayPath: "Replay SATLIB instance loading and solver checks.",
+      domainScientificSignificance:
+        "SAT phase transitions are formally important, but this anchor is a negative control because the simple source mechanism dominates.",
+      discoveryScoredOutcome: "",
+      significanceEvidenceRefs: [
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      ],
+      recommendedGeneratorDesign: "reject_known_phase_transition_control",
+      sourceFamilyTrivialityRisk: 0.88,
+      baselineDominanceRisk: 0.92,
+      knownSourceFamilyMechanism: true,
+      publicInspectability: 4,
+      boundedCheckability: 5,
+      mechanismDiscriminationStrength: 2,
+      holdoutFeasibility: 3,
+      replayFeasibility: 5,
+      expectedDomainValue: 3,
+    }),
+  ];
+}
+
+function discoveryGradeAnchor(
+  input: Omit<
+    DiscoveryGradeExternalAnchor,
+    "knownSourceFamilyMechanism" | "inspectabilityRef"
+  > & {
+    knownSourceFamilyMechanism?: boolean;
+    inspectabilityRef?: string;
+  },
+): DiscoveryGradeExternalAnchor {
+  return {
+    ...input,
+    inspectabilityRef: input.inspectabilityRef ?? input.sourceRef,
+    knownSourceFamilyMechanism: input.knownSourceFamilyMechanism === true,
+  };
+}
+
+function discoveryGradeAnchorSelectionArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}`;
+  return [
+    `${root}/DISCOVERY_ANCHOR_SELECTION.md`,
+    `${root}/DISCOVERY_ANCHORS_EVALUATED.json`,
+    `${root}/TOP_DISCOVERY_ANCHORS.md`,
+    `${root}/DISCOVERY_GENERATOR_DESIGN_QUEUE.md`,
+    `${root}/DISCOVERY_GENERATOR_DESIGN_QUEUE.json`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function discoveryGradeAnchorSelectionMarkdown(
+  report: DiscoveryGradeAnchorSelectionReport,
+  evaluations: DiscoveryGradeAnchorEvaluation[],
+): string {
+  return [
+    "# Discovery-Grade External Anchor Selection",
+    "",
+    `Status: ${report.status}.`,
+    `Anchors evaluated: ${report.anchorsEvaluated}.`,
+    `Generator-design ready: ${report.generatorDesignReadyAnchors}.`,
+    `Rejected known source-family: ${report.rejectedKnownSourceFamily}.`,
+    `Rejected baseline-dominated: ${report.rejectedBaselineDominatedAnchors}.`,
+    `Recommended generator-design queue: ${report.recommendedGeneratorDesignQueue.length}.`,
+    "",
+    "| Anchor | Domain | Status | Score | Selected | Rejection reasons |",
+    "| --- | --- | --- | ---: | --- | --- |",
+    ...evaluations.map(
+      (item) =>
+        `| ${item.anchor.anchorId} | ${item.anchor.domain} | ${item.status} | ${item.score} | ${String(item.selectedForTop5)} | ${item.rejectionReasons.join("; ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function topDiscoveryGradeAnchorsMarkdown(
+  evaluations: DiscoveryGradeAnchorEvaluation[],
+): string {
+  return [
+    "# Top Discovery Anchors",
+    "",
+    ...evaluations.flatMap((item, index) => [
+      `## ${index + 1}. ${item.anchor.anchorId}`,
+      "",
+      `Domain: ${item.anchor.domain}.`,
+      `Score: ${item.score}.`,
+      `Measured outcome: ${item.anchor.measuredTargetOutcome}.`,
+      `Mechanism: ${item.anchor.mechanismHypothesis}.`,
+      `Discovery-scored outcome: ${item.anchor.discoveryScoredOutcome}.`,
+      "",
+      "Rivals:",
+      ...markdownList(item.anchor.rivalMechanisms),
+      "",
+      `Recommended generator: ${item.anchor.recommendedGeneratorDesign}.`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function discoveryGeneratorDesignQueueMarkdown(
+  evaluations: DiscoveryGradeAnchorEvaluation[],
+): string {
+  return [
+    "# Discovery Generator Design Queue",
+    "",
+    ...evaluations.flatMap((item) => [
+      `## ${item.anchor.anchorId}`,
+      "",
+      `Domain: ${item.anchor.domain}.`,
+      `Generator design: ${item.anchor.recommendedGeneratorDesign}.`,
+      `Bounded check plan: ${item.anchor.boundedCheckPlan}.`,
+      `Counterexample path: ${item.anchor.counterexamplePath}.`,
+      `Holdout/replay path: ${item.anchor.holdoutReplayPath}.`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function discoveryGradeAnchorAuditMarkdown(
+  report: DiscoveryGradeAnchorAuditReport,
+): string {
+  return [
+    "# Discovery Anchor Audit",
+    "",
+    `Passed: ${String(report.passed)}.`,
+    `Anchors evaluated: ${report.anchorsEvaluated}.`,
+    `Top selected: ${report.top5Selected}.`,
+    `Generator-design queue size: ${report.generatorDesignQueueSize}.`,
+    `Failed gates: ${report.failedGates.join(", ") || "none"}.`,
+    "",
+    "| Gate | Passed | Message |",
+    "| --- | --- | --- |",
+    ...report.gates.map(
+      (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
+    ),
+  ].join("\n");
+}
+
+function discoveryGradeAnchorNextCheckpointMarkdown(
+  report: DiscoveryGradeAnchorSelectionReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    "",
+    "Next autonomous action: build or replace mechanism-first generators from the discovery generator design queue, then require runtime evidence before HardSeed birth.",
+  ].join("\n");
+}
 
 export class ExternalFormalAnchorSelector {
   constructor(
@@ -32653,6 +33803,16 @@ export class AutonomousDiscoveryDaemonService {
   async formalAnchorPressure(): Promise<ExternalFormalAnchorPressureReport> {
     await this.ensureInitialized();
     return new ExternalFormalAnchorSelectionService(this.root).pressure();
+  }
+
+  async discoveryAnchorSelect(): Promise<DiscoveryGradeAnchorSelectionReport> {
+    await this.ensureInitialized();
+    return new DiscoveryGradeAnchorSelectionService(this.root).select();
+  }
+
+  async discoveryAnchorAudit(): Promise<DiscoveryGradeAnchorAuditReport> {
+    await this.ensureInitialized();
+    return new DiscoveryGradeAnchorSelectionService(this.root).audit();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

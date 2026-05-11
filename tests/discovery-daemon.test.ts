@@ -4032,6 +4032,30 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+
+  const postClosureAudit = await service.generatorAudit();
+  assert.equal(postClosureAudit.passed, false);
+  assert.equal(postClosureAudit.closureYield.closureRunFound, true);
+  assert.equal(postClosureAudit.closureYield.closureCandidateCount, 6);
+  assert.equal(postClosureAudit.closureYield.discoveryScoredCandidates, 0);
+  assert.equal(
+    postClosureAudit.closureYield.nonDiscoveryClassifiedCandidates,
+    6,
+  );
+  assert.equal(postClosureAudit.closureYield.allClosedAsNonDiscovery, true);
+  assert.equal(
+    postClosureAudit.closureYield.dominantFundClass,
+    "pipeline_fund_candidate",
+  );
+  assert.ok(
+    postClosureAudit.failedGates.includes(
+      "post_closure_discovery_yield_not_fake_green",
+    ),
+  );
+  assert.match(
+    postClosureAudit.closureYield.recommendedAction,
+    /replace or redesign generator families/,
+  );
 });
 
 test("mechanism-first generator audit verifies birth gate artifacts", async () => {
@@ -4058,6 +4082,8 @@ test("mechanism-first generator audit verifies birth gate artifacts", async () =
   );
   assert.equal(audit.pressureYield.pressureRunFound, false);
   assert.equal(audit.pressureYield.noInsightAfterBornSeeds, false);
+  assert.equal(audit.closureYield.closureRunFound, false);
+  assert.equal(audit.closureYield.allClosedAsNonDiscovery, false);
   assert.deepEqual(audit.failedGates, []);
 });
 
@@ -4104,6 +4130,79 @@ test("mechanism-first generator audit exposes pressure fake-green after born see
   assert.match(
     audit.pressureYield.recommendedAction,
     /redesign or replace generator families/,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("mechanism-first generator audit exposes closure fake-green when all closure candidates are non-discovery", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ replacementCandidates: true });
+  await mkdir(join(root, daemonRoot, "generator-fund-closure"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-fund-closure", "latest.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_fund_closure",
+        status: "continue_searching_checkpointed",
+        checkpointUsed: null,
+        nextCheckpointRef:
+          ".sovryn/discovery-daemon/checkpoints/test-generator-fund-closure.json",
+        closureCandidateCount: 2,
+        closureCandidateResults: [],
+        discoveryScoredCandidates: 0,
+        nonDiscoveryClassifiedCandidates: 2,
+        fundClassDistribution: {
+          pipeline_fund_candidate: 2,
+        },
+        candidateId: null,
+        discoveryCandidateId: null,
+        exactClaim: null,
+        predictionsFrozen: 0,
+        predictionsExecuted: 0,
+        nonObviousPredictions: 0,
+        killWeekComplete: false,
+        fatalUnresolvedAttack: false,
+        externalReviewPackagePath: null,
+        fundCandidateDraftRef: null,
+        packageArtifactGatesPassed: false,
+        fundGateResult: {
+          passed: false,
+          gates: [],
+          failedGates: ["candidate_present"],
+        },
+        fundFound: false,
+        remainingBottleneck: "all closure candidates are non-discovery",
+        artifactRefs: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, false);
+  assert.equal(audit.closureYield.closureRunFound, true);
+  assert.equal(audit.closureYield.closureCandidateCount, 2);
+  assert.equal(audit.closureYield.discoveryScoredCandidates, 0);
+  assert.equal(audit.closureYield.nonDiscoveryClassifiedCandidates, 2);
+  assert.equal(audit.closureYield.allClosedAsNonDiscovery, true);
+  assert.equal(audit.closureYield.dominantFundClass, "pipeline_fund_candidate");
+  assert.ok(
+    audit.failedGates.includes("post_closure_discovery_yield_not_fake_green"),
+  );
+  assert.match(
+    audit.closureYield.recommendedAction,
+    /external scientific significance/,
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

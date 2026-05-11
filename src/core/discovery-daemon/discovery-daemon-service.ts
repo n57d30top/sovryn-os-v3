@@ -1378,6 +1378,7 @@ export type MechanismFirstGeneratorAuditReport = {
   replacementRequired: boolean;
   replacementRequirements: GeneratorFamilyReplacementRequirement[];
   pressureYield: GeneratorPressureYieldSignal;
+  closureYield: GeneratorClosureYieldSignal;
   gates: FundGate[];
   failedGates: string[];
   artifactRefs: string[];
@@ -1395,6 +1396,18 @@ export type GeneratorPressureYieldSignal = {
   dominantBlocker: string | null;
   recommendedAction: string;
   pressureRef: string | null;
+};
+
+export type GeneratorClosureYieldSignal = {
+  closureRunFound: boolean;
+  closureCandidateCount: number;
+  discoveryScoredCandidates: number;
+  nonDiscoveryClassifiedCandidates: number;
+  fundClassDistribution: Record<string, number>;
+  allClosedAsNonDiscovery: boolean;
+  dominantFundClass: string | null;
+  recommendedAction: string;
+  closureRef: string | null;
 };
 
 export type GeneratorBornHardSeedPressureReport = {
@@ -11443,8 +11456,17 @@ export class MechanismFirstEvidenceGeneratorService {
           "latest.json",
         ),
       );
+    const closure = await readOptionalJson<GeneratorBornFundClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFundClosureDir,
+        "latest.json",
+      ),
+    );
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
+    const closureYield = generatorClosureYieldSignal(closure);
     const replacementRequirements =
       latest?.replacementRequirements ??
       generatorFamilyReplacementRequirements(outputs, registry.families);
@@ -11538,6 +11560,11 @@ export class MechanismFirstEvidenceGeneratorService {
         "Generator audit must not stay green after generator-pressure kills every born hard seed before InsightCandidate birth.",
       ),
       gate(
+        "post_closure_discovery_yield_not_fake_green",
+        !closureYield.allClosedAsNonDiscovery,
+        "Generator audit must not stay green after package/Fund closure classifies every closure candidate as non-discovery.",
+      ),
+      gate(
         "no_fake_fund",
         latest?.fundFound === false &&
           !(await exists(
@@ -11564,6 +11591,7 @@ export class MechanismFirstEvidenceGeneratorService {
       replacementRequired,
       replacementRequirements,
       pressureYield,
+      closureYield,
       gates,
       failedGates,
       artifactRefs: [
@@ -11573,6 +11601,7 @@ export class MechanismFirstEvidenceGeneratorService {
         ...(pressureYield.pressureRef === null
           ? []
           : [pressureYield.pressureRef]),
+        ...(closureYield.closureRef === null ? [] : [closureYield.closureRef]),
       ],
     });
     await writeJson(join(this.generatorRoot(), "GENERATOR_AUDIT.json"), report);
@@ -21628,6 +21657,16 @@ function generatorAuditMarkdown(
     `Dominant blocker: ${report.pressureYield.dominantBlocker ?? "none"}.`,
     `Recommended action: ${report.pressureYield.recommendedAction}.`,
     "",
+    "## Generator FundClass Closure Yield",
+    "",
+    `Closure run found: ${String(report.closureYield.closureRunFound)}.`,
+    `Closure candidates: ${report.closureYield.closureCandidateCount}.`,
+    `Discovery-scored candidates: ${report.closureYield.discoveryScoredCandidates}.`,
+    `Non-discovery classified candidates: ${report.closureYield.nonDiscoveryClassifiedCandidates}.`,
+    `All closed as non-discovery: ${String(report.closureYield.allClosedAsNonDiscovery)}.`,
+    `Dominant FundClass: ${report.closureYield.dominantFundClass ?? "none"}.`,
+    `Recommended action: ${report.closureYield.recommendedAction}.`,
+    "",
     "| Gate | Passed | Message |",
     "| --- | --- | --- |",
     ...report.gates.map(
@@ -21685,6 +21724,48 @@ function generatorPressureYieldSignal(
         ? "continue generator-born InsightCandidate closure with full downstream gates"
         : "continue generator pressure only after new birth-eligible hard seeds appear",
     pressureRef: `${daemonArtifactRoot}/${generatorBornPressureDir}/latest.json`,
+  };
+}
+
+function generatorClosureYieldSignal(
+  closure: GeneratorBornFundClosureReport | null,
+): GeneratorClosureYieldSignal {
+  if (closure === null) {
+    return {
+      closureRunFound: false,
+      closureCandidateCount: 0,
+      discoveryScoredCandidates: 0,
+      nonDiscoveryClassifiedCandidates: 0,
+      fundClassDistribution: {},
+      allClosedAsNonDiscovery: false,
+      dominantFundClass: null,
+      recommendedAction:
+        "run discover-daemon generator-fund-closure after generator-insight-closure before treating closure candidates as discovery candidates",
+      closureRef: null,
+    };
+  }
+  const dominantFundClass =
+    Object.entries(closure.fundClassDistribution)
+      .filter(([, count]) => count > 0)
+      .sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+  const allClosedAsNonDiscovery =
+    closure.closureCandidateCount > 0 &&
+    closure.discoveryScoredCandidates === 0 &&
+    closure.nonDiscoveryClassifiedCandidates === closure.closureCandidateCount;
+  return {
+    closureRunFound: true,
+    closureCandidateCount: closure.closureCandidateCount,
+    discoveryScoredCandidates: closure.discoveryScoredCandidates,
+    nonDiscoveryClassifiedCandidates: closure.nonDiscoveryClassifiedCandidates,
+    fundClassDistribution: closure.fundClassDistribution,
+    allClosedAsNonDiscovery,
+    dominantFundClass,
+    recommendedAction: allClosedAsNonDiscovery
+      ? `replace or redesign generator families around external scientific significance before long runs; current closure candidates classify as ${dominantFundClass ?? "non-discovery"}`
+      : closure.discoveryScoredCandidates > 0
+        ? "run the full discovery-scored Fund notification path only for discovery-scored closure candidates"
+        : "continue generator-born InsightCandidate closure only after closure candidates exist",
+    closureRef: `${daemonArtifactRoot}/${generatorFundClosureDir}/latest.json`,
   };
 }
 

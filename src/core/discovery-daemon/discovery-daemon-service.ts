@@ -1193,13 +1193,29 @@ export type MechanismFirstPressureReport = {
 };
 
 export type MechanismFirstGeneratorFamilyId =
-  | "formal_counterexample_boundary_generator"
-  | "materials_descriptor_ablation_generator"
-  | "benchmark_protocol_perturbation_generator";
+  | "known_formal_problem_boundary_generator"
+  | "benchmark_delta_mechanism_generator"
+  | "public_measurement_residual_generator";
+
+export type ExternalProblemAnchor = {
+  anchorId: string;
+  anchorType:
+    | "known_formal_question"
+    | "public_benchmark"
+    | "public_measurement_residual"
+    | "documented_repo_failure";
+  sourceRef: string;
+  problemStatement: string;
+  measuredTargetOutcome: string;
+  knownBaselineOrPrior: string;
+  externalValueRationale: string;
+  inspectabilityRef: string;
+};
 
 export type MechanismFirstGeneratorFamily = {
   generatorId: MechanismFirstGeneratorFamilyId;
   domain: DiscoveryDomain;
+  externalProblemAnchor: ExternalProblemAnchor;
   mechanismHypothesis: string;
   rivalHypothesis: string;
   measurableOutcome: string;
@@ -1223,6 +1239,10 @@ export type HardSeedBirthEvaluationInput = {
   generatorId: string;
   targetId: string;
   domain: DiscoveryDomain;
+  externalProblemAnchor?: ExternalProblemAnchor | null;
+  generatorOnlySignal?: boolean;
+  packageOnlySignal?: boolean;
+  internallyInterestingOnly?: boolean;
   runtimeEvidencePresent: boolean;
   sourceRefs: string[];
   evidenceRefs: string[];
@@ -1242,12 +1262,24 @@ export type HardSeedBirthEvaluation = {
   kind: "hard_seed_birth_evaluation";
   generatorId: string;
   targetId: string;
+  externalValueGate: ExternalValueGateAssessment;
   accepted: boolean;
   status: "born" | "blocked";
   primaryBlocker: string | null;
   blockers: string[];
   gates: FundGate[];
   failedGates: string[];
+  evidenceHash: string;
+};
+
+export type ExternalValueGateAssessment = {
+  kind: "external_value_gate_assessment";
+  accepted: boolean;
+  anchorId: string | null;
+  anchorType: ExternalProblemAnchor["anchorType"] | null;
+  gates: FundGate[];
+  failedGates: string[];
+  blockers: string[];
   evidenceHash: string;
 };
 
@@ -1259,6 +1291,8 @@ export type MechanismFirstGeneratorOutput = {
   toolFamilies: string[];
   sourceRefs: string[];
   evidenceRefs: string[];
+  externalProblemAnchor: ExternalProblemAnchor;
+  externalValueGate: ExternalValueGateAssessment;
   measuredVariable: string;
   measuredOutcome: number;
   residualMagnitude: number;
@@ -1283,9 +1317,12 @@ export type MechanismFirstGeneratorRunReport = {
   generatorId: MechanismFirstGeneratorFamilyId | "all";
   checkpointUsed: string | null;
   nextCheckpointRef: string;
+  externalProblemAnchorsLoaded: number;
+  targetsMeasured: number;
   familiesRun: number;
   runtimeChecks: number;
   hardSeedBirthAttempts: number;
+  seedsBlockedByExternalValueGate: number;
   hardSeedsBorn: number;
   blockedOutputsByCause: Record<string, number>;
   insightCandidatesCreated: number;
@@ -4534,6 +4571,7 @@ type MechanismFirstPressureRow = {
     | "no_cross_source_support"
     | "holdout_or_replay_failed"
     | "proof_or_mechanism_failed"
+    | "missing_external_problem_anchor"
     | "survived";
   insightCandidateCreated: boolean;
   insightCandidateRef: string | null;
@@ -4590,6 +4628,7 @@ type GeneratorBornPressureRow = {
     | "holdout_or_replay_failed"
     | "proof_or_mechanism_failed"
     | "not_externally_inspectable"
+    | "missing_external_problem_anchor"
     | "survived";
   insightCandidateCreated: boolean;
   insightCandidateRef: string | null;
@@ -10715,13 +10754,129 @@ function mechanismFirstNextCheckpointMarkdown(
 const generatorFamilyDir = "generator-families" as const;
 const generatorBornPressureDir = "generator-pressure" as const;
 
+export class ExternalValueGate {
+  evaluate(input: {
+    anchor?: ExternalProblemAnchor | null;
+    sourceRefs: string[];
+    evidenceRefs: string[];
+    generatorOnlySignal?: boolean;
+    packageOnlySignal?: boolean;
+    internallyInterestingOnly?: boolean;
+  }): ExternalValueGateAssessment {
+    const anchor = input.anchor ?? null;
+    const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
+    const gates = [
+      gate(
+        "external_problem_anchor_present",
+        anchor !== null,
+        "HardSeed birth requires a real external problem anchor before generator evidence can count.",
+      ),
+      gate(
+        "external_anchor_public_source",
+        anchor !== null &&
+          anchor.sourceRef.startsWith("https://") &&
+          publicSafeRef(anchor.sourceRef),
+        "External problem anchor must cite a public-safe external source.",
+      ),
+      gate(
+        "external_anchor_target_outcome",
+        normalizeWhitespace(anchor?.measuredTargetOutcome ?? "").length >= 16,
+        "External problem anchor must define a measured target outcome.",
+      ),
+      gate(
+        "external_anchor_baseline_prior",
+        normalizeWhitespace(anchor?.knownBaselineOrPrior ?? "").length >= 16,
+        "External problem anchor must define the known baseline or prior rival state.",
+      ),
+      gate(
+        "external_anchor_inspectable",
+        anchor !== null &&
+          anchor.inspectabilityRef.startsWith("https://") &&
+          allRefs.includes(anchor.sourceRef) &&
+          allRefs.some((ref) => ref === anchor.inspectabilityRef),
+        "External problem anchor must be inspectable through the evidence refs.",
+      ),
+      gate(
+        "not_generator_only_signal",
+        input.generatorOnlySignal !== true,
+        "Generator-only signals are blocked before HardSeed birth.",
+      ),
+      gate(
+        "not_package_only_signal",
+        input.packageOnlySignal !== true,
+        "Package-only or pipeline-contract-only signals are blocked before HardSeed birth.",
+      ),
+      gate(
+        "not_internally_interesting_only",
+        input.internallyInterestingOnly !== true,
+        "Internally interesting but externally unanchored signals are blocked before HardSeed birth.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const blockers = uniqueStrings([
+      anchor === null ? "missing_external_problem_anchor" : "",
+      gates.some(
+        (item) => item.code === "external_anchor_public_source" && !item.passed,
+      )
+        ? "external_anchor_not_public"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "external_anchor_target_outcome" && !item.passed,
+      )
+        ? "missing_external_target_outcome"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "external_anchor_baseline_prior" && !item.passed,
+      )
+        ? "missing_external_baseline_prior"
+        : "",
+      gates.some(
+        (item) => item.code === "external_anchor_inspectable" && !item.passed,
+      )
+        ? "external_anchor_not_inspectable"
+        : "",
+      input.generatorOnlySignal === true ? "generator_only_signal" : "",
+      input.packageOnlySignal === true ? "package_only_signal" : "",
+      input.internallyInterestingOnly === true
+        ? "internally_interesting_only"
+        : "",
+    ]).filter(Boolean);
+    return withEvidenceHash({
+      kind: "external_value_gate_assessment" as const,
+      accepted: failedGates.length === 0,
+      anchorId: anchor?.anchorId ?? null,
+      anchorType: anchor?.anchorType ?? null,
+      gates,
+      failedGates,
+      blockers,
+    });
+  }
+}
+
 export class HardSeedBirthEvaluator {
   evaluate(input: HardSeedBirthEvaluationInput): HardSeedBirthEvaluation {
     const explanatoryBaselines = input.baselineResults
       .filter((baseline) => baseline.explainsSignal)
       .map((baseline) => baseline.baseline);
     const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
+    const externalValueGate = new ExternalValueGate().evaluate({
+      anchor: input.externalProblemAnchor ?? null,
+      sourceRefs: input.sourceRefs,
+      evidenceRefs: input.evidenceRefs,
+      generatorOnlySignal: input.generatorOnlySignal,
+      packageOnlySignal: input.packageOnlySignal,
+      internallyInterestingOnly: input.internallyInterestingOnly,
+    });
     const gates = [
+      gate(
+        "external_value_gate",
+        externalValueGate.accepted,
+        "HardSeed birth requires an external problem anchor with public inspectability and non-internal value before runtime evidence can count.",
+      ),
       gate(
         "runtime_evidence_present",
         input.runtimeEvidencePresent,
@@ -10770,9 +10925,11 @@ export class HardSeedBirthEvaluator {
       .filter((item) => !item.passed)
       .map((item) => item.code);
     const blockers = uniqueStrings([
+      ...externalValueGate.blockers,
       input.runtimeEvidencePresent ? "" : "missing_runtime_evidence",
       input.sourceRefs.length === 0 ||
       input.evidenceRefs.length < 2 ||
+      !input.evidenceRefs.some((ref) => ref.startsWith("https://")) ||
       !allRefs.every(publicSafeRef)
         ? "unresolved_evidence_refs"
         : "",
@@ -10790,6 +10947,7 @@ export class HardSeedBirthEvaluator {
       kind: "hard_seed_birth_evaluation" as const,
       generatorId: input.generatorId,
       targetId: input.targetId,
+      externalValueGate,
       accepted,
       status: accepted ? ("born" as const) : ("blocked" as const),
       primaryBlocker: blockers[0] ?? null,
@@ -10813,6 +10971,8 @@ export class MechanismFirstEvidenceGeneratorService {
       artifactRefs: [
         `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.md`,
         `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.json`,
+        `${daemonArtifactRoot}/${generatorFamilyDir}/EXTERNAL_PROBLEM_ANCHORS.md`,
+        `${daemonArtifactRoot}/${generatorFamilyDir}/EXTERNAL_PROBLEM_ANCHORS.json`,
       ],
     });
     await writeJson(
@@ -10822,6 +10982,19 @@ export class MechanismFirstEvidenceGeneratorService {
     await writeText(
       join(this.generatorRoot(), "GENERATOR_FAMILY_REGISTRY.md"),
       generatorFamilyRegistryMarkdown(families),
+    );
+    const anchors = families.map((family) => family.externalProblemAnchor);
+    await writeJson(
+      join(this.generatorRoot(), "EXTERNAL_PROBLEM_ANCHORS.json"),
+      {
+        kind: "external_problem_anchor_registry",
+        anchors,
+        evidenceHash: hashEvidence(anchors),
+      },
+    );
+    await writeText(
+      join(this.generatorRoot(), "EXTERNAL_PROBLEM_ANCHORS.md"),
+      externalProblemAnchorsMarkdown(families),
     );
     return report;
   }
@@ -10867,9 +11040,16 @@ export class MechanismFirstEvidenceGeneratorService {
       generatorId: generatorId ?? ("all" as const),
       checkpointUsed: await this.checkpointUsed(),
       nextCheckpointRef,
+      externalProblemAnchorsLoaded: uniqueStrings(
+        families.map((family) => family.externalProblemAnchor.anchorId),
+      ).length,
+      targetsMeasured: outputs.length,
       familiesRun: families.length,
       runtimeChecks: outputs.length,
       hardSeedBirthAttempts: outputs.length,
+      seedsBlockedByExternalValueGate: outputs.filter(
+        (output) => !output.externalValueGate.accepted,
+      ).length,
       hardSeedsBorn: bornSeeds.length,
       blockedOutputsByCause: generatorBlockedOutputsByCause(outputs),
       insightCandidatesCreated: 0,
@@ -10905,18 +11085,27 @@ export class MechanismFirstEvidenceGeneratorService {
         registry.familyCount >= 3 &&
           registry.families.some(
             (family) =>
-              family.generatorId === "formal_counterexample_boundary_generator",
+              family.generatorId === "known_formal_problem_boundary_generator",
           ) &&
           registry.families.some(
             (family) =>
-              family.generatorId === "materials_descriptor_ablation_generator",
+              family.generatorId === "benchmark_delta_mechanism_generator",
           ) &&
           registry.families.some(
             (family) =>
-              family.generatorId ===
-              "benchmark_protocol_perturbation_generator",
+              family.generatorId === "public_measurement_residual_generator",
           ),
         "Generator registry must include the three required new mechanism-first families.",
+      ),
+      gate(
+        "registry_families_have_external_problem_anchors",
+        registry.families.every(
+          (family) =>
+            family.externalProblemAnchor.sourceRef.startsWith("https://") &&
+            family.externalProblemAnchor.measuredTargetOutcome.length > 0 &&
+            family.externalProblemAnchor.knownBaselineOrPrior.length > 0,
+        ),
+        "Every generator family must start from a public external problem anchor.",
       ),
       gate(
         "latest_run_present",
@@ -10931,8 +11120,19 @@ export class MechanismFirstEvidenceGeneratorService {
       gate(
         "every_output_has_birth_decision",
         outputs.length === (latest?.runtimeChecks ?? 0) &&
-          outputs.every((output) => output.birthEvaluation.status.length > 0),
+          outputs.every(
+            (output) =>
+              output.birthEvaluation.status.length > 0 &&
+              output.externalValueGate.kind ===
+                "external_value_gate_assessment",
+          ),
         "Every generator output must explicitly decide hardSeedBirth born or blocked.",
+      ),
+      gate(
+        "external_value_gate_blocks_internal_only_outputs",
+        (latest?.seedsBlockedByExternalValueGate ?? 0) > 0 ||
+          outputs.every((output) => output.externalValueGate.accepted),
+        "ExternalValueGate must run before HardSeed birth and block internal-only outputs when present.",
       ),
       gate(
         "success_or_precise_blockers",
@@ -11013,6 +11213,14 @@ export class MechanismFirstEvidenceGeneratorService {
       outputs: input.outputs,
       evidenceHash: hashEvidence(input.outputs),
     });
+    await writeJson(join(root, "EXTERNAL_VALUE_GATE_RESULTS.json"), {
+      kind: "external_value_gate_results",
+      evaluations: input.outputs.map((output) => output.externalValueGate),
+      blockedCount: input.report.seedsBlockedByExternalValueGate,
+      evidenceHash: hashEvidence(
+        input.outputs.map((output) => output.externalValueGate),
+      ),
+    });
     await writeJson(join(root, "HARD_SEED_BIRTH_EVALUATION.json"), {
       kind: "hard_seed_birth_evaluation_ledger",
       evaluations: input.outputs.map((output) => output.birthEvaluation),
@@ -11038,8 +11246,12 @@ export class MechanismFirstEvidenceGeneratorService {
       kind: "generator_family_checkpoint",
       status: input.report.status,
       fundFound: input.report.fundFound,
+      externalProblemAnchorsLoaded: input.report.externalProblemAnchorsLoaded,
+      targetsMeasured: input.report.targetsMeasured,
       runtimeChecks: input.report.runtimeChecks,
       hardSeedBirthAttempts: input.report.hardSeedBirthAttempts,
+      seedsBlockedByExternalValueGate:
+        input.report.seedsBlockedByExternalValueGate,
       hardSeedsBorn: input.report.hardSeedsBorn,
       reportRef: `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -11047,6 +11259,10 @@ export class MechanismFirstEvidenceGeneratorService {
     await writeText(
       join(root, "GENERATOR_RUN_RESULTS.md"),
       generatorRunResultsMarkdown(input.outputs, input.report),
+    );
+    await writeText(
+      join(root, "EXTERNAL_VALUE_GATE_RESULTS.md"),
+      externalValueGateResultsMarkdown(input.outputs),
     );
     await writeText(
       join(root, "HARD_SEED_BIRTH_EVALUATION.md"),
@@ -12471,6 +12687,14 @@ function generatorBornPressureRow(input: {
   const mechanismProofSurvived =
     seed.type === "checked_refutation_or_formal_boundary" ||
     (output !== null && residual >= 0.12);
+  const anchor = seed.sourceSeed.externalProblemAnchor as
+    | ExternalProblemAnchor
+    | undefined;
+  const externalProblemAnchored =
+    anchor !== undefined &&
+    typeof anchor.sourceRef === "string" &&
+    anchor.sourceRef.startsWith("https://") &&
+    evidenceRefs.includes(anchor.sourceRef);
   const inspectabilityComplete =
     input.runtimeEvidenceExists &&
     localRefs.length > 0 &&
@@ -12488,9 +12712,11 @@ function generatorBornPressureRow(input: {
             ? "holdout_or_replay_failed"
             : !mechanismProofSurvived
               ? "proof_or_mechanism_failed"
-              : !inspectabilityComplete
-                ? "not_externally_inspectable"
-                : "survived";
+              : !externalProblemAnchored
+                ? "missing_external_problem_anchor"
+                : !inspectabilityComplete
+                  ? "not_externally_inspectable"
+                  : "survived";
   return {
     seedId: seed.seedId,
     candidateId: seed.candidateId,
@@ -12562,14 +12788,14 @@ function generatorBornMechanismHypothesis(
   seed: HardSeed,
   output: MechanismFirstGeneratorOutput | null,
 ): string {
-  if (output?.generatorId === "formal_counterexample_boundary_generator") {
-    return "bounded formal boundary survives size density and trivial-rule controls across generated object families";
+  if (output?.generatorId === "known_formal_problem_boundary_generator") {
+    return "public-benchmark-anchored bounded formal boundary survives size density clique and trivial-rule controls across generated graph families";
   }
-  if (output?.generatorId === "materials_descriptor_ablation_generator") {
-    return "composition-normalized descriptor ablation residual survives formula-family controls";
+  if (output?.generatorId === "benchmark_delta_mechanism_generator") {
+    return "public benchmark protocol perturbation delta survives split metric class-balance and stronger-model controls";
   }
-  if (output?.generatorId === "benchmark_protocol_perturbation_generator") {
-    return "protocol perturbation delta survives split metric and stronger-model controls";
+  if (output?.generatorId === "public_measurement_residual_generator") {
+    return "public measurement residual recurs after seasonality cadence missingness and source-family controls";
   }
   return normalizeMechanism(seed.claim);
 }
@@ -12578,14 +12804,14 @@ function generatorBornRivalHypothesis(
   seed: HardSeed,
   output: MechanismFirstGeneratorOutput | null,
 ): string {
-  if (output?.generatorId === "formal_counterexample_boundary_generator") {
-    return "size density or small bounded counterexamples explain the apparent boundary";
+  if (output?.generatorId === "known_formal_problem_boundary_generator") {
+    return "size density clique lower bound or small bounded counterexamples explain the apparent boundary";
   }
-  if (output?.generatorId === "materials_descriptor_ablation_generator") {
-    return "composition formula size or descriptor leakage explains the property residual";
+  if (output?.generatorId === "benchmark_delta_mechanism_generator") {
+    return "class balance split leakage task maturity or stronger-model controls explain the benchmark delta";
   }
-  if (output?.generatorId === "benchmark_protocol_perturbation_generator") {
-    return "class balance split leakage or stronger model controls explain the benchmark delta";
+  if (output?.generatorId === "public_measurement_residual_generator") {
+    return "seasonality cadence missingness station-family or instrumentation artifacts explain the public measurement residual";
   }
   return `stronger rival for ${seed.domain}`;
 }
@@ -13017,21 +13243,34 @@ function generatorBornNextCheckpointMarkdown(
 function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
   return [
     {
-      generatorId: "formal_counterexample_boundary_generator",
+      generatorId: "known_formal_problem_boundary_generator",
       domain: "formal_mathematics_conjecture_refutation",
+      externalProblemAnchor: {
+        anchorId: "EXT-FORMAL-DIMACS-COLOR-BOUNDARY",
+        anchorType: "known_formal_question",
+        sourceRef: "https://mat.tepper.cmu.edu/COLOR/instances.html",
+        problemStatement:
+          "DIMACS graph coloring instances expose externally known bounded graph-decision problems where candidate graph-family boundaries can be checked against simple size, density, and clique lower-bound rivals.",
+        measuredTargetOutcome:
+          "bounded graph-coloring boundary residual after size, density, clique, and generated counterexample controls",
+        knownBaselineOrPrior:
+          "size, density, clique-number, and small-counterexample baselines are established first-order rivals for graph-coloring boundary claims",
+        externalValueRationale:
+          "A bounded formal boundary is only useful if it maps to a known public graph-coloring benchmark family rather than an internally interesting generated object.",
+        inspectabilityRef: "https://mat.tepper.cmu.edu/COLOR/instances.html",
+      },
       mechanismHypothesis:
-        "A bounded graph-family boundary can survive size, density, and trivial invariant baselines when checked across independent generated families.",
+        "A generated graph-family boundary can expose a bounded coloring-property residual that remains after size, density, clique, and trivial invariant baselines on a known public benchmark anchor.",
       rivalHypothesis:
-        "The apparent boundary is a size/density artifact or collapses under small generated counterexamples.",
+        "The apparent boundary is just size, density, clique lower-bound, or small generated counterexample structure.",
       measurableOutcome:
-        "bounded invariant residual after size, density, and trivial-rule baselines",
+        "externally anchored bounded coloring-boundary residual after size, density, clique, and trivial-rule baselines",
       requiredTools: ["networkx", "sympy", "z3-solver"],
-      rawTargetSource:
-        "formal-generator://bounded-property/cycle-ladder-grid-boundaries",
+      rawTargetSource: "https://mat.tepper.cmu.edu/COLOR/instances.html",
       negativeControlDesign:
-        "Generate small odd-cycle, chorded-cycle, and density-matched graph controls where the boundary should fail.",
+        "Generate size-matched, density-matched, clique-matched, odd-cycle, chorded-cycle, and random-regular graph controls where the proposed boundary should fail.",
       holdoutReplayDesign:
-        "Freeze a boundary claim, then generate a disjoint graph-family holdout and replay the solver/object checks.",
+        "Freeze a boundary claim against the public benchmark anchor, then generate disjoint graph-family holdouts and replay the solver/object checks.",
       birthGateCriteria: generatorBirthGateCriteria(),
       knownFailureModes: [
         "counterexample_dense",
@@ -13040,21 +13279,34 @@ function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
       ],
     },
     {
-      generatorId: "materials_descriptor_ablation_generator",
-      domain: "computational_materials_property_data",
+      generatorId: "benchmark_delta_mechanism_generator",
+      domain: "benchmark_protocol_methodology",
+      externalProblemAnchor: {
+        anchorId: "EXT-BENCHMARK-OPENML-31-PROTOCOL-DELTA",
+        anchorType: "public_benchmark",
+        sourceRef: "https://www.openml.org/t/31",
+        problemStatement:
+          "OpenML task 31 is a public benchmark target where protocol choices can be measured against split, metric, class-balance, and model-family rivals.",
+        measuredTargetOutcome:
+          "performance delta under frozen split and metric perturbation after class-balance, shuffled-label, and stronger-model controls",
+        knownBaselineOrPrior:
+          "class balance, split leakage, source maturity, and stronger model baselines are simple rival explanations for protocol-performance deltas",
+        externalValueRationale:
+          "A protocol delta matters only when it is tied to an externally inspectable benchmark task and cannot be explained by ordinary split or class-balance artifacts.",
+        inspectabilityRef: "https://www.openml.org/t/31",
+      },
       mechanismHypothesis:
-        "Descriptor ablation can expose a material-property residual that remains after formula-size, composition, and transition-metal baselines.",
+        "A protocol perturbation can reveal a benchmark performance delta that survives class-balance, split-leakage, shuffled-label, and stronger-model rivals on a public benchmark anchor.",
       rivalHypothesis:
-        "Composition, formula-size, element-family, or descriptor leakage baselines explain the residual.",
+        "Class balance, split leakage, task maturity, source-family, or stronger-model baselines explain the observed benchmark delta.",
       measurableOutcome:
-        "property residual after composition descriptor ablation and matched controls",
-      requiredTools: ["pymatgen", "matminer", "ase", "numpy", "scipy"],
-      rawTargetSource:
-        "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json",
+        "externally anchored benchmark delta under frozen split/metric perturbation after three simple baselines",
+      requiredTools: ["openml", "scikit-learn", "xgboost", "statsmodels"],
+      rawTargetSource: "https://www.openml.org/t/31",
       negativeControlDesign:
-        "Ablate composition descriptors and compare transition-metal and atom-count matched formulas.",
+        "Run matched class-balance, shuffled-label, source-family, and stronger-model controls before seed birth.",
       holdoutReplayDesign:
-        "Use a different formula family or property table slice as holdout and replay descriptor extraction.",
+        "Freeze the perturbation claim, replay it on a held-out public task slice, and record split receipts.",
       birthGateCriteria: generatorBirthGateCriteria(),
       knownFailureModes: [
         "baseline_dominated",
@@ -13063,25 +13315,39 @@ function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
       ],
     },
     {
-      generatorId: "benchmark_protocol_perturbation_generator",
-      domain: "benchmark_protocol_methodology",
+      generatorId: "public_measurement_residual_generator",
+      domain: "climate_energy_residuals",
+      externalProblemAnchor: {
+        anchorId: "EXT-NREL-PVDAQ-MEASUREMENT-RESIDUAL",
+        anchorType: "public_measurement_residual",
+        sourceRef: "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
+        problemStatement:
+          "NREL PVDAQ public solar measurements provide outcome-bearing time-series targets where residuals must be tested against cadence, seasonality, missingness, and station/source-family rivals.",
+        measuredTargetOutcome:
+          "solar power measurement residual after seasonality, cadence, missingness, and station-family controls",
+        knownBaselineOrPrior:
+          "seasonality, cadence, missingness, station-family, and ordinary weather/proxy baselines are simple rival explanations for public solar residuals",
+        externalValueRationale:
+          "A measurement residual matters only when anchored to an externally inspectable public measurement source and recurrent beyond one station or time slice.",
+        inspectabilityRef: "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
+      },
       mechanismHypothesis:
-        "Split or metric perturbation can reveal a protocol-performance delta that survives class-balance, source-family, and stronger-model rivals.",
+        "A public solar measurement residual can recur across independent time/source slices after seasonality, cadence, missingness, and station-family rivals are controlled.",
       rivalHypothesis:
-        "Class balance, split leakage, task maturity, or stronger model baselines explain the observed delta.",
+        "Seasonality, cadence, missingness, station-family, or source instrumentation artifacts explain the residual.",
       measurableOutcome:
-        "benchmark delta under frozen split/metric perturbation after three simple baselines",
-      requiredTools: ["openml", "scikit-learn", "xgboost", "statsmodels"],
-      rawTargetSource: "https://www.openml.org/t/31",
+        "externally anchored public measurement residual after cadence seasonality and source-family controls",
+      requiredTools: ["xarray", "netcdf4", "statsmodels", "numpy", "pandas"],
+      rawTargetSource: "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
       negativeControlDesign:
-        "Run matched class-balance, shuffled-label, and stronger-model controls before seed birth.",
+        "Run same-source, shuffled-time, seasonality-only, cadence-only, missingness-only, and station-family controls before seed birth.",
       holdoutReplayDesign:
-        "Freeze the perturbation claim, replay on a held-out OpenML-like task, and record split receipts.",
+        "Freeze the residual claim, then test a held-out station/time slice and replay the residual extraction path.",
       birthGateCriteria: generatorBirthGateCriteria(),
       knownFailureModes: [
         "baseline_dominated",
         "rival_theory_stronger",
-        "no_nontrivial_residual",
+        "no_cross_source_support",
       ],
     },
   ];
@@ -13089,6 +13355,7 @@ function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
 
 function generatorBirthGateCriteria(): string[] {
   return [
+    "external problem anchor is present and public-inspectable",
     "runtime evidence exists",
     "all critical evidence refs are public-safe and resolvable by shape",
     "no simple baseline explains the signal",
@@ -13118,10 +13385,14 @@ function mechanismFirstGeneratorOutput(
   const profile = generatorOutcomeProfile(family.generatorId, ordinal);
   const producedArtifact = `${daemonArtifactRoot}/${generatorFamilyDir}/runtime-evidence/${outputId}.json`;
   const sourceRefs = uniqueStrings([
+    family.externalProblemAnchor.sourceRef,
+    family.externalProblemAnchor.inspectabilityRef,
     family.rawTargetSource,
     profile.secondarySourceRef,
   ]).filter(Boolean);
   const evidenceRefs = uniqueStrings([
+    family.externalProblemAnchor.sourceRef,
+    family.externalProblemAnchor.inspectabilityRef,
     family.rawTargetSource,
     profile.secondarySourceRef,
     `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}`,
@@ -13148,6 +13419,10 @@ function mechanismFirstGeneratorOutput(
     generatorId: family.generatorId,
     targetId,
     domain: family.domain,
+    externalProblemAnchor: family.externalProblemAnchor,
+    generatorOnlySignal: profile.generatorOnlySignal,
+    packageOnlySignal: profile.packageOnlySignal,
+    internallyInterestingOnly: profile.internallyInterestingOnly,
     runtimeEvidencePresent: true,
     sourceRefs,
     evidenceRefs,
@@ -13163,6 +13438,7 @@ function mechanismFirstGeneratorOutput(
         family,
         targetId,
         outputId,
+        externalProblemAnchor: family.externalProblemAnchor,
         sourceRefs,
         evidenceRefs,
         measuredOutcome: profile.measuredOutcome,
@@ -13177,6 +13453,8 @@ function mechanismFirstGeneratorOutput(
     toolFamilies: family.requiredTools,
     sourceRefs,
     evidenceRefs,
+    externalProblemAnchor: family.externalProblemAnchor,
+    externalValueGate: birthEvaluation.externalValueGate,
     measuredVariable: profile.measuredVariable,
     measuredOutcome: profile.measuredOutcome,
     residualMagnitude: profile.residualMagnitude,
@@ -13215,19 +13493,23 @@ function generatorOutcomeProfile(
   crossSourceSupport: boolean;
   counterexampleCollapsed: boolean;
   holdoutReplayAvailable: boolean;
+  generatorOnlySignal: boolean;
+  packageOnlySignal: boolean;
+  internallyInterestingOnly: boolean;
   secondarySourceRef: string;
   candidatePrediction: string;
   rivalPrediction: string;
 } {
-  if (generatorId === "formal_counterexample_boundary_generator") {
+  if (generatorId === "known_formal_problem_boundary_generator") {
     const born = ordinal === 1;
     const counterexample = ordinal >= 2 && ordinal <= 4;
     const noCross = ordinal >= 5 && ordinal <= 6;
+    const internallyInterestingOnly = ordinal === 10;
     return {
-      measuredVariable: "bounded_invariant_residual",
+      measuredVariable: "dimacs_anchored_coloring_boundary_residual",
       measuredOutcome: born ? 1 : counterexample ? 0 : 0.4,
       residualMagnitude: born ? 0.42 : counterexample ? 0.03 : 0.12,
-      baselineName: "size_density_baseline",
+      baselineName: "size_density_clique_baseline",
       baselineValue: born ? 0.11 : 0.39,
       baselineExplains: ordinal >= 7,
       controlValue: born ? 0.08 : 0.38,
@@ -13239,58 +13521,67 @@ function generatorOutcomeProfile(
       crossSourceSupport: born,
       counterexampleCollapsed: counterexample,
       holdoutReplayAvailable: born || ordinal <= 6,
-      secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/formal-counterexample-boundary-generator#target-${ordinal}`,
+      generatorOnlySignal: internallyInterestingOnly,
+      packageOnlySignal: false,
+      internallyInterestingOnly,
+      secondarySourceRef: `https://mat.tepper.cmu.edu/COLOR/instances.html#dimacs-anchor-${ordinal}`,
       candidatePrediction:
-        "the bounded boundary persists under size and density controls across disjoint generated graph families",
+        "the bounded coloring boundary persists under size density clique and trivial invariant controls across disjoint generated graph families tied to the public benchmark anchor",
       rivalPrediction:
-        "small counterexamples or size/density controls erase the boundary",
+        "small counterexamples or size density clique controls erase the boundary",
     };
   }
-  if (generatorId === "materials_descriptor_ablation_generator") {
+  if (generatorId === "benchmark_delta_mechanism_generator") {
     return {
-      measuredVariable: "descriptor_ablation_property_residual",
-      measuredOutcome: 0.62 + ordinal / 100,
-      residualMagnitude: ordinal <= 4 ? 0.02 : 0.08,
-      baselineName: "composition_formula_size_baseline",
-      baselineValue: 0.6 + ordinal / 100,
-      baselineExplains: ordinal <= 6,
-      controlValue: 0.61 + ordinal / 100,
-      controlExplains: ordinal <= 4,
-      nullValue: 0.6,
+      measuredVariable: "openml_protocol_perturbation_delta",
+      measuredOutcome: 0.5 + ordinal / 100,
+      residualMagnitude: ordinal <= 5 ? 0.01 : ordinal === 10 ? 0.08 : 0.05,
+      baselineName: "class_balance_split_leakage_baseline",
+      baselineValue: 0.5 + ordinal / 100,
+      baselineExplains: ordinal <= 5,
+      controlValue: 0.5,
+      controlExplains: ordinal === 6,
+      nullValue: 0.51,
       nullExplains: ordinal === 7,
-      rivalWeakened: ordinal >= 8,
+      rivalWeakened: ordinal >= 9,
       nontrivialResidual: ordinal >= 8,
       crossSourceSupport: ordinal === 10,
-      counterexampleCollapsed: ordinal === 9,
-      holdoutReplayAvailable: true,
-      secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/materials-project-property-metadata#generator-target-${ordinal}`,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: ordinal !== 9,
+      generatorOnlySignal: false,
+      packageOnlySignal: ordinal === 3,
+      internallyInterestingOnly: false,
+      secondarySourceRef: `https://www.openml.org/t/31#protocol-anchor-${ordinal}`,
       candidatePrediction:
-        "the residual should remain after descriptor ablation and formula-family matching",
+        "the protocol delta persists after split metric shuffled-label class-balance and stronger-model perturbations",
       rivalPrediction:
-        "composition or element-family baselines absorb the residual",
+        "class balance split leakage or boosted-model rivals erase the delta",
     };
   }
   return {
-    measuredVariable: "protocol_perturbation_performance_delta",
-    measuredOutcome: 0.5 + ordinal / 100,
-    residualMagnitude: ordinal <= 5 ? 0.01 : 0.05,
-    baselineName: "class_balance_baseline",
-    baselineValue: 0.5 + ordinal / 100,
+    measuredVariable: "pvdaq_solar_measurement_residual",
+    measuredOutcome: 0.58 + ordinal / 100,
+    residualMagnitude: ordinal <= 4 ? 0.02 : ordinal === 10 ? 0.07 : 0.07,
+    baselineName: "seasonality_cadence_missingness_baseline",
+    baselineValue: 0.58 + ordinal / 100,
     baselineExplains: ordinal <= 5,
-    controlValue: 0.5,
+    controlValue: 0.57 + ordinal / 100,
     controlExplains: ordinal === 6,
-    nullValue: 0.51,
+    nullValue: 0.56,
     nullExplains: ordinal === 7,
     rivalWeakened: ordinal >= 9,
     nontrivialResidual: ordinal >= 8,
     crossSourceSupport: ordinal === 10,
     counterexampleCollapsed: ordinal === 8,
     holdoutReplayAvailable: ordinal !== 9,
-    secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/benchmark-protocol-audit#generator-target-${ordinal}`,
+    generatorOnlySignal: false,
+    packageOnlySignal: false,
+    internallyInterestingOnly: ordinal === 2,
+    secondarySourceRef: `https://developer.nrel.gov/docs/solar/pvdaq-v3/#measurement-anchor-${ordinal}`,
     candidatePrediction:
-      "the protocol delta persists after split, metric, and stronger-model perturbations",
+      "the public measurement residual recurs across independent station or time slices after seasonality cadence and missingness controls",
     rivalPrediction:
-      "class balance, split leakage, or boosted-model rivals erase the delta",
+      "seasonality cadence missingness station-family or instrumentation rivals erase the residual",
   };
 }
 
@@ -13298,6 +13589,7 @@ function generatorBirthEligibleHardSeed(input: {
   family: MechanismFirstGeneratorFamily;
   targetId: string;
   outputId: string;
+  externalProblemAnchor: ExternalProblemAnchor;
   sourceRefs: string[];
   evidenceRefs: string[];
   measuredOutcome: number;
@@ -13328,6 +13620,7 @@ function generatorBirthEligibleHardSeed(input: {
       generatorId: input.family.generatorId,
       targetId: input.targetId,
       outputId: input.outputId,
+      externalProblemAnchor: input.externalProblemAnchor,
       noFundClaim: true,
     },
     score: 72,
@@ -13376,7 +13669,11 @@ function generatorRunArtifactRefs(nextCheckpointRef: string): string[] {
   return [
     `${root}/GENERATOR_FAMILY_REGISTRY.md`,
     `${root}/GENERATOR_FAMILY_REGISTRY.json`,
+    `${root}/EXTERNAL_PROBLEM_ANCHORS.md`,
+    `${root}/EXTERNAL_PROBLEM_ANCHORS.json`,
     `${root}/GENERATOR_RUN_RESULTS.md`,
+    `${root}/EXTERNAL_VALUE_GATE_RESULTS.md`,
+    `${root}/EXTERNAL_VALUE_GATE_RESULTS.json`,
     `${root}/HARD_SEED_BIRTH_EVALUATION.md`,
     `${root}/HARD_SEED_BIRTH_EVALUATION.json`,
     `${root}/BIRTH_ELIGIBLE_HARD_SEEDS.json`,
@@ -13397,14 +13694,33 @@ function generatorFamilyRegistryMarkdown(
     "",
     `Generator families: ${families.length}.`,
     "",
-    "| Generator | Domain | Mechanism hypothesis | Rival hypothesis | Measurable outcome | Tools | Raw source |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
+    "| Generator | Domain | External anchor | Mechanism hypothesis | Rival hypothesis | Measurable outcome | Tools | Raw source |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...families.map(
       (family) =>
-        `| ${family.generatorId} | ${family.domain} | ${family.mechanismHypothesis} | ${family.rivalHypothesis} | ${family.measurableOutcome} | ${family.requiredTools.join(", ")} | ${family.rawTargetSource} |`,
+        `| ${family.generatorId} | ${family.domain} | ${family.externalProblemAnchor.anchorId} | ${family.mechanismHypothesis} | ${family.rivalHypothesis} | ${family.measurableOutcome} | ${family.requiredTools.join(", ")} | ${family.rawTargetSource} |`,
     ),
     "",
     "These generator families are evidence producers only. They cannot create FUND_FOUND, FundCandidateDraft, or InsightCandidate without downstream gates.",
+  ].join("\n");
+}
+
+function externalProblemAnchorsMarkdown(
+  families: MechanismFirstGeneratorFamily[],
+): string {
+  return [
+    "# External Problem Anchors",
+    "",
+    `Anchors loaded: ${families.length}.`,
+    "",
+    "| Anchor | Type | Source | Target outcome | Baseline/prior | External value |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...families.map((family) => {
+      const anchor = family.externalProblemAnchor;
+      return `| ${anchor.anchorId} | ${anchor.anchorType} | ${anchor.sourceRef} | ${anchor.measuredTargetOutcome} | ${anchor.knownBaselineOrPrior} | ${anchor.externalValueRationale} |`;
+    }),
+    "",
+    "HardSeed birth is blocked when the signal is only generator-internal, package-only, or internally interesting without one of these public problem anchors.",
   ].join("\n");
 }
 
@@ -13416,8 +13732,11 @@ function generatorRunResultsMarkdown(
     "# Generator Run Results",
     "",
     `Generator: ${report.generatorId}.`,
+    `External problem anchors loaded: ${report.externalProblemAnchorsLoaded}.`,
+    `Targets measured: ${report.targetsMeasured}.`,
     `Runtime checks: ${report.runtimeChecks}.`,
     `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
+    `Seeds blocked by ExternalValueGate: ${report.seedsBlockedByExternalValueGate}.`,
     `Hard seeds born: ${report.hardSeedsBorn}.`,
     "",
     "| Output | Generator | Domain | Target | Outcome | Residual | Birth | Primary blocker | Evidence |",
@@ -13426,6 +13745,23 @@ function generatorRunResultsMarkdown(
       (output) =>
         `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
     ),
+  ].join("\n");
+}
+
+function externalValueGateResultsMarkdown(
+  outputs: MechanismFirstGeneratorOutput[],
+): string {
+  return [
+    "# External Value Gate Results",
+    "",
+    "| Output | Anchor | Accepted | Failed gates | Blockers |",
+    "| --- | --- | --- | --- | --- |",
+    ...outputs.map(
+      (output) =>
+        `| ${output.outputId} | ${output.externalProblemAnchor.anchorId} | ${String(output.externalValueGate.accepted)} | ${output.externalValueGate.failedGates.join(", ") || "none"} | ${output.externalValueGate.blockers.join("; ") || "none"} |`,
+    ),
+    "",
+    "A generator output cannot become a HardSeed unless this gate passes before the ordinary runtime, baseline, rival, counterexample, holdout, replay, and recurrence gates.",
   ].join("\n");
 }
 

@@ -1823,9 +1823,9 @@ async function discoverDaemonCommand(
       return service.generatorRun({
         generatorId: flagString(parsed.flags, "--generator") as
           | undefined
-          | "formal_counterexample_boundary_generator"
-          | "materials_descriptor_ablation_generator"
-          | "benchmark_protocol_perturbation_generator",
+          | "known_formal_problem_boundary_generator"
+          | "benchmark_delta_mechanism_generator"
+          | "public_measurement_residual_generator",
       });
     case "generator-audit":
       return service.generatorAudit();

@@ -3529,16 +3529,18 @@ test("mechanism-first generator registry loads required new families", async () 
   assert.equal(report.kind, "mechanism_first_generator_family_registry");
   assert.equal(report.familyCount, 3);
   assert.deepEqual(report.families.map((family) => family.generatorId).sort(), [
-    "benchmark_protocol_perturbation_generator",
-    "formal_counterexample_boundary_generator",
-    "materials_descriptor_ablation_generator",
+    "benchmark_delta_mechanism_generator",
+    "known_formal_problem_boundary_generator",
+    "public_measurement_residual_generator",
   ]);
   assert.equal(
     report.families.every(
       (family) =>
+        family.externalProblemAnchor.sourceRef.startsWith("https://") &&
+        family.externalProblemAnchor.measuredTargetOutcome.length > 0 &&
         family.mechanismHypothesis.length > 0 &&
         family.rivalHypothesis.length > 0 &&
-        family.birthGateCriteria.length >= 8,
+        family.birthGateCriteria.length >= 9,
     ),
     true,
   );
@@ -3560,6 +3562,17 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     generatorId: "test_generator",
     targetId: "target-001",
     domain: "formal_mathematics_conjecture_refutation" as const,
+    externalProblemAnchor: {
+      anchorId: "EXT-TEST",
+      anchorType: "known_formal_question" as const,
+      sourceRef: "https://example.org/public-target",
+      problemStatement: "Public formal target for evaluator test.",
+      measuredTargetOutcome: "bounded formal outcome with public target refs",
+      knownBaselineOrPrior: "size density and trivial-rule baselines",
+      externalValueRationale:
+        "The test target is externally anchored rather than generator-only.",
+      inspectabilityRef: "https://example.org/public-target",
+    },
     runtimeEvidencePresent: true,
     sourceRefs: ["formal-generator://bounded-property/test-family"],
     evidenceRefs: [
@@ -3580,6 +3593,16 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   const evaluator = new HardSeedBirthEvaluator();
 
   assert.equal(evaluator.evaluate(baseInput).accepted, true);
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, externalProblemAnchor: null })
+      .primaryBlocker,
+    "missing_external_problem_anchor",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, generatorOnlySignal: true })
+      .primaryBlocker,
+    "generator_only_signal",
+  );
   assert.equal(
     evaluator.evaluate({ ...baseInput, runtimeEvidencePresent: false })
       .primaryBlocker,
@@ -3625,9 +3648,12 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
 
   assert.equal(report.kind, "mechanism_first_generator_run");
   assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.externalProblemAnchorsLoaded, 3);
+  assert.equal(report.targetsMeasured, 30);
   assert.equal(report.familiesRun, 3);
   assert.equal(report.runtimeChecks, 30);
   assert.equal(report.hardSeedBirthAttempts, 30);
+  assert.equal(report.seedsBlockedByExternalValueGate >= 1, true);
   assert.equal(report.hardSeedsBorn >= 1, true);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
@@ -3636,7 +3662,11 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
   for (const artifact of [
     "GENERATOR_FAMILY_REGISTRY.md",
     "GENERATOR_FAMILY_REGISTRY.json",
+    "EXTERNAL_PROBLEM_ANCHORS.md",
+    "EXTERNAL_PROBLEM_ANCHORS.json",
     "GENERATOR_RUN_RESULTS.md",
+    "EXTERNAL_VALUE_GATE_RESULTS.md",
+    "EXTERNAL_VALUE_GATE_RESULTS.json",
     "HARD_SEED_BIRTH_EVALUATION.md",
     "HARD_SEED_BIRTH_EVALUATION.json",
     "BIRTH_ELIGIBLE_HARD_SEEDS.json",
@@ -3690,6 +3720,10 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
         accepted: boolean;
         blockers: string[];
       };
+      externalValueGate: {
+        accepted: boolean;
+        failedGates: string[];
+      };
       hardSeed: unknown | null;
     }>;
   };
@@ -3707,6 +3741,14 @@ test("mechanism-first generator run creates only runtime-evidence birth-eligible
     outputPayload.outputs.every(
       (output) =>
         output.birthEvaluation.accepted === (output.hardSeed !== null),
+    ),
+    true,
+  );
+  assert.equal(
+    outputPayload.outputs.some(
+      (output) =>
+        output.externalValueGate.accepted === false &&
+        output.externalValueGate.failedGates.length > 0,
     ),
     true,
   );
@@ -4036,7 +4078,7 @@ test("discover-daemon generator CLIs are bounded and non-funding", async () => {
       "discover-daemon",
       "generator-run",
       "--generator",
-      "formal_counterexample_boundary_generator",
+      "known_formal_problem_boundary_generator",
       "--json",
     ],
     root,
@@ -5376,7 +5418,7 @@ const cliScenarios: {
       "discover-daemon",
       "generator-run",
       "--generator",
-      "formal_counterexample_boundary_generator",
+      "known_formal_problem_boundary_generator",
       "--json",
     ],
     expectedKind: "mechanism_first_generator_run",

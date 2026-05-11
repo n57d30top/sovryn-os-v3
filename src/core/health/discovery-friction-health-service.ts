@@ -205,6 +205,19 @@ export type CandidateYieldReport = {
   materialImprovement: boolean;
 };
 
+export type FormalAnchorYieldSignal = {
+  auditAvailable: boolean;
+  anchorsEvaluated: number;
+  top5Selected: number;
+  top3Piloted: number;
+  hardSeedBirthDecisions: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  noBirthAfterPilot: boolean;
+  recommendedAction: string;
+  auditRef: string | null;
+};
+
 export type DiscoveryFrictionHealthReport = {
   kind: "discovery_friction_health";
   terminalStatus:
@@ -232,6 +245,7 @@ export type DiscoveryFrictionHealthReport = {
   holdoutIndependenceRate: number;
   promotionReadinessBlockers: string[];
   fakeGreenAuditRisks: string[];
+  formalAnchorYield: FormalAnchorYieldSignal;
   largestCodeHotspots: Array<{ file: string; lines: number; risk: string }>;
   discoveryCandidatesCreated: number;
   fundGateResult: {
@@ -249,6 +263,7 @@ const daemonRootRel = ".sovryn/discovery-daemon";
 const marathonRootRel = `${daemonRootRel}/marathon`;
 const depthRootRel = `${marathonRootRel}/depth-gauntlet`;
 const remainingClosureRel = `${depthRootRel}/remaining-strict-closure`;
+const formalAnchorAuditRel = `${daemonRootRel}/formal-anchor-selection/FORMAL_ANCHOR_AUDIT.json`;
 const engineRootRel = ".sovryn/discovery-engine";
 const githubCorpusPrefix =
   "https://github.com/n57d30top/sovryn-open-inventions/tree/main/";
@@ -801,18 +816,21 @@ export class DiscoveryFrictionHealthService {
       before,
       birthEvaluations,
     });
+    const formalAnchorYield = await this.loadFormalAnchorYieldSignal();
     const codeHotspots = await this.codeHotspots();
     const rankedDeathCauses = rankDeathCauses(yieldReport.after.deathCauses);
     const promotionReadinessBlockers = promotionBlockers(
       evidence.summary,
       holdoutReport,
       yieldReport,
+      formalAnchorYield,
     );
     const fakeGreenAuditRisks = fakeGreenRisks(
       evidence.summary,
       holdoutReport,
       yieldReport,
       codeHotspots,
+      formalAnchorYield,
     );
     const nextCheckpointRef =
       ".sovryn/discovery-daemon/checkpoints/discovery-engine-friction-health-continue-searching.json";
@@ -862,6 +880,7 @@ export class DiscoveryFrictionHealthService {
       holdoutIndependenceRate: holdoutReport.independenceRate,
       promotionReadinessBlockers,
       fakeGreenAuditRisks,
+      formalAnchorYield,
       largestCodeHotspots: codeHotspots,
       discoveryCandidatesCreated: 0,
       fundGateResult: {
@@ -874,12 +893,14 @@ export class DiscoveryFrictionHealthService {
         evidence.summary,
         holdoutReport,
         yieldReport,
+        formalAnchorYield,
       ),
       artifactRefs,
       evidenceHash: hashJson({
         evidenceSummary: evidence.summary,
         holdoutBank: holdoutReport,
         yieldAfter: yieldReport.after,
+        formalAnchorYield,
       }),
     };
 
@@ -889,6 +910,7 @@ export class DiscoveryFrictionHealthService {
       evidenceResolutionsBeforeRepair: evidenceBeforeRepair.resolutions,
       holdoutAssessments: holdoutReport.assessments,
       candidateYield: yieldReport,
+      formalAnchorYield,
       targetLoadExecutionRecords: targetLoadRepair.records,
       insightBirthGateEvaluations: birthEvaluations,
     });
@@ -902,6 +924,7 @@ export class DiscoveryFrictionHealthService {
       holdoutIndependenceRate: report.holdoutIndependenceRate,
       discoveryCandidatesCreated: 0,
       remainingBottleneck: report.remainingBottleneck,
+      formalAnchorYield,
     });
     await this.writeReports({
       engineRoot,
@@ -959,6 +982,53 @@ export class DiscoveryFrictionHealthService {
         `${engineRootRel}/HOLDOUT_FAILURES.md`,
       ],
       evidenceHash: report.evidenceHash,
+    };
+  }
+
+  private async loadFormalAnchorYieldSignal(): Promise<FormalAnchorYieldSignal> {
+    const audit = await readJsonIfExists<{
+      anchorsEvaluated?: number;
+      top5Selected?: number;
+      top3Piloted?: number;
+      hardSeedBirthDecisions?: number;
+      hardSeedsBorn?: number;
+      insightCandidatesCreated?: number;
+    }>(join(this.root, formalAnchorAuditRel));
+    const auditRecord = audit as Record<string, unknown> | null;
+    const anchorsEvaluated = numberField(auditRecord, "anchorsEvaluated", 0);
+    const top5Selected = numberField(auditRecord, "top5Selected", 0);
+    const top3Piloted = numberField(auditRecord, "top3Piloted", 0);
+    const hardSeedBirthDecisions = numberField(
+      auditRecord,
+      "hardSeedBirthDecisions",
+      0,
+    );
+    const hardSeedsBorn = numberField(auditRecord, "hardSeedsBorn", 0);
+    const insightCandidatesCreated = numberField(
+      auditRecord,
+      "insightCandidatesCreated",
+      0,
+    );
+    const noBirthAfterPilot =
+      audit !== null && top3Piloted > 0 && hardSeedsBorn === 0;
+    return {
+      auditAvailable: audit !== null,
+      anchorsEvaluated,
+      top5Selected,
+      top3Piloted,
+      hardSeedBirthDecisions,
+      hardSeedsBorn,
+      insightCandidatesCreated,
+      noBirthAfterPilot,
+      recommendedAction:
+        audit === null
+          ? "run discover-daemon formal-anchor-audit before using formal-anchor yield as a health signal"
+          : noBirthAfterPilot
+            ? "pivot generator selection toward non-formal external problem anchors or redesign formal mechanisms before rerunning formal pilots"
+            : hardSeedsBorn > 0
+              ? "pressure born formal HardSeeds through required-next-test closure"
+              : "maintain formal anchor reserve and continue external problem-anchor selection",
+      auditRef: audit === null ? null : formalAnchorAuditRel,
     };
   }
 
@@ -1603,6 +1673,7 @@ function promotionBlockers(
   evidenceSummary: EvidenceRefResolutionSummary,
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
+  formalAnchorYield: FormalAnchorYieldSignal,
 ): string[] {
   const blockers = ["candidate_present"];
   if (evidenceSummary.failedRefs > 0) blockers.push("evidence_ref_closure");
@@ -1612,6 +1683,8 @@ function promotionBlockers(
     blockers.push("nontrivial_residual_absence");
   if ((yieldReport.before.deathCauses.rival_theory_stronger ?? 0) > 0)
     blockers.push("rival_theory_pressure");
+  if (formalAnchorYield.noBirthAfterPilot)
+    blockers.push("formal_anchor_no_birth_yield");
   return blockers;
 }
 
@@ -1620,6 +1693,7 @@ function fakeGreenRisks(
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
   codeHotspots: Array<{ file: string; lines: number; risk: string }>,
+  formalAnchorYield: FormalAnchorYieldSignal,
 ): string[] {
   const risks: string[] = [];
   if (evidenceSummary.closureRate < 1)
@@ -1630,6 +1704,10 @@ function fakeGreenRisks(
     );
   if (yieldReport.before.discoveryCandidates === 0)
     risks.push("green audits do not imply candidate formation");
+  if (formalAnchorYield.noBirthAfterPilot)
+    risks.push(
+      "formal-anchor audits can pass while no pilot produces a birth-eligible HardSeed",
+    );
   if (codeHotspots.some((item) => item.lines > 10000))
     risks.push(
       "daemon monolith can hide operational friction behind passing command audits",
@@ -1641,6 +1719,7 @@ function remainingBottleneck(
   evidenceSummary: EvidenceRefResolutionSummary,
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
+  formalAnchorYield: FormalAnchorYieldSignal,
 ): string {
   const parts: string[] = [];
   if (evidenceSummary.failedRefs > 0) {
@@ -1653,6 +1732,11 @@ function remainingBottleneck(
   }
   if ((yieldReport.before.deathCauses.no_nontrivial_residual ?? 0) > 0) {
     parts.push("candidate families still lack nontrivial residual signal");
+  }
+  if (formalAnchorYield.noBirthAfterPilot) {
+    parts.push(
+      "formal-anchor pilots are externally anchored but still produce zero birth-eligible HardSeeds",
+    );
   }
   return parts.length > 0
     ? parts.join("; ")
@@ -1960,6 +2044,18 @@ ${markdownTable(
 ## Promotion Readiness Blockers
 
 ${bulletList(report.promotionReadinessBlockers)}
+
+## Formal Anchor Yield
+
+- Audit available: ${String(report.formalAnchorYield.auditAvailable)}
+- Anchors evaluated: ${report.formalAnchorYield.anchorsEvaluated}
+- Top anchors selected: ${report.formalAnchorYield.top5Selected}
+- Pilots run: ${report.formalAnchorYield.top3Piloted}
+- HardSeed birth decisions: ${report.formalAnchorYield.hardSeedBirthDecisions}
+- HardSeeds born: ${report.formalAnchorYield.hardSeedsBorn}
+- InsightCandidates created: ${report.formalAnchorYield.insightCandidatesCreated}
+- No-birth after pilot: ${String(report.formalAnchorYield.noBirthAfterPilot)}
+- Recommended action: ${report.formalAnchorYield.recommendedAction}
 
 ## Fake-Green Audit Risks
 

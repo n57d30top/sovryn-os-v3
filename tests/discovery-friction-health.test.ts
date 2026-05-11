@@ -271,6 +271,60 @@ test("health friction command writes strict reports without creating Fund state"
   assert.match(targetLoadReport, /## TARGET-002/);
 });
 
+test("health friction exposes formal-anchor no-birth yield as fake-green risk", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  const formalAnchorRoot = join(
+    root,
+    ".sovryn/discovery-daemon/formal-anchor-selection",
+  );
+  await mkdir(formalAnchorRoot, { recursive: true });
+  await writeFile(
+    join(formalAnchorRoot, "FORMAL_ANCHOR_AUDIT.json"),
+    JSON.stringify({
+      kind: "external_formal_anchor_audit",
+      passed: true,
+      anchorsEvaluated: 42,
+      top5Selected: 5,
+      top3Piloted: 3,
+      hardSeedBirthDecisions: 3,
+      hardSeedsBorn: 0,
+      insightCandidatesCreated: 0,
+    }),
+  );
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    formalAnchorYield: Record<string, unknown>;
+    promotionReadinessBlockers: string[];
+    fakeGreenAuditRisks: string[];
+    remainingBottleneck: string;
+  };
+  assert.equal(data.formalAnchorYield.auditAvailable, true);
+  assert.equal(data.formalAnchorYield.anchorsEvaluated, 42);
+  assert.equal(data.formalAnchorYield.hardSeedsBorn, 0);
+  assert.equal(data.formalAnchorYield.noBirthAfterPilot, true);
+  assert.ok(
+    data.promotionReadinessBlockers.includes("formal_anchor_no_birth_yield"),
+  );
+  assert.ok(
+    data.fakeGreenAuditRisks.includes(
+      "formal-anchor audits can pass while no pilot produces a birth-eligible HardSeed",
+    ),
+  );
+  assert.match(data.remainingBottleneck, /formal-anchor pilots/);
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/FUND_FOUND.md")),
+    false,
+  );
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/fund-candidate.json")),
+    false,
+  );
+});
+
 test("evidence refs verify and holdout audit commands expose repaired contracts", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);

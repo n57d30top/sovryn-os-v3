@@ -380,6 +380,26 @@ function gaiaAstrometricExcessFixtureCsv(): string {
   ].join("\n");
 }
 
+function matbenchExperimentalGapFixtureJson(): string {
+  const leadingElements = ["Ag", "Cd", "Cu", "Ge", "Cs", "Eu"];
+  const rows = Array.from({ length: 90 }, (_, index) => {
+    const lead = leadingElements[index % leadingElements.length]!;
+    const partner = index % 4 === 0 ? "Se" : index % 4 === 1 ? "O" : "S";
+    const count = 1 + (index % 5);
+    const formula = `${lead}${count}${partner}${2 + (index % 3)}`;
+    const familyShift =
+      lead === "Cd" || lead === "Cs" ? 1.1 : lead === "Cu" ? -0.8 : 0.45;
+    const answer = Number(
+      (1.2 + count * 0.08 + familyShift + (index % 7) * 0.03).toFixed(3),
+    );
+    return {
+      problem: `Write band gap of given composition. -> ${formula}`,
+      answer,
+    };
+  });
+  return JSON.stringify(rows);
+}
+
 async function writeRealityCorpusFixture(
   root: string,
   count = 320,
@@ -5189,6 +5209,70 @@ test("discover-daemon discovery anchor source load writes Gaia runtime cache wit
     assert.equal(gaiaCheck.runtimeEvidenceKind, "loaded_external_data");
     assert.equal(gaiaCheck.sourceReceipt.status, "loaded_external_artifact");
     assert.equal(gaiaCheck.sourceReceipt.loadedExternalArtifact, true);
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("discover-daemon discovery anchor source load writes Matbench runtime cache without Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.discoveryAnchorSelect();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(matbenchExperimentalGapFixtureJson(), {
+      status: 200,
+      headers: {
+        etag: "fixture-matbench-etag",
+        "last-modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+        "content-length": String(matbenchExperimentalGapFixtureJson().length),
+      },
+    })) as typeof fetch;
+  try {
+    const report = await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    assert.equal(report.kind, "discovery_anchor_source_load");
+    assert.equal(report.anchorsAttempted, 1);
+    assert.equal(report.sourceCachesWritten, 1);
+    assert.equal(report.fundFound, false);
+    assert.equal(report.attempts[0]!.status, "loaded_external_artifact");
+
+    const run = await service.discoveryAnchorRun();
+    assert.equal(run.fundFound, false);
+    const checksPayload = JSON.parse(
+      await readFile(
+        join(
+          root,
+          daemonRoot,
+          "discovery-anchor-run",
+          "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      checks: Array<{
+        anchorId: string;
+        runtimeEvidenceKind: string;
+        sourceReceipt: { loadedExternalArtifact: boolean; status: string };
+      }>;
+    };
+    const matbenchCheck = checksPayload.checks.find(
+      (check) => check.anchorId === "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    );
+    assert.ok(matbenchCheck);
+    assert.equal(matbenchCheck.runtimeEvidenceKind, "loaded_external_data");
+    assert.equal(
+      matbenchCheck.sourceReceipt.status,
+      "loaded_external_artifact",
+    );
+    assert.equal(matbenchCheck.sourceReceipt.loadedExternalArtifact, true);
     assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
     assert.equal(
       await exists(join(root, daemonRoot, "fund-candidate.json")),

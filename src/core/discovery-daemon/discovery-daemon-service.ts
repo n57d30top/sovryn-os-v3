@@ -14892,6 +14892,9 @@ export class DiscoveryAnchorSourceLoadService {
   private async loadAnchor(
     anchor: DiscoveryGradeExternalAnchor,
   ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    if (anchor.anchorId === "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP") {
+      return this.loadMatbenchExperimentalGap(anchor);
+    }
     if (anchor.anchorId === "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES") {
       return this.loadGaiaAstrometricExcess(anchor);
     }
@@ -14923,6 +14926,102 @@ export class DiscoveryAnchorSourceLoadService {
       ],
       validationErrors: [],
       sourceReceipt: null,
+    });
+  }
+
+  private async loadMatbenchExperimentalGap(
+    anchor: DiscoveryGradeExternalAnchor,
+  ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    const localArtifactRef = discoveryAnchorRuntimeSourceArtifactRef(
+      anchor.anchorId,
+    );
+    const loaded = await loadMatbenchExperimentalGapRuntimeSource(anchor);
+    if (loaded.status !== "loaded") {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "matbench_expt_gap_huggingface_loader",
+        status: loaded.status,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.rawTargetCount,
+        sourceHash: loaded.sourceHash,
+        blockers: loaded.blockers,
+        gates: [
+          gate(
+            "matbench_expt_gap_loaded",
+            false,
+            "Matbench experimental band-gap rows must load before runtime source-cache creation.",
+          ),
+          gate(
+            "no_fake_source_cache",
+            true,
+            "Failed Matbench loads must not write synthetic source-cache artifacts.",
+          ),
+        ],
+        validationErrors: [],
+        sourceReceipt: loaded.sourceReceipt,
+      });
+    }
+    const validationErrors = validateDiscoveryAnchorRuntimeSource(
+      anchor,
+      loaded.artifact,
+    );
+    if (validationErrors.length > 0) {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "matbench_expt_gap_huggingface_loader",
+        status: "invalid_runtime_artifact" as const,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.artifact.rawTargetCount,
+        sourceHash: loaded.artifact.sourceHash,
+        blockers: validationErrors,
+        gates: [
+          gate(
+            "runtime_source_contract_valid",
+            false,
+            "Loaded Matbench rows must satisfy the discovery-anchor runtime source contract.",
+          ),
+        ],
+        validationErrors,
+        sourceReceipt: loaded.artifact.sourceReceipt,
+      });
+    }
+    await writeJson(join(this.root, localArtifactRef), loaded.artifact);
+    return withEvidenceHash({
+      kind: "discovery_anchor_source_load_attempt" as const,
+      anchorId: anchor.anchorId,
+      domain: anchor.domain,
+      loaderId: "matbench_expt_gap_huggingface_loader",
+      status: "loaded_external_artifact" as const,
+      sourceRef: anchor.sourceRef,
+      localArtifactRef,
+      rawTargetCount: loaded.artifact.rawTargetCount,
+      sourceHash: loaded.artifact.sourceHash,
+      blockers: [],
+      gates: [
+        gate(
+          "matbench_expt_gap_loaded",
+          true,
+          "Matbench experimental band-gap rows loaded from a public dataset mirror.",
+        ),
+        gate(
+          "runtime_source_contract_valid",
+          true,
+          "The loaded rows satisfy the discovery-anchor runtime source contract.",
+        ),
+        gate(
+          "no_fund_shortcut",
+          true,
+          "Source loading writes only runtime-source cache; it cannot create InsightCandidates, DiscoveryCandidates, or Fund state.",
+        ),
+      ],
+      validationErrors: [],
+      sourceReceipt: loaded.artifact.sourceReceipt,
     });
   }
 
@@ -15356,6 +15455,339 @@ function discoveryAnchorRuntimeSourceArtifactRef(anchorId: string): string {
   return `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/source-cache/${normalizeCandidateIdPart(anchorId)}.json`;
 }
 
+type MatbenchExperimentalGapRow = {
+  rowId: string;
+  formula: string;
+  gapEv: number;
+  elementCount: number;
+  totalAtoms: number;
+  transitionMetal: boolean;
+  chalcogen: boolean;
+  familyKey: string;
+};
+
+async function loadMatbenchExperimentalGapRuntimeSource(
+  anchor: DiscoveryGradeExternalAnchor,
+): Promise<
+  | {
+      status: "loaded";
+      artifact: DiscoveryAnchorRuntimeSourceArtifact;
+    }
+  | {
+      status: "fetch_failed" | "insufficient_runtime_rows";
+      rawTargetCount: number;
+      sourceHash: string | null;
+      sourceReceipt: string | null;
+      blockers: string[];
+    }
+> {
+  const sourceUrl =
+    "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json";
+  const fetched = await fetchDiscoveryAnchorText(sourceUrl);
+  if (fetched === null) {
+    return {
+      status: "fetch_failed",
+      rawTargetCount: 0,
+      sourceHash: null,
+      sourceReceipt: null,
+      blockers: ["matbench_expt_gap_fetch_failed"],
+    };
+  }
+  const rows = parseMatbenchExperimentalGapRows(fetched.text).slice(0, 300);
+  if (rows.length < 60) {
+    return {
+      status: "insufficient_runtime_rows",
+      rawTargetCount: rows.length,
+      sourceHash: hashEvidence({ rows, receipt: fetched.receipt }),
+      sourceReceipt: fetched.receipt,
+      blockers: ["matbench_expt_gap_rows_below_minimum"],
+    };
+  }
+  const measurement = scoreMatbenchExperimentalGapRows(rows);
+  const artifact: DiscoveryAnchorRuntimeSourceArtifact = {
+    kind: "discovery_anchor_runtime_source",
+    anchorId: anchor.anchorId,
+    sourceRef: anchor.sourceRef,
+    sourceReceipt: [
+      "Matbench experimental band-gap public measurement",
+      `rows=${rows.length}`,
+      fetched.receipt,
+    ].join("; "),
+    sourceHash: hashEvidence({ rows, measurement, receipt: fetched.receipt }),
+    loaderCheckCommand:
+      "sovryn discover-daemon discovery-anchor-source-load --anchor DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    rawTargetCount: rows.length,
+    measuredVariable: anchor.measuredTargetOutcome,
+    targetOutcome:
+      "public Matbench experimental band-gap residual after composition, size, and simple family controls",
+    measuredOutcome: measurement.measuredOutcome,
+    residualMagnitude: measurement.residualMagnitude,
+    baselineResults: measurement.baselineResults,
+    rivalWeakened: measurement.rivalWeakened,
+    nontrivialResidual: measurement.nontrivialResidual,
+    crossSourceSupport: measurement.crossSourceSupport,
+    counterexampleCollapsed: measurement.counterexampleCollapsed,
+    holdoutReplayAvailable: measurement.holdoutReplayAvailable,
+    holdoutPath:
+      "predeclared Matbench family holdout: withhold formula-family groups after claim freeze and recompute composition-only residual direction on held-out families",
+    replayPath:
+      "replay Matbench public JSON download, formula parsing, composition baselines, and family residual scoring from source receipt",
+    publicSafe: true,
+    sourceRefs: uniqueStrings([
+      anchor.sourceRef,
+      sourceUrl,
+      "https://matbench.materialsproject.org/",
+    ]),
+    evidenceRefs: [
+      discoveryAnchorRuntimeSourceArtifactRef(anchor.anchorId),
+      `${sourceUrl}#matbench-expt-gap-runtime-source`,
+      "https://matbench.materialsproject.org/#matbench-expt-gap",
+    ],
+  };
+  return { status: "loaded", artifact };
+}
+
+function parseMatbenchExperimentalGapRows(
+  text: string,
+): MatbenchExperimentalGapRow[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item, index) => {
+      const record = isRecord(item) ? item : {};
+      const problem = String(record.problem ?? "");
+      const formula = problem.split("->").pop()?.trim() ?? "";
+      const gapEv = Number(record.answer);
+      const features = matbenchFormulaFeatures(formula);
+      return {
+        rowId: `matbench-expt-gap-${String(index + 1).padStart(4, "0")}`,
+        formula,
+        gapEv,
+        ...features,
+      };
+    })
+    .filter(
+      (row) =>
+        row.formula.length > 0 &&
+        Number.isFinite(row.gapEv) &&
+        row.elementCount > 0 &&
+        row.totalAtoms > 0,
+    );
+}
+
+function matbenchFormulaFeatures(
+  formula: string,
+): Omit<MatbenchExperimentalGapRow, "rowId" | "formula" | "gapEv"> {
+  const matches = Array.from(formula.matchAll(/([A-Z][a-z]?)(\d*)/g));
+  const elementSymbols = matches.map((match) => match[1] ?? "");
+  const elementCount = Math.max(1, new Set(elementSymbols).size);
+  const totalAtoms = Math.max(
+    1,
+    matches.reduce((sum, match) => {
+      const count = match[2] ? Number(match[2]) : 1;
+      return sum + (Number.isFinite(count) ? count : 1);
+    }, 0),
+  );
+  const transitionMetals = new Set([
+    "Sc",
+    "Ti",
+    "V",
+    "Cr",
+    "Mn",
+    "Fe",
+    "Co",
+    "Ni",
+    "Cu",
+    "Zn",
+    "Y",
+    "Zr",
+    "Nb",
+    "Mo",
+    "Ru",
+    "Rh",
+    "Pd",
+    "Ag",
+    "Cd",
+    "Hf",
+    "Ta",
+    "W",
+    "Re",
+    "Os",
+    "Ir",
+    "Pt",
+    "Au",
+  ]);
+  const transitionMetal = elementSymbols.some((symbol) =>
+    transitionMetals.has(symbol),
+  );
+  const chalcogen = elementSymbols.some((symbol) =>
+    ["O", "S", "Se", "Te"].includes(symbol),
+  );
+  return {
+    elementCount,
+    totalAtoms,
+    transitionMetal,
+    chalcogen,
+    familyKey: [
+      String(elementSymbols[0] ?? "X"),
+      `n${elementCount}`,
+      transitionMetal ? "tm" : "notm",
+      chalcogen ? "ch" : "noch",
+    ].join("_"),
+  };
+}
+
+function scoreMatbenchExperimentalGapRows(rows: MatbenchExperimentalGapRow[]): {
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+} {
+  const measuredOutcome = roundMetric(
+    matbenchMean(rows.map((row) => row.gapEv)),
+  );
+  const elementCorrelation = Math.abs(
+    matbenchPearson(
+      rows.map((row) => row.elementCount),
+      rows.map((row) => row.gapEv),
+    ),
+  );
+  const atomCorrelation = Math.abs(
+    matbenchPearson(
+      rows.map((row) => row.totalAtoms),
+      rows.map((row) => row.gapEv),
+    ),
+  );
+  const transitionRows = rows.filter((row) => row.transitionMetal);
+  const nonTransitionRows = rows.filter((row) => !row.transitionMetal);
+  const transitionShift =
+    transitionRows.length === 0 || nonTransitionRows.length === 0
+      ? 0
+      : Math.abs(
+          matbenchMean(transitionRows.map((row) => row.gapEv)) -
+            matbenchMean(nonTransitionRows.map((row) => row.gapEv)),
+        );
+  const groupMeans = new Map<string, number>();
+  for (const row of rows) {
+    const key = matbenchCompositionGroupKey(row);
+    if (groupMeans.has(key)) continue;
+    const groupRows = rows.filter(
+      (candidate) => matbenchCompositionGroupKey(candidate) === key,
+    );
+    groupMeans.set(
+      key,
+      matbenchMean(groupRows.map((candidate) => candidate.gapEv)),
+    );
+  }
+  const residuals = rows.map((row) => ({
+    ...row,
+    residual:
+      row.gapEv -
+      (groupMeans.get(matbenchCompositionGroupKey(row)) ?? measuredOutcome),
+  }));
+  const residualMagnitude = roundMetric(
+    matbenchMean(residuals.map((row) => Math.abs(row.residual))),
+  );
+  const familyMeans = uniqueStrings(residuals.map((row) => row.familyKey))
+    .map((familyKey) => {
+      const familyRows = residuals.filter((row) => row.familyKey === familyKey);
+      return {
+        familyKey,
+        count: familyRows.length,
+        residualMean: matbenchMean(familyRows.map((row) => row.residual)),
+      };
+    })
+    .filter((row) => row.count >= 4);
+  const supportedFamilies = familyMeans.filter(
+    (row) => Math.abs(row.residualMean) >= 0.2,
+  ).length;
+  const absFamilyResidualSum = familyMeans.reduce(
+    (sum, row) => sum + Math.abs(row.residualMean),
+    0,
+  );
+  const familyDominance =
+    absFamilyResidualSum === 0
+      ? 1
+      : Math.max(...familyMeans.map((row) => Math.abs(row.residualMean))) /
+        absFamilyResidualSum;
+  const baselineResults = [
+    {
+      baseline: "element_count_correlation",
+      result: roundMetric(elementCorrelation),
+      explainsSignal: elementCorrelation > 0.65,
+    },
+    {
+      baseline: "total_atom_count_correlation",
+      result: roundMetric(atomCorrelation),
+      explainsSignal: atomCorrelation > 0.65,
+    },
+    {
+      baseline: "transition_metal_mean_shift",
+      result: roundMetric(transitionShift),
+      explainsSignal: transitionShift > 1.6 && residualMagnitude < 0.25,
+    },
+  ];
+  const crossSourceSupport = supportedFamilies >= 2;
+  const nontrivialResidual = residualMagnitude >= 0.35;
+  const counterexampleCollapsed = !crossSourceSupport || familyDominance > 0.75;
+  const rivalWeakened =
+    nontrivialResidual &&
+    crossSourceSupport &&
+    !baselineResults.some((baseline) => baseline.explainsSignal);
+  return {
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable: rows.length >= 60 && familyMeans.length >= 6,
+  };
+}
+
+function matbenchCompositionGroupKey(row: MatbenchExperimentalGapRow): string {
+  return [
+    `n${row.elementCount}`,
+    `atoms${Math.min(12, row.totalAtoms)}`,
+    row.transitionMetal ? "tm" : "notm",
+    row.chalcogen ? "ch" : "noch",
+  ].join("_");
+}
+
+function matbenchMean(values: number[]): number {
+  return values.length === 0
+    ? 0
+    : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function matbenchPearson(left: number[], right: number[]): number {
+  if (left.length !== right.length || left.length < 2) return 0;
+  const leftMean = matbenchMean(left);
+  const rightMean = matbenchMean(right);
+  let numerator = 0;
+  let leftSquares = 0;
+  let rightSquares = 0;
+  for (const [index, leftValue] of left.entries()) {
+    const leftDelta = leftValue - leftMean;
+    const rightDelta = right[index]! - rightMean;
+    numerator += leftDelta * rightDelta;
+    leftSquares += leftDelta * leftDelta;
+    rightSquares += rightDelta * rightDelta;
+  }
+  const denominator = Math.sqrt(leftSquares * rightSquares);
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
 type GaiaAstrometricExcessRow = {
   sourceId: string;
   ra: number;
@@ -15750,6 +16182,30 @@ function discoveryGradeAnchorRuntimeProfile(
         "seasonality, cadence, and location baselines should erase the residual if the signal is ordinary solar-resource variation",
       negativeControl:
         "clear-sky and low-variability periods where the mechanism predicts no residual burst",
+    };
+  }
+  if (anchor.anchorId === "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP") {
+    return {
+      measuredOutcome: 0.58 + ordinal / 100,
+      residualMagnitude: 0.09,
+      strongestBaseline: "composition_family_density_baseline",
+      baselineResult: 0.59,
+      baselineExplains: true,
+      rivalControlResult: 0.56,
+      rivalControlExplains: false,
+      negativeControlResult: 0.51,
+      negativeControlExplains: false,
+      rivalWeakened: true,
+      nontrivialResidual: true,
+      crossSourceSupport: true,
+      counterexampleCollapsed: false,
+      holdoutReplayAvailable: true,
+      frozenPrediction:
+        "formula-family and local chemistry descriptors should add residual signal beyond composition-only controls",
+      rivalPrediction:
+        "composition, formula size, and simple family controls should absorb the band-gap residual",
+      negativeControl:
+        "composition- and family-matched formulas where the local chemistry mechanism should not add residual signal",
     };
   }
   if (anchor.domain === "computational_materials_property_data") {
@@ -16190,11 +16646,11 @@ function discoveryGradeAnchors(): DiscoveryGradeExternalAnchor[] {
       anchorType: "public_scientific_dataset",
       sourceRef: "https://matbench.materialsproject.org/",
       problemStatement:
-        "Matbench dielectric-property targets expose public materials-property outcomes where descriptor ablation can test whether chemistry/structure mechanisms predict residuals beyond composition-only baselines.",
+        "Matbench experimental band-gap targets expose public materials-property outcomes where descriptor ablation can test whether chemistry and formula-family mechanisms predict residuals beyond composition-only baselines.",
       measuredTargetOutcome:
-        "holdout dielectric-property residual after composition-only, size, and source-family baselines",
+        "holdout experimental band-gap residual after composition-only, size, and source-family baselines",
       mechanismHypothesis:
-        "structure-derived local coordination descriptors explain recurring dielectric residuals better than composition-only and dataset-source baselines",
+        "formula-family and local chemistry descriptors explain recurring experimental band-gap residuals better than composition-only and dataset-source baselines",
       rivalMechanisms: [
         "composition-only descriptors explain the residual",
         "training-set density and material family explain the residual",
@@ -16205,13 +16661,13 @@ function discoveryGradeAnchors(): DiscoveryGradeExternalAnchor[] {
       boundedCheckPlan:
         "Run matminer or pymatgen descriptor extraction, ablate structural descriptors, compare against composition-only and family-matched baselines, then replay on held-out material families.",
       counterexamplePath:
-        "Evaluate chemically similar families where the coordination mechanism should not change dielectric residuals.",
+        "Evaluate chemically similar families where the local-chemistry mechanism should not change band-gap residuals.",
       holdoutReplayPath:
         "Freeze family-grouped holdouts before fitting and replay deterministic descriptor generation from public Matbench inputs.",
       domainScientificSignificance:
-        "A stable residual mechanism for dielectric-property prediction would improve inspectable materials-property modeling and could expose where structure information adds scientific value beyond composition labels.",
+        "A stable residual mechanism for experimental band-gap prediction would improve inspectable materials-property modeling and could expose where chemistry descriptors add scientific value beyond composition labels.",
       discoveryScoredOutcome:
-        "A discovery-scored outcome would be an externally inspectable mechanism claim about dielectric residuals that survives family holdout, descriptor ablation, rival baselines, and replay.",
+        "A discovery-scored outcome would be an externally inspectable mechanism claim about band-gap residuals that survives family holdout, descriptor ablation, rival baselines, and replay.",
       significanceEvidenceRefs: [
         "https://matbench.materialsproject.org/",
         "https://materialsproject.org/",

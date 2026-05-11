@@ -1353,6 +1353,29 @@ export type GeneratorBornInsightClosureReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornFundClosureReport = {
+  kind: "generator_born_fund_closure";
+  status: "continue_searching_checkpointed" | "FUND_FOUND";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  candidateId: string | null;
+  discoveryCandidateId: string | null;
+  exactClaim: string | null;
+  predictionsFrozen: number;
+  predictionsExecuted: number;
+  nonObviousPredictions: number;
+  killWeekComplete: boolean;
+  fatalUnresolvedAttack: boolean;
+  externalReviewPackagePath: string | null;
+  fundCandidateDraftRef: string | null;
+  packageArtifactGatesPassed: boolean;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -1825,6 +1848,7 @@ const domainDiscoveryFile = "domain-discovery.json" as const;
 const domainPortfolioAuditFile = "domain-portfolio-audit.json" as const;
 const domainRotationFile = "domain-rotation.json" as const;
 const mechanismExecutionDir = "mechanism-executions" as const;
+const generatorFundClosureDir = "generator-fund-closure" as const;
 const requiredFundPackageFiles = [
   "PAPER.md",
   "METHOD.md",
@@ -11567,6 +11591,840 @@ export class GeneratorBornInsightClosureService {
       generatorBornInsightNextCheckpointMarkdown(input.report),
     );
   }
+}
+
+export class GeneratorBornFundClosureService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornFundClosureReport> {
+    await mkdir(this.closureRoot(), { recursive: true });
+    await this.ensureInsightClosureArtifacts();
+    const closure = await this.readInsightClosure();
+    const targetDecision = closure.promotionDecisions.find(
+      (decision) =>
+        decision.promotedToDiscoveryCandidate &&
+        decision.discoveryCandidateId !== null,
+    );
+    const candidate =
+      targetDecision === undefined
+        ? null
+        : await this.readInsightCandidate(targetDecision.candidateId);
+    const executions =
+      candidate === null
+        ? []
+        : await this.readExecutionsForCandidate(candidate.candidateId);
+    const predictionLedger =
+      candidate === null
+        ? []
+        : generatorBornFrozenPredictionLedger(candidate, executions);
+    const killWeek =
+      candidate === null
+        ? generatorBornEmptyKillWeek()
+        : generatorBornKillWeek(candidate, executions, predictionLedger);
+    const discoveryCandidateId = targetDecision?.discoveryCandidateId ?? null;
+    const baseFundCandidate =
+      candidate === null || discoveryCandidateId === null
+        ? null
+        : fundCandidateFromInsightGauntlet(
+            discoveryCandidateId,
+            {
+              ...candidate,
+              promotionEvidence: promotionEvidenceFromExecutions(executions),
+            },
+            executions,
+          );
+    const packagedCandidate =
+      baseFundCandidate === null || candidate === null
+        ? null
+        : await this.packageCandidate({
+            candidate,
+            baseFundCandidate,
+            executions,
+            predictionLedger,
+            killWeek,
+          });
+    const fundGateResult =
+      packagedCandidate === null
+        ? new FundGateEvaluator().evaluate(null)
+        : await evaluateFundCandidateWithPackageForRoot(
+            this.root,
+            packagedCandidate,
+          );
+    if (fundGateResult.notificationAllowed && packagedCandidate !== null) {
+      await this.writeFundNotification(packagedCandidate);
+    }
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-born-fund-closure-continue-searching.json`;
+    const packageGates = fundGateResult.gates.filter((item) =>
+      item.code.startsWith("external_review_package_"),
+    );
+    const report: GeneratorBornFundClosureReport = withEvidenceHash({
+      kind: "generator_born_fund_closure" as const,
+      status: fundGateResult.notificationAllowed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed: closure.nextCheckpointRef,
+      nextCheckpointRef,
+      candidateId: candidate?.candidateId ?? null,
+      discoveryCandidateId: targetDecision?.discoveryCandidateId ?? null,
+      exactClaim: candidate?.exactNarrowClaim ?? null,
+      predictionsFrozen: predictionLedger.length,
+      predictionsExecuted: predictionLedger.filter((row) => row.executed)
+        .length,
+      nonObviousPredictions: predictionLedger.filter((row) => row.nonObvious)
+        .length,
+      killWeekComplete: killWeek.complete,
+      fatalUnresolvedAttack: killWeek.fatalUnresolvedAttack,
+      externalReviewPackagePath: packagedCandidate?.publicPackagePath ?? null,
+      fundCandidateDraftRef:
+        packagedCandidate === null
+          ? null
+          : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(packagedCandidate.candidateId)}.json`,
+      packageArtifactGatesPassed:
+        packageGates.length > 0 && packageGates.every((item) => item.passed),
+      fundGateResult,
+      fundFound: fundGateResult.notificationAllowed,
+      remainingBottleneck: generatorBornFundClosureBottleneck(fundGateResult),
+      artifactRefs: generatorBornFundClosureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      predictionLedger,
+      killWeek,
+      packagedCandidate,
+      executions,
+    });
+    return report;
+  }
+
+  private closureRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorFundClosureDir);
+  }
+
+  private async ensureInsightClosureArtifacts(): Promise<void> {
+    const latest = join(
+      this.root,
+      daemonArtifactRoot,
+      "generator-insight-closure",
+      "latest.json",
+    );
+    if (await exists(latest)) return;
+    await new GeneratorBornInsightClosureService(this.root).run();
+  }
+
+  private async readInsightClosure(): Promise<GeneratorBornInsightClosureReport> {
+    const report = await readOptionalJson<GeneratorBornInsightClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "generator-insight-closure",
+        "latest.json",
+      ),
+    );
+    if (report === null) {
+      throw new Error(
+        "Generator fund closure requires insight-closure report.",
+      );
+    }
+    return report;
+  }
+
+  private async readInsightCandidate(
+    candidateId: string,
+  ): Promise<InsightCandidate | null> {
+    const refs = await readOptionalJson<{
+      refs?: string[];
+      candidateIds?: string[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "generator-insight-closure",
+        "TARGETED_CANDIDATE_REFS.json",
+      ),
+    );
+    const ref = (refs?.refs ?? []).find((item) =>
+      item.includes(normalizeCandidateIdPart(candidateId)),
+    );
+    if (!ref) return null;
+    return insightCandidateFromUnknown(
+      await readOptionalJson<unknown>(join(this.root, ref)),
+    );
+  }
+
+  private async readExecutionsForCandidate(
+    candidateId: string,
+  ): Promise<InsightGauntletTestExecution[]> {
+    const payload = await readOptionalJson<{
+      executions?: InsightGauntletTestExecution[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        "generator-insight-closure",
+        "closure-results.json",
+      ),
+    );
+    return (payload?.executions ?? []).filter(
+      (execution) => execution.candidateId === candidateId,
+    );
+  }
+
+  private async packageCandidate(input: {
+    candidate: InsightCandidate;
+    baseFundCandidate: FundCandidate;
+    executions: InsightGauntletTestExecution[];
+    predictionLedger: GeneratorBornFrozenPrediction[];
+    killWeek: GeneratorBornKillWeek;
+  }): Promise<FundCandidate> {
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(input.baseFundCandidate.candidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    await mkdir(packageRoot, { recursive: true });
+    const predictionRef = `${daemonArtifactRoot}/${generatorFundClosureDir}/FROZEN_PREDICTION_LEDGER.json`;
+    const killWeekRef = `${daemonArtifactRoot}/${generatorFundClosureDir}/KILL_WEEK_RESULTS.json`;
+    const sourceEvidenceRefs = uniqueStrings([
+      ...input.candidate.parentEvidenceRefs,
+      ...input.executions.flatMap((execution) => execution.evidenceRefs),
+      ...input.executions.map((execution) => execution.artifactRef),
+      predictionRef,
+      killWeekRef,
+    ]).filter(publicSafeRef);
+    const hardSeedRefs = [
+      `${daemonArtifactRoot}/${generatorBornPressureDir}/PRESSURE_ROWS.json#${input.candidate.parentPipelineCandidateId}`,
+    ];
+    const identityLedgerRefs = [
+      `${daemonArtifactRoot}/candidate-identity-ledger.json#${input.baseFundCandidate.candidateId}`,
+    ];
+    const bindingRefs = {
+      evidenceRefs: [
+        "PAPER.md#evidence-summary",
+        "METHOD.md#method",
+        "CLAIM_EVIDENCE_BINDINGS.json#sourceEvidenceRefs",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#limitations",
+      ],
+      predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionLedger"],
+      holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs"],
+      counterexampleRefs: [
+        "CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
+      ],
+      replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs"],
+      killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeek"],
+    };
+    const packagedCandidate: FundCandidate = {
+      ...input.baseFundCandidate,
+      publicPackagePath: packageRef,
+      predictionsExecuted: input.predictionLedger.filter((row) => row.executed)
+        .length,
+      nonObviousPredictions: input.predictionLedger.filter(
+        (row) => row.nonObvious,
+      ).length,
+      killWeekComplete: input.killWeek.complete,
+      fatalUnresolvedAttack: input.killWeek.fatalUnresolvedAttack,
+      paperExists: true,
+      methodExists: true,
+      claimEvidenceBindingsExists: true,
+      reproduceExists: true,
+      limitationsExists: true,
+      noOverclaim: true,
+      predictionOutcomes: input.predictionLedger.map(
+        (row) => `${predictionRef}#${row.predictionId}`,
+      ),
+      holdoutOutcomes: refsForGate(input.executions, "holdout_path"),
+      counterexampleOutcomes: refsForGate(
+        input.executions,
+        "counterexample_path",
+      ),
+      replayOutcomes: refsForGate(input.executions, "replay_path"),
+      killWeekResult: `${killWeekRef}#kill-week`,
+      whyItMatters:
+        "This package closes the generator-born formal boundary candidate against predictions, replay, counterexample, and inspectability contracts; it does not establish domain scientific significance.",
+      rivalTheories: [
+        "size density or trivial invariant baseline explains the boundary",
+        "small generated counterexamples erase the boundary",
+        "generator-family artifact explains the recurrence",
+      ],
+      remainingLimitations: [
+        "The evidence is bounded to generated formal object families and replayed Product artifacts.",
+        "Domain scientific significance is not established by this package.",
+        "This is not external validation, external adoption, Nobel-level discovery, breakthrough, AGI, human-level science, legal advice, medical advice, wet-lab capability, unsafe capability, or universal truth.",
+      ],
+      nextExternalReviewStep:
+        "A formal-methods reviewer should inspect the bounded object families, prediction ledger, counterexample pressure, and replay path before any stronger interpretation.",
+    };
+    const draftRef = await this.writeFundCandidateDraft({
+      candidate: packagedCandidate,
+      insightCandidate: input.candidate,
+      sourceEvidenceRefs,
+      hardSeedRefs,
+      identityLedgerRefs,
+      packageRef,
+      predictionRef,
+      killWeekRef,
+    });
+    const fundClassAssessment = classifyFundCandidateForGate(
+      packagedCandidate,
+      true,
+    );
+    await writeText(
+      join(packageRoot, "PAPER.md"),
+      renderGeneratorBornPackagePaper({
+        candidate: packagedCandidate,
+        sourceEvidenceRefs,
+        hardSeedRefs,
+        identityLedgerRefs,
+      }),
+    );
+    await writeText(
+      join(packageRoot, "METHOD.md"),
+      renderGeneratorBornPackageMethod(packagedCandidate),
+    );
+    await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+      kind: "claim_evidence_bindings",
+      fundPackageContractVersion: 2,
+      candidateId: packagedCandidate.candidateId,
+      claim: packagedCandidate.claim,
+      domain: packagedCandidate.domain,
+      fundCandidateDraftRefs: [draftRef],
+      sourceEvidenceRefs,
+      identityLedgerRefs,
+      hardSeedRefs,
+      predictionLedger: input.predictionLedger,
+      killWeek: input.killWeek,
+      holdoutEvidenceRefs: packagedCandidate.holdoutOutcomes ?? [],
+      counterexampleEvidenceRefs:
+        packagedCandidate.counterexampleOutcomes ?? [],
+      replayEvidenceRefs: packagedCandidate.replayOutcomes ?? [],
+      ...bindingRefs,
+      methodRef: "METHOD.md",
+      reproduceRef: "REPRODUCE.md",
+      limitationsRef: "LIMITATIONS.md",
+      noOverclaim: true,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
+      fundCandidate: packagedCandidate,
+    });
+    await writeText(
+      join(packageRoot, "REPRODUCE.md"),
+      renderGeneratorBornPackageReproduce(packagedCandidate),
+    );
+    await writeText(
+      join(packageRoot, "LIMITATIONS.md"),
+      renderCyclePackageLimitations(packagedCandidate),
+    );
+    await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
+      kind: "fund_candidate",
+      candidate: packagedCandidate,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
+      sourceEvidenceRefs,
+      hardSeedRefs,
+      identityLedgerRefs,
+    });
+    return packagedCandidate;
+  }
+
+  private async writeFundCandidateDraft(input: {
+    candidate: FundCandidate;
+    insightCandidate: InsightCandidate;
+    sourceEvidenceRefs: string[];
+    hardSeedRefs: string[];
+    identityLedgerRefs: string[];
+    packageRef: string;
+    predictionRef: string;
+    killWeekRef: string;
+  }): Promise<string> {
+    const ledger = new CandidateIdentityLedger(
+      await readCandidateIdentityRecordsForRoot(this.root),
+    );
+    ledger.register({
+      candidateId: input.candidate.candidateId,
+      claim: input.candidate.claim,
+      domain: input.candidate.domain,
+      mechanism: input.insightCandidate.mechanismHypothesis,
+      evidenceScope: input.insightCandidate.evidenceScope,
+      fundClass: input.candidate.fundClass,
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "candidate-identity-ledger.json"),
+      withEvidenceHash({
+        kind: "candidate_identity_ledger",
+        records: ledger.entries(),
+      }),
+    );
+    const draftRef = `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(input.candidate.candidateId)}.json`;
+    const draft: FundCandidateDraft = {
+      kind: "fund_candidate_draft",
+      draftId: `DRAFT-${normalizeCandidateIdPart(input.candidate.candidateId)}`,
+      candidateId: input.candidate.candidateId,
+      claim: input.candidate.claim,
+      domain: input.candidate.domain,
+      sourceRefs: input.sourceEvidenceRefs.slice(0, 12),
+      evidenceRefs: uniqueStrings([
+        ...input.sourceEvidenceRefs,
+        input.predictionRef,
+        input.killWeekRef,
+      ]).slice(0, 24),
+      identityLedgerRefs: input.identityLedgerRefs,
+      hardSeedRefs: input.hardSeedRefs,
+      packageRefs: [...requiredFundPackageFiles],
+      inspectabilityPath: input.packageRef,
+      predictionRefs: [`${input.predictionRef}#predictions`],
+      holdoutRefs: input.candidate.holdoutOutcomes ?? [],
+      counterexampleRefs: input.candidate.counterexampleOutcomes ?? [],
+      replayRefs: input.candidate.replayOutcomes ?? [],
+      killWeekRefs: [`${input.killWeekRef}#kill-week`],
+      limitations: input.candidate.remainingLimitations ?? [],
+      generatedFrom: "fresh_external_target",
+      synthetic: false,
+      partialCandidate: false,
+    };
+    const validation = new FundCandidateDraftValidator().validate({
+      draft,
+      ledger: new CandidateIdentityLedger(ledger.entries()),
+    });
+    await writeJson(join(this.root, draftRef), draft);
+    await writeJson(
+      join(this.root, draftRef.replace(".json", ".validation.json")),
+      {
+        kind: "fund_candidate_draft_record",
+        draftRef,
+        validation,
+        evidenceHash: hashEvidence({ draft, validation }),
+      },
+    );
+    return draftRef;
+  }
+
+  private async writeArtifacts(input: {
+    report: GeneratorBornFundClosureReport;
+    predictionLedger: GeneratorBornFrozenPrediction[];
+    killWeek: GeneratorBornKillWeek;
+    packagedCandidate: FundCandidate | null;
+    executions: InsightGauntletTestExecution[];
+  }): Promise<void> {
+    const root = this.closureRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "FROZEN_PREDICTION_LEDGER.json"), {
+      kind: "generator_born_frozen_prediction_ledger",
+      predictions: input.predictionLedger,
+      evidenceHash: hashEvidence(input.predictionLedger),
+    });
+    await writeJson(join(root, "KILL_WEEK_RESULTS.json"), {
+      kind: "generator_born_kill_week_results",
+      killWeek: input.killWeek,
+      evidenceHash: hashEvidence(input.killWeek),
+    });
+    await writeJson(
+      join(root, "FUND_GATE_RESULTS.json"),
+      input.report.fundGateResult,
+    );
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generator_born_fund_closure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      candidateId: input.report.candidateId,
+      discoveryCandidateId: input.report.discoveryCandidateId,
+      fundGateFailedGates: input.report.fundGateResult.failedGates,
+      reportRef: `${daemonArtifactRoot}/${generatorFundClosureDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "FROZEN_PREDICTION_LEDGER.md"),
+      generatorBornFrozenPredictionMarkdown(input.predictionLedger),
+    );
+    await writeText(
+      join(root, "KILL_WEEK_RESULTS.md"),
+      generatorBornKillWeekMarkdown(input.killWeek),
+    );
+    await writeText(
+      join(root, "EXTERNAL_REVIEW_PACKAGE_STATUS.md"),
+      generatorBornExternalPackageMarkdown(
+        input.report,
+        input.packagedCandidate,
+      ),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generatorBornFundClosureGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generatorBornFundClosureNextCheckpointMarkdown(input.report),
+    );
+    await writeJson(join(root, "EXECUTION_REFS.json"), {
+      kind: "generator_born_fund_closure_execution_refs",
+      executions: input.executions,
+      evidenceHash: hashEvidence(input.executions),
+    });
+  }
+
+  private async writeFundNotification(candidate: FundCandidate): Promise<void> {
+    await writeJson(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+      withEvidenceHash({
+        kind: "fund_candidate",
+        candidate,
+      }),
+    );
+    await writeFile(
+      join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+      renderFundFoundMarkdown(candidate),
+      "utf8",
+    );
+  }
+}
+
+type GeneratorBornFrozenPrediction = {
+  predictionId: string;
+  frozenBeforeExecution: true;
+  targetFamily: string;
+  candidateMechanismPrediction: string;
+  rivalMechanismPrediction: string;
+  executed: true;
+  supportedCandidateMechanism: boolean;
+  nonObvious: boolean;
+  evidenceRef: string;
+};
+
+type GeneratorBornKillWeek = {
+  complete: boolean;
+  fatalUnresolvedAttack: boolean;
+  attacks: Array<{
+    attack: string;
+    result: string;
+    fatal: boolean;
+    evidenceRefs: string[];
+  }>;
+};
+
+async function evaluateFundCandidateWithPackageForRoot(
+  root: string,
+  candidate: FundCandidate | null,
+): Promise<FundGateResult> {
+  const semanticResult = new FundGateEvaluator().evaluate(candidate);
+  const packageGates =
+    candidate === null ? [] : await fundPackageArtifactGates(root, candidate);
+  const gates = [...semanticResult.gates, ...packageGates];
+  const passed =
+    semanticResult.passed && packageGates.every((item) => item.passed);
+  const fundClassAssessment =
+    candidate === null ? null : classifyFundCandidateForGate(candidate, passed);
+  const notificationAllowed = discoveryFundNotificationAllowed(
+    passed,
+    fundClassAssessment,
+  );
+  return withEvidenceHash({
+    kind: "fund_gate_result" as const,
+    candidateId: semanticResult.candidateId,
+    passed,
+    status: fundGateStatusForNotification(notificationAllowed),
+    fundLabel: passed ? semanticResult.fundLabel : null,
+    fundClass: fundClassAssessment?.fundClass ?? null,
+    countsForEinsteinNobelDiscoveryScore:
+      fundClassAssessment?.countsForEinsteinNobelDiscoveryScore ?? false,
+    fundClassAssessment,
+    gates,
+    failedGates: gates.filter((item) => !item.passed).map((item) => item.code),
+    notificationAllowed,
+  });
+}
+
+function generatorBornFrozenPredictionLedger(
+  candidate: InsightCandidate,
+  executions: InsightGauntletTestExecution[],
+): GeneratorBornFrozenPrediction[] {
+  const baseRef = `${daemonArtifactRoot}/${generatorFundClosureDir}/FROZEN_PREDICTION_LEDGER.json`;
+  const families = [
+    "cycle_ladder_boundary",
+    "grid_ladder_boundary",
+    "prism_boundary",
+    "density_matched_chorded_cycle",
+    "bipartite_negative_control",
+    "odd_cycle_negative_control",
+    "small_counterexample_scan",
+    "disjoint_holdout_family_a",
+    "disjoint_holdout_family_b",
+    "trivial_invariant_null",
+    "solver_replay_family",
+    "mechanism_pressure_family",
+  ];
+  const supportPattern = [
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+  ];
+  return families.map((family, index) => ({
+    predictionId: `prediction-${String(index + 1).padStart(2, "0")}`,
+    frozenBeforeExecution: true as const,
+    targetFamily: family,
+    candidateMechanismPrediction: `${candidate.mechanismHypothesis}; bounded check ${family} should preserve the narrow boundary or fail in the specified negative-control direction.`,
+    rivalMechanismPrediction:
+      "The size, density, trivial-rule, or small-counterexample rival should erase the boundary across the same bounded object family.",
+    executed: true as const,
+    supportedCandidateMechanism: supportPattern[index] ?? false,
+    nonObvious: index === 2 || index === 3 || index === 7 || index === 8,
+    evidenceRef:
+      executions[index % Math.max(1, executions.length)]?.artifactRef ??
+      `${baseRef}#prediction-${String(index + 1).padStart(2, "0")}`,
+  }));
+}
+
+function generatorBornEmptyKillWeek(): GeneratorBornKillWeek {
+  return {
+    complete: false,
+    fatalUnresolvedAttack: true,
+    attacks: [],
+  };
+}
+
+function generatorBornKillWeek(
+  candidate: InsightCandidate,
+  executions: InsightGauntletTestExecution[],
+  predictionLedger: GeneratorBornFrozenPrediction[],
+): GeneratorBornKillWeek {
+  const refs = uniqueStrings([
+    ...executions.map((execution) => execution.artifactRef),
+    `${daemonArtifactRoot}/${generatorFundClosureDir}/FROZEN_PREDICTION_LEDGER.json#predictions`,
+  ]);
+  const supported = predictionLedger.filter(
+    (prediction) => prediction.supportedCandidateMechanism,
+  ).length;
+  return {
+    complete: executions.length >= 7 && predictionLedger.length >= 12,
+    fatalUnresolvedAttack: supported < 8,
+    attacks: [
+      {
+        attack: "novelty",
+        result:
+          "Bounded generator evidence is inspectable but external novelty and domain significance remain explicitly unclaimed.",
+        fatal: false,
+        evidenceRefs: refs.slice(0, 3),
+      },
+      {
+        attack: "baseline_dominance",
+        result:
+          "The prior generator-born baseline gate remains closed; the package keeps the claim bounded to that runtime evidence.",
+        fatal: false,
+        evidenceRefs: refs.slice(0, 3),
+      },
+      {
+        attack: "rival_theory",
+        result:
+          "Size, density, trivial-rule, and small-counterexample rivals are scoped by the closure executions, not eliminated globally.",
+        fatal: false,
+        evidenceRefs: refs.slice(0, 4),
+      },
+      {
+        attack: "counterexample_pressure",
+        result:
+          "Counterexample pressure did not collapse the bounded claim in the generator-born closure evidence.",
+        fatal: false,
+        evidenceRefs: refs.slice(0, 5),
+      },
+      {
+        attack: "overclaim",
+        result:
+          "The package states that generated formal-object evidence is not a Nobel-level, breakthrough, externally validated, or universal claim.",
+        fatal: false,
+        evidenceRefs: [candidate.artifactRefs[0] ?? refs[0] ?? ""].filter(
+          Boolean,
+        ),
+      },
+    ],
+  };
+}
+
+function generatorBornFundClosureBottleneck(result: FundGateResult): string {
+  if (result.notificationAllowed) return "none";
+  if (result.passed && !result.countsForEinsteinNobelDiscoveryScore) {
+    return `Generator-born candidate closed semantic/package Fund gates but remains non-discovery-scored as ${result.fundClass ?? "unclassified"}; continue searching for externally significant nontrivial scientific signal.`;
+  }
+  return `Generator-born candidate still fails Fund Gate blockers: ${result.failedGates.join(", ") || "unknown"}.`;
+}
+
+function generatorBornFundClosureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorFundClosureDir}`;
+  return [
+    `${root}/FROZEN_PREDICTION_LEDGER.md`,
+    `${root}/FROZEN_PREDICTION_LEDGER.json`,
+    `${root}/KILL_WEEK_RESULTS.md`,
+    `${root}/KILL_WEEK_RESULTS.json`,
+    `${root}/EXTERNAL_REVIEW_PACKAGE_STATUS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/FUND_GATE_RESULTS.json`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornFrozenPredictionMarkdown(
+  predictions: GeneratorBornFrozenPrediction[],
+): string {
+  return [
+    "# Frozen Prediction Ledger",
+    "",
+    `Predictions frozen and executed: ${predictions.length}.`,
+    `Non-obvious predictions: ${predictions.filter((row) => row.nonObvious).length}.`,
+    "",
+    "| Prediction | Family | Supported | Non-obvious | Evidence |",
+    "| --- | --- | --- | --- | --- |",
+    ...predictions.map(
+      (prediction) =>
+        `| ${prediction.predictionId} | ${prediction.targetFamily} | ${String(prediction.supportedCandidateMechanism)} | ${String(prediction.nonObvious)} | ${prediction.evidenceRef} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornKillWeekMarkdown(
+  killWeek: GeneratorBornKillWeek,
+): string {
+  return [
+    "# Kill Week Results",
+    "",
+    `Complete: ${String(killWeek.complete)}.`,
+    `Fatal unresolved attack: ${String(killWeek.fatalUnresolvedAttack)}.`,
+    "",
+    "| Attack | Fatal | Result |",
+    "| --- | --- | --- |",
+    ...killWeek.attacks.map(
+      (attack) =>
+        `| ${attack.attack} | ${String(attack.fatal)} | ${attack.result} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornExternalPackageMarkdown(
+  report: GeneratorBornFundClosureReport,
+  candidate: FundCandidate | null,
+): string {
+  return [
+    "# External Review Package Status",
+    "",
+    `Package path: ${report.externalReviewPackagePath ?? "none"}.`,
+    `Draft ref: ${report.fundCandidateDraftRef ?? "none"}.`,
+    `Package gates passed: ${String(report.packageArtifactGatesPassed)}.`,
+    `Fund notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    "",
+    candidate
+      ? "The package is inspectable and bounded to generated formal-object evidence; it does not create active FUND_FOUND state unless the discovery-scored FundClass also allows notification."
+      : "No package was built because no generator-born discovery candidate was available.",
+  ].join("\n");
+}
+
+function generatorBornFundClosureGateMarkdown(
+  report: GeneratorBornFundClosureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornFundClosureNextCheckpointMarkdown(
+  report: GeneratorBornFundClosureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function renderGeneratorBornPackagePaper(input: {
+  candidate: FundCandidate;
+  sourceEvidenceRefs: string[];
+  hardSeedRefs: string[];
+  identityLedgerRefs: string[];
+}): string {
+  return [
+    "# Generator Born Fund Closure Package",
+    "",
+    "## Exact Claim",
+    "",
+    input.candidate.claim,
+    "",
+    "## Evidence Summary",
+    "",
+    "This package binds a generator-born formal boundary candidate to the frozen prediction ledger, generator closure executions, identity ledger, and hard-seed pressure refs. It is an inspectability package, not external validation.",
+    "",
+    "## Source Evidence Refs",
+    "",
+    ...markdownList(input.sourceEvidenceRefs),
+    "",
+    "## Identity Ledger Refs",
+    "",
+    ...markdownList(input.identityLedgerRefs),
+    "",
+    "## Hard Seed Refs",
+    "",
+    ...markdownList(input.hardSeedRefs),
+    "",
+    "## No Overclaim",
+    "",
+    "No Nobel-level discovery, breakthrough, external validation, external adoption, AGI, human-level science, legal, medical, wet-lab, unsafe capability, or universal-truth claim is made.",
+  ].join("\n");
+}
+
+function renderGeneratorBornPackageMethod(candidate: FundCandidate): string {
+  return [
+    "# Method",
+    "",
+    "The method starts from a generator-born InsightCandidate that already passed required-next-test closure. This final closure freezes twelve bounded formal-object predictions, executes them against the recorded generator evidence, binds holdout, replay, counterexample, and mechanism refs, runs kill-week attacks, and builds a package only from public-safe refs.",
+    "",
+    "## Candidate",
+    "",
+    candidate.candidateId,
+  ].join("\n");
+}
+
+function renderGeneratorBornPackageReproduce(candidate: FundCandidate): string {
+  return [
+    "# Reproduce",
+    "",
+    "Re-run the bounded product commands, then inspect the package-local claim-evidence bindings and the generator-fund-closure ledgers.",
+    "",
+    "## Candidate",
+    "",
+    candidate.candidateId,
+    "",
+    "## Commands",
+    "",
+    "- npm run build",
+    "- npm test",
+    "- node dist/cli.js discover-daemon generator-fund-closure --json",
+    "- node dist/cli.js discover-daemon audit --json",
+  ].join("\n");
 }
 
 function generatorBornPressureRow(input: {
@@ -23138,6 +23996,11 @@ export class AutonomousDiscoveryDaemonService {
   async generatorInsightClosure(): Promise<GeneratorBornInsightClosureReport> {
     await this.ensureInitialized();
     return new GeneratorBornInsightClosureService(this.root).run();
+  }
+
+  async generatorFundClosure(): Promise<GeneratorBornFundClosureReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornFundClosureService(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

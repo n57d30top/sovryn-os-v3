@@ -89,6 +89,7 @@ const commands = [
   "generator-audit",
   "generator-pressure",
   "generator-insight-closure",
+  "generator-fund-closure",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -3953,6 +3954,70 @@ test("discover-daemon generator-insight-closure CLI closes generated insight wit
   );
 });
 
+test("generator-born fund closure packages predictions and keeps non-discovery class silent", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorInsightClosure();
+
+  const report = await service.generatorFundClosure();
+
+  assert.equal(report.kind, "generator_born_fund_closure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.predictionsFrozen, 12);
+  assert.equal(report.predictionsExecuted, 12);
+  assert.equal(report.nonObviousPredictions >= 3, true);
+  assert.equal(report.killWeekComplete, true);
+  assert.equal(report.fatalUnresolvedAttack, false);
+  assert.equal(report.packageArtifactGatesPassed, true);
+  assert.equal(report.fundGateResult.passed, true);
+  assert.equal(report.fundGateResult.notificationAllowed, false);
+  assert.equal(
+    report.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    false,
+  );
+  assert.equal(report.fundFound, false);
+  assert.ok(report.externalReviewPackagePath);
+  assert.ok(report.fundCandidateDraftRef);
+  for (const artifact of [
+    "FROZEN_PREDICTION_LEDGER.md",
+    "FROZEN_PREDICTION_LEDGER.json",
+    "KILL_WEEK_RESULTS.md",
+    "KILL_WEEK_RESULTS.json",
+    "EXTERNAL_REVIEW_PACKAGE_STATUS.md",
+    "FUND_GATE_RESULTS.md",
+    "FUND_GATE_RESULTS.json",
+    "NEXT_CHECKPOINT.md",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "generator-fund-closure", artifact)),
+      true,
+      artifact,
+    );
+  }
+  for (const artifact of [
+    "PAPER.md",
+    "METHOD.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+    "FUND_CANDIDATE.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, report.externalReviewPackagePath, artifact)),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, report.fundCandidateDraftRef)), true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon generator CLIs are bounded and non-funding", async () => {
   const root = await tempRoot();
 
@@ -4011,6 +4076,16 @@ test("discover-daemon generator CLIs are bounded and non-funding", async () => {
     (closure.data as Record<string, unknown>).kind,
     "generator_born_insight_closure",
   );
+  const fundClosure = await executeCli(
+    ["discover-daemon", "generator-fund-closure", "--json"],
+    root,
+  );
+  assert.equal(fundClosure.ok, true, JSON.stringify(fundClosure.errors));
+  assert.equal(
+    (fundClosure.data as Record<string, unknown>).kind,
+    "generator_born_fund_closure",
+  );
+  assert.equal((fundClosure.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
@@ -5320,6 +5395,11 @@ const cliScenarios: {
     name: "generator-insight-closure",
     args: ["discover-daemon", "generator-insight-closure", "--json"],
     expectedKind: "generator_born_insight_closure",
+  },
+  {
+    name: "generator-fund-closure",
+    args: ["discover-daemon", "generator-fund-closure", "--json"],
+    expectedKind: "generator_born_fund_closure",
   },
   {
     name: "cycle",

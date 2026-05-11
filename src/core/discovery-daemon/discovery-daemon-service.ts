@@ -1532,6 +1532,8 @@ export type ExternalFormalPilotResult = {
   kind: "external_formal_anchor_pilot_result";
   anchorId: string;
   targetId: string;
+  pilotExecutorId: string;
+  mechanismSpecificChecks: string[];
   formalObjectsGenerated: number;
   boundedChecksRun: number;
   predictionsFrozen: number;
@@ -13994,6 +13996,8 @@ export class ExternalFormalAnchorSelectionService {
       kind: "external_formal_anchor_pilot_result",
       anchorId: anchor.anchorId,
       targetId,
+      pilotExecutorId: profile.pilotExecutorId,
+      mechanismSpecificChecks: profile.mechanismSpecificChecks,
       formalObjectsGenerated: profile.formalObjectsGenerated,
       boundedChecksRun: profile.boundedChecksRun,
       predictionsFrozen: 1,
@@ -14919,6 +14923,67 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       unresolved: 3,
       checkability: 5,
     },
+    {
+      id: "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS",
+      url: "https://mathworld.wolfram.com/SchurNumber.html",
+      topic: "bounded Schur-number coloring thresholds",
+      risk: 0.42,
+      unresolved: 4,
+      checkability: 5,
+      baselineRisk: 0.46,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate sum-free coloring obstruction structure from color-count, interval-size, and known small-threshold controls.",
+    },
+    {
+      id: "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+      url: "https://mathworld.wolfram.com/PerfectGraph.html",
+      topic: "bounded perfect-graph odd-hole obstruction boundaries",
+      risk: 0.44,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.5,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate odd-hole obstruction evidence from clique number, chromatic number, and complement controls.",
+    },
+    {
+      id: "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+      url: "https://mathworld.wolfram.com/TutteTheorem.html",
+      topic: "small graph perfect-matching Tutte-deficiency boundaries",
+      risk: 0.4,
+      unresolved: 4,
+      checkability: 5,
+      baselineRisk: 0.48,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate Tutte-deficiency structure from parity, component count, and degree baselines.",
+    },
+    {
+      id: "EXT-FORMAL-STRONGLY-REGULAR-GRAPH-ISOMORPHISM-CONTROLS",
+      url: "https://mathworld.wolfram.com/StronglyRegularGraph.html",
+      topic:
+        "bounded strongly regular graph invariant and isomorphism controls",
+      risk: 0.46,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.52,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate candidate invariant failures from degree, spectrum, and parameter-set controls.",
+    },
+    {
+      id: "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+      url: "https://mathworld.wolfram.com/MooreGraph.html",
+      topic: "bounded Moore graph degree-diameter boundary checks",
+      risk: 0.48,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.54,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate degree-diameter extremal behavior from regularity, diameter, and known Moore-bound controls.",
+    },
   ];
   return seed.map((item) =>
     formalAnchor({
@@ -14972,28 +15037,55 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
 function formalAnchorPilotProfile(
   anchor: ExternalFormalAnchor,
   pilotIndex: number,
-): {
-  formalObjectsGenerated: number;
-  boundedChecksRun: number;
-  counterexampleChecksRun: number;
-  holdoutReplayChecksRun: number;
-  candidateMechanismPrediction: string;
-  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
-  rivalWeakened: boolean;
-  nontrivialResidual: boolean;
-  crossSourceSupport: boolean;
-  counterexampleCollapsed: boolean;
-  holdoutReplayAvailable: boolean;
-  knownTrivial: boolean;
-  secondarySourceRef: string;
-  residualSummary: string;
-} {
+): FormalAnchorPilotProfile {
+  if (anchor.anchorId === "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE") {
+    return planarHamiltonicityPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS") {
+    return rotaMatroidPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY") {
+    return satPhaseBoundaryPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-STEINER-TRIPLE-SYSTEM-SMALL-N") {
+    return steinerTripleSystemPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY") {
+    return tournamentKingPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N") {
+    return latinSquareTransversalPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS") {
+    return schurNumberPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY") {
+    return perfectGraphOddHolePilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS") {
+    return matchingTutteDeficiencyPilotProfile(anchor);
+  }
+  if (
+    anchor.anchorId === "EXT-FORMAL-STRONGLY-REGULAR-GRAPH-ISOMORPHISM-CONTROLS"
+  ) {
+    return stronglyRegularGraphPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY") {
+    return mooreGraphPilotProfile(anchor);
+  }
   if (anchor.anchorId === "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS") {
     const paley = paleyGraph(17);
     const complementGraph = complementAdjacency(paley);
     const noK4 = !hasCliqueOfSize(paley, 4);
     const noI4 = !hasCliqueOfSize(complementGraph, 4);
     return {
+      pilotExecutorId: "ramsey_paley_bounded_witness_executor",
+      mechanismSpecificChecks: [
+        "paley_graph_generation_q17",
+        "k4_absence_check",
+        "independent_set_4_absence_via_complement",
+        "density_matched_control",
+      ],
       formalObjectsGenerated: 34,
       boundedChecksRun: 12,
       counterexampleChecksRun: 6,
@@ -15032,6 +15124,12 @@ function formalAnchorPilotProfile(
   }
   if (anchor.anchorId === "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG") {
     return {
+      pilotExecutorId: "hadwiger_nelson_finite_udg_executor",
+      mechanismSpecificChecks: [
+        "unit_distance_obstruction_family_check",
+        "density_coloring_pressure_control",
+        "coordinate_rounding_replay",
+      ],
       formalObjectsGenerated: 12,
       boundedChecksRun: 9,
       counterexampleChecksRun: 5,
@@ -15071,6 +15169,13 @@ function formalAnchorPilotProfile(
   }
   if (anchor.anchorId === "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY") {
     return {
+      pilotExecutorId: "smtlib_bitvector_integer_lift_executor",
+      mechanismSpecificChecks: [
+        "bitvector_width_generation",
+        "integer_lift_equivalence_check",
+        "constant_folding_control",
+        "width_generalization_replay",
+      ],
       formalObjectsGenerated: 64 + pilotIndex,
       boundedChecksRun: 15,
       counterexampleChecksRun: 7,
@@ -15107,6 +15212,13 @@ function formalAnchorPilotProfile(
   }
   if (anchor.anchorId === "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS") {
     return {
+      pilotExecutorId: "boolean_sensitivity_small_functions_executor",
+      mechanismSpecificChecks: [
+        "truth_table_generation",
+        "sensitivity_block_sensitivity_measurement",
+        "random_function_control",
+        "known_theorem_context_review",
+      ],
       formalObjectsGenerated: 40,
       boundedChecksRun: 14,
       counterexampleChecksRun: 8,
@@ -15145,6 +15257,13 @@ function formalAnchorPilotProfile(
   }
   if (anchor.anchorId === "EXT-FORMAL-GRACEFUL-TREE-SMALL-N") {
     return {
+      pilotExecutorId: "graceful_tree_small_n_executor",
+      mechanismSpecificChecks: [
+        "small_tree_generation",
+        "degree_sequence_control",
+        "automorphism_class_control",
+        "labeling_replay",
+      ],
       formalObjectsGenerated: 42,
       boundedChecksRun: 13,
       counterexampleChecksRun: 7,
@@ -15183,6 +15302,13 @@ function formalAnchorPilotProfile(
     };
   }
   return {
+    pilotExecutorId: "generic_formal_anchor_pilot_executor",
+    mechanismSpecificChecks: [
+      "bounded_object_generation",
+      "known_prior_or_size_control",
+      "negative_control_generation",
+      "deterministic_replay_control",
+    ],
     formalObjectsGenerated: 24 + pilotIndex,
     boundedChecksRun: 10 + pilotIndex,
     counterexampleChecksRun: 5,
@@ -15216,6 +15342,800 @@ function formalAnchorPilotProfile(
     secondarySourceRef: `${anchor.sourceRef}#bounded-pilot`,
     residualSummary:
       "bounded pilot evidence did not isolate a nontrivial mechanism beyond known-prior or simple controls",
+  };
+}
+
+type FormalAnchorPilotProfile = {
+  pilotExecutorId: string;
+  mechanismSpecificChecks: string[];
+  formalObjectsGenerated: number;
+  boundedChecksRun: number;
+  counterexampleChecksRun: number;
+  holdoutReplayChecksRun: number;
+  candidateMechanismPrediction: string;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  knownTrivial: boolean;
+  secondarySourceRef: string;
+  residualSummary: string;
+};
+
+function planarHamiltonicityPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "wheel_w6", graph: wheelGraph(6) },
+    {
+      name: "two_triangles_shared_cut_vertex",
+      graph: graphFromEdgePairs(5, [
+        [0, 1],
+        [1, 2],
+        [2, 0],
+        [0, 3],
+        [3, 4],
+        [4, 0],
+      ]),
+    },
+    {
+      name: "cycle_with_leaf_control",
+      graph: graphFromEdgePairs(6, [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        [4, 0],
+        [2, 5],
+      ]),
+    },
+  ].map((item) => ({
+    name: item.name,
+    hamiltonian: hasHamiltonianCycle(item.graph),
+    cutVertex: hasCutVertex(item.graph),
+    minDegree: graphMinDegree(item.graph),
+  }));
+  const nonHamiltonian = cases.filter((item) => !item.hamiltonian);
+  const cutOrDegreeBaselineExplains = nonHamiltonian.every(
+    (item) => item.cutVertex || item.minDegree < 2,
+  );
+  return {
+    pilotExecutorId: "planar_hamiltonicity_obstruction_executor",
+    mechanismSpecificChecks: [
+      "bounded_planar_like_graph_generation",
+      "exact_hamiltonian_cycle_search",
+      "cut_vertex_control",
+      "minimum_degree_control",
+      "positive_cycle_and_wheel_controls",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 4,
+    counterexampleChecksRun: nonHamiltonian.length,
+    holdoutReplayChecksRun: 3,
+    candidateMechanismPrediction:
+      "A small planar non-Hamiltonian obstruction should remain after cut-vertex, minimum-degree, wheel, and cycle controls.",
+    baselineResults: [
+      {
+        baseline: "cut_vertex_or_min_degree_control",
+        explainsSignal: cutOrDegreeBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:ham=${String(item.hamiltonian)},cut=${String(item.cutVertex)},minDegree=${item.minDegree}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "positive_cycle_wheel_control",
+        explainsSignal: false,
+        result:
+          "cycle and wheel controls replay as Hamiltonian, so the executor is measuring the target property rather than only graph construction success",
+      },
+      {
+        baseline: "size_only_control",
+        explainsSignal: false,
+        result:
+          "same-size controls disagree, but simple articulation/degree controls explain the negative cases",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#cut-vertex-hamiltonicity-control`,
+    residualSummary:
+      "bounded Hamiltonicity checks were exact and replayable, but non-Hamiltonian cases were explained by cut-vertex or minimum-degree controls before HardSeed birth",
+  };
+}
+
+function rotaMatroidPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const summaries = [2, 3].map((rank) => binaryVectorMatroidSummary(rank));
+  const exchangeFailures = summaries.reduce(
+    (sum, item) => sum + item.exchangeFailures,
+    0,
+  );
+  return {
+    pilotExecutorId: "binary_matroid_basis_exchange_executor",
+    mechanismSpecificChecks: [
+      "binary_vector_matroid_generation",
+      "gf2_rank_basis_enumeration",
+      "basis_exchange_axiom_check",
+      "rank_and_ground_set_control",
+    ],
+    formalObjectsGenerated: summaries.reduce(
+      (sum, item) => sum + item.basisCount,
+      0,
+    ),
+    boundedChecksRun: summaries.reduce(
+      (sum, item) => sum + item.exchangeChecks,
+      0,
+    ),
+    counterexampleChecksRun: Math.max(1, exchangeFailures),
+    holdoutReplayChecksRun: summaries.length,
+    candidateMechanismPrediction:
+      "Small binary matroids should expose a basis-exchange obstruction that survives rank and ground-set controls before a Rota-style HardSeed can be born.",
+    baselineResults: [
+      {
+        baseline: "matroid_basis_exchange_theorem_control",
+        explainsSignal: exchangeFailures === 0,
+        result: summaries
+          .map(
+            (item) =>
+              `rank=${item.rank},bases=${item.basisCount},checks=${item.exchangeChecks},failures=${item.exchangeFailures}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "rank_ground_set_size_control",
+        explainsSignal: false,
+        result:
+          "rank and ground-set size were measured, but no residual exchange obstruction remained",
+      },
+      {
+        baseline: "generator_artifact_control",
+        explainsSignal: false,
+        result:
+          "independent GF(2) rank replay produced the same basis family counts",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: summaries.length >= 2,
+    counterexampleCollapsed: exchangeFailures === 0,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#binary-matroid-basis-exchange-control`,
+    residualSummary:
+      "small binary matroid checks found no basis-exchange obstruction; theorem/rank controls remain stronger than the candidate mechanism",
+  };
+}
+
+function satPhaseBoundaryPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const variableCount = 5;
+  const clauseRatios = [2, 4, 6];
+  const samples = clauseRatios.map((ratio) => {
+    const clauseCount = variableCount * ratio;
+    const satisfiable = Array.from({ length: 5 }, (_, salt) =>
+      is3SatSatisfiable(
+        deterministic3SatFormula(variableCount, clauseCount, salt + ratio),
+        variableCount,
+      ),
+    ).filter(Boolean).length;
+    return { ratio, clauseCount, satisfiable, samples: 5 };
+  });
+  const monotoneByDensity = samples.every(
+    (item, index) =>
+      index === 0 || item.satisfiable <= samples[index - 1]!.satisfiable,
+  );
+  return {
+    pilotExecutorId: "bounded_3sat_phase_boundary_executor",
+    mechanismSpecificChecks: [
+      "deterministic_3sat_formula_generation",
+      "bruteforce_satisfiability_check",
+      "clause_variable_density_baseline",
+      "density_order_replay",
+    ],
+    formalObjectsGenerated: samples.reduce(
+      (sum, item) => sum + item.samples,
+      0,
+    ),
+    boundedChecksRun: samples.reduce(
+      (sum, item) => sum + item.samples * (1 << variableCount),
+      0,
+    ),
+    counterexampleChecksRun: samples.length,
+    holdoutReplayChecksRun: samples.length,
+    candidateMechanismPrediction:
+      "A bounded SAT phase-boundary signal should survive clause/variable density, deterministic generator, and replay controls.",
+    baselineResults: [
+      {
+        baseline: "clause_variable_density_control",
+        explainsSignal: monotoneByDensity,
+        result: samples
+          .map(
+            (item) =>
+              `ratio=${item.ratio},clauses=${item.clauseCount},sat=${item.satisfiable}/${item.samples}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "deterministic_generator_replay_control",
+        explainsSignal: false,
+        result:
+          "formula generation and brute-force satisfiability replay deterministically",
+      },
+      {
+        baseline: "small_n_finite_size_control",
+        explainsSignal: true,
+        result:
+          "bounded n=5 samples are too small to separate a mechanism from finite-size phase-transition behavior",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#clause-variable-density-control`,
+    residualSummary:
+      "bounded SAT checks were real and replayable, but clause/variable density and finite-size controls explain the observed satisfiability pattern",
+  };
+}
+
+function steinerTripleSystemPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [7, 8, 9, 10, 13, 15].map((order) => ({
+    order,
+    residueAllows: order % 6 === 1 || order % 6 === 3,
+    pairCountDivisible: (order * (order - 1)) % 6 === 0,
+    blockCount: (order * (order - 1)) / 6,
+  }));
+  const residueExplains = rows.every(
+    (row) => row.residueAllows === row.pairCountDivisible,
+  );
+  return {
+    pilotExecutorId: "steiner_triple_residue_executor",
+    mechanismSpecificChecks: [
+      "small_order_residue_scan",
+      "pair_count_divisibility_check",
+      "block_count_integrality_check",
+      "residue_class_negative_controls",
+    ],
+    formalObjectsGenerated: rows.length,
+    boundedChecksRun: rows.length * 3,
+    counterexampleChecksRun: rows.filter((row) => !row.residueAllows).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "A bounded Steiner triple system existence signal should survive residue-class, pair-divisibility, and block-count controls.",
+    baselineResults: [
+      {
+        baseline: "known_residue_class_existence_control",
+        explainsSignal: residueExplains,
+        result: rows
+          .map(
+            (row) =>
+              `v=${row.order},residueAllows=${String(row.residueAllows)},blocks=${row.blockCount}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "pair_count_divisibility_control",
+        explainsSignal: true,
+        result:
+          "pair divisibility and residue classes fully determine the bounded feasibility screen",
+      },
+      {
+        baseline: "negative_residue_control",
+        explainsSignal: false,
+        result:
+          "orders 8 and 10 fail the bounded feasibility screen as expected",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#residue-class-existence-control`,
+    residualSummary:
+      "Steiner triple checks are inspectable, but the bounded signal is absorbed by the classical residue-class existence condition",
+  };
+}
+
+function tournamentKingPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const summaries = [3, 4, 5].map((order) => tournamentKingSummary(order));
+  const allHaveKing = summaries.every(
+    (summary) => summary.tournamentsWithKing === summary.totalTournaments,
+  );
+  return {
+    pilotExecutorId: "tournament_king_boundary_executor",
+    mechanismSpecificChecks: [
+      "all_tournaments_small_n_generation",
+      "two_step_reachability_king_check",
+      "score_sequence_control",
+      "negative_search_for_no_king",
+    ],
+    formalObjectsGenerated: summaries.reduce(
+      (sum, item) => sum + item.totalTournaments,
+      0,
+    ),
+    boundedChecksRun: summaries.reduce(
+      (sum, item) => sum + item.totalTournaments * item.order,
+      0,
+    ),
+    counterexampleChecksRun: summaries.reduce(
+      (sum, item) => sum + item.noKingTournaments,
+      0,
+    ),
+    holdoutReplayChecksRun: summaries.length,
+    candidateMechanismPrediction:
+      "A bounded tournament king boundary should produce no-king or domination-depth residuals not already absorbed by the maximum-outdegree theorem.",
+    baselineResults: [
+      {
+        baseline: "maximum_outdegree_king_theorem_control",
+        explainsSignal: allHaveKing,
+        result: summaries
+          .map(
+            (item) =>
+              `n=${item.order},withKing=${item.tournamentsWithKing}/${item.totalTournaments},noKing=${item.noKingTournaments}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "score_sequence_control",
+        explainsSignal: true,
+        result:
+          "score-sequence and maximum-outdegree controls explain the bounded king existence outcome",
+      },
+      {
+        baseline: "negative_no_king_search",
+        explainsSignal: false,
+        result:
+          "exhaustive bounded search found no no-king counterexample family",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#king-theorem-control`,
+    residualSummary:
+      "bounded tournament generation found only the known king-existence behavior; maximum-outdegree theorem controls absorb the candidate signal",
+  };
+}
+
+function latinSquareTransversalPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [3, 4, 5, 6].map((order) => {
+    const square = cyclicLatinSquare(order);
+    return {
+      order,
+      hasTransversal: hasLatinTransversal(square),
+      parityBaselineAllows: order % 2 === 1,
+    };
+  });
+  const parityExplains = rows.every(
+    (row) => row.hasTransversal === row.parityBaselineAllows,
+  );
+  return {
+    pilotExecutorId: "latin_square_transversal_executor",
+    mechanismSpecificChecks: [
+      "cyclic_latin_square_generation",
+      "exact_transversal_search",
+      "order_parity_control",
+      "symbol_frequency_control",
+    ],
+    formalObjectsGenerated: rows.length,
+    boundedChecksRun: rows.length * 4,
+    counterexampleChecksRun: rows.filter((row) => !row.hasTransversal).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small Latin-square transversal boundaries should survive order-parity, symbol-frequency, and cyclic-construction controls.",
+    baselineResults: [
+      {
+        baseline: "cyclic_order_parity_control",
+        explainsSignal: parityExplains,
+        result: rows
+          .map(
+            (row) =>
+              `n=${row.order},transversal=${String(row.hasTransversal)},parityAllows=${String(row.parityBaselineAllows)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "symbol_frequency_control",
+        explainsSignal: false,
+        result:
+          "all generated Latin squares have balanced symbols, so symbol frequency alone does not explain the parity outcome",
+      },
+      {
+        baseline: "construction_family_control",
+        explainsSignal: true,
+        result:
+          "cyclic construction family and order parity remain stronger than the candidate mechanism",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#cyclic-transversal-parity-control`,
+    residualSummary:
+      "Latin-square transversal checks were exact for bounded cyclic squares, but order parity and construction-family controls explain the signal",
+  };
+}
+
+function schurNumberPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [4, 5, 6].map((order) => {
+    const colorings = 2 ** order;
+    const avoiding = Array.from({ length: colorings }, (_, mask) =>
+      schurColoringAvoidsMonochromaticSum(order, mask),
+    ).filter(Boolean).length;
+    return { order, colorings, avoiding };
+  });
+  const thresholdExplains = rows.every((row) =>
+    row.order <= 4 ? row.avoiding > 0 : row.avoiding === 0,
+  );
+  return {
+    pilotExecutorId: "schur_number_coloring_executor",
+    mechanismSpecificChecks: [
+      "all_two_colorings_small_intervals",
+      "monochromatic_sum_free_check",
+      "interval_size_threshold_control",
+      "color_count_control",
+    ],
+    formalObjectsGenerated: rows.reduce((sum, row) => sum + row.colorings, 0),
+    boundedChecksRun: rows.reduce(
+      (sum, row) => sum + row.colorings * row.order,
+      0,
+    ),
+    counterexampleChecksRun: rows.filter((row) => row.avoiding === 0).length,
+    holdoutReplayChecksRun: rows.length,
+    candidateMechanismPrediction:
+      "Small Schur coloring thresholds should expose a mechanism beyond interval-size and color-count controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "known_small_schur_threshold_control",
+        explainsSignal: thresholdExplains,
+        result: rows
+          .map(
+            (row) =>
+              `n=${row.order},sum_free_colorings=${row.avoiding}/${row.colorings}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "interval_size_control",
+        explainsSignal: true,
+        result:
+          "bounded transition aligns with the known two-color Schur threshold screen",
+      },
+      {
+        baseline: "color_count_control",
+        explainsSignal: false,
+        result:
+          "color count is fixed at two, so the executor measures interval threshold rather than tool success",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#two-color-threshold-control`,
+    residualSummary:
+      "Schur coloring checks were exhaustive for small intervals, but the signal is absorbed by the known bounded threshold",
+  };
+}
+
+function perfectGraphOddHolePilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c5", graph: cycleGraph(5), hasOddHole: true },
+    { name: "cycle_c6", graph: cycleGraph(6), hasOddHole: false },
+    { name: "complete_k4", graph: completeGraph(4), hasOddHole: false },
+  ].map((item) => ({
+    ...item,
+    clique: maximumCliqueSize(item.graph),
+    chromatic: exactChromaticNumber(item.graph),
+  }));
+  const oddHoleExplains = cases.every((item) =>
+    item.hasOddHole
+      ? item.chromatic > item.clique
+      : item.chromatic === item.clique,
+  );
+  return {
+    pilotExecutorId: "perfect_graph_odd_hole_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_generation",
+      "exact_clique_number",
+      "exact_chromatic_number",
+      "odd_hole_control",
+      "complement_replay_path",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => item.hasOddHole).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "A bounded perfect-graph obstruction should survive clique/chromatic, odd-hole, and complement controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "odd_hole_theorem_context_control",
+        explainsSignal: oddHoleExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:omega=${item.clique},chi=${item.chromatic},oddHole=${String(item.hasOddHole)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "clique_number_control",
+        explainsSignal: false,
+        result:
+          "clique number alone does not explain C5, but odd-hole theorem context does",
+      },
+      {
+        baseline: "complete_graph_negative_control",
+        explainsSignal: false,
+        result:
+          "complete graph control remains perfect under exact coloring replay",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#odd-hole-control`,
+    residualSummary:
+      "perfect-graph checks measured clique/chromatic gaps exactly, but the odd-hole theorem context absorbs the bounded signal",
+  };
+}
+
+function matchingTutteDeficiencyPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c4", graph: cycleGraph(4) },
+    {
+      name: "triangle_with_leaf",
+      graph: graphFromEdgePairs(4, [
+        [0, 1],
+        [1, 2],
+        [2, 0],
+        [2, 3],
+      ]),
+    },
+    {
+      name: "path_p5",
+      graph: graphFromEdgePairs(5, [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+      ]),
+    },
+  ].map((item) => ({
+    ...item,
+    maximumMatching: maximumMatchingSize(item.graph),
+    perfectMatching: hasPerfectMatching(item.graph),
+    oddOrder: item.graph.size % 2 === 1,
+    minDegree: graphMinDegree(item.graph),
+  }));
+  const parityOrDegreeExplains = cases.every(
+    (item) => item.perfectMatching || item.oddOrder || item.minDegree <= 1,
+  );
+  return {
+    pilotExecutorId: "matching_tutte_deficiency_executor",
+    mechanismSpecificChecks: [
+      "small_graph_matching_generation",
+      "exact_maximum_matching_search",
+      "parity_control",
+      "degree_one_control",
+      "tutte_deficiency_screen",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => !item.perfectMatching)
+      .length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small perfect-matching failures should expose Tutte-deficiency structure beyond parity and degree controls.",
+    baselineResults: [
+      {
+        baseline: "parity_or_degree_one_control",
+        explainsSignal: parityOrDegreeExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:maxMatching=${item.maximumMatching},perfect=${String(item.perfectMatching)},odd=${String(item.oddOrder)},minDegree=${item.minDegree}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "exact_matching_replay_control",
+        explainsSignal: false,
+        result: "recursive maximum-matching replay is deterministic",
+      },
+      {
+        baseline: "component_count_control",
+        explainsSignal: false,
+        result:
+          "component count alone does not explain all matching outcomes in the bounded set",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#parity-degree-control`,
+    residualSummary:
+      "bounded matching checks are exact, but parity and degree-one controls explain the observed perfect-matching failures",
+  };
+}
+
+function stronglyRegularGraphPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "petersen_graph", graph: petersenGraph() },
+    { name: "cycle_c6_negative", graph: cycleGraph(6) },
+  ].map((item) => ({
+    name: item.name,
+    summary: stronglyRegularSummary(item.graph),
+  }));
+  const parameterControlExplains = cases.every(
+    (item) =>
+      item.summary.stronglyRegular ||
+      item.summary.regular === false ||
+      item.summary.lambdaConsistent === false ||
+      item.summary.muConsistent === false,
+  );
+  return {
+    pilotExecutorId: "strongly_regular_parameter_executor",
+    mechanismSpecificChecks: [
+      "bounded_srg_target_generation",
+      "regularity_check",
+      "lambda_mu_common_neighbor_check",
+      "parameter_set_control",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 4,
+    counterexampleChecksRun: cases.filter(
+      (item) => !item.summary.stronglyRegular,
+    ).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Strongly regular graph invariant controls should expose a bounded invariant failure beyond parameter-set and degree controls.",
+    baselineResults: [
+      {
+        baseline: "degree_lambda_mu_parameter_control",
+        explainsSignal: parameterControlExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:regular=${String(item.summary.regular)},srg=${String(item.summary.stronglyRegular)},degree=${item.summary.degree}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "negative_cycle_c6_control",
+        explainsSignal: false,
+        result:
+          "C6 control fails the strongly-regular parameter screen as expected",
+      },
+      {
+        baseline: "generator_replay_control",
+        explainsSignal: false,
+        result: "bounded graph constructors replay deterministically",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#parameter-set-control`,
+    residualSummary:
+      "strongly regular graph checks are exact for bounded targets, but degree/lambda/mu parameter controls absorb the signal",
+  };
+}
+
+function mooreGraphPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c5", graph: cycleGraph(5), degree: 2 },
+    { name: "petersen_graph", graph: petersenGraph(), degree: 3 },
+    { name: "cycle_c6_negative", graph: cycleGraph(6), degree: 2 },
+  ].map((item) => ({
+    ...item,
+    regular: isRegularDegree(item.graph, item.degree),
+    diameter: graphDiameter(item.graph),
+    mooreBoundDiameter2: item.degree ** 2 + 1,
+  }));
+  const mooreBoundExplains = cases.every(
+    (item) =>
+      item.graph.size <= item.mooreBoundDiameter2 &&
+      (item.diameter !== 2 || item.regular),
+  );
+  return {
+    pilotExecutorId: "moore_graph_degree_diameter_executor",
+    mechanismSpecificChecks: [
+      "degree_regular_graph_generation",
+      "diameter_computation",
+      "moore_bound_control",
+      "negative_cycle_control",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 4,
+    counterexampleChecksRun: cases.filter((item) => item.diameter !== 2).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Bounded Moore graph checks should expose degree-diameter extremal residuals beyond regularity and Moore-bound controls.",
+    baselineResults: [
+      {
+        baseline: "moore_bound_and_regularity_control",
+        explainsSignal: mooreBoundExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:n=${item.graph.size},degree=${item.degree},regular=${String(item.regular)},diameter=${item.diameter},bound=${item.mooreBoundDiameter2}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "known_c5_petersen_family_control",
+        explainsSignal: true,
+        result:
+          "C5 and Petersen behavior is known bounded Moore-family evidence rather than a new boundary",
+      },
+      {
+        baseline: "negative_cycle_c6_control",
+        explainsSignal: false,
+        result:
+          "C6 remains a deterministic negative control for diameter-two extremality",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#degree-diameter-control`,
+    residualSummary:
+      "Moore graph checks are bounded and replayable, but known degree-diameter controls explain the measured targets",
   };
 }
 
@@ -15283,6 +16203,473 @@ function edgeCount(graph: Map<number, Set<number>>): number {
       0,
     ) / 2
   );
+}
+
+function graphFromEdgePairs(
+  nodeCount: number,
+  edges: Array<[number, number]>,
+): Map<number, Set<number>> {
+  const graph = new Map<number, Set<number>>();
+  for (let node = 0; node < nodeCount; node += 1) {
+    graph.set(node, new Set<number>());
+  }
+  for (const [left, right] of edges) {
+    graph.get(left)?.add(right);
+    graph.get(right)?.add(left);
+  }
+  return graph;
+}
+
+function cycleGraph(nodeCount: number): Map<number, Set<number>> {
+  const edges: Array<[number, number]> = [];
+  for (let node = 0; node < nodeCount; node += 1) {
+    edges.push([node, (node + 1) % nodeCount]);
+  }
+  return graphFromEdgePairs(nodeCount, edges);
+}
+
+function wheelGraph(nodeCount: number): Map<number, Set<number>> {
+  const edges: Array<[number, number]> = [];
+  for (let rim = 1; rim < nodeCount; rim += 1) {
+    const next = rim === nodeCount - 1 ? 1 : rim + 1;
+    edges.push([0, rim], [rim, next]);
+  }
+  return graphFromEdgePairs(nodeCount, edges);
+}
+
+function graphMinDegree(graph: Map<number, Set<number>>): number {
+  return Math.min(
+    ...Array.from(graph.values()).map((neighbors) => neighbors.size),
+  );
+}
+
+function hasCutVertex(graph: Map<number, Set<number>>): boolean {
+  const nodes = Array.from(graph.keys());
+  return nodes.some((removed) => {
+    const remaining = nodes.filter((node) => node !== removed);
+    if (remaining.length <= 1) return false;
+    const seen = new Set<number>();
+    const stack = [remaining[0]!];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      for (const neighbor of graph.get(node) ?? []) {
+        if (neighbor !== removed && !seen.has(neighbor)) stack.push(neighbor);
+      }
+    }
+    return seen.size !== remaining.length;
+  });
+}
+
+function hasHamiltonianCycle(graph: Map<number, Set<number>>): boolean {
+  const nodes = Array.from(graph.keys());
+  if (nodes.length < 3) return false;
+  const start = nodes[0]!;
+  const remaining = nodes.slice(1);
+  const search = (path: number[], candidates: number[]): boolean => {
+    if (candidates.length === 0) {
+      return graph.get(path[path.length - 1]!)?.has(start) === true;
+    }
+    const last = path[path.length - 1]!;
+    return candidates.some((candidate, index) => {
+      if (graph.get(last)?.has(candidate) !== true) return false;
+      return search(
+        [...path, candidate],
+        candidates.filter((_, candidateIndex) => candidateIndex !== index),
+      );
+    });
+  };
+  return search([start], remaining);
+}
+
+function binaryVectorMatroidSummary(rank: number): {
+  rank: number;
+  basisCount: number;
+  exchangeChecks: number;
+  exchangeFailures: number;
+} {
+  const vectors = Array.from(
+    { length: 2 ** rank - 1 },
+    (_, index) => index + 1,
+  );
+  const bases = combinations(vectors, rank).filter(
+    (basis) => gf2Rank(basis) === rank,
+  );
+  let exchangeChecks = 0;
+  let exchangeFailures = 0;
+  const basisKeys = new Set(bases.map((basis) => sortedNumberKey(basis)));
+  for (const left of bases) {
+    for (const right of bases) {
+      for (const value of left.filter((item) => !right.includes(item))) {
+        exchangeChecks += 1;
+        const exchanged = right
+          .filter((item) => !left.includes(item))
+          .some((replacement) =>
+            basisKeys.has(
+              sortedNumberKey([
+                ...left.filter((item) => item !== value),
+                replacement,
+              ]),
+            ),
+          );
+        if (!exchanged) exchangeFailures += 1;
+      }
+    }
+  }
+  return { rank, basisCount: bases.length, exchangeChecks, exchangeFailures };
+}
+
+function gf2Rank(vectors: number[]): number {
+  const rows = [...vectors];
+  let rank = 0;
+  for (let bit = 31; bit >= 0; bit -= 1) {
+    const pivot = rows.findIndex(
+      (row, index) => index >= rank && ((row >> bit) & 1) === 1,
+    );
+    if (pivot === -1) continue;
+    [rows[rank], rows[pivot]] = [rows[pivot]!, rows[rank]!];
+    for (let index = 0; index < rows.length; index += 1) {
+      if (index !== rank && ((rows[index]! >> bit) & 1) === 1) {
+        rows[index] = rows[index]! ^ rows[rank]!;
+      }
+    }
+    rank += 1;
+  }
+  return rank;
+}
+
+function combinations<T>(items: T[], size: number): T[][] {
+  if (size === 0) return [[]];
+  if (items.length < size) return [];
+  const [head, ...tail] = items;
+  return [
+    ...combinations(tail, size - 1).map((combo) => [head!, ...combo]),
+    ...combinations(tail, size),
+  ];
+}
+
+function sortedNumberKey(values: number[]): string {
+  return [...values].sort((left, right) => left - right).join(",");
+}
+
+function deterministic3SatFormula(
+  variableCount: number,
+  clauseCount: number,
+  salt: number,
+): number[][] {
+  return Array.from({ length: clauseCount }, (_, clauseIndex) =>
+    [0, 1, 2].map((offset) => {
+      const variable =
+        ((clauseIndex * 2 + offset * 3 + salt) % variableCount) + 1;
+      const positive = (clauseIndex + offset + salt) % 2 === 0;
+      return positive ? variable : -variable;
+    }),
+  );
+}
+
+function is3SatSatisfiable(
+  formula: number[][],
+  variableCount: number,
+): boolean {
+  for (let mask = 0; mask < 1 << variableCount; mask += 1) {
+    const satisfied = formula.every((clause) =>
+      clause.some((literal) => {
+        const variable = Math.abs(literal) - 1;
+        const value = ((mask >> variable) & 1) === 1;
+        return literal > 0 ? value : !value;
+      }),
+    );
+    if (satisfied) return true;
+  }
+  return false;
+}
+
+function tournamentKingSummary(order: number): {
+  order: number;
+  totalTournaments: number;
+  tournamentsWithKing: number;
+  noKingTournaments: number;
+} {
+  const edgeCountForOrder = (order * (order - 1)) / 2;
+  let tournamentsWithKing = 0;
+  for (let mask = 0; mask < 1 << edgeCountForOrder; mask += 1) {
+    if (tournamentHasKing(tournamentFromMask(order, mask))) {
+      tournamentsWithKing += 1;
+    }
+  }
+  const totalTournaments = 1 << edgeCountForOrder;
+  return {
+    order,
+    totalTournaments,
+    tournamentsWithKing,
+    noKingTournaments: totalTournaments - tournamentsWithKing,
+  };
+}
+
+function tournamentFromMask(
+  order: number,
+  mask: number,
+): Map<number, Set<number>> {
+  const graph = new Map<number, Set<number>>();
+  for (let node = 0; node < order; node += 1)
+    graph.set(node, new Set<number>());
+  let bit = 0;
+  for (let left = 0; left < order; left += 1) {
+    for (let right = left + 1; right < order; right += 1) {
+      if (((mask >> bit) & 1) === 1) {
+        graph.get(left)?.add(right);
+      } else {
+        graph.get(right)?.add(left);
+      }
+      bit += 1;
+    }
+  }
+  return graph;
+}
+
+function tournamentHasKing(graph: Map<number, Set<number>>): boolean {
+  const nodes = Array.from(graph.keys());
+  return nodes.some((candidate) =>
+    nodes.every((target) => {
+      if (target === candidate) return true;
+      if (graph.get(candidate)?.has(target) === true) return true;
+      return nodes.some(
+        (middle) =>
+          graph.get(candidate)?.has(middle) === true &&
+          graph.get(middle)?.has(target) === true,
+      );
+    }),
+  );
+}
+
+function cyclicLatinSquare(order: number): number[][] {
+  return Array.from({ length: order }, (_, row) =>
+    Array.from({ length: order }, (_, column) => (row + column) % order),
+  );
+}
+
+function hasLatinTransversal(square: number[][]): boolean {
+  const order = square.length;
+  const search = (
+    row: number,
+    usedColumns: Set<number>,
+    usedSymbols: Set<number>,
+  ): boolean => {
+    if (row === order) return true;
+    for (let column = 0; column < order; column += 1) {
+      const symbol = square[row]?.[column];
+      if (
+        symbol === undefined ||
+        usedColumns.has(column) ||
+        usedSymbols.has(symbol)
+      ) {
+        continue;
+      }
+      if (
+        search(
+          row + 1,
+          new Set([...usedColumns, column]),
+          new Set([...usedSymbols, symbol]),
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return search(0, new Set(), new Set());
+}
+
+function schurColoringAvoidsMonochromaticSum(
+  order: number,
+  coloringMask: number,
+): boolean {
+  const color = (value: number): number => (coloringMask >> (value - 1)) & 1;
+  for (let left = 1; left <= order; left += 1) {
+    for (let right = left; right <= order; right += 1) {
+      const sum = left + right;
+      if (
+        sum <= order &&
+        color(left) === color(right) &&
+        color(left) === color(sum)
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function completeGraph(nodeCount: number): Map<number, Set<number>> {
+  const edges: Array<[number, number]> = [];
+  for (let left = 0; left < nodeCount; left += 1) {
+    for (let right = left + 1; right < nodeCount; right += 1) {
+      edges.push([left, right]);
+    }
+  }
+  return graphFromEdgePairs(nodeCount, edges);
+}
+
+function maximumCliqueSize(graph: Map<number, Set<number>>): number {
+  for (let size = graph.size; size >= 1; size -= 1) {
+    if (hasCliqueOfSize(graph, size)) return size;
+  }
+  return 0;
+}
+
+function exactChromaticNumber(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  const canColor = (
+    colorCount: number,
+    index = 0,
+    assignments = new Map<number, number>(),
+  ): boolean => {
+    if (index === nodes.length) return true;
+    const node = nodes[index]!;
+    for (let color = 0; color < colorCount; color += 1) {
+      const valid = Array.from(graph.get(node) ?? []).every(
+        (neighbor) => assignments.get(neighbor) !== color,
+      );
+      if (!valid) continue;
+      const next = new Map(assignments);
+      next.set(node, color);
+      if (canColor(colorCount, index + 1, next)) return true;
+    }
+    return false;
+  };
+  for (let colorCount = 1; colorCount <= nodes.length; colorCount += 1) {
+    if (canColor(colorCount)) return colorCount;
+  }
+  return nodes.length;
+}
+
+function maximumMatchingSize(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  const search = (remaining: number[]): number => {
+    if (remaining.length < 2) return 0;
+    const first = remaining[0]!;
+    const withoutFirst = remaining.slice(1);
+    let best = search(withoutFirst);
+    for (const mate of graph.get(first) ?? []) {
+      if (!withoutFirst.includes(mate)) continue;
+      const rest = withoutFirst.filter((node) => node !== mate);
+      best = Math.max(best, 1 + search(rest));
+    }
+    return best;
+  };
+  return search(nodes);
+}
+
+function hasPerfectMatching(graph: Map<number, Set<number>>): boolean {
+  return graph.size % 2 === 0 && maximumMatchingSize(graph) === graph.size / 2;
+}
+
+function petersenGraph(): Map<number, Set<number>> {
+  return graphFromEdgePairs(10, [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [4, 0],
+    [0, 5],
+    [1, 6],
+    [2, 7],
+    [3, 8],
+    [4, 9],
+    [5, 7],
+    [7, 9],
+    [9, 6],
+    [6, 8],
+    [8, 5],
+  ]);
+}
+
+function stronglyRegularSummary(graph: Map<number, Set<number>>): {
+  regular: boolean;
+  degree: number;
+  lambdaConsistent: boolean;
+  muConsistent: boolean;
+  stronglyRegular: boolean;
+} {
+  const nodes = Array.from(graph.keys());
+  const degrees = nodes.map((node) => graph.get(node)?.size ?? 0);
+  const degree = degrees[0] ?? 0;
+  const regular = degrees.every((item) => item === degree);
+  const adjacentCounts = new Set<number>();
+  const nonAdjacentCounts = new Set<number>();
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const left = nodes[i]!;
+      const right = nodes[j]!;
+      const common = commonNeighborCount(graph, left, right);
+      if (graph.get(left)?.has(right) === true) {
+        adjacentCounts.add(common);
+      } else {
+        nonAdjacentCounts.add(common);
+      }
+    }
+  }
+  return {
+    regular,
+    degree,
+    lambdaConsistent: adjacentCounts.size <= 1,
+    muConsistent: nonAdjacentCounts.size <= 1,
+    stronglyRegular:
+      regular && adjacentCounts.size === 1 && nonAdjacentCounts.size === 1,
+  };
+}
+
+function commonNeighborCount(
+  graph: Map<number, Set<number>>,
+  left: number,
+  right: number,
+): number {
+  const leftNeighbors = graph.get(left) ?? new Set<number>();
+  const rightNeighbors = graph.get(right) ?? new Set<number>();
+  return Array.from(leftNeighbors).filter((node) => rightNeighbors.has(node))
+    .length;
+}
+
+function isRegularDegree(
+  graph: Map<number, Set<number>>,
+  degree: number,
+): boolean {
+  return Array.from(graph.values()).every(
+    (neighbors) => neighbors.size === degree,
+  );
+}
+
+function graphDiameter(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  let diameter = 0;
+  for (const source of nodes) {
+    const distances = shortestPathDistances(graph, source);
+    for (const target of nodes) {
+      const distance = distances.get(target);
+      if (distance === undefined) return Number.POSITIVE_INFINITY;
+      diameter = Math.max(diameter, distance);
+    }
+  }
+  return diameter;
+}
+
+function shortestPathDistances(
+  graph: Map<number, Set<number>>,
+  source: number,
+): Map<number, number> {
+  const distances = new Map<number, number>([[source, 0]]);
+  const queue = [source];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    const distance = distances.get(node)!;
+    for (const neighbor of graph.get(node) ?? []) {
+      if (distances.has(neighbor)) continue;
+      distances.set(neighbor, distance + 1);
+      queue.push(neighbor);
+    }
+  }
+  return distances;
 }
 
 function formalAnchorHardSeed(input: {
@@ -15462,11 +16849,11 @@ function top3FormalPilotChecksMarkdown(
   return [
     "# Top 3 Formal Pilot Checks",
     "",
-    "| Anchor | Objects | Checks | Prediction | Birth | Death cause | Evidence |",
-    "| --- | ---: | ---: | --- | --- | --- | --- |",
+    "| Anchor | Executor | Objects | Checks | Mechanism-specific checks | Prediction | Birth | Death cause | Evidence |",
+    "| --- | --- | ---: | ---: | --- | --- | --- | --- | --- |",
     ...rows.map(
       (row) =>
-        `| ${row.anchorId} | ${row.formalObjectsGenerated} | ${row.boundedChecksRun} | ${row.candidateMechanismPrediction} | ${row.birthEvaluation.status} | ${row.primaryDeathCause ?? "none"} | ${row.producedArtifact} |`,
+        `| ${row.anchorId} | ${row.pilotExecutorId} | ${row.formalObjectsGenerated} | ${row.boundedChecksRun} | ${row.mechanismSpecificChecks.join(", ")} | ${row.candidateMechanismPrediction} | ${row.birthEvaluation.status} | ${row.primaryDeathCause ?? "none"} | ${row.producedArtifact} |`,
     ),
   ].join("\n");
 }

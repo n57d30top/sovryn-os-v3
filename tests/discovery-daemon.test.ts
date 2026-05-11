@@ -4257,7 +4257,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   const selection = await service.formalAnchorSelect();
 
   assert.equal(selection.kind, "external_formal_anchor_selection");
-  assert.equal(selection.anchorsEvaluated >= 25, true);
+  assert.equal(selection.anchorsEvaluated >= 30, true);
   assert.equal(selection.top5Anchors.length, 5);
   assert.equal(selection.rejectedKnownSourceFamily >= 1, true);
   assert.equal(selection.rejectedKnownPriorAbsorbed >= 3, true);
@@ -4358,6 +4358,146 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   assert.equal(audit.kind, "external_formal_anchor_audit");
   assert.equal(audit.passed, true);
   assert.deepEqual(audit.failedGates, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("formal anchor selector keeps bounded reserve anchors after repeated pilot deaths", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  await mkdir(selectionRoot, { recursive: true });
+  await writeFile(
+    join(selectionRoot, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    JSON.stringify(
+      {
+        kind: "external_formal_anchor_selector_memory",
+        baselineDominatedAnchorIds: [
+          "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+          "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+          "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+          "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+          "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+          "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+          "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE",
+          "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS",
+          "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY",
+          "EXT-FORMAL-STEINER-TRIPLE-SYSTEM-SMALL-N",
+          "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY",
+          "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS",
+          "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
+        ],
+        knownTrivialAnchorIds: [],
+        rivalStrongerAnchorIds: [],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+        evidenceHash: "test-memory",
+      },
+      null,
+      2,
+    ),
+  );
+
+  const selection = await service.formalAnchorSelect();
+  const topIds = selection.top5Anchors.map((item) => item.anchor.anchorId);
+
+  assert.equal(selection.anchorsEvaluated >= 30, true);
+  assert.equal(selection.top5Anchors.length, 5);
+  assert.equal(
+    [
+      "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS",
+      "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+      "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+      "EXT-FORMAL-STRONGLY-REGULAR-GRAPH-ISOMORPHISM-CONTROLS",
+      "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+    ].every((anchorId) => topIds.includes(anchorId)),
+    true,
+  );
+});
+
+test("formal anchor pilot uses mechanism-specific executors after failure memory rotation", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  await mkdir(selectionRoot, { recursive: true });
+  await writeFile(
+    join(selectionRoot, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    JSON.stringify(
+      {
+        kind: "external_formal_anchor_selector_memory",
+        baselineDominatedAnchorIds: [
+          "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+          "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+          "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+          "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+          "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+          "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+        ],
+        knownTrivialAnchorIds: [],
+        rivalStrongerAnchorIds: [],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+        evidenceHash: "test-memory",
+      },
+      null,
+      2,
+    ),
+  );
+
+  const selection = await service.formalAnchorSelect();
+
+  assert.deepEqual(
+    selection.top5Anchors.slice(0, 3).map((item) => item.anchor.anchorId),
+    [
+      "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+      "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+      "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+    ],
+  );
+
+  const pilot = await service.formalAnchorPilot();
+
+  assert.equal(pilot.hardSeedsBorn, 0);
+  assert.equal(pilot.fundFound, false);
+
+  const pilotRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      anchorId: string;
+      pilotExecutorId: string;
+      mechanismSpecificChecks: string[];
+      boundedChecksRun: number;
+      birthEvaluation: { accepted: boolean; primaryBlocker: string | null };
+      primaryDeathCause: string | null;
+    }>;
+  };
+
+  assert.deepEqual(
+    pilotRows.results.map((row) => row.pilotExecutorId),
+    [
+      "matching_tutte_deficiency_executor",
+      "moore_graph_degree_diameter_executor",
+      "perfect_graph_odd_hole_executor",
+    ],
+  );
+  assert.equal(
+    pilotRows.results.every(
+      (row) =>
+        row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+        row.mechanismSpecificChecks.length >= 4 &&
+        row.boundedChecksRun > 0 &&
+        row.birthEvaluation.accepted === false &&
+        row.primaryDeathCause !== null,
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

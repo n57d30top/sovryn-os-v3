@@ -1333,6 +1333,26 @@ export type GeneratorBornHardSeedPressureReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornInsightClosureReport = {
+  kind: "generator_born_insight_closure";
+  status: "continue_searching_checkpointed" | "FUND_FOUND";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  generatorBornCandidateRefs: string[];
+  candidatesLoaded: number;
+  candidateIds: string[];
+  testsExecuted: number;
+  gatesPassed: string[];
+  gatesFailed: string[];
+  promotionDecisions: InsightGauntletPromotionDecision[];
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -2420,7 +2440,7 @@ export class InsightCandidateRequiredNextTestGauntlet {
         parentCycle,
       });
       executions.push(...candidateExecutions);
-      const decision = this.promotionDecision(candidate, candidateExecutions);
+      const decision = insightPromotionDecision(candidate, candidateExecutions);
       promotionDecisions.push(decision);
       fundGateResults.push(decision.fundGateResult);
       await this.writeCandidateExecution(
@@ -2568,54 +2588,6 @@ export class InsightCandidateRequiredNextTestGauntlet {
       : null;
   }
 
-  private promotionDecision(
-    candidate: InsightCandidate,
-    executions: InsightGauntletTestExecution[],
-  ): InsightGauntletPromotionDecision {
-    const promotionEvidence = promotionEvidenceFromExecutions(executions);
-    const updatedCandidate: InsightCandidate = {
-      ...candidate,
-      promotionEvidence,
-    };
-    const promotionEvaluation =
-      new InsightCandidatePromotionEvaluator().evaluate(updatedCandidate);
-    const discoveryCandidateId =
-      promotionEvaluation.eligibleForDiscoveryScoredEvaluation
-        ? `DISCOVERY-${normalizeCandidateIdPart(candidate.candidateId).slice(0, 64)}`
-        : null;
-    const fundCandidate =
-      discoveryCandidateId === null
-        ? null
-        : fundCandidateFromInsightGauntlet(
-            discoveryCandidateId,
-            updatedCandidate,
-            executions,
-          );
-    const fundGateResult = new FundGateEvaluator().evaluate(fundCandidate);
-    return withEvidenceHash({
-      kind: "insight_candidate_promotion_decision" as const,
-      candidateId: candidate.candidateId,
-      parentPipelineCandidateId: candidate.parentPipelineCandidateId,
-      discoveryCandidateId,
-      promotedToDiscoveryCandidate: discoveryCandidateId !== null,
-      fundCandidateDraftRef:
-        discoveryCandidateId === null
-          ? null
-          : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(discoveryCandidateId)}.json`,
-      fundGateResult,
-      promotionEvaluation,
-      decision: fundGateResult.notificationAllowed
-        ? ("fund_found" as const)
-        : discoveryCandidateId !== null
-          ? ("discovery_candidate_created" as const)
-          : ("not_promoted" as const),
-      reason:
-        discoveryCandidateId === null
-          ? "Promotion blocked because at least one required next-test gate is still missing."
-          : "Discovery candidate was formed only after all InsightCandidate promotion gates had bound evidence refs.",
-    });
-  }
-
   private async writeCandidateExecution(
     candidate: InsightCandidate,
     executions: InsightGauntletTestExecution[],
@@ -2709,7 +2681,9 @@ export class InsightCandidateNontrivialPatternDiscovery {
     const fundGateResult =
       promotionDecisions.find(
         (decision) => decision.fundGateResult.notificationAllowed,
-      )?.fundGateResult ?? new FundGateEvaluator().evaluate(null);
+      )?.fundGateResult ??
+      promotionDecisions[0]?.fundGateResult ??
+      new FundGateEvaluator().evaluate(null);
     const fundFound = fundGateResult.notificationAllowed;
     const report: InsightPatternDiscoveryReport = withEvidenceHash({
       kind: "insight_candidate_nontrivial_pattern_discovery" as const,
@@ -11351,6 +11325,250 @@ export class GeneratorBornHardSeedPressureService {
   }
 }
 
+export class GeneratorBornInsightClosureService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornInsightClosureReport> {
+    await mkdir(this.closureRoot(), { recursive: true });
+    await this.ensureGeneratorPressureArtifacts();
+    const pressure = await this.readPressureRows();
+    const refs = uniqueStrings(
+      pressure.rows
+        .filter((row) => row.insightCandidateCreated)
+        .map((row) => row.insightCandidateRef)
+        .filter((ref): ref is string => typeof ref === "string"),
+    );
+    const candidates = await this.readGeneratorBornCandidates(refs);
+    const rowByInsightRef = new Map(
+      pressure.rows
+        .filter((row) => typeof row.insightCandidateRef === "string")
+        .map((row) => [row.insightCandidateRef as string, row]),
+    );
+    const executions: InsightGauntletTestExecution[] = [];
+    const promotionDecisions: InsightGauntletPromotionDecision[] = [];
+    for (const [index, candidate] of candidates.entries()) {
+      const row =
+        rowByInsightRef.get(refs[index] ?? "") ??
+        pressure.rows.find(
+          (item) => item.seedId === candidate.parentPipelineCandidateId,
+        ) ??
+        null;
+      const parentCycle = await this.readParentCycle(candidate);
+      const candidateExecutions =
+        row === null
+          ? executeInsightGauntletTests({
+              candidate,
+              parentCycle,
+            })
+          : executeGeneratorBornInsightClosureTests({
+              candidate,
+              row,
+            });
+      executions.push(...candidateExecutions);
+      promotionDecisions.push(
+        insightPromotionDecision(candidate, candidateExecutions),
+      );
+      await this.writeCandidateExecution(candidate, candidateExecutions);
+    }
+    const fundGateResult =
+      promotionDecisions.find(
+        (decision) => decision.fundGateResult.notificationAllowed,
+      )?.fundGateResult ??
+      promotionDecisions[0]?.fundGateResult ??
+      new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-born-insight-closure-continue-searching.json`;
+    const report: GeneratorBornInsightClosureReport = withEvidenceHash({
+      kind: "generator_born_insight_closure" as const,
+      status: fundGateResult.notificationAllowed
+        ? ("FUND_FOUND" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointUsed:
+        pressure.checkpointUsed ??
+        `${daemonArtifactRoot}/checkpoints/generator-born-pressure-continue-searching.json`,
+      nextCheckpointRef,
+      generatorBornCandidateRefs: refs,
+      candidatesLoaded: candidates.length,
+      candidateIds: candidates.map((candidate) => candidate.candidateId),
+      testsExecuted: executions.length,
+      gatesPassed: uniqueStrings(
+        executions
+          .filter((execution) => execution.passed)
+          .map((execution) => execution.promotionGate),
+      ),
+      gatesFailed: uniqueStrings(
+        executions
+          .filter((execution) => !execution.passed)
+          .map((execution) => execution.promotionGate),
+      ),
+      promotionDecisions,
+      discoveryCandidatesCreated: promotionDecisions.filter(
+        (decision) => decision.promotedToDiscoveryCandidate,
+      ).length,
+      fundGateResult,
+      fundFound: fundGateResult.notificationAllowed,
+      remainingBottleneck: generatorBornInsightClosureBottleneck(
+        refs.length,
+        candidates.length,
+        executions,
+        promotionDecisions,
+      ),
+      artifactRefs: generatorBornInsightClosureArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      report,
+      refs,
+      candidates,
+      executions,
+      promotionDecisions,
+    });
+    return report;
+  }
+
+  private closureRoot(): string {
+    return join(this.root, daemonArtifactRoot, "generator-insight-closure");
+  }
+
+  private async ensureGeneratorPressureArtifacts(): Promise<void> {
+    const pressureRowsPath = join(
+      this.root,
+      daemonArtifactRoot,
+      generatorBornPressureDir,
+      "PRESSURE_ROWS.json",
+    );
+    if (await exists(pressureRowsPath)) return;
+    await new GeneratorBornHardSeedPressureService(this.root).run();
+  }
+
+  private async readPressureRows(): Promise<{
+    rows: GeneratorBornPressureRow[];
+    checkpointUsed: string | null;
+  }> {
+    const latest = await readOptionalJson<GeneratorBornHardSeedPressureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorBornPressureDir,
+        "latest.json",
+      ),
+    );
+    const payload = await readOptionalJson<{
+      rows?: GeneratorBornPressureRow[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorBornPressureDir,
+        "PRESSURE_ROWS.json",
+      ),
+    );
+    return {
+      rows: payload?.rows ?? [],
+      checkpointUsed: latest?.nextCheckpointRef ?? null,
+    };
+  }
+
+  private async readGeneratorBornCandidates(
+    refs: string[],
+  ): Promise<InsightCandidate[]> {
+    const candidates: InsightCandidate[] = [];
+    for (const ref of refs) {
+      if (!ref.startsWith(`${daemonArtifactRoot}/${insightCandidateDir}/`)) {
+        continue;
+      }
+      const value = await readOptionalJson<unknown>(join(this.root, ref));
+      const candidate = insightCandidateFromUnknown(value);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates;
+  }
+
+  private async readParentCycle(
+    candidate: InsightCandidate,
+  ): Promise<Record<string, unknown> | null> {
+    const cycleRef = parentCycleRef(candidate);
+    return cycleRef
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(this.root, cycleRef),
+        )
+      : null;
+  }
+
+  private async writeCandidateExecution(
+    candidate: InsightCandidate,
+    executions: InsightGauntletTestExecution[],
+  ): Promise<void> {
+    const artifactRef = `${daemonArtifactRoot}/generator-insight-closure/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+    await writeJson(join(this.root, artifactRef), {
+      kind: "generator_born_insight_closure_candidate_result",
+      candidate,
+      executions,
+      evidenceHash: hashEvidence({ candidate, executions }),
+    });
+  }
+
+  private async writeArtifacts(input: {
+    report: GeneratorBornInsightClosureReport;
+    refs: string[];
+    candidates: InsightCandidate[];
+    executions: InsightGauntletTestExecution[];
+    promotionDecisions: InsightGauntletPromotionDecision[];
+  }): Promise<void> {
+    const root = this.closureRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "TARGETED_CANDIDATE_REFS.json"), {
+      kind: "generator_born_insight_targeted_refs",
+      refs: input.refs,
+      candidateIds: input.candidates.map((candidate) => candidate.candidateId),
+      evidenceHash: hashEvidence(input.refs),
+    });
+    await writeJson(join(root, "closure-results.json"), {
+      kind: "generator_born_insight_closure_results",
+      executions: input.executions,
+      promotionDecisions: input.promotionDecisions,
+      evidenceHash: hashEvidence({
+        executions: input.executions,
+        promotionDecisions: input.promotionDecisions,
+      }),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generator_born_insight_closure_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      candidateIds: input.report.candidateIds,
+      gatesFailed: input.report.gatesFailed,
+      reportRef: `${daemonArtifactRoot}/generator-insight-closure/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "GENERATOR_BORN_INSIGHT_PROFILE.md"),
+      generatorBornInsightProfileMarkdown(input.candidates, input.refs),
+    );
+    await writeText(
+      join(root, "REQUIRED_NEXT_TEST_RESULTS.md"),
+      generatorBornInsightRequiredNextTestsMarkdown(
+        input.candidates,
+        input.executions,
+      ),
+    );
+    await writeText(
+      join(root, "PROMOTION_GATE_MATRIX.md"),
+      generatorBornInsightGateMatrixMarkdown(input.executions),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISION.md"),
+      generatorBornInsightPromotionDecisionMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generatorBornInsightFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generatorBornInsightNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
 function generatorBornPressureRow(input: {
   seed: HardSeed;
   output: MechanismFirstGeneratorOutput | null;
@@ -11561,6 +11779,281 @@ function generatorBornPressureArtifactRefs(
     `${root}/latest.json`,
     nextCheckpointRef,
   ];
+}
+
+function generatorBornInsightClosureBottleneck(
+  refCount: number,
+  candidateCount: number,
+  executions: InsightGauntletTestExecution[],
+  decisions: InsightGauntletPromotionDecision[],
+): string {
+  if (refCount === 0) {
+    return "No generator-born InsightCandidate ref exists in generator-pressure rows; run generator-pressure first or improve hard-seed birth.";
+  }
+  if (candidateCount === 0) {
+    return "Generator-pressure recorded InsightCandidate refs, but none resolved to valid insight_candidate artifacts.";
+  }
+  if (
+    decisions.some((decision) => decision.fundGateResult.notificationAllowed)
+  ) {
+    return "none";
+  }
+  const failedGates = uniqueStrings(
+    executions
+      .filter((execution) => !execution.passed)
+      .map((execution) => execution.promotionGate),
+  );
+  return `Generator-born InsightCandidate was targeted and tested, but discovery promotion remains blocked by: ${failedGates.join(", ") || "Fund Gate package requirements"}.`;
+}
+
+function generatorBornInsightClosureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/generator-insight-closure`;
+  return [
+    `${root}/GENERATOR_BORN_INSIGHT_PROFILE.md`,
+    `${root}/REQUIRED_NEXT_TEST_RESULTS.md`,
+    `${root}/PROMOTION_GATE_MATRIX.md`,
+    `${root}/PROMOTION_DECISION.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/TARGETED_CANDIDATE_REFS.json`,
+    `${root}/closure-results.json`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function executeGeneratorBornInsightClosureTests(input: {
+  candidate: InsightCandidate;
+  row: GeneratorBornPressureRow;
+}): InsightGauntletTestExecution[] {
+  const { candidate, row } = input;
+  const baseRef = `${daemonArtifactRoot}/generator-insight-closure/${normalizeCandidateIdPart(candidate.candidateId)}.json`;
+  const refsFor = (...patterns: RegExp[]) =>
+    row.evidenceRefs.filter((ref) =>
+      patterns.some((pattern) => pattern.test(ref)),
+    );
+  const runtimeRefs = refsFor(/runtime-evidence/i, /GENERATOR_RUN_RESULTS/i);
+  const baselineRefs = refsFor(/baseline/i, /GENERATOR_RUN_RESULTS/i);
+  const rivalRefs = refsFor(/rival/i, /GENERATOR_RUN_RESULTS/i);
+  const holdoutRefs = refsFor(/holdout/i, /GENERATOR_RUN_RESULTS/i);
+  const replayRefs = refsFor(/replay/i, /runtime-evidence/i);
+  const counterexampleRefs = refsFor(
+    /counterexample/i,
+    /GENERATOR_RUN_RESULTS/i,
+  );
+  const mechanismRefs = refsFor(
+    /formal-counterexample-boundary/i,
+    /runtime-evidence/i,
+    /GENERATOR_RUN_RESULTS/i,
+  );
+  return [
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "nontrivial_pattern_test",
+      promotionGate: "nontrivial_pattern_beyond_pipeline_success",
+      passed:
+        row.primaryKillReason === "survived" &&
+        row.residual >= 0.1 &&
+        runtimeRefs.length > 0,
+      evidenceRefs: uniqueStrings([
+        row.runtimeEvidenceRef ?? "",
+        ...runtimeRefs,
+      ]),
+      observation:
+        row.primaryKillReason === "survived"
+          ? `Generator-born pressure retained a nontrivial residual of ${row.residual} for ${row.outputId}.`
+          : "Generator-born pressure did not retain a survivor for nontrivial-pattern closure.",
+      caveats: [
+        "This is generator/formal-object evidence, not a Fund; Fund Gate still requires external-review package, kill week, and discovery-scored class pressure.",
+      ],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "baseline_resistance_test",
+      promotionGate: "baseline_resistance",
+      passed: row.baseline.passed && baselineRefs.length > 0,
+      evidenceRefs: baselineRefs,
+      observation: row.baseline.summary,
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "rival_discrimination_test",
+      promotionGate: "rival_discriminating_test",
+      passed: row.rival.weakened && rivalRefs.length > 0,
+      evidenceRefs: rivalRefs,
+      observation: row.rival.summary,
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "holdout_feasibility_test",
+      promotionGate: "holdout_path",
+      passed: row.holdoutReplay.supported && holdoutRefs.length > 0,
+      evidenceRefs: holdoutRefs,
+      observation: row.holdoutReplay.summary,
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "replay_feasibility_test",
+      promotionGate: "replay_path",
+      passed: row.holdoutReplay.supported && replayRefs.length > 0,
+      evidenceRefs: replayRefs,
+      observation: row.holdoutReplay.summary,
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "counterexample_search",
+      promotionGate: "counterexample_path",
+      passed: row.counterexample.survived && counterexampleRefs.length > 0,
+      evidenceRefs: counterexampleRefs,
+      observation: row.counterexample.summary,
+      caveats: [],
+    }),
+    insightExecution({
+      candidate,
+      baseRef,
+      testType: "proof_or_mechanism_pressure_test",
+      promotionGate: "proof_or_mechanism_pressure_path",
+      passed: row.mechanismProof.survived && mechanismRefs.length > 0,
+      evidenceRefs: mechanismRefs,
+      observation: row.mechanismProof.summary,
+      caveats: [],
+    }),
+  ];
+}
+
+function generatorBornInsightProfileMarkdown(
+  candidates: InsightCandidate[],
+  refs: string[],
+): string {
+  if (candidates.length === 0) {
+    return [
+      "# Generator Born Insight Profile",
+      "",
+      "No valid generator-born InsightCandidate was available for targeted closure.",
+      "",
+      "## Candidate Refs",
+      "",
+      ...(refs.length > 0 ? refs.map((ref) => `- ${ref}`) : ["- none"]),
+    ].join("\n");
+  }
+  return [
+    "# Generator Born Insight Profile",
+    "",
+    `Candidates loaded: ${candidates.length}.`,
+    "",
+    "| Candidate | Domain | Parent | Exact claim | Evidence refs |",
+    "| --- | --- | --- | --- | ---: |",
+    ...candidates.map(
+      (candidate) =>
+        `| ${candidate.candidateId} | ${candidate.domain} | ${candidate.parentPipelineCandidateId} | ${candidate.exactNarrowClaim} | ${candidate.parentEvidenceRefs.length} |`,
+    ),
+    "",
+    "## Targeted Refs",
+    "",
+    ...refs.map((ref) => `- ${ref}`),
+  ].join("\n");
+}
+
+function generatorBornInsightRequiredNextTestsMarkdown(
+  candidates: InsightCandidate[],
+  executions: InsightGauntletTestExecution[],
+): string {
+  const plans = candidates.flatMap((candidate) =>
+    generateInsightGauntletTests(candidate),
+  );
+  return [
+    "# Required Next Test Results",
+    "",
+    `Generated tests: ${plans.length}.`,
+    `Executed tests: ${executions.length}.`,
+    "",
+    "| Candidate | Test | Gate | Passed | Observation |",
+    "| --- | --- | --- | --- | --- |",
+    ...executions.map(
+      (execution) =>
+        `| ${execution.candidateId} | ${execution.testType} | ${execution.promotionGate} | ${String(execution.passed)} | ${execution.observation} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornInsightGateMatrixMarkdown(
+  executions: InsightGauntletTestExecution[],
+): string {
+  return [
+    "# Promotion Gate Matrix",
+    "",
+    "| Gate | Passed | Evidence refs | Caveats |",
+    "| --- | --- | --- | --- |",
+    ...executions.map(
+      (execution) =>
+        `| ${execution.promotionGate} | ${String(execution.passed)} | ${execution.evidenceRefs.join(", ") || "none"} | ${execution.caveats.join("; ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorBornInsightPromotionDecisionMarkdown(
+  report: GeneratorBornInsightClosureReport,
+): string {
+  return [
+    "# Promotion Decision",
+    "",
+    `Candidates loaded: ${report.candidatesLoaded}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Decisions",
+    "",
+    ...report.promotionDecisions.map(
+      (decision) =>
+        `- ${decision.candidateId}: ${decision.decision}; failed gates: ${decision.promotionEvaluation.failedGates.join(", ") || "none"}; reason: ${decision.reason}`,
+    ),
+    ...(report.promotionDecisions.length === 0 ? ["- none"] : []),
+    "",
+    "## Remaining Bottleneck",
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornInsightFundGateMarkdown(
+  report: GeneratorBornInsightClosureReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+  ].join("\n");
+}
+
+function generatorBornInsightNextCheckpointMarkdown(
+  report: GeneratorBornInsightClosureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 function generatorBornSeedProfileMarkdown(
@@ -19555,6 +20048,55 @@ function promotionEvidenceFromExecutions(
   };
 }
 
+function insightPromotionDecision(
+  candidate: InsightCandidate,
+  executions: InsightGauntletTestExecution[],
+): InsightGauntletPromotionDecision {
+  const promotionEvidence = promotionEvidenceFromExecutions(executions);
+  const updatedCandidate: InsightCandidate = {
+    ...candidate,
+    promotionEvidence,
+  };
+  const promotionEvaluation = new InsightCandidatePromotionEvaluator().evaluate(
+    updatedCandidate,
+  );
+  const discoveryCandidateId =
+    promotionEvaluation.eligibleForDiscoveryScoredEvaluation
+      ? `DISCOVERY-${normalizeCandidateIdPart(candidate.candidateId).slice(0, 64)}`
+      : null;
+  const fundCandidate =
+    discoveryCandidateId === null
+      ? null
+      : fundCandidateFromInsightGauntlet(
+          discoveryCandidateId,
+          updatedCandidate,
+          executions,
+        );
+  const fundGateResult = new FundGateEvaluator().evaluate(fundCandidate);
+  return withEvidenceHash({
+    kind: "insight_candidate_promotion_decision" as const,
+    candidateId: candidate.candidateId,
+    parentPipelineCandidateId: candidate.parentPipelineCandidateId,
+    discoveryCandidateId,
+    promotedToDiscoveryCandidate: discoveryCandidateId !== null,
+    fundCandidateDraftRef:
+      discoveryCandidateId === null
+        ? null
+        : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(discoveryCandidateId)}.json`,
+    fundGateResult,
+    promotionEvaluation,
+    decision: fundGateResult.notificationAllowed
+      ? ("fund_found" as const)
+      : discoveryCandidateId !== null
+        ? ("discovery_candidate_created" as const)
+        : ("not_promoted" as const),
+    reason:
+      discoveryCandidateId === null
+        ? "Promotion blocked because at least one required next-test gate is still missing."
+        : "Discovery candidate was formed only after all InsightCandidate promotion gates had bound evidence refs.",
+  });
+}
+
 function fundCandidateFromInsightGauntlet(
   discoveryCandidateId: string,
   candidate: InsightCandidate,
@@ -22591,6 +23133,11 @@ export class AutonomousDiscoveryDaemonService {
   async generatorPressure(): Promise<GeneratorBornHardSeedPressureReport> {
     await this.ensureInitialized();
     return new GeneratorBornHardSeedPressureService(this.root).run();
+  }
+
+  async generatorInsightClosure(): Promise<GeneratorBornInsightClosureReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornInsightClosureService(this.root).run();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

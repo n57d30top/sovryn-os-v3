@@ -88,6 +88,7 @@ const commands = [
   "generator-run",
   "generator-audit",
   "generator-pressure",
+  "generator-insight-closure",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -3845,6 +3846,113 @@ test("discover-daemon generator-pressure CLI pressures born seeds without fake F
   );
 });
 
+test("generator-born insight closure targets only generator-born InsightCandidates", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorPressure();
+  await new InsightCandidateDeriver(root).derive({
+    cycleId: "old-unrelated-cycle",
+    parentPipelineCandidateId: "OLD-PIPELINE-CANDIDATE",
+    parentClaim:
+      "Old unrelated pipeline signal must not be selected by generator-born closure.",
+    parentFundClass: null,
+    domain: "scientific_software_reproduction_mechanisms",
+    mechanismHypothesis: "old unrelated mechanism",
+    evidenceScope: "old non-generator evidence scope",
+    parentEvidenceRefs: [
+      ".sovryn/discovery-daemon/search-cycles/cycle-old-unrelated.json",
+    ],
+    sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+      inputCandidateId: "OLD-PIPELINE-CANDIDATE",
+      existing: null,
+      next: new CandidateClaimCanonicalizer().canonicalize({
+        claim:
+          "Old unrelated pipeline signal must not be selected by generator-born closure.",
+        domain: "scientific_software_reproduction_mechanisms",
+        mechanism: "old unrelated mechanism",
+        evidenceScope: "old non-generator evidence scope",
+        fundClass: "insight_candidate",
+      }),
+    }),
+    ledger: new CandidateIdentityLedger(),
+  });
+
+  const report = await service.generatorInsightClosure();
+
+  assert.equal(report.kind, "generator_born_insight_closure");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.candidatesLoaded, 1);
+  assert.equal(report.candidateIds.length, 1);
+  assert.equal(report.candidateIds[0]?.startsWith("INSIGHT-HARD-GEN-"), true);
+  assert.equal(report.testsExecuted, 7);
+  assert.deepEqual(report.gatesFailed, []);
+  assert.equal(report.discoveryCandidatesCreated, 1);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, [
+    "frozen_predictions",
+    "kill_week",
+    "external_review_package",
+  ]);
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  for (const artifact of [
+    "GENERATOR_BORN_INSIGHT_PROFILE.md",
+    "REQUIRED_NEXT_TEST_RESULTS.md",
+    "PROMOTION_GATE_MATRIX.md",
+    "PROMOTION_DECISION.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+    "TARGETED_CANDIDATE_REFS.json",
+    "closure-results.json",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(
+        join(root, daemonRoot, "generator-insight-closure", artifact),
+      ),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(
+    report.generatorBornCandidateRefs.every((ref) =>
+      ref.startsWith(`${daemonRoot}/insight-candidates/`),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon generator-insight-closure CLI closes generated insight without fake Fund", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    ["discover-daemon", "generator-insight-closure", "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "generator_born_insight_closure",
+  );
+  assert.equal((response.data as Record<string, unknown>).candidatesLoaded, 1);
+  assert.equal(
+    (response.data as Record<string, unknown>).discoveryCandidatesCreated,
+    1,
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon generator CLIs are bounded and non-funding", async () => {
   const root = await tempRoot();
 
@@ -3893,6 +4001,15 @@ test("discover-daemon generator CLIs are bounded and non-funding", async () => {
   assert.equal(
     (pressure.data as Record<string, unknown>).kind,
     "generator_born_hard_seed_pressure",
+  );
+  const closure = await executeCli(
+    ["discover-daemon", "generator-insight-closure", "--json"],
+    root,
+  );
+  assert.equal(closure.ok, true, JSON.stringify(closure.errors));
+  assert.equal(
+    (closure.data as Record<string, unknown>).kind,
+    "generator_born_insight_closure",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
@@ -5198,6 +5315,11 @@ const cliScenarios: {
     name: "generator-pressure",
     args: ["discover-daemon", "generator-pressure", "--json"],
     expectedKind: "generator_born_hard_seed_pressure",
+  },
+  {
+    name: "generator-insight-closure",
+    args: ["discover-daemon", "generator-insight-closure", "--json"],
+    expectedKind: "generator_born_insight_closure",
   },
   {
     name: "cycle",

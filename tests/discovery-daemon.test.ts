@@ -4946,7 +4946,7 @@ test("discover-daemon discovery anchor run consumes queue but blocks design-prof
   ) as {
     checks: Array<{
       runtimeEvidenceKind: string;
-      sourceReceipt: { loadedExternalArtifact: boolean };
+      sourceReceipt: { loadedExternalArtifact: boolean; status: string };
       birthEvaluation: { accepted: boolean; blockers: string[] };
     }>;
   };
@@ -4954,6 +4954,7 @@ test("discover-daemon discovery anchor run consumes queue but blocks design-prof
     checksPayload.checks.every(
       (check) =>
         check.runtimeEvidenceKind === "deterministic_design_profile" &&
+        check.sourceReceipt.status === "missing_external_artifact" &&
         check.sourceReceipt.loadedExternalArtifact === false &&
         check.birthEvaluation.accepted === false &&
         check.birthEvaluation.blockers.includes(
@@ -4975,6 +4976,136 @@ test("discover-daemon discovery anchor run consumes queue but blocks design-prof
   assert.equal(pressure.discoveryCandidatesCreated, 0);
   assert.equal(pressure.fundFound, false);
 
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon discovery anchor run can birth HardSeed from loaded external runtime artifact", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selection = await service.discoveryAnchorSelect();
+  const anchor = selection.recommendedGeneratorDesignQueue[0]!.anchor;
+  const anchorPart = anchor.anchorId
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  const sourceCacheRoot = join(
+    root,
+    daemonRoot,
+    "discovery-anchor-run",
+    "source-cache",
+  );
+  await mkdir(sourceCacheRoot, { recursive: true });
+  await writeFile(
+    join(sourceCacheRoot, `${anchorPart}.json`),
+    JSON.stringify(
+      {
+        kind: "discovery_anchor_runtime_source",
+        anchorId: anchor.anchorId,
+        sourceRef: anchor.sourceRef,
+        sourceReceipt: "public-source-receipt-fixture",
+        sourceHash:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        loaderCheckCommand:
+          "sovryn fixture-loader public-source measurement check",
+        rawTargetCount: 24,
+        measuredVariable: anchor.measuredTargetOutcome,
+        targetOutcome:
+          "fixture-backed target outcome from public external measurement cache",
+        measuredOutcome: 0.82,
+        residualMagnitude: 0.31,
+        baselineResults: [
+          {
+            baseline: "simple_baseline",
+            result: 0.41,
+            explainsSignal: false,
+          },
+          {
+            baseline: "matched_rival_control",
+            result: 0.39,
+            explainsSignal: false,
+          },
+          {
+            baseline: "negative_or_null_slice",
+            result: 0.11,
+            explainsSignal: false,
+          },
+        ],
+        rivalWeakened: true,
+        nontrivialResidual: true,
+        crossSourceSupport: true,
+        counterexampleCollapsed: false,
+        holdoutReplayAvailable: true,
+        holdoutPath: "independent source-family holdout slice is predeclared",
+        replayPath: "deterministic replay command uses public source receipt",
+        publicSafe: true,
+        sourceRefs: [anchor.sourceRef],
+        evidenceRefs: [`${anchor.sourceRef}#runtime-measurement-fixture`],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const run = await service.discoveryAnchorRun();
+
+  assert.equal(run.kind, "discovery_grade_anchor_run");
+  assert.equal(run.hardSeedsBorn, 1);
+  assert.equal(run.insightCandidatesCreated, 0);
+  assert.equal(run.discoveryCandidatesCreated, 0);
+  assert.equal(run.fundFound, false);
+
+  const checksPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "discovery-anchor-run",
+        "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    checks: Array<{
+      runtimeEvidenceKind: string;
+      sourceReceipt: { loadedExternalArtifact: boolean; status: string };
+      birthEvaluation: { accepted: boolean };
+      hardSeed: { seedId: string } | null;
+    }>;
+  };
+  const loadedChecks = checksPayload.checks.filter(
+    (check) => check.sourceReceipt.loadedExternalArtifact,
+  );
+  assert.equal(loadedChecks.length, 1);
+  assert.equal(loadedChecks[0]!.runtimeEvidenceKind, "loaded_external_data");
+  assert.equal(
+    loadedChecks[0]!.sourceReceipt.status,
+    "loaded_external_artifact",
+  );
+  assert.equal(loadedChecks[0]!.birthEvaluation.accepted, true);
+  assert.ok(loadedChecks[0]!.hardSeed);
+
+  const bornPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "discovery-anchor-run",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeeds: Array<{ seedId: string }>;
+    validations: Array<{ accepted: boolean }>;
+  };
+  assert.equal(bornPayload.hardSeeds.length, 1);
+  assert.equal(bornPayload.validations[0]!.accepted, true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

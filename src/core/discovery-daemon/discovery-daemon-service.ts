@@ -1788,19 +1788,69 @@ export type DiscoveryGradeAnchorAuditReport = {
   evidenceHash: string;
 };
 
+export type DiscoveryAnchorSourceReceipt =
+  | {
+      kind: "discovery_anchor_source_receipt";
+      status: "loaded_external_artifact";
+      loadedExternalArtifact: true;
+      sourceRef: string;
+      sourceReceipt: string;
+      sourceHash: string;
+      loaderCheckCommand: string;
+      rawTargetCount: number;
+      measuredVariable: string;
+      targetOutcome: string;
+      holdoutPath: string;
+      replayPath: string;
+      publicSafeRef: string;
+      localArtifactRef: string;
+    }
+  | {
+      kind: "discovery_anchor_source_receipt";
+      status:
+        | "missing_external_artifact"
+        | "invalid_external_artifact"
+        | "design_profile_only";
+      loadedExternalArtifact: false;
+      reason: string;
+      sourceRef?: string;
+      localArtifactRef?: string;
+      validationErrors?: string[];
+    };
+
+export type DiscoveryAnchorRuntimeSourceArtifact = {
+  kind: "discovery_anchor_runtime_source";
+  anchorId: string;
+  sourceRef: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  loaderCheckCommand: string;
+  rawTargetCount: number;
+  measuredVariable: string;
+  targetOutcome: string;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  holdoutPath: string;
+  replayPath: string;
+  publicSafe: boolean;
+  sourceRefs?: string[];
+  evidenceRefs?: string[];
+};
+
 export type DiscoveryGradeAnchorRuntimeCheck = {
   kind: "discovery_grade_anchor_runtime_check";
   checkId: string;
   anchorId: string;
   domain: DiscoveryDomain;
   executorId: string;
-  runtimeEvidenceKind: "deterministic_design_profile";
-  sourceReceipt: {
-    kind: "discovery_anchor_source_receipt";
-    status: "design_profile_only";
-    loadedExternalArtifact: false;
-    reason: string;
-  };
+  runtimeEvidenceKind: "loaded_external_data" | "deterministic_design_profile";
+  sourceReceipt: DiscoveryAnchorSourceReceipt;
   sourceRefs: string[];
   evidenceRefs: string[];
   producedArtifact: string;
@@ -14504,9 +14554,16 @@ export class DiscoveryGradeAnchorRunService {
     await mkdir(this.runRoot(), { recursive: true });
     const selection = await this.loadSelection();
     const queue = selection.recommendedGeneratorDesignQueue;
-    const checks = queue.map((evaluation, index) =>
-      discoveryGradeAnchorRuntimeCheck(evaluation.anchor, index),
-    );
+    const checks: DiscoveryGradeAnchorRuntimeCheck[] = [];
+    for (const [index, evaluation] of queue.entries()) {
+      checks.push(
+        await discoveryGradeAnchorRuntimeCheck(
+          this.root,
+          evaluation.anchor,
+          index,
+        ),
+      );
+    }
     await mkdir(join(this.runRoot(), "runtime-evidence"), {
       recursive: true,
     });
@@ -14742,29 +14799,37 @@ export class DiscoveryGradeAnchorRunService {
   }
 }
 
-function discoveryGradeAnchorRuntimeCheck(
+async function discoveryGradeAnchorRuntimeCheck(
+  root: string,
   anchor: DiscoveryGradeExternalAnchor,
   index: number,
-): DiscoveryGradeAnchorRuntimeCheck {
+): Promise<DiscoveryGradeAnchorRuntimeCheck> {
   const ordinal = index + 1;
   const anchorPart = normalizeCandidateIdPart(anchor.anchorId);
   const checkId = `${anchorPart}-runtime-check-${String(ordinal).padStart(2, "0")}`;
   const producedArtifact = `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/runtime-evidence/${checkId}.json`;
   const profile = discoveryGradeAnchorRuntimeProfile(anchor, ordinal);
+  const runtimeSource = await loadDiscoveryAnchorRuntimeSource(
+    root,
+    anchor,
+    checkId,
+  );
   const externalProblemAnchor =
     externalProblemAnchorFromDiscoveryGradeAnchor(anchor);
   const sourceRefs = uniqueStrings([
     anchor.sourceRef,
     anchor.inspectabilityRef,
     ...anchor.significanceEvidenceRefs,
+    ...runtimeSource.sourceRefs,
   ]);
   const evidenceRefs = uniqueStrings([
     ...sourceRefs,
     `${daemonArtifactRoot}/${discoveryGradeAnchorSelectionDir}/DISCOVERY_GENERATOR_DESIGN_QUEUE.json#${anchor.anchorId}`,
     `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/DISCOVERY_ANCHOR_RUNTIME_CHECKS.md#${checkId}`,
     producedArtifact,
+    ...runtimeSource.evidenceRefs,
   ]);
-  const baselineResults = [
+  const baselineResults = runtimeSource.artifact?.baselineResults ?? [
     {
       baseline: profile.strongestBaseline,
       result: profile.baselineResult,
@@ -14781,22 +14846,56 @@ function discoveryGradeAnchorRuntimeCheck(
       explainsSignal: profile.negativeControlExplains,
     },
   ];
+  const measuredOutcome =
+    runtimeSource.artifact?.measuredOutcome ?? profile.measuredOutcome;
+  const residualMagnitude =
+    runtimeSource.artifact?.residualMagnitude ?? profile.residualMagnitude;
+  const rivalWeakened =
+    runtimeSource.artifact?.rivalWeakened ?? profile.rivalWeakened;
+  const nontrivialResidual =
+    runtimeSource.artifact?.nontrivialResidual ?? profile.nontrivialResidual;
+  const crossSourceSupport =
+    runtimeSource.artifact?.crossSourceSupport ?? profile.crossSourceSupport;
+  const counterexampleCollapsed =
+    runtimeSource.artifact?.counterexampleCollapsed ??
+    profile.counterexampleCollapsed;
+  const holdoutReplayAvailable =
+    runtimeSource.artifact?.holdoutReplayAvailable ??
+    profile.holdoutReplayAvailable;
+  const runtimeEvidenceKind = runtimeSource.valid
+    ? ("loaded_external_data" as const)
+    : ("deterministic_design_profile" as const);
+  const runtimeEvidencePresent = runtimeSource.valid;
+  const measuredVariable =
+    runtimeSource.artifact?.measuredVariable ?? anchor.measuredTargetOutcome;
+  const holdoutReplayPlan =
+    runtimeSource.artifact === null
+      ? anchor.holdoutReplayPath
+      : `${runtimeSource.artifact.holdoutPath}; ${runtimeSource.artifact.replayPath}`;
+  const designOnlySourceReceipt: DiscoveryAnchorSourceReceipt =
+    runtimeSource.receipt.status === "missing_external_artifact"
+      ? {
+          ...runtimeSource.receipt,
+          reason:
+            "No cached external runtime-source artifact was found, so this check only uses the selected anchor design profile. Design profiles cannot birth HardSeeds.",
+        }
+      : runtimeSource.receipt;
   const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
     generatorId: anchor.recommendedGeneratorDesign,
     targetId: checkId,
     domain: anchor.domain,
     externalProblemAnchor,
-    runtimeEvidencePresent: false,
-    runtimeEvidenceKind: "deterministic_design_profile",
+    runtimeEvidencePresent,
+    runtimeEvidenceKind,
     sourceRefs,
     evidenceRefs,
-    residualMagnitude: profile.residualMagnitude,
+    residualMagnitude,
     baselineResults,
-    rivalWeakened: profile.rivalWeakened,
-    nontrivialResidual: profile.nontrivialResidual,
-    crossSourceSupport: profile.crossSourceSupport,
-    counterexampleCollapsed: profile.counterexampleCollapsed,
-    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable,
     sourceFamilyDocumentedSignal: anchor.knownSourceFamilyMechanism,
     knownTrivialSignal: false,
     generatorOnlySignal: false,
@@ -14810,8 +14909,8 @@ function discoveryGradeAnchorRuntimeCheck(
         producedArtifact,
         sourceRefs,
         evidenceRefs,
-        measuredOutcome: profile.measuredOutcome,
-        residualMagnitude: profile.residualMagnitude,
+        measuredOutcome,
+        residualMagnitude,
       })
     : null;
   return withEvidenceHash({
@@ -14820,33 +14919,189 @@ function discoveryGradeAnchorRuntimeCheck(
     anchorId: anchor.anchorId,
     domain: anchor.domain,
     executorId: discoveryGradeAnchorExecutorId(anchor),
-    runtimeEvidenceKind: "deterministic_design_profile" as const,
-    sourceReceipt: {
-      kind: "discovery_anchor_source_receipt" as const,
-      status: "design_profile_only" as const,
-      loadedExternalArtifact: false as const,
-      reason:
-        "This check uses the selected anchor design profile to verify routing and blocker accounting. It does not load or measure the external source, so it cannot birth a HardSeed.",
-    },
+    runtimeEvidenceKind,
+    sourceReceipt: designOnlySourceReceipt,
     sourceRefs,
     evidenceRefs,
     producedArtifact,
-    measuredVariable: anchor.measuredTargetOutcome,
-    measuredOutcome: profile.measuredOutcome,
-    residualMagnitude: profile.residualMagnitude,
+    measuredVariable,
+    measuredOutcome,
+    residualMagnitude,
     frozenPrediction: `${anchor.mechanismHypothesis} Frozen prediction: ${profile.frozenPrediction}`,
     rivalPrediction: `${anchor.rivalMechanisms[0] ?? "strongest rival"} Rival prediction: ${profile.rivalPrediction}`,
     negativeControl: profile.negativeControl,
-    holdoutReplayPlan: anchor.holdoutReplayPath,
+    holdoutReplayPlan,
     baselineResults,
-    rivalWeakened: profile.rivalWeakened,
-    nontrivialResidual: profile.nontrivialResidual,
-    crossSourceSupport: profile.crossSourceSupport,
-    counterexampleCollapsed: profile.counterexampleCollapsed,
-    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable,
     birthEvaluation,
     hardSeed,
   });
+}
+
+async function loadDiscoveryAnchorRuntimeSource(
+  root: string,
+  anchor: DiscoveryGradeExternalAnchor,
+  checkId: string,
+): Promise<{
+  valid: boolean;
+  artifact: DiscoveryAnchorRuntimeSourceArtifact | null;
+  receipt: DiscoveryAnchorSourceReceipt;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+}> {
+  const localArtifactRef = discoveryAnchorRuntimeSourceArtifactRef(
+    anchor.anchorId,
+  );
+  const artifactPath = join(root, localArtifactRef);
+  const artifact =
+    await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(artifactPath);
+  if (artifact === null) {
+    return {
+      valid: false,
+      artifact: null,
+      receipt: {
+        kind: "discovery_anchor_source_receipt",
+        status: "missing_external_artifact",
+        loadedExternalArtifact: false,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        reason: `Missing cached external runtime-source artifact for ${anchor.anchorId}; expected ${localArtifactRef}.`,
+      },
+      sourceRefs: [],
+      evidenceRefs: [],
+    };
+  }
+  const validationErrors = validateDiscoveryAnchorRuntimeSource(
+    anchor,
+    artifact,
+  );
+  if (validationErrors.length > 0) {
+    return {
+      valid: false,
+      artifact: null,
+      receipt: {
+        kind: "discovery_anchor_source_receipt",
+        status: "invalid_external_artifact",
+        loadedExternalArtifact: false,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        reason: `Cached runtime-source artifact for ${anchor.anchorId} is invalid for ${checkId}.`,
+        validationErrors,
+      },
+      sourceRefs: [],
+      evidenceRefs: [localArtifactRef],
+    };
+  }
+  return {
+    valid: true,
+    artifact,
+    receipt: {
+      kind: "discovery_anchor_source_receipt",
+      status: "loaded_external_artifact",
+      loadedExternalArtifact: true,
+      sourceRef: artifact.sourceRef,
+      sourceReceipt: artifact.sourceReceipt,
+      sourceHash: artifact.sourceHash,
+      loaderCheckCommand: artifact.loaderCheckCommand,
+      rawTargetCount: artifact.rawTargetCount,
+      measuredVariable: artifact.measuredVariable,
+      targetOutcome: artifact.targetOutcome,
+      holdoutPath: artifact.holdoutPath,
+      replayPath: artifact.replayPath,
+      publicSafeRef: artifact.sourceRef,
+      localArtifactRef,
+    },
+    sourceRefs: uniqueStrings([
+      artifact.sourceRef,
+      ...(artifact.sourceRefs ?? []),
+    ]),
+    evidenceRefs: uniqueStrings([
+      localArtifactRef,
+      `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/DISCOVERY_ANCHOR_RUNTIME_CHECKS.md#${checkId}`,
+      ...(artifact.evidenceRefs ?? []),
+    ]),
+  };
+}
+
+function validateDiscoveryAnchorRuntimeSource(
+  anchor: DiscoveryGradeExternalAnchor,
+  artifact: DiscoveryAnchorRuntimeSourceArtifact,
+): string[] {
+  const errors: string[] = [];
+  if (artifact.kind !== "discovery_anchor_runtime_source") {
+    errors.push("wrong_kind");
+  }
+  if (artifact.anchorId !== anchor.anchorId) errors.push("anchor_id_mismatch");
+  if (
+    artifact.sourceRef !== anchor.sourceRef ||
+    !artifact.sourceRef.startsWith("https://") ||
+    !publicSafeRef(artifact.sourceRef)
+  ) {
+    errors.push("invalid_public_source_ref");
+  }
+  if (normalizeWhitespace(artifact.sourceReceipt).length < 8) {
+    errors.push("missing_source_receipt");
+  }
+  if (!/^[a-f0-9]{16,64}$/i.test(artifact.sourceHash)) {
+    errors.push("invalid_source_hash");
+  }
+  if (
+    normalizeWhitespace(artifact.loaderCheckCommand).length < 6 ||
+    !publicSafeRef(artifact.loaderCheckCommand)
+  ) {
+    errors.push("invalid_loader_check_command");
+  }
+  if (
+    !Number.isFinite(artifact.rawTargetCount) ||
+    artifact.rawTargetCount <= 0
+  ) {
+    errors.push("missing_raw_targets_checked");
+  }
+  if (normalizeWhitespace(artifact.measuredVariable).length < 12) {
+    errors.push("missing_measured_variable");
+  }
+  if (normalizeWhitespace(artifact.targetOutcome).length < 12) {
+    errors.push("missing_target_outcome");
+  }
+  if (
+    !Number.isFinite(artifact.measuredOutcome) ||
+    !Number.isFinite(artifact.residualMagnitude)
+  ) {
+    errors.push("invalid_measurements");
+  }
+  if (
+    !Array.isArray(artifact.baselineResults) ||
+    artifact.baselineResults.length < 3 ||
+    artifact.baselineResults.some(
+      (baseline) =>
+        normalizeWhitespace(baseline.baseline).length === 0 ||
+        typeof baseline.explainsSignal !== "boolean",
+    )
+  ) {
+    errors.push("insufficient_baseline_results");
+  }
+  if (normalizeWhitespace(artifact.holdoutPath).length < 12) {
+    errors.push("missing_holdout_path");
+  }
+  if (normalizeWhitespace(artifact.replayPath).length < 12) {
+    errors.push("missing_replay_path");
+  }
+  if (artifact.publicSafe !== true) errors.push("not_public_safe");
+  const refs = [
+    artifact.sourceRef,
+    ...(artifact.sourceRefs ?? []),
+    ...(artifact.evidenceRefs ?? []),
+  ];
+  if (!refs.every(publicSafeRef)) errors.push("unsafe_refs");
+  return uniqueStrings(errors);
+}
+
+function discoveryAnchorRuntimeSourceArtifactRef(anchorId: string): string {
+  return `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/source-cache/${normalizeCandidateIdPart(anchorId)}.json`;
 }
 
 function discoveryGradeAnchorRuntimeProfile(
@@ -15125,11 +15380,11 @@ function discoveryGradeAnchorRuntimeChecksMarkdown(
     `Runtime checks: ${report.runtimeChecks}.`,
     `HardSeeds born: ${report.hardSeedsBorn}.`,
     "",
-    "| Check | Anchor | Domain | Executor | Outcome | Residual | Birth | Primary blocker | Artifact |",
-    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    "| Check | Anchor | Domain | Executor | Runtime evidence | Source receipt | Outcome | Residual | Birth | Primary blocker | Artifact |",
+    "| --- | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ...checks.map(
       (check) =>
-        `| ${check.checkId} | ${check.anchorId} | ${check.domain} | ${check.executorId} | ${check.measuredOutcome} | ${check.residualMagnitude} | ${check.birthEvaluation.status} | ${check.birthEvaluation.primaryBlocker ?? "none"} | ${check.producedArtifact} |`,
+        `| ${check.checkId} | ${check.anchorId} | ${check.domain} | ${check.executorId} | ${check.runtimeEvidenceKind} | ${check.sourceReceipt.status} | ${check.measuredOutcome} | ${check.residualMagnitude} | ${check.birthEvaluation.status} | ${check.birthEvaluation.primaryBlocker ?? "none"} | ${check.producedArtifact} |`,
     ),
     "",
     "A born HardSeed is still not an InsightCandidate, DiscoveryCandidate, FundCandidateDraft, or Fund. It only unlocks downstream pressure.",

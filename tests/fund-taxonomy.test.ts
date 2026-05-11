@@ -216,6 +216,24 @@ test("pipeline Fund candidate persists separately from capability verification a
   assert.equal(notPassed.validFundCandidate, false);
 });
 
+test("passed package without explicit insight remains pipeline Fund candidate", () => {
+  const assessment = classifyFundCandidate({
+    candidateId: "PACKAGE-NO-INSIGHT",
+    claim:
+      "A bounded target outcome package passed all package gates but has no explicit new insight evidence.",
+    domain: "scientific_public_data_reliability",
+    fundGatePassed: true,
+  });
+
+  assert.equal(assessment.fundClass, "pipeline_fund_candidate");
+  assert.equal(assessment.validFundCandidate, true);
+  assert.equal(assessment.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(
+    assessment.discoveryGate.nontrivialNewInsightAcrossRealTargets,
+    false,
+  );
+});
+
 test("discovery Fund requires insight evidence beyond runtime reproduction success", () => {
   const reproductionOnly = classifyFundCandidate({
     candidateId: "REPRODUCTION-ONLY",

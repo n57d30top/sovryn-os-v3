@@ -159,7 +159,7 @@ export function classifyFundCandidate(
     fundClass = "infrastructure_fund_candidate";
   } else if (input.fundGatePassed && toolOnly) {
     fundClass = "tool_capability_verified";
-  } else if (input.fundGatePassed && pipelineOnly) {
+  } else if (input.fundGatePassed && (pipelineOnly || !explicitInsight)) {
     fundClass = "pipeline_fund_candidate";
   } else if (explicitInsight) {
     fundClass = "insight_candidate";

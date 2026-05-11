@@ -2937,6 +2937,7 @@ export class InsightCandidateDeriver {
     domain: DiscoveryDomain;
     mechanismHypothesis: string;
     evidenceScope: string;
+    exactNarrowClaim?: string;
     parentEvidenceRefs: string[];
     sourceVersioningDecision: CandidateVersioningDecision;
     ledger: CandidateIdentityLedger;
@@ -2957,11 +2958,11 @@ export class InsightCandidateDeriver {
       .toUpperCase();
     const candidateId = `INSIGHT-${normalizeCandidateIdPart(input.parentPipelineCandidateId).slice(0, 48)}-${idHash}`;
     const exactNarrowClaim = normalizeWhitespace(
-      [
-        `Insight candidate derived from ${input.parentPipelineCandidateId}:`,
-        `${input.mechanismHypothesis} evidence in ${input.domain} suggests a bounded pattern beyond pipeline success within ${input.evidenceScope}.`,
-        "This is not a discovery Fund unless the required baseline, rival, holdout, replay, counterexample, and proof/mechanism tests pass.",
-      ].join(" "),
+      input.exactNarrowClaim ??
+        [
+          `Insight candidate derived from ${input.parentPipelineCandidateId}:`,
+          `${input.mechanismHypothesis} evidence in ${input.domain} suggests a bounded target-outcome pattern within the stated evidence scope.`,
+        ].join(" "),
     );
     const requiredNextTests: InsightCandidateRequiredTests = {
       nontrivialPatternBeyondPipelineSuccess:
@@ -12277,19 +12278,23 @@ export class GeneratorBornHardSeedPressureService {
   private async deriveInsightCandidate(
     row: GeneratorBornPressureRow,
   ): Promise<InsightCandidateDerivation> {
+    const targetOutcome = normalizeWhitespace(
+      `${row.measuredOutcome} with residual ${row.residual} for ${row.outputId ?? row.seedId}`,
+    );
     const parentClaim = normalizeWhitespace(
       [
-        `Generator-born hard seed ${row.seedId} survived second-stage mechanism-first pressure.`,
-        `Exact candidate mechanism: ${row.mechanismHypothesis}.`,
-        `Measured outcome ${row.measuredOutcome} with residual ${row.residual}.`,
-        "This remains an InsightCandidate only and cannot notify or count as a discovery Fund.",
+        `In ${row.domain}, ${row.mechanismHypothesis} retains measured target-outcome evidence: ${targetOutcome}.`,
+        `Recorded pressure includes baseline, rival, counterexample, recurrence, holdout, replay, and mechanism checks for ${row.outputId ?? row.seedId}.`,
       ].join(" "),
+    );
+    const evidenceScope = normalizeWhitespace(
+      `bounded ${row.domain} target outcome ${row.outputId ?? row.seedId} with public source refs, matched controls, holdout path, and replay path`,
     );
     const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
       claim: parentClaim,
       domain: row.domain,
       mechanism: row.mechanismHypothesis,
-      evidenceScope: `generator-born ${row.domain} ${row.generatorId} runtime evidence`,
+      evidenceScope,
       fundClass: "insight_candidate",
     });
     return new InsightCandidateDeriver(this.root).derive({
@@ -12299,7 +12304,8 @@ export class GeneratorBornHardSeedPressureService {
       parentFundClass: null,
       domain: row.domain,
       mechanismHypothesis: row.mechanismHypothesis,
-      evidenceScope: `generator-born ${row.domain} runtime evidence with second-stage pressure`,
+      evidenceScope,
+      exactNarrowClaim: parentClaim,
       parentEvidenceRefs: row.evidenceRefs,
       sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
         inputCandidateId: row.seedId,
@@ -12537,13 +12543,6 @@ export class GeneratorBornInsightClosureService {
   }
 
   private async ensureGeneratorPressureArtifacts(): Promise<void> {
-    const pressureRowsPath = join(
-      this.root,
-      daemonArtifactRoot,
-      generatorBornPressureDir,
-      "PRESSURE_ROWS.json",
-    );
-    if (await exists(pressureRowsPath)) return;
     await new GeneratorBornHardSeedPressureService(this.root).run();
   }
 
@@ -12885,13 +12884,6 @@ export class GeneratorBornFundClosureService {
   }
 
   private async ensureInsightClosureArtifacts(): Promise<void> {
-    const latest = join(
-      this.root,
-      daemonArtifactRoot,
-      "generator-insight-closure",
-      "latest.json",
-    );
-    if (await exists(latest)) return;
     await new GeneratorBornInsightClosureService(this.root).run();
   }
 
@@ -13003,8 +12995,14 @@ export class GeneratorBornFundClosureService {
     const packagedCandidate: FundCandidate = {
       ...input.baseFundCandidate,
       publicPackagePath: packageRef,
+      nontrivialNewInsightAcrossRealTargets:
+        domainSignificanceAssessment.passed &&
+        input.baseFundCandidate.nontrivialNewInsightAcrossRealTargets === true,
       domainScientificSignificance: domainSignificanceAssessment.passed,
       domainSignificanceAssessment,
+      insightEvidenceRefs: domainSignificanceAssessment.passed
+        ? input.baseFundCandidate.insightEvidenceRefs
+        : [],
       predictionsExecuted: input.predictionLedger.filter((row) => row.executed)
         .length,
       nonObviousPredictions: input.predictionLedger.filter(

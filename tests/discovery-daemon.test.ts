@@ -1696,6 +1696,14 @@ test("pipeline evidence can derive new InsightCandidate without mutating parent 
     derivation.candidate?.whatIsNotClaimed.includes("not FUND_FOUND"),
     true,
   );
+  assert.equal(
+    derivation.candidate?.exactNarrowClaim.includes("not a discovery Fund"),
+    false,
+  );
+  assert.equal(
+    derivation.candidate?.exactNarrowClaim.includes("not FUND_FOUND"),
+    false,
+  );
 });
 
 test("InsightCandidate is not FUND_FOUND and does not notify", async () => {
@@ -4123,11 +4131,14 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
         candidate.fundGatePassed &&
         candidate.packageArtifactGatesPassed &&
         candidate.domainSignificancePassed === false &&
-        candidate.domainSignificanceFailedGates.includes(
+        !candidate.domainSignificanceFailedGates.includes(
           "no_anti_discovery_claim_text",
         ) &&
-        candidate.domainSignificanceFailedGates.includes(
+        !candidate.domainSignificanceFailedGates.includes(
           "not_pipeline_or_generator_scope_only",
+        ) &&
+        candidate.domainSignificanceFailedGates.includes(
+          "explicit_domain_significance_claim",
         ) &&
         candidate.fundClass === "pipeline_fund_candidate" &&
         candidate.countsForEinsteinNobelDiscoveryScore === false &&

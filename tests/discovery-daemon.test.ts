@@ -3974,6 +3974,46 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
   assert.equal(audit.pressureYield.pressureRunFound, true);
   assert.equal(audit.pressureYield.insightCandidatesCreated, 6);
   assert.deepEqual(audit.failedGates, []);
+
+  const insightClosure = await service.generatorInsightClosure();
+  assert.equal(insightClosure.candidatesLoaded, 6);
+  assert.equal(insightClosure.discoveryCandidatesCreated, 6);
+  assert.equal(insightClosure.fundFound, false);
+
+  const fundClosure = await service.generatorFundClosure();
+  assert.equal(fundClosure.closureCandidateCount, 6);
+  assert.equal(fundClosure.closureCandidateResults.length, 6);
+  assert.equal(fundClosure.discoveryScoredCandidates, 0);
+  assert.equal(fundClosure.nonDiscoveryClassifiedCandidates, 6);
+  assert.deepEqual(fundClosure.fundClassDistribution, {
+    pipeline_fund_candidate: 6,
+  });
+  assert.equal(
+    fundClosure.closureCandidateResults.every(
+      (candidate) =>
+        candidate.fundGatePassed &&
+        candidate.packageArtifactGatesPassed &&
+        candidate.fundClass === "pipeline_fund_candidate" &&
+        candidate.countsForEinsteinNobelDiscoveryScore === false &&
+        candidate.notificationAllowed === false,
+    ),
+    true,
+  );
+  assert.match(
+    fundClosure.remainingBottleneck,
+    /All 6 generator-born candidates/,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "generator-fund-closure",
+        "CANDIDATE_CLOSURE_RESULTS.json",
+      ),
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

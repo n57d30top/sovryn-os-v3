@@ -4424,7 +4424,7 @@ test("formal anchor audit rematerializes stale pilot rows before passing", async
   );
 });
 
-test("formal anchor audit handles depleted reserve without stale top-three proxy", async () => {
+test("formal anchor audit refills near-depleted reserve with new external formal anchors", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -4457,8 +4457,10 @@ test("formal anchor audit handles depleted reserve without stale top-three proxy
           "EXT-FORMAL-EULERIAN-TRAIL-PARITY-BOUNDARY",
           "EXT-FORMAL-BROOKS-THEOREM-SMALL-GRAPHS",
           "EXT-FORMAL-CHORDAL-GRAPH-PEO-BOUNDARY",
+          "EXT-FORMAL-HALL-MARRIAGE-SMALL-BIPARTITE",
           "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS",
           "EXT-FORMAL-STEINER-TRIPLE-SYSTEM-SMALL-N",
+          "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY",
         ],
         rivalStrongerAnchorIds: [],
         updatedAt: "2026-05-11T00:00:00.000Z",
@@ -4472,8 +4474,8 @@ test("formal anchor audit handles depleted reserve without stale top-three proxy
   const audit = await service.formalAnchorAudit();
 
   assert.equal(audit.passed, true);
-  assert.equal(audit.top5Selected, 2);
-  assert.equal(audit.top3Piloted, 2);
+  assert.equal(audit.top5Selected, 5);
+  assert.equal(audit.top3Piloted, 3);
   assert.equal(
     audit.gates.find((item) => item.code === "top5_selected")?.passed,
     true,
@@ -4486,9 +4488,42 @@ test("formal anchor audit handles depleted reserve without stale top-three proxy
     await readFile(join(selectionRoot, "latest.json"), "utf8"),
   ) as { selectedPilotAnchorIds: string[] };
   assert.deepEqual(latest.selectedPilotAnchorIds, [
-    "EXT-FORMAL-HALL-MARRIAGE-SMALL-BIPARTITE",
-    "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY",
+    "EXT-FORMAL-DOMINATION-NUMBER-SMALL-GRAPHS",
+    "EXT-FORMAL-GRAPH-BANDWIDTH-SMALL-TREES",
+    "EXT-FORMAL-EDGE-COLORING-VIZING-SMALL-GRAPHS",
   ]);
+  const pilotRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      pilotExecutorId: string;
+      mechanismSpecificChecks: string[];
+      birthEvaluation: { accepted: boolean; failedGates: string[] };
+      hardSeed: unknown | null;
+    }>;
+  };
+  assert.deepEqual(
+    pilotRows.results.map((row) => row.pilotExecutorId),
+    [
+      "domination_number_closed_neighborhood_executor",
+      "graph_bandwidth_tree_layout_executor",
+      "edge_coloring_vizing_boundary_executor",
+    ],
+  );
+  assert.equal(
+    pilotRows.results.every(
+      (row) =>
+        row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+        row.mechanismSpecificChecks.length >= 5 &&
+        row.birthEvaluation.accepted === false &&
+        row.birthEvaluation.failedGates.includes("baseline_resistance") &&
+        row.hardSeed === null,
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

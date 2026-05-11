@@ -14471,6 +14471,11 @@ function externalFormalAnchorPriority(anchorId: string): number {
     "EXT-FORMAL-CHORDAL-GRAPH-PEO-BOUNDARY",
     "EXT-FORMAL-HALL-MARRIAGE-SMALL-BIPARTITE",
     "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY",
+    "EXT-FORMAL-DOMINATION-NUMBER-SMALL-GRAPHS",
+    "EXT-FORMAL-GRAPH-BANDWIDTH-SMALL-TREES",
+    "EXT-FORMAL-EDGE-COLORING-VIZING-SMALL-GRAPHS",
+    "EXT-FORMAL-FEEDBACK-VERTEX-SET-SMALL-GRAPHS",
+    "EXT-FORMAL-VERTEX-COVER-KONIG-GAP-SMALL-GRAPHS",
   ];
   const index = ordered.indexOf(anchorId);
   return index === -1 ? 1000 : index;
@@ -15193,6 +15198,66 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       baselineReason:
         "A pilot must separate triangle-free extremal behavior from bipartite construction and edge-count controls.",
     },
+    {
+      id: "EXT-FORMAL-DOMINATION-NUMBER-SMALL-GRAPHS",
+      url: "https://en.wikipedia.org/wiki/Dominating_set",
+      topic: "bounded graph domination-number mechanism checks",
+      risk: 0.47,
+      unresolved: 4,
+      checkability: 5,
+      baselineRisk: 0.47,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate domination-number behavior from maximum-degree, leaf, and closed-neighborhood greedy controls.",
+    },
+    {
+      id: "EXT-FORMAL-GRAPH-BANDWIDTH-SMALL-TREES",
+      url: "https://en.wikipedia.org/wiki/Graph_bandwidth",
+      topic: "bounded graph-bandwidth tree-layout boundaries",
+      risk: 0.48,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.48,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate bandwidth layout obstruction from diameter, maximum-degree, and path/star family controls.",
+    },
+    {
+      id: "EXT-FORMAL-EDGE-COLORING-VIZING-SMALL-GRAPHS",
+      url: "https://en.wikipedia.org/wiki/Vizing%27s_theorem",
+      topic: "bounded edge-coloring class-one/class-two boundaries",
+      risk: 0.49,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.49,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate edge-coloring class behavior from maximum-degree, odd-cycle, and complete-graph theorem controls.",
+    },
+    {
+      id: "EXT-FORMAL-FEEDBACK-VERTEX-SET-SMALL-GRAPHS",
+      url: "https://en.wikipedia.org/wiki/Feedback_vertex_set",
+      topic: "bounded feedback-vertex-set cycle-obstruction boundaries",
+      risk: 0.5,
+      unresolved: 4,
+      checkability: 4,
+      baselineRisk: 0.5,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate feedback-vertex-set obstruction from cycle-rank, cut-vertex, and clique controls.",
+    },
+    {
+      id: "EXT-FORMAL-VERTEX-COVER-KONIG-GAP-SMALL-GRAPHS",
+      url: "https://en.wikipedia.org/wiki/K%C5%91nig%27s_theorem_(graph_theory)",
+      topic: "bounded vertex-cover and matching-gap boundaries",
+      risk: 0.51,
+      unresolved: 4,
+      checkability: 5,
+      baselineRisk: 0.51,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate vertex-cover/matching gaps from bipartiteness, odd-cycle, and maximum-matching controls.",
+    },
   ];
   return seed.map((item) =>
     formalAnchor({
@@ -15317,6 +15382,21 @@ function formalAnchorPilotProfile(
   }
   if (anchor.anchorId === "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY") {
     return turanTriangleFreePilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-DOMINATION-NUMBER-SMALL-GRAPHS") {
+    return dominationNumberPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-GRAPH-BANDWIDTH-SMALL-TREES") {
+    return graphBandwidthPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-EDGE-COLORING-VIZING-SMALL-GRAPHS") {
+    return edgeColoringVizingPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-FEEDBACK-VERTEX-SET-SMALL-GRAPHS") {
+    return feedbackVertexSetPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-VERTEX-COVER-KONIG-GAP-SMALL-GRAPHS") {
+    return vertexCoverKonigGapPilotProfile(anchor);
   }
   if (anchor.anchorId === "EXT-FORMAL-RAMSEY-R44-BOUNDED-WITNESS") {
     const paley = paleyGraph(17);
@@ -17340,6 +17420,378 @@ function turanTriangleFreePilotProfile(
   };
 }
 
+function dominationNumberPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "path_p5", graph: pathGraph(5) },
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "star_k14", graph: starGraph(4) },
+    {
+      name: "twin_leaf_control",
+      graph: graphFromEdgePairs(6, [
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [3, 4],
+        [3, 5],
+      ]),
+    },
+  ].map((item) => ({
+    ...item,
+    dominationNumber: exactDominatingNumber(item.graph),
+    maxDegree: graphMaxDegree(item.graph),
+    leafCount: Array.from(item.graph.values()).filter(
+      (neighbors) => neighbors.size === 1,
+    ).length,
+  }));
+  const degreeLeafBaselineExplains = cases.every(
+    (item) =>
+      item.dominationNumber <= Math.max(1, item.graph.size - item.maxDegree) ||
+      item.leafCount > 0,
+  );
+  return {
+    pilotExecutorId: "domination_number_closed_neighborhood_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_generation",
+      "exact_domination_number_search",
+      "maximum_degree_control",
+      "leaf_twin_negative_control",
+      "closed_neighborhood_replay",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => item.leafCount > 0).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Closed-neighborhood overlap should predict bounded domination-number changes better than maximum-degree and leaf controls.",
+    baselineResults: [
+      {
+        baseline: "degree_leaf_closed_neighborhood_control",
+        explainsSignal: degreeLeafBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:gamma=${item.dominationNumber},maxDegree=${item.maxDegree},leafCount=${item.leafCount}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "star_negative_control",
+        explainsSignal: true,
+        result:
+          "star and twin-leaf controls collapse the residual into ordinary closed-neighborhood coverage",
+      },
+      {
+        baseline: "cycle_path_family_control",
+        explainsSignal: false,
+        result:
+          "path and cycle families replay but do not weaken the degree/leaf rival",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#closed-neighborhood-control`,
+    residualSummary:
+      "bounded domination-number checks are replayable, but degree, leaf, and closed-neighborhood controls absorb the signal",
+  };
+}
+
+function graphBandwidthPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "path_p5", graph: pathGraph(5) },
+    { name: "star_k14", graph: starGraph(4) },
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    {
+      name: "fork_tree_control",
+      graph: graphFromEdgePairs(6, [
+        [0, 1],
+        [1, 2],
+        [1, 3],
+        [3, 4],
+        [3, 5],
+      ]),
+    },
+  ].map((item) => ({
+    ...item,
+    bandwidth: exactGraphBandwidth(item.graph),
+    maxDegree: graphMaxDegree(item.graph),
+    diameter: graphDiameter(item.graph),
+  }));
+  const diameterDegreeBaselineExplains = cases.every(
+    (item) =>
+      item.bandwidth <= Math.max(1, item.maxDegree) || item.diameter >= 2,
+  );
+  return {
+    pilotExecutorId: "graph_bandwidth_tree_layout_executor",
+    mechanismSpecificChecks: [
+      "bounded_tree_generation",
+      "exact_bandwidth_permutation_search",
+      "diameter_control",
+      "maximum_degree_control",
+      "path_star_negative_controls",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: 2,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small tree branching structure should expose bandwidth residuals beyond diameter, path, star, and maximum-degree controls.",
+    baselineResults: [
+      {
+        baseline: "diameter_degree_layout_control",
+        explainsSignal: diameterDegreeBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:bandwidth=${item.bandwidth},diameter=${item.diameter},maxDegree=${item.maxDegree}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "path_star_family_control",
+        explainsSignal: true,
+        result:
+          "path and star controls bracket the measured bandwidth outcomes without a new mechanism",
+      },
+      {
+        baseline: "permutation_replay_control",
+        explainsSignal: false,
+        result:
+          "exact permutation search replayed deterministically, but replay alone is not a discovery signal",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#diameter-degree-layout-control`,
+    residualSummary:
+      "bounded graph-bandwidth measurements stayed dominated by diameter, degree, path, and star controls",
+  };
+}
+
+function edgeColoringVizingPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c4", graph: cycleGraph(4) },
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "triangle_k3", graph: completeGraph(3) },
+    { name: "complete_k4", graph: completeGraph(4) },
+  ].map((item) => ({
+    ...item,
+    edgeChromaticNumber: exactEdgeChromaticNumber(item.graph),
+    maxDegree: graphMaxDegree(item.graph),
+  }));
+  const vizingBaselineExplains = cases.every(
+    (item) =>
+      item.edgeChromaticNumber === item.maxDegree ||
+      item.edgeChromaticNumber === item.maxDegree + 1,
+  );
+  return {
+    pilotExecutorId: "edge_coloring_vizing_boundary_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_generation",
+      "exact_edge_coloring_search",
+      "maximum_degree_vizing_control",
+      "odd_cycle_negative_control",
+      "complete_graph_replay",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter(
+      (item) => item.edgeChromaticNumber === item.maxDegree + 1,
+    ).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Bounded class-one/class-two behavior should reveal an edge-coloring mechanism beyond maximum-degree and odd-cycle controls.",
+    baselineResults: [
+      {
+        baseline: "maximum_degree_vizing_control",
+        explainsSignal: vizingBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:edgeChi=${item.edgeChromaticNumber},delta=${item.maxDegree}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "odd_cycle_complete_graph_control",
+        explainsSignal: true,
+        result:
+          "odd cycles and complete graph controls explain the class-two rows under standard theorem context",
+      },
+      {
+        baseline: "edge_coloring_replay_control",
+        explainsSignal: false,
+        result:
+          "exact edge-coloring backtracking replayed but did not weaken the theorem-context rival",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#maximum-degree-vizing-control`,
+    residualSummary:
+      "bounded edge-coloring checks are exact, but Vizing/odd-cycle controls fully explain the observed boundary",
+  };
+}
+
+function feedbackVertexSetPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "two_cycles_shared_vertex", graph: bowTieGraph() },
+    { name: "complete_k4", graph: completeGraph(4) },
+    { name: "tree_control", graph: pathGraph(6) },
+  ].map((item) => ({
+    ...item,
+    feedbackVertexSetSize: minimumFeedbackVertexSetSize(item.graph),
+    cycleRank: graphCycleRank(item.graph),
+    cutVertex: hasCutVertex(item.graph),
+  }));
+  const cycleRankBaselineExplains = cases.every(
+    (item) =>
+      item.feedbackVertexSetSize <= Math.max(0, item.cycleRank) ||
+      item.cutVertex,
+  );
+  return {
+    pilotExecutorId: "feedback_vertex_set_cycle_obstruction_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_generation",
+      "exact_feedback_vertex_set_search",
+      "cycle_rank_control",
+      "cut_vertex_control",
+      "forest_negative_control",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter(
+      (item) => item.feedbackVertexSetSize === 0,
+    ).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Local cycle overlap should predict feedback-vertex-set obstruction beyond cycle-rank and cut-vertex controls.",
+    baselineResults: [
+      {
+        baseline: "cycle_rank_cut_vertex_control",
+        explainsSignal: cycleRankBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:fvs=${item.feedbackVertexSetSize},cycleRank=${item.cycleRank},cut=${String(item.cutVertex)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "forest_negative_control",
+        explainsSignal: true,
+        result:
+          "forest controls collapse exactly as the cycle-rank rival predicts",
+      },
+      {
+        baseline: "clique_overlap_control",
+        explainsSignal: false,
+        result:
+          "clique controls replay but do not isolate a mechanism beyond cycle rank",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#cycle-rank-control`,
+    residualSummary:
+      "feedback-vertex-set pilot checks are replayable, but cycle-rank and cut-vertex controls explain the bounded outcomes",
+  };
+}
+
+function vertexCoverKonigGapPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "path_p4", graph: pathGraph(4) },
+    { name: "cycle_c4", graph: cycleGraph(4) },
+    { name: "cycle_c5", graph: cycleGraph(5) },
+    { name: "triangle_k3", graph: completeGraph(3) },
+  ].map((item) => ({
+    ...item,
+    minVertexCover: minimumVertexCoverSize(item.graph),
+    maxMatching: maximumMatchingSize(item.graph),
+    bipartite: isBipartiteGraph(item.graph),
+  }));
+  const konigBaselineExplains = cases.every(
+    (item) =>
+      (item.bipartite && item.minVertexCover === item.maxMatching) ||
+      (!item.bipartite && item.minVertexCover > item.maxMatching),
+  );
+  return {
+    pilotExecutorId: "vertex_cover_konig_gap_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_generation",
+      "exact_vertex_cover_search",
+      "maximum_matching_control",
+      "bipartite_konig_control",
+      "odd_cycle_negative_control",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => !item.bipartite).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small vertex-cover/matching gaps should isolate a mechanism beyond bipartiteness and odd-cycle controls.",
+    baselineResults: [
+      {
+        baseline: "bipartite_konig_odd_cycle_control",
+        explainsSignal: konigBaselineExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:cover=${item.minVertexCover},matching=${item.maxMatching},bipartite=${String(item.bipartite)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "maximum_matching_control",
+        explainsSignal: true,
+        result:
+          "matching equality and odd-cycle gaps explain the small graph outcomes",
+      },
+      {
+        baseline: "path_cycle_replay_control",
+        explainsSignal: false,
+        result:
+          "path and cycle checks replay deterministically but do not weaken the theorem-context rival",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#matching-gap-control`,
+    residualSummary:
+      "bounded vertex-cover checks are exact, but Konig/odd-cycle controls absorb the matching-gap signal",
+  };
+}
+
 function paleyGraph(q: number): Map<number, Set<number>> {
   const residues = new Set<number>();
   for (let value = 1; value < q; value += 1) {
@@ -17438,10 +17890,53 @@ function wheelGraph(nodeCount: number): Map<number, Set<number>> {
   return graphFromEdgePairs(nodeCount, edges);
 }
 
+function pathGraph(nodeCount: number): Map<number, Set<number>> {
+  const edges: Array<[number, number]> = [];
+  for (let node = 0; node < nodeCount - 1; node += 1) {
+    edges.push([node, node + 1]);
+  }
+  return graphFromEdgePairs(nodeCount, edges);
+}
+
+function starGraph(leafCount: number): Map<number, Set<number>> {
+  return graphFromEdgePairs(
+    leafCount + 1,
+    Array.from({ length: leafCount }, (_, index) => [0, index + 1]),
+  );
+}
+
+function bowTieGraph(): Map<number, Set<number>> {
+  return graphFromEdgePairs(5, [
+    [0, 1],
+    [1, 2],
+    [2, 0],
+    [0, 3],
+    [3, 4],
+    [4, 0],
+  ]);
+}
+
 function graphMinDegree(graph: Map<number, Set<number>>): number {
   return Math.min(
     ...Array.from(graph.values()).map((neighbors) => neighbors.size),
   );
+}
+
+function graphMaxDegree(graph: Map<number, Set<number>>): number {
+  return Math.max(
+    0,
+    ...Array.from(graph.values()).map((neighbors) => neighbors.size),
+  );
+}
+
+function graphEdges(graph: Map<number, Set<number>>): Array<[number, number]> {
+  const edges: Array<[number, number]> = [];
+  for (const [left, neighbors] of graph) {
+    for (const right of neighbors) {
+      if (left < right) edges.push([left, right]);
+    }
+  }
+  return edges;
 }
 
 function graphOddDegreeCount(graph: Map<number, Set<number>>): number {
@@ -17554,6 +18049,162 @@ function hasHamiltonianCycle(graph: Map<number, Set<number>>): boolean {
     });
   };
   return search([start], remaining);
+}
+
+function exactDominatingNumber(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  const dominates = (subset: number[]): boolean => {
+    const covered = new Set<number>(subset);
+    for (const node of subset) {
+      for (const neighbor of graph.get(node) ?? []) covered.add(neighbor);
+    }
+    return covered.size === nodes.length;
+  };
+  for (let size = 1; size <= nodes.length; size += 1) {
+    if (combinations(nodes, size).some(dominates)) return size;
+  }
+  return nodes.length;
+}
+
+function exactGraphBandwidth(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  const edges = graphEdges(graph);
+  const search = (remaining: number[], order: number[]): number => {
+    if (remaining.length === 0) {
+      const position = new Map(order.map((node, index) => [node, index]));
+      return Math.max(
+        0,
+        ...edges.map(([left, right]) =>
+          Math.abs(position.get(left)! - position.get(right)!),
+        ),
+      );
+    }
+    let best = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const next = remaining[index]!;
+      best = Math.min(
+        best,
+        search(
+          remaining.filter((_, itemIndex) => itemIndex !== index),
+          [...order, next],
+        ),
+      );
+    }
+    return best;
+  };
+  return search(nodes, []);
+}
+
+function exactEdgeChromaticNumber(graph: Map<number, Set<number>>): number {
+  const edges = graphEdges(graph);
+  const canColor = (
+    colorCount: number,
+    index = 0,
+    assignments = new Map<number, number>(),
+  ): boolean => {
+    if (index === edges.length) return true;
+    const [left, right] = edges[index]!;
+    for (let color = 0; color < colorCount; color += 1) {
+      const valid = edges.every(([edgeLeft, edgeRight], edgeIndex) => {
+        const assigned = assignments.get(edgeIndex);
+        if (assigned !== color) return true;
+        return (
+          edgeLeft !== left &&
+          edgeLeft !== right &&
+          edgeRight !== left &&
+          edgeRight !== right
+        );
+      });
+      if (!valid) continue;
+      const next = new Map(assignments);
+      next.set(index, color);
+      if (canColor(colorCount, index + 1, next)) return true;
+    }
+    return false;
+  };
+  for (
+    let colorCount = Math.max(1, graphMaxDegree(graph));
+    colorCount <= edges.length;
+    colorCount += 1
+  ) {
+    if (canColor(colorCount)) return colorCount;
+  }
+  return edges.length;
+}
+
+function inducedGraphWithout(
+  graph: Map<number, Set<number>>,
+  removed: Set<number>,
+): Map<number, Set<number>> {
+  const nodes = Array.from(graph.keys()).filter((node) => !removed.has(node));
+  const indexByNode = new Map(nodes.map((node, index) => [node, index]));
+  const edges: Array<[number, number]> = [];
+  for (const [left, right] of graphEdges(graph)) {
+    const mappedLeft = indexByNode.get(left);
+    const mappedRight = indexByNode.get(right);
+    if (mappedLeft !== undefined && mappedRight !== undefined) {
+      edges.push([mappedLeft, mappedRight]);
+    }
+  }
+  return graphFromEdgePairs(nodes.length, edges);
+}
+
+function isForestGraph(graph: Map<number, Set<number>>): boolean {
+  return graphCycleRank(graph) === 0;
+}
+
+function minimumFeedbackVertexSetSize(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  for (let size = 0; size <= nodes.length; size += 1) {
+    if (
+      combinations(nodes, size).some((removed) =>
+        isForestGraph(inducedGraphWithout(graph, new Set(removed))),
+      )
+    ) {
+      return size;
+    }
+  }
+  return nodes.length;
+}
+
+function minimumVertexCoverSize(graph: Map<number, Set<number>>): number {
+  const nodes = Array.from(graph.keys());
+  const edges = graphEdges(graph);
+  for (let size = 0; size <= nodes.length; size += 1) {
+    if (
+      combinations(nodes, size).some((cover) => {
+        const selected = new Set(cover);
+        return edges.every(
+          ([left, right]) => selected.has(left) || selected.has(right),
+        );
+      })
+    ) {
+      return size;
+    }
+  }
+  return nodes.length;
+}
+
+function isBipartiteGraph(graph: Map<number, Set<number>>): boolean {
+  const colors = new Map<number, number>();
+  for (const start of graph.keys()) {
+    if (colors.has(start)) continue;
+    colors.set(start, 0);
+    const queue = [start];
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      const nextColor = 1 - colors.get(node)!;
+      for (const neighbor of graph.get(node) ?? []) {
+        if (!colors.has(neighbor)) {
+          colors.set(neighbor, nextColor);
+          queue.push(neighbor);
+        } else if (colors.get(neighbor) === colors.get(node)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 function binaryVectorMatroidSummary(rank: number): {

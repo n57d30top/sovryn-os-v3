@@ -197,8 +197,8 @@ Commands:
   sovryn discover-daemon generative-experiments [--json]
   sovryn discover-daemon tool-expansion [--json]
   sovryn discover-daemon mechanism-first-pressure [--json]
-  sovryn discover-daemon generator-families [--json]
-  sovryn discover-daemon generator-run --generator <id> [--json]
+  sovryn discover-daemon generator-families [--replacement-candidates] [--json]
+  sovryn discover-daemon generator-run --generator <id> [--replacement-candidates] [--json]
   sovryn discover-daemon generator-audit [--json]
   sovryn discover-daemon generator-pressure [--json]
   sovryn discover-daemon generator-insight-closure [--json]
@@ -1702,7 +1702,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates with generator-families or generator-run to select replacement generator families after replacement_required audits.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1823,14 +1823,26 @@ async function discoverDaemonCommand(
     case "mechanism-first-pressure":
       return service.mechanismFirstPressure();
     case "generator-families":
-      return service.generatorFamilies();
+      return service.generatorFamilies({
+        replacementCandidates: flagBool(
+          parsed.flags,
+          "--replacement-candidates",
+        ),
+      });
     case "generator-run":
       return service.generatorRun({
         generatorId: flagString(parsed.flags, "--generator") as
           | undefined
           | "known_formal_problem_boundary_generator"
           | "benchmark_delta_mechanism_generator"
-          | "public_measurement_residual_generator",
+          | "public_measurement_residual_generator"
+          | "satlib_bounded_sat_boundary_generator"
+          | "snap_network_cut_resilience_generator"
+          | "openml_shift_instability_generator",
+        replacementCandidates: flagBool(
+          parsed.flags,
+          "--replacement-candidates",
+        ),
       });
     case "generator-audit":
       return service.generatorAudit();

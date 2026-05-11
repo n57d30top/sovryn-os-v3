@@ -1202,7 +1202,12 @@ export type MechanismFirstPressureReport = {
 export type MechanismFirstGeneratorFamilyId =
   | "known_formal_problem_boundary_generator"
   | "benchmark_delta_mechanism_generator"
-  | "public_measurement_residual_generator";
+  | "public_measurement_residual_generator"
+  | "satlib_bounded_sat_boundary_generator"
+  | "snap_network_cut_resilience_generator"
+  | "openml_shift_instability_generator";
+
+export type MechanismFirstGeneratorSet = "primary" | "replacement";
 
 export type ExternalProblemAnchor = {
   anchorId: string;
@@ -1236,6 +1241,7 @@ export type MechanismFirstGeneratorFamily = {
 
 export type GeneratorFamilyRegistryReport = {
   kind: "mechanism_first_generator_family_registry";
+  generatorSet: MechanismFirstGeneratorSet;
   familyCount: number;
   families: MechanismFirstGeneratorFamily[];
   artifactRefs: string[];
@@ -1337,6 +1343,7 @@ export type GeneratorFamilyReplacementRequirement = {
 export type MechanismFirstGeneratorRunReport = {
   kind: "mechanism_first_generator_run";
   status: "continue_searching_checkpointed";
+  generatorSet: MechanismFirstGeneratorSet;
   generatorId: MechanismFirstGeneratorFamilyId | "all";
   checkpointUsed: string | null;
   nextCheckpointRef: string;
@@ -1362,6 +1369,7 @@ export type MechanismFirstGeneratorRunReport = {
 export type MechanismFirstGeneratorAuditReport = {
   kind: "mechanism_first_generator_audit";
   passed: boolean;
+  generatorSet: MechanismFirstGeneratorSet;
   familyCount: number;
   latestRunFound: boolean;
   runtimeChecks: number;
@@ -11261,13 +11269,17 @@ export class HardSeedBirthEvaluator {
 }
 
 export class MechanismFirstEvidenceGeneratorService {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly generatorSet: MechanismFirstGeneratorSet = "primary",
+  ) {}
 
   async families(): Promise<GeneratorFamilyRegistryReport> {
     await mkdir(this.generatorRoot(), { recursive: true });
-    const families = mechanismFirstGeneratorFamilies();
+    const families = this.generatorFamilies();
     const report = withEvidenceHash({
       kind: "mechanism_first_generator_family_registry" as const,
+      generatorSet: this.generatorSet,
       familyCount: families.length,
       families,
       artifactRefs: [
@@ -11343,6 +11355,7 @@ export class MechanismFirstEvidenceGeneratorService {
     const report = withEvidenceHash({
       kind: "mechanism_first_generator_run" as const,
       status: "continue_searching_checkpointed" as const,
+      generatorSet: this.generatorSet,
       generatorId: generatorId ?? ("all" as const),
       checkpointUsed: await this.checkpointUsed(),
       nextCheckpointRef,
@@ -11381,10 +11394,14 @@ export class MechanismFirstEvidenceGeneratorService {
 
   async audit(): Promise<MechanismFirstGeneratorAuditReport> {
     await mkdir(this.generatorRoot(), { recursive: true });
-    const registry = await this.families();
     const latest = await readOptionalJson<MechanismFirstGeneratorRunReport>(
       join(this.generatorRoot(), "latest.json"),
     );
+    const auditSet = latest?.generatorSet ?? this.generatorSet;
+    const registry =
+      auditSet === this.generatorSet
+        ? await this.families()
+        : generatorFamilyRegistryForSet(auditSet);
     const outputPayload = await readOptionalJson<{
       outputs?: MechanismFirstGeneratorOutput[];
     }>(join(this.generatorRoot(), "GENERATOR_OUTPUTS.json"));
@@ -11407,23 +11424,28 @@ export class MechanismFirstEvidenceGeneratorService {
       replacementRequirements.some(
         (item) => item.status === "replacement_required",
       );
+    const requiredFamilyIds =
+      auditSet === "replacement"
+        ? [
+            "satlib_bounded_sat_boundary_generator",
+            "snap_network_cut_resilience_generator",
+            "openml_shift_instability_generator",
+          ]
+        : [
+            "known_formal_problem_boundary_generator",
+            "benchmark_delta_mechanism_generator",
+            "public_measurement_residual_generator",
+          ];
     const gates = [
       gate(
         "registry_has_three_new_families",
         registry.familyCount >= 3 &&
-          registry.families.some(
-            (family) =>
-              family.generatorId === "known_formal_problem_boundary_generator",
-          ) &&
-          registry.families.some(
-            (family) =>
-              family.generatorId === "benchmark_delta_mechanism_generator",
-          ) &&
-          registry.families.some(
-            (family) =>
-              family.generatorId === "public_measurement_residual_generator",
+          requiredFamilyIds.every((generatorId) =>
+            registry.families.some(
+              (family) => family.generatorId === generatorId,
+            ),
           ),
-        "Generator registry must include the three required new mechanism-first families.",
+        "Generator registry must include the three required mechanism-first families for the selected generator set.",
       ),
       gate(
         "registry_families_have_external_problem_anchors",
@@ -11504,6 +11526,7 @@ export class MechanismFirstEvidenceGeneratorService {
     const report = withEvidenceHash({
       kind: "mechanism_first_generator_audit" as const,
       passed: failedGates.length === 0,
+      generatorSet: auditSet,
       familyCount: registry.familyCount,
       latestRunFound: latest !== null,
       runtimeChecks: latest?.runtimeChecks ?? 0,
@@ -11533,6 +11556,10 @@ export class MechanismFirstEvidenceGeneratorService {
 
   private generatorRoot(): string {
     return join(this.root, daemonArtifactRoot, generatorFamilyDir);
+  }
+
+  private generatorFamilies(): MechanismFirstGeneratorFamily[] {
+    return mechanismFirstGeneratorFamilies(this.generatorSet);
   }
 
   private async checkpointUsed(): Promise<string | null> {
@@ -11594,6 +11621,7 @@ export class MechanismFirstEvidenceGeneratorService {
     await writeJson(join(this.root, input.report.nextCheckpointRef), {
       kind: "generator_family_checkpoint",
       status: input.report.status,
+      generatorSet: input.report.generatorSet,
       fundFound: input.report.fundFound,
       externalProblemAnchorsLoaded: input.report.externalProblemAnchorsLoaded,
       targetsMeasured: input.report.targetsMeasured,
@@ -19926,6 +19954,15 @@ function generatorBornMechanismHypothesis(
   if (output?.generatorId === "public_measurement_residual_generator") {
     return "public measurement residual recurs after seasonality cadence missingness and source-family controls";
   }
+  if (output?.generatorId === "satlib_bounded_sat_boundary_generator") {
+    return "public SAT outcome boundary residual survives clause-variable ratio unit-propagation random-CNF and planted-control rivals";
+  }
+  if (output?.generatorId === "snap_network_cut_resilience_generator") {
+    return "public network cut-resilience residual survives degree-sequence density component-size and random-rewire controls";
+  }
+  if (output?.generatorId === "openml_shift_instability_generator") {
+    return "public benchmark dataset-shift instability residual survives class-imbalance metric split shuffled-label and stronger-model controls";
+  }
   return normalizeMechanism(seed.claim);
 }
 
@@ -19941,6 +19978,15 @@ function generatorBornRivalHypothesis(
   }
   if (output?.generatorId === "public_measurement_residual_generator") {
     return "seasonality cadence missingness station-family or instrumentation artifacts explain the public measurement residual";
+  }
+  if (output?.generatorId === "satlib_bounded_sat_boundary_generator") {
+    return "clause-variable ratio unit propagation pure literal or random-CNF phase behavior explains the SAT boundary residual";
+  }
+  if (output?.generatorId === "snap_network_cut_resilience_generator") {
+    return "degree sequence density component size source family or random rewiring explains the network resilience residual";
+  }
+  if (output?.generatorId === "openml_shift_instability_generator") {
+    return "class imbalance metric choice split leakage task maturity or stronger-model baselines explain the evaluation-instability residual";
   }
   return `stronger rival for ${seed.domain}`;
 }
@@ -20372,7 +20418,34 @@ function generatorBornNextCheckpointMarkdown(
   ].join("\n");
 }
 
-function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
+function mechanismFirstGeneratorFamilies(
+  generatorSet: MechanismFirstGeneratorSet = "primary",
+): MechanismFirstGeneratorFamily[] {
+  if (generatorSet === "replacement") {
+    return replacementMechanismFirstGeneratorFamilies();
+  }
+  return primaryMechanismFirstGeneratorFamilies();
+}
+
+function generatorFamilyRegistryForSet(
+  generatorSet: MechanismFirstGeneratorSet,
+): GeneratorFamilyRegistryReport {
+  const families = mechanismFirstGeneratorFamilies(generatorSet);
+  return withEvidenceHash({
+    kind: "mechanism_first_generator_family_registry" as const,
+    generatorSet,
+    familyCount: families.length,
+    families,
+    artifactRefs: [
+      `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.md`,
+      `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.json`,
+      `${daemonArtifactRoot}/${generatorFamilyDir}/EXTERNAL_PROBLEM_ANCHORS.md`,
+      `${daemonArtifactRoot}/${generatorFamilyDir}/EXTERNAL_PROBLEM_ANCHORS.json`,
+    ],
+  });
+}
+
+function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
   return [
     {
       generatorId: "known_formal_problem_boundary_generator",
@@ -20475,6 +20548,119 @@ function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
         "Run same-source, shuffled-time, seasonality-only, cadence-only, missingness-only, and station-family controls before seed birth.",
       holdoutReplayDesign:
         "Freeze the residual claim, then test a held-out station/time slice and replay the residual extraction path.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "rival_theory_stronger",
+        "no_cross_source_support",
+      ],
+    },
+  ];
+}
+
+function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
+  return [
+    {
+      generatorId: "satlib_bounded_sat_boundary_generator",
+      domain: "formal_mathematics_conjecture_refutation",
+      externalProblemAnchor: {
+        anchorId: "EXT-FORMAL-SATLIB-3SAT-BOUNDARY",
+        anchorType: "known_formal_question",
+        sourceRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+        problemStatement:
+          "SATLIB public satisfiability benchmarks expose bounded SAT/UNSAT outcome families where a proposed structural boundary can be checked against clause-variable ratio, unit propagation, and random-CNF rivals.",
+        measuredTargetOutcome:
+          "bounded SAT outcome boundary residual after clause-variable ratio, unit-propagation, random-CNF, and planted-control baselines",
+        knownBaselineOrPrior:
+          "clause-variable ratio, unit propagation, pure-literal simplification, and random-CNF phase-transition behavior are strong rival explanations for SAT boundary signals",
+        externalValueRationale:
+          "A bounded SAT boundary is externally valuable only if it is tied to public SATLIB-style SAT/UNSAT outcomes and survives generated negative controls rather than remaining a generator-internal invariant.",
+        inspectabilityRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      },
+      mechanismHypothesis:
+        "A bounded formula-structure feature can produce a SAT outcome residual that survives clause-variable ratio, unit-propagation, pure-literal, random-CNF, and planted-control rivals.",
+      rivalHypothesis:
+        "Clause-variable ratio, unit propagation, pure-literal simplification, or ordinary random-CNF phase-transition behavior explains the apparent boundary.",
+      measurableOutcome:
+        "SAT/UNSAT outcome residual under bounded formula-structure perturbation after simple solver and random-CNF controls",
+      requiredTools: ["z3-solver", "sympy", "networkx"],
+      rawTargetSource: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      negativeControlDesign:
+        "Generate ratio-matched random CNF, planted-solution CNF, unit-clause enriched CNF, and variable-incidence shuffled controls where the structural boundary should fail if it is spurious.",
+      holdoutReplayDesign:
+        "Freeze the formula-structure claim, then replay it on disjoint bounded CNF families and a held-out SATLIB-style benchmark slice.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "counterexample_dense",
+        "proof_or_mechanism_failed",
+      ],
+    },
+    {
+      generatorId: "snap_network_cut_resilience_generator",
+      domain: "scientific_public_data_reliability",
+      externalProblemAnchor: {
+        anchorId: "EXT-SNAP-NETWORK-CUT-RESILIENCE",
+        anchorType: "public_measurement_residual",
+        sourceRef: "https://snap.stanford.edu/data/",
+        problemStatement:
+          "SNAP public network datasets provide externally inspectable graph families where connectivity and cut-resilience outcomes can be measured against degree sequence, density, component-size, and source-family rivals.",
+        measuredTargetOutcome:
+          "network cut-resilience residual after degree-sequence, density, component-size, random-rewire, and source-family controls",
+        knownBaselineOrPrior:
+          "degree distribution, graph density, component size, source family, and random rewiring are simple rival explanations for apparent network-resilience residuals",
+        externalValueRationale:
+          "A resilience residual is externally meaningful only when it recurs across public network families and is not merely a same-source or degree-sequence artifact.",
+        inspectabilityRef: "https://snap.stanford.edu/data/",
+      },
+      mechanismHypothesis:
+        "A public-network bridge/core arrangement can produce a cut-resilience residual that survives degree-sequence, density, component-size, random-rewire, and same-source controls.",
+      rivalHypothesis:
+        "Degree sequence, density, component size, source family, or ordinary random rewiring explains the apparent resilience residual.",
+      measurableOutcome:
+        "cross-family network cut-resilience residual after degree-sequence and random-rewire baselines",
+      requiredTools: ["networkx", "numpy", "scipy", "statsmodels"],
+      rawTargetSource: "https://snap.stanford.edu/data/",
+      negativeControlDesign:
+        "Compare against degree-preserving rewires, density-matched Erdos-Renyi controls, component-size matched slices, and same-source network-family controls.",
+      holdoutReplayDesign:
+        "Freeze the residual claim, then replay min-cut/connectivity measurements on a source-family independent public network slice.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "no_cross_source_support",
+        "rival_theory_stronger",
+      ],
+    },
+    {
+      generatorId: "openml_shift_instability_generator",
+      domain: "cross_domain_evaluation_fragility",
+      externalProblemAnchor: {
+        anchorId: "EXT-OPENML-DATASET-SHIFT-INSTABILITY",
+        anchorType: "public_benchmark",
+        sourceRef: "https://www.openml.org/search?type=task",
+        problemStatement:
+          "OpenML public tasks expose externally inspectable model-evaluation outcomes where dataset-shift instability can be tested against class imbalance, metric choice, split leakage, and model-family rivals.",
+        measuredTargetOutcome:
+          "cross-task evaluation instability residual after class-imbalance, metric-choice, split-leakage, shuffled-label, and stronger-model controls",
+        knownBaselineOrPrior:
+          "class imbalance, metric choice, split leakage, task maturity, and stronger-model baselines are simple rival explanations for evaluation-instability signals",
+        externalValueRationale:
+          "An evaluation-instability residual matters only when it is anchored to public benchmark tasks and predicts instability across independent tasks rather than one task family.",
+        inspectabilityRef: "https://www.openml.org/search?type=task",
+      },
+      mechanismHypothesis:
+        "A dataset-shift perturbation can expose an evaluation-instability residual that survives class imbalance, metric choice, split leakage, shuffled-label, and stronger-model rivals across public tasks.",
+      rivalHypothesis:
+        "Class imbalance, metric choice, split leakage, task maturity, or stronger-model baselines explain the apparent instability.",
+      measurableOutcome:
+        "cross-task evaluation-instability residual after class-imbalance split and stronger-model controls",
+      requiredTools: ["openml", "scikit-learn", "xgboost", "statsmodels"],
+      rawTargetSource: "https://www.openml.org/search?type=task",
+      negativeControlDesign:
+        "Run shuffled-label, class-balance matched, metric-swapped, stronger-model, and same-task-family controls before seed birth.",
+      holdoutReplayDesign:
+        "Freeze the shift-instability claim, then replay the perturbation on a held-out public task family with split receipts.",
       birthGateCriteria: generatorBirthGateCriteria(),
       knownFailureModes: [
         "baseline_dominated",
@@ -20701,6 +20887,100 @@ function generatorOutcomeProfile(
         "the protocol delta persists after split metric shuffled-label class-balance and stronger-model perturbations",
       rivalPrediction:
         "class balance split leakage or boosted-model rivals erase the delta",
+    };
+  }
+  if (generatorId === "satlib_bounded_sat_boundary_generator") {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "satlib_bounded_formula_outcome_residual",
+      measuredOutcome: born ? 0.74 + ordinal / 100 : 0.42 + ordinal / 100,
+      residualMagnitude: born
+        ? 0.24 - ordinal / 100
+        : ordinal === 9
+          ? 0.04
+          : 0.09,
+      baselineName: "clause_variable_ratio_unit_propagation_baseline",
+      baselineValue: born ? 0.31 : 0.42 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.26 : 0.48,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.19 : 0.45,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: ordinal === 10,
+      packageOnlySignal: false,
+      internallyInterestingOnly: false,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      secondarySourceRef: `https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html#bounded-sat-anchor-${ordinal}`,
+      candidatePrediction:
+        "the bounded formula-structure residual persists after clause-variable ratio unit-propagation pure-literal random-CNF and planted-control baselines",
+      rivalPrediction:
+        "clause-variable ratio unit propagation or random-CNF phase behavior erases the residual",
+    };
+  }
+  if (generatorId === "snap_network_cut_resilience_generator") {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "snap_network_cut_resilience_residual",
+      measuredOutcome: born ? 0.69 + ordinal / 100 : 0.4 + ordinal / 100,
+      residualMagnitude: born ? 0.21 : ordinal === 9 ? 0.05 : 0.08,
+      baselineName: "degree_sequence_density_component_baseline",
+      baselineValue: born ? 0.29 : 0.4 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.25 : 0.47,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.2 : 0.46,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: false,
+      packageOnlySignal: false,
+      internallyInterestingOnly: ordinal === 10,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      secondarySourceRef: `https://snap.stanford.edu/data/#network-cut-anchor-${ordinal}`,
+      candidatePrediction:
+        "the cut-resilience residual recurs across source-family independent graph slices after degree-sequence density component-size and random-rewire controls",
+      rivalPrediction:
+        "degree sequence density component size or random rewiring erases the resilience residual",
+    };
+  }
+  if (generatorId === "openml_shift_instability_generator") {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "openml_cross_task_shift_instability_residual",
+      measuredOutcome: born ? 0.66 + ordinal / 100 : 0.5 + ordinal / 100,
+      residualMagnitude: born ? 0.19 : ordinal === 9 ? 0.04 : 0.08,
+      baselineName: "class_imbalance_metric_split_leakage_baseline",
+      baselineValue: born ? 0.33 : 0.5 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.28 : 0.52,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.21 : 0.51,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: false,
+      packageOnlySignal: ordinal === 10,
+      internallyInterestingOnly: false,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      secondarySourceRef: `https://www.openml.org/search?type=task#shift-instability-anchor-${ordinal}`,
+      candidatePrediction:
+        "the dataset-shift instability residual persists across independent OpenML task families after class-imbalance metric split shuffled-label and stronger-model controls",
+      rivalPrediction:
+        "class imbalance metric choice split leakage or stronger-model rivals erase the residual",
     };
   }
   return {
@@ -20952,6 +21232,7 @@ function generatorRunResultsMarkdown(
   return [
     "# Generator Run Results",
     "",
+    `Generator set: ${report.generatorSet}.`,
     `Generator: ${report.generatorId}.`,
     `External problem anchors loaded: ${report.externalProblemAnchorsLoaded}.`,
     `Targets measured: ${report.targetsMeasured}.`,
@@ -21047,6 +21328,7 @@ function generatorAuditMarkdown(
     "# Generator Audit",
     "",
     `Passed: ${String(report.passed)}.`,
+    `Generator set: ${report.generatorSet}.`,
     `Family count: ${report.familyCount}.`,
     `Latest run found: ${String(report.latestRunFound)}.`,
     `Runtime checks: ${report.runtimeChecks}.`,
@@ -31731,20 +32013,29 @@ export class AutonomousDiscoveryDaemonService {
     return new DomainToolMechanismFirstPressure(this.root).run();
   }
 
-  async generatorFamilies(): Promise<GeneratorFamilyRegistryReport> {
+  async generatorFamilies(
+    input: {
+      replacementCandidates?: boolean;
+    } = {},
+  ): Promise<GeneratorFamilyRegistryReport> {
     await this.ensureInitialized();
-    return new MechanismFirstEvidenceGeneratorService(this.root).families();
+    return new MechanismFirstEvidenceGeneratorService(
+      this.root,
+      input.replacementCandidates === true ? "replacement" : "primary",
+    ).families();
   }
 
   async generatorRun(
     input: {
       generatorId?: MechanismFirstGeneratorFamilyId;
+      replacementCandidates?: boolean;
     } = {},
   ): Promise<MechanismFirstGeneratorRunReport> {
     await this.ensureInitialized();
-    return new MechanismFirstEvidenceGeneratorService(this.root).run(
-      input.generatorId,
-    );
+    return new MechanismFirstEvidenceGeneratorService(
+      this.root,
+      input.replacementCandidates === true ? "replacement" : "primary",
+    ).run(input.generatorId);
   }
 
   async generatorAudit(): Promise<MechanismFirstGeneratorAuditReport> {

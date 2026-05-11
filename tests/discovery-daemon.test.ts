@@ -3534,6 +3534,7 @@ test("mechanism-first generator registry loads required new families", async () 
   const report = await service.generatorFamilies();
 
   assert.equal(report.kind, "mechanism_first_generator_family_registry");
+  assert.equal(report.generatorSet, "primary");
   assert.equal(report.familyCount, 3);
   assert.deepEqual(report.families.map((family) => family.generatorId).sort(), [
     "benchmark_delta_mechanism_generator",
@@ -3559,6 +3560,41 @@ test("mechanism-first generator registry loads required new families", async () 
         "generator-families",
         "GENERATOR_FAMILY_REGISTRY.json",
       ),
+    ),
+    true,
+  );
+});
+
+test("mechanism-first replacement generator registry loads non-variant external anchors", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorFamilies({
+    replacementCandidates: true,
+  });
+
+  assert.equal(report.kind, "mechanism_first_generator_family_registry");
+  assert.equal(report.generatorSet, "replacement");
+  assert.equal(report.familyCount, 3);
+  assert.deepEqual(report.families.map((family) => family.generatorId).sort(), [
+    "openml_shift_instability_generator",
+    "satlib_bounded_sat_boundary_generator",
+    "snap_network_cut_resilience_generator",
+  ]);
+  assert.equal(
+    report.families.every(
+      (family) =>
+        family.externalProblemAnchor.sourceRef.startsWith("https://") &&
+        family.externalProblemAnchor.measuredTargetOutcome.length > 0 &&
+        family.mechanismHypothesis.length > 0 &&
+        family.rivalHypothesis.length > 0 &&
+        family.birthGateCriteria.length >= 9 &&
+        ![
+          "known_formal_problem_boundary_generator",
+          "benchmark_delta_mechanism_generator",
+          "public_measurement_residual_generator",
+        ].includes(family.generatorId),
     ),
     true,
   );
@@ -3846,6 +3882,98 @@ test("mechanism-first generator run blocks pressure-weak outputs before hard-see
     ),
     true,
   );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("replacement generator run creates birth-eligible hard seeds for downstream pressure", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun();
+
+  const report = await service.generatorRun({
+    replacementCandidates: true,
+  });
+
+  assert.equal(report.kind, "mechanism_first_generator_run");
+  assert.equal(report.generatorSet, "replacement");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.externalProblemAnchorsLoaded, 3);
+  assert.equal(report.targetsMeasured, 30);
+  assert.equal(report.familiesRun, 3);
+  assert.equal(report.runtimeChecks, 30);
+  assert.equal(report.hardSeedBirthAttempts, 30);
+  assert.equal(report.hardSeedsBorn, 6);
+  assert.equal(report.replacementRequired, false);
+  assert.equal(
+    report.replacementRequirements.every(
+      (item) =>
+        item.status === "productive_or_not_run" && item.hardSeedsBorn === 2,
+    ),
+    true,
+  );
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+
+  const seedPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeeds: Array<{
+      kind: string;
+      sourceSeed: { generatorId: string };
+      evidenceRefs: string[];
+    }>;
+    validations: Array<{ accepted: boolean }>;
+  };
+  assert.equal(seedPayload.hardSeeds.length, 6);
+  assert.equal(
+    seedPayload.hardSeeds.every(
+      (seed) =>
+        seed.kind === "hard_seed" &&
+        seed.evidenceRefs.some((ref) => ref.startsWith("https://")) &&
+        [
+          "satlib_bounded_sat_boundary_generator",
+          "snap_network_cut_resilience_generator",
+          "openml_shift_instability_generator",
+        ].includes(seed.sourceSeed.generatorId),
+    ),
+    true,
+  );
+  assert.equal(
+    seedPayload.validations.every((validation) => validation.accepted),
+    true,
+  );
+
+  const pressure = await service.generatorPressure();
+  assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
+  assert.equal(pressure.seedsLoaded, 6);
+  assert.equal(pressure.testsRun, 42);
+  assert.equal(pressure.insightCandidatesCreated, 6);
+  assert.equal(pressure.discoveryCandidatesCreated, 0);
+  assert.equal(pressure.fundFound, false);
+
+  const audit = await service.generatorAudit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.generatorSet, "replacement");
+  assert.equal(audit.replacementRequired, false);
+  assert.equal(audit.hardSeedsBorn, 6);
+  assert.equal(audit.pressureYield.pressureRunFound, true);
+  assert.equal(audit.pressureYield.insightCandidatesCreated, 6);
+  assert.deepEqual(audit.failedGates, []);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -6540,6 +6668,16 @@ const cliScenarios: {
       "generator-run",
       "--generator",
       "known_formal_problem_boundary_generator",
+      "--json",
+    ],
+    expectedKind: "mechanism_first_generator_run",
+  },
+  {
+    name: "generator-run-replacement",
+    args: [
+      "discover-daemon",
+      "generator-run",
+      "--replacement-candidates",
       "--json",
     ],
     expectedKind: "mechanism_first_generator_run",

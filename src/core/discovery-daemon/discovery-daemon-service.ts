@@ -1032,6 +1032,7 @@ export type MinimumRuntimeOvernightOptions = {
   minRuntimeMs?: number;
   runtimeLimitMs?: number;
   heartbeatMs?: number;
+  stagnationIterationLimit?: number;
   abortSignal?: AbortSignal;
 };
 
@@ -1039,6 +1040,10 @@ export type MinimumRuntimeOvernightInterruptSignal =
   | "SIGINT"
   | "SIGTERM"
   | "abort_signal";
+
+export type MinimumRuntimeOvernightAdaptiveStopReason =
+  | "deterministic_no_candidate_birth"
+  | null;
 
 export type MechanismDesignedOvernightWave = {
   waveId: string;
@@ -1091,6 +1096,10 @@ export type MinimumRuntimeOvernightRunReport = {
   fundGateResult: FundGateResult;
   fundFound: boolean;
   deathCauseDistribution: Record<string, number>;
+  adaptiveStopTriggered: boolean;
+  adaptiveStopReason: MinimumRuntimeOvernightAdaptiveStopReason;
+  adaptiveStopIteration: number | null;
+  adaptiveStopRecommendation: string | null;
   strongestSurvivingCandidate: string | null;
   remainingBottleneck: string;
   artifactRefs: string[];
@@ -1133,6 +1142,9 @@ export type MinimumRuntimeOvernightProgressReport = {
     notificationAllowed: boolean;
     failedGates: string[];
   };
+  adaptiveStopTriggered: boolean;
+  adaptiveStopReason: MinimumRuntimeOvernightAdaptiveStopReason;
+  adaptiveStopRecommendation: string | null;
   interrupted: boolean;
   interruptSignal: MinimumRuntimeOvernightInterruptSignal | null;
   artifactRefs: string[];
@@ -10487,6 +10499,7 @@ function mechanismFirstNextCheckpointMarkdown(
 const minimumRuntimeOvernightDir = "overnight-min-runtime" as const;
 const eightHoursMs = 8 * 60 * 60 * 1000;
 const defaultOvernightHeartbeatMs = 60 * 60 * 1000;
+const defaultOvernightStagnationIterationLimit = 3;
 
 export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
   constructor(
@@ -10499,12 +10512,19 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     const minRuntimeMs = this.options.minRuntimeMs ?? eightHoursMs;
     const heartbeatMs = this.options.heartbeatMs ?? defaultOvernightHeartbeatMs;
     const runtimeLimitMs = this.options.runtimeLimitMs ?? null;
+    const stagnationIterationLimit = Math.max(
+      0,
+      this.options.stagnationIterationLimit ??
+        defaultOvernightStagnationIterationLimit,
+    );
     const startedAtMs = Date.now();
     const wallClockStart = new Date(startedAtMs).toISOString();
     const checkpointUsed = await this.checkpointUsed();
     const waveRows: MechanismDesignedOvernightWave[] = [];
     const abortController = new AbortController();
     let interruptSignal: MinimumRuntimeOvernightInterruptSignal | null = null;
+    let adaptiveStopReason: MinimumRuntimeOvernightAdaptiveStopReason = null;
+    let adaptiveStopIteration: number | null = null;
     let iteration = 0;
 
     const requestStop = (signal: MinimumRuntimeOvernightInterruptSignal) => {
@@ -10532,15 +10552,18 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         wallClockStart,
         minRuntimeMs,
         runtimeLimitMs,
+        stagnationIterationLimit,
         checkpointUsed,
         currentIteration: iteration,
         waves: waveRows,
         interruptSignal,
+        adaptiveStopReason,
       });
 
       while (true) {
         const elapsedBeforeIteration = Date.now() - startedAtMs;
         if (interruptSignal) break;
+        if (adaptiveStopReason) break;
         if (iteration > 0 && elapsedBeforeIteration >= minRuntimeMs) break;
         if (
           iteration > 0 &&
@@ -10559,11 +10582,35 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
             wallClockStart,
             minRuntimeMs,
             runtimeLimitMs,
+            stagnationIterationLimit,
             checkpointUsed,
             currentIteration: iteration,
             waves: waveRows,
             interruptSignal,
+            adaptiveStopReason,
           });
+        }
+        adaptiveStopReason = minimumRuntimeAdaptiveStopReason(
+          waveRows,
+          iteration,
+          stagnationIterationLimit,
+        );
+        if (adaptiveStopReason) {
+          adaptiveStopIteration = iteration;
+          await this.writeProgress({
+            status: "running",
+            startedAtMs,
+            wallClockStart,
+            minRuntimeMs,
+            runtimeLimitMs,
+            stagnationIterationLimit,
+            checkpointUsed,
+            currentIteration: iteration,
+            waves: waveRows,
+            interruptSignal,
+            adaptiveStopReason,
+          });
+          break;
         }
         const elapsed = Date.now() - startedAtMs;
         if (interruptSignal) break;
@@ -10586,10 +10633,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           wallClockStart,
           minRuntimeMs,
           runtimeLimitMs,
+          stagnationIterationLimit,
           checkpointUsed,
           currentIteration: iteration,
           waves: waveRows,
           interruptSignal,
+          adaptiveStopReason,
         });
         try {
           await delay(waitMs, undefined, { signal: abortController.signal });
@@ -10615,9 +10664,11 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       : minimumRuntimeReached
         ? "continue_searching_checkpointed_after_min_runtime"
         : "continue_searching_checkpointed_due_to_runtime_limit";
-    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-${fundFound ? "fund-found" : minimumRuntimeReached ? "after-min-runtime" : "runtime-limit"}.json`;
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-${fundFound ? "fund-found" : minimumRuntimeReached ? "after-min-runtime" : adaptiveStopReason ? "adaptive-stop" : "runtime-limit"}.json`;
     const deathCauseDistribution =
       minimumRuntimeDeathCauseDistribution(waveRows);
+    const adaptiveStopRecommendation =
+      minimumRuntimeAdaptiveStopRecommendation(adaptiveStopReason);
     const report: MinimumRuntimeOvernightRunReport = withEvidenceHash({
       kind: "minimum_runtime_overnight_autonomous_discovery_run" as const,
       terminalStatus,
@@ -10664,12 +10715,19 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       fundGateResult,
       fundFound,
       deathCauseDistribution,
+      adaptiveStopTriggered: adaptiveStopReason !== null,
+      adaptiveStopReason,
+      adaptiveStopIteration,
+      adaptiveStopRecommendation,
       strongestSurvivingCandidate: null,
       remainingBottleneck:
-        "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
+        adaptiveStopReason === "deterministic_no_candidate_birth"
+          ? "The overnight minimum-runtime loop repeated the same mechanism-designed wave pattern without any InsightCandidate birth; the next step is to switch experiment generation rather than continue linear repetition."
+          : "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
       artifactRefs: minimumRuntimeOvernightArtifactRefs(
         nextCheckpointRef,
         interruptSignal !== null,
+        adaptiveStopReason !== null,
       ),
     });
     await this.writeArtifacts(report, waveRows);
@@ -10679,10 +10737,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       wallClockStart,
       minRuntimeMs,
       runtimeLimitMs,
+      stagnationIterationLimit,
       checkpointUsed,
       currentIteration: iteration,
       waves: waveRows,
       interruptSignal,
+      adaptiveStopReason,
     });
     if (interruptSignal) {
       await this.writeInterruptCheckpoint(report, interruptSignal);
@@ -10748,6 +10808,9 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       minimumRuntimeReached: report.minimumRuntimeReached,
       durationMs: report.durationMs,
       fundFound: report.fundFound,
+      adaptiveStopTriggered: report.adaptiveStopTriggered,
+      adaptiveStopReason: report.adaptiveStopReason,
+      adaptiveStopRecommendation: report.adaptiveStopRecommendation,
       reportRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/latest.json`,
       remainingBottleneck: report.remainingBottleneck,
     });
@@ -10767,6 +10830,30 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       join(root, "NEXT_CHECKPOINT.md"),
       minimumRuntimeNextCheckpointMarkdown(report),
     );
+    if (report.adaptiveStopTriggered) {
+      await writeJson(join(root, "ADAPTIVE_STOP_DECISION.json"), {
+        kind: "minimum_runtime_overnight_adaptive_stop_decision",
+        adaptiveStopTriggered: report.adaptiveStopTriggered,
+        adaptiveStopReason: report.adaptiveStopReason,
+        adaptiveStopIteration: report.adaptiveStopIteration,
+        terminalStatus: report.terminalStatus,
+        minimumRuntimeReached: report.minimumRuntimeReached,
+        waveExecutions: report.waveExecutions,
+        insightCandidatesCreated: report.insightCandidatesCreated,
+        discoveryCandidatesCreated: report.discoveryCandidatesCreated,
+        deathCauseDistribution: report.deathCauseDistribution,
+        recommendation: report.adaptiveStopRecommendation,
+        evidenceHash: hashEvidence({
+          reason: report.adaptiveStopReason,
+          iteration: report.adaptiveStopIteration,
+          deathCauseDistribution: report.deathCauseDistribution,
+        }),
+      });
+      await writeText(
+        join(root, "ADAPTIVE_STOP_DECISION.md"),
+        minimumRuntimeAdaptiveStopMarkdown(report),
+      );
+    }
   }
 
   private installSignalHandlers(
@@ -10788,10 +10875,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     wallClockStart: string;
     minRuntimeMs: number;
     runtimeLimitMs: number | null;
+    stagnationIterationLimit: number;
     checkpointUsed: string | null;
     currentIteration: number;
     waves: MechanismDesignedOvernightWave[];
     interruptSignal: MinimumRuntimeOvernightInterruptSignal | null;
+    adaptiveStopReason: MinimumRuntimeOvernightAdaptiveStopReason;
   }): Promise<MinimumRuntimeOvernightProgressReport> {
     const elapsedMs = Date.now() - input.startedAtMs;
     const latestWave = input.waves.at(-1) ?? null;
@@ -10852,6 +10941,11 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         notificationAllowed: fundGateResult.notificationAllowed,
         failedGates: fundGateResult.failedGates,
       },
+      adaptiveStopTriggered: input.adaptiveStopReason !== null,
+      adaptiveStopReason: input.adaptiveStopReason,
+      adaptiveStopRecommendation: minimumRuntimeAdaptiveStopRecommendation(
+        input.adaptiveStopReason,
+      ),
       interrupted: input.interruptSignal !== null,
       interruptSignal: input.interruptSignal,
       artifactRefs: [
@@ -10873,9 +10967,12 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         minimumRuntimeReached: report.minimumRuntimeReached,
         currentIteration: report.currentIteration,
         completedWaveExecutions: report.completedWaveExecutions,
+        stagnationIterationLimit: input.stagnationIterationLimit,
         latestWaveId: report.latestWave?.waveId ?? null,
         latestDeathCause: report.latestWave?.deathCause ?? null,
         fundFound: report.currentFundState.fundFound,
+        adaptiveStopTriggered: report.adaptiveStopTriggered,
+        adaptiveStopReason: report.adaptiveStopReason,
         interrupted: report.interrupted,
         interruptSignal: report.interruptSignal,
       }),
@@ -10894,6 +10991,9 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       counters: report.counters,
       deathCauseDistribution: report.deathCauseDistribution,
       fundFound: report.currentFundState.fundFound,
+      adaptiveStopTriggered: report.adaptiveStopTriggered,
+      adaptiveStopReason: report.adaptiveStopReason,
+      adaptiveStopRecommendation: report.adaptiveStopRecommendation,
       interrupted: report.interrupted,
       interruptSignal: report.interruptSignal,
       progressRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/progress.json`,
@@ -11128,9 +11228,53 @@ function minimumRuntimeDeathCauseDistribution(
   return counts;
 }
 
+function minimumRuntimeAdaptiveStopReason(
+  waves: MechanismDesignedOvernightWave[],
+  currentIteration: number,
+  stagnationIterationLimit: number,
+): MinimumRuntimeOvernightAdaptiveStopReason {
+  if (stagnationIterationLimit <= 0) return null;
+  if (currentIteration < stagnationIterationLimit) return null;
+  if (sumOvernightBy(waves, "insightCandidatesCreated") > 0) return null;
+  if (sumOvernightBy(waves, "discoveryCandidatesCreated") > 0) return null;
+  const recentIterations = Array.from(
+    { length: stagnationIterationLimit },
+    (_, index) => currentIteration - index,
+  );
+  const signatures = recentIterations.map((iteration) =>
+    minimumRuntimeIterationSignature(waves, iteration),
+  );
+  if (signatures.some((signature) => signature === "")) return null;
+  return new Set(signatures).size === 1
+    ? "deterministic_no_candidate_birth"
+    : null;
+}
+
+function minimumRuntimeIterationSignature(
+  waves: MechanismDesignedOvernightWave[],
+  iteration: number,
+): string {
+  return waves
+    .filter((wave) => wave.iteration === iteration)
+    .sort((left, right) => left.waveId.localeCompare(right.waveId))
+    .map(
+      (wave) =>
+        `${wave.waveId}:${wave.deathCause}:${wave.insightCandidatesCreated}:${wave.discoveryCandidatesCreated}`,
+    )
+    .join("|");
+}
+
+function minimumRuntimeAdaptiveStopRecommendation(
+  reason: MinimumRuntimeOvernightAdaptiveStopReason,
+): string | null {
+  if (reason !== "deterministic_no_candidate_birth") return null;
+  return "Stop repeating the same six mechanism-designed waves; switch to a different experiment generator that changes raw target selection, mechanism hypotheses, or baseline/rival design before resuming overnight execution.";
+}
+
 function minimumRuntimeOvernightArtifactRefs(
   nextCheckpointRef: string,
   includeInterruptCheckpoint = false,
+  includeAdaptiveStopDecision = false,
 ): string[] {
   const root = `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}`;
   const refs = [
@@ -11150,6 +11294,10 @@ function minimumRuntimeOvernightArtifactRefs(
   if (includeInterruptCheckpoint) {
     refs.push(`${root}/INTERRUPT_CHECKPOINT.json`);
     refs.push(`${root}/INTERRUPT_CHECKPOINT.md`);
+  }
+  if (includeAdaptiveStopDecision) {
+    refs.push(`${root}/ADAPTIVE_STOP_DECISION.json`);
+    refs.push(`${root}/ADAPTIVE_STOP_DECISION.md`);
   }
   return refs;
 }
@@ -11188,6 +11336,8 @@ function minimumRuntimeComplianceMarkdown(
     `Required minimum ms: ${report.minimumRuntimeMs}.`,
     `Minimum reached: ${String(report.minimumRuntimeReached)}.`,
     `Terminal status: ${report.terminalStatus}.`,
+    `Adaptive stop triggered: ${String(report.adaptiveStopTriggered)}.`,
+    `Adaptive stop reason: ${report.adaptiveStopReason ?? "none"}.`,
     "",
     `Major waves completed: ${report.majorWavesCompleted}.`,
     `Wave executions: ${report.waveExecutions}.`,
@@ -11225,8 +11375,27 @@ function minimumRuntimeNextCheckpointMarkdown(
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
     `Next checkpoint: ${report.nextCheckpointRef}.`,
     `Fund found: ${String(report.fundFound)}.`,
+    `Adaptive stop: ${report.adaptiveStopReason ?? "none"}.`,
     "",
     report.remainingBottleneck,
+  ].join("\n");
+}
+
+function minimumRuntimeAdaptiveStopMarkdown(
+  report: MinimumRuntimeOvernightRunReport,
+): string {
+  return [
+    "# Adaptive Stop Decision",
+    "",
+    `Triggered: ${String(report.adaptiveStopTriggered)}.`,
+    `Reason: ${report.adaptiveStopReason ?? "none"}.`,
+    `Iteration: ${report.adaptiveStopIteration ?? "none"}.`,
+    `Wave executions: ${report.waveExecutions}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    `Recommendation: ${report.adaptiveStopRecommendation ?? "none"}.`,
   ].join("\n");
 }
 

@@ -3714,6 +3714,7 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
+  assert.equal(report.adaptiveStopTriggered, false);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
   assert.equal(report.deathCauseDistribution.no_death_cause ?? 0, 0);
   for (const artifact of [
@@ -3749,6 +3750,7 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
     (progress.currentFundState as Record<string, unknown>).fundFound,
     false,
   );
+  assert.equal(progress.adaptiveStopTriggered, false);
   const heartbeat = JSON.parse(
     await readFile(
       join(root, daemonRoot, "overnight-min-runtime", "heartbeat.json"),
@@ -3780,6 +3782,68 @@ test("discover-daemon overnight-min-runtime enforces runtime terminal status and
   );
 });
 
+test("discover-daemon overnight-min-runtime stops deterministic no-insight repetition", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.mechanismFirstPressure();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 1,
+    stagnationIterationLimit: 2,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.adaptiveStopTriggered, true);
+  assert.equal(report.adaptiveStopReason, "deterministic_no_candidate_birth");
+  assert.equal(report.adaptiveStopIteration, 2);
+  assert.equal(report.waveExecutions, 12);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(
+    report.nextCheckpointRef,
+    ".sovryn/discovery-daemon/checkpoints/overnight-min-runtime-adaptive-stop.json",
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "ADAPTIVE_STOP_DECISION.json",
+      ),
+    ),
+    true,
+  );
+  const runningCheckpoint = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "RUNNING_CHECKPOINT.json",
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(runningCheckpoint.adaptiveStopTriggered, true);
+  assert.equal(
+    runningCheckpoint.adaptiveStopReason,
+    "deterministic_no_candidate_birth",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -3799,6 +3863,7 @@ test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort
   );
   assert.equal(report.minimumRuntimeReached, false);
   assert.equal(report.fundFound, false);
+  assert.equal(report.adaptiveStopTriggered, false);
   assert.equal(
     report.artifactRefs.includes(
       ".sovryn/discovery-daemon/overnight-min-runtime/INTERRUPT_CHECKPOINT.json",

@@ -4291,6 +4291,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
     "EXTERNAL_FORMAL_ANCHOR_SELECTOR.md",
     "EXTERNAL_FORMAL_ANCHORS_EVALUATED.json",
     "FORMAL_ANCHOR_SELECTOR_MEMORY.json",
+    "FORMAL_ANCHOR_PILOT_HISTORY.json",
     "TOP5_FORMAL_ANCHORS.md",
     "TOP3_FORMAL_PILOT_CHECKS.md",
     "TOP3_FORMAL_PILOT_CHECKS.json",
@@ -4320,6 +4321,8 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   ) as {
     results: Array<{
       anchorId: string;
+      pilotExecutorId: string;
+      mechanismSpecificChecks: string[];
       birthEvaluation: { accepted: boolean; primaryBlocker: string | null };
       hardSeed: unknown | null;
       knownTrivial: boolean;
@@ -4329,6 +4332,14 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   assert.equal(
     pilotRows.results.every(
       (row) => !row.birthEvaluation.accepted && row.hardSeed === null,
+    ),
+    true,
+  );
+  assert.equal(
+    pilotRows.results.every(
+      (row) =>
+        row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+        row.mechanismSpecificChecks.length >= 3,
     ),
     true,
   );
@@ -4502,6 +4513,90 @@ test("formal anchor pilot uses mechanism-specific executors after failure memory
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
+  );
+});
+
+test("formal anchor pilot history persists repeated pilot deaths into selector memory", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+
+  await service.formalAnchorPilot();
+  const firstRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      anchorId: string;
+      pilotExecutorId: string;
+      primaryDeathCause: string | null;
+    }>;
+  };
+
+  await service.formalAnchorPilot();
+  const secondRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      anchorId: string;
+      pilotExecutorId: string;
+      primaryDeathCause: string | null;
+    }>;
+  };
+  const history = JSON.parse(
+    await readFile(
+      join(selectionRoot, "FORMAL_ANCHOR_PILOT_HISTORY.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      anchorId: string;
+      pilotExecutorId: string;
+      primaryDeathCause: string | null;
+    }>;
+  };
+  const expectedIds = new Set([
+    ...firstRows.results.map((row) => row.anchorId),
+    ...secondRows.results.map((row) => row.anchorId),
+  ]);
+  const historyIds = new Set(history.results.map((row) => row.anchorId));
+
+  assert.equal(expectedIds.size >= 6, true);
+  assert.equal(
+    [...expectedIds].every((anchorId) => historyIds.has(anchorId)),
+    true,
+  );
+  assert.equal(
+    history.results.every(
+      (row) => row.pilotExecutorId !== "generic_formal_anchor_pilot_executor",
+    ),
+    true,
+  );
+
+  const nextSelection = await service.formalAnchorSelect();
+  const killedAnchorIds = new Set(
+    history.results
+      .filter((row) =>
+        [
+          "baseline_dominated",
+          "known_trivial",
+          "rival_theory_stronger",
+        ].includes(row.primaryDeathCause ?? ""),
+      )
+      .map((row) => row.anchorId),
+  );
+
+  assert.equal(
+    nextSelection.top5Anchors.every(
+      (item) => !killedAnchorIds.has(item.anchor.anchorId),
+    ),
+    true,
   );
 });
 

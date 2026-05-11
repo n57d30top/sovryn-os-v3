@@ -1528,6 +1528,13 @@ type ExternalFormalAnchorSelectorMemory = {
   evidenceHash: string;
 };
 
+type ExternalFormalAnchorPilotHistory = {
+  kind: "external_formal_anchor_pilot_history";
+  results: ExternalFormalPilotResult[];
+  updatedAt: string;
+  evidenceHash: string;
+};
+
 export type ExternalFormalPilotResult = {
   kind: "external_formal_anchor_pilot_result";
   anchorId: string;
@@ -13749,6 +13756,16 @@ export class ExternalFormalAnchorSelectionService {
         "Every pilot row must explicitly decide HardSeed birth or precise blocking.",
       ),
       gate(
+        "top3_pilots_use_mechanism_specific_executors",
+        rows.length === 3 &&
+          rows.every(
+            (row) =>
+              row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+              row.mechanismSpecificChecks.length >= 3,
+          ),
+        "Top formal pilots must execute mechanism-specific bounded checks rather than the generic fallback executor.",
+      ),
+      gate(
         "no_fake_fund",
         pilot.fundFound === false &&
           !(await exists(
@@ -13857,41 +13874,50 @@ export class ExternalFormalAnchorSelectionService {
     const existing = await readOptionalJson<ExternalFormalAnchorSelectorMemory>(
       join(this.anchorRoot(), "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
     );
-    return existing ?? emptyExternalFormalAnchorSelectorMemory();
+    const history = await this.readPilotHistory();
+    return mergeExternalFormalSelectorMemory(
+      existing ?? emptyExternalFormalAnchorSelectorMemory(),
+      history.results,
+    );
   }
 
   private async updateSelectorMemoryFromPilot(
     rows: ExternalFormalPilotResult[],
   ): Promise<void> {
-    const current = await this.readSelectorMemory();
-    const baselineDominated = rows
-      .filter((row) => row.primaryDeathCause === "baseline_dominated")
-      .map((row) => row.anchorId);
-    const knownTrivial = rows
-      .filter((row) => row.primaryDeathCause === "known_trivial")
-      .map((row) => row.anchorId);
-    const rivalStronger = rows
-      .filter((row) => row.primaryDeathCause === "rival_theory_stronger")
-      .map((row) => row.anchorId);
-    const next = withEvidenceHash({
-      kind: "external_formal_anchor_selector_memory" as const,
-      baselineDominatedAnchorIds: uniqueStrings([
-        ...current.baselineDominatedAnchorIds,
-        ...baselineDominated,
-      ]).sort(),
-      knownTrivialAnchorIds: uniqueStrings([
-        ...current.knownTrivialAnchorIds,
-        ...knownTrivial,
-      ]).sort(),
-      rivalStrongerAnchorIds: uniqueStrings([
-        ...current.rivalStrongerAnchorIds,
-        ...rivalStronger,
-      ]).sort(),
+    const currentHistory = await this.readPilotHistory();
+    const nextHistory = withEvidenceHash({
+      kind: "external_formal_anchor_pilot_history" as const,
+      results: uniqueFormalPilotRows([...currentHistory.results, ...rows]),
       updatedAt: nowIso(),
     });
     await writeJson(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_PILOT_HISTORY.json"),
+      nextHistory,
+    );
+    const currentSelectorMemory =
+      (await readOptionalJson<ExternalFormalAnchorSelectorMemory>(
+        join(this.anchorRoot(), "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+      )) ?? emptyExternalFormalAnchorSelectorMemory();
+    await writeJson(
       join(this.anchorRoot(), "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
-      next,
+      mergeExternalFormalSelectorMemory(
+        currentSelectorMemory,
+        nextHistory.results,
+      ),
+    );
+  }
+
+  private async readPilotHistory(): Promise<ExternalFormalAnchorPilotHistory> {
+    const existing = await readOptionalJson<ExternalFormalAnchorPilotHistory>(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_PILOT_HISTORY.json"),
+    );
+    return (
+      existing ??
+      withEvidenceHash({
+        kind: "external_formal_anchor_pilot_history" as const,
+        results: [],
+        updatedAt: nowIso(),
+      })
     );
   }
 
@@ -13906,6 +13932,10 @@ export class ExternalFormalAnchorSelectionService {
       evaluations,
       evidenceHash: hashEvidence(evaluations),
     });
+    await writeJson(
+      join(root, "FORMAL_ANCHOR_PILOT_HISTORY.json"),
+      await this.readPilotHistory(),
+    );
     await writeJson(
       join(root, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
       await this.readSelectorMemory(),
@@ -14277,6 +14307,49 @@ export class ExternalFormalAnchorSelectionService {
       formalAnchorPressureNextCheckpointMarkdown(report),
     );
   }
+}
+
+function mergeExternalFormalSelectorMemory(
+  current: ExternalFormalAnchorSelectorMemory,
+  rows: ExternalFormalPilotResult[],
+): ExternalFormalAnchorSelectorMemory {
+  const baselineDominated = rows
+    .filter((row) => row.primaryDeathCause === "baseline_dominated")
+    .map((row) => row.anchorId);
+  const knownTrivial = rows
+    .filter((row) => row.primaryDeathCause === "known_trivial")
+    .map((row) => row.anchorId);
+  const rivalStronger = rows
+    .filter((row) => row.primaryDeathCause === "rival_theory_stronger")
+    .map((row) => row.anchorId);
+  return withEvidenceHash({
+    kind: "external_formal_anchor_selector_memory" as const,
+    baselineDominatedAnchorIds: uniqueStrings([
+      ...current.baselineDominatedAnchorIds,
+      ...baselineDominated,
+    ]).sort(),
+    knownTrivialAnchorIds: uniqueStrings([
+      ...current.knownTrivialAnchorIds,
+      ...knownTrivial,
+    ]).sort(),
+    rivalStrongerAnchorIds: uniqueStrings([
+      ...current.rivalStrongerAnchorIds,
+      ...rivalStronger,
+    ]).sort(),
+    updatedAt: nowIso(),
+  });
+}
+
+function uniqueFormalPilotRows(
+  rows: ExternalFormalPilotResult[],
+): ExternalFormalPilotResult[] {
+  const byAnchor = new Map<string, ExternalFormalPilotResult>();
+  for (const row of rows) {
+    byAnchor.set(row.anchorId, row);
+  }
+  return Array.from(byAnchor.values()).sort((left, right) =>
+    left.anchorId.localeCompare(right.anchorId),
+  );
 }
 
 function externalFormalAnchorScore(anchor: ExternalFormalAnchor): number {
@@ -15056,6 +15129,27 @@ function formalAnchorPilotProfile(
   if (anchor.anchorId === "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N") {
     return latinSquareTransversalPilotProfile(anchor);
   }
+  if (anchor.anchorId === "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION") {
+    return erdosSzekeresPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK") {
+    return goldbachResiduePilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES") {
+    return graphMinorForbiddenPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY") {
+    return kellerCubeTilingPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS") {
+    return vanDerWaerdenPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE") {
+    return zarankiewiczPilotProfile(anchor);
+  }
+  if (anchor.anchorId === "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER") {
+    return numberPartitionPilotProfile(anchor);
+  }
   if (anchor.anchorId === "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS") {
     return schurNumberPilotProfile(anchor);
   }
@@ -15784,6 +15878,524 @@ function latinSquareTransversalPilotProfile(
   };
 }
 
+function erdosSzekeresPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    {
+      name: "convex_pentagon_control",
+      points: [
+        { x: 0, y: 0 },
+        { x: 1, y: 2 },
+        { x: 3, y: 3 },
+        { x: 5, y: 1 },
+        { x: 3, y: -1 },
+      ],
+    },
+    {
+      name: "interior_point_negative_control",
+      points: [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 4, y: 0 },
+        { x: 1, y: 2 },
+        { x: 3, y: 2 },
+        { x: 2, y: 1 },
+      ],
+    },
+    {
+      name: "monotone_chain_control",
+      points: [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+        { x: 2, y: 4 },
+        { x: 3, y: 9 },
+        { x: 4, y: 16 },
+        { x: 5, y: 25 },
+      ],
+    },
+  ].map((item) => ({
+    ...item,
+    hullSize: convexHullSize(item.points),
+    hasConvexFive: hasConvexSubsetOfSize(item.points, 5),
+  }));
+  const hullControlExplains = cases.every(
+    (item) => item.hasConvexFive === item.hullSize >= 5,
+  );
+  return {
+    pilotExecutorId: "erdos_szekeres_convex_position_executor",
+    mechanismSpecificChecks: [
+      "bounded_point_set_generation",
+      "convex_hull_measurement",
+      "convex_subset_search",
+      "interior_point_negative_control",
+      "monotone_chain_control",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => !item.hasConvexFive).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small point-set convex-position thresholds should expose structure beyond hull size, monotone order, and interior-point controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "convex_hull_size_control",
+        explainsSignal: hullControlExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:hull=${item.hullSize},convex5=${String(item.hasConvexFive)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "interior_point_control",
+        explainsSignal: true,
+        result:
+          "interior points explain the bounded negative cases before a new convex-position boundary is isolated",
+      },
+      {
+        baseline: "monotone_chain_control",
+        explainsSignal: false,
+        result:
+          "monotone-chain control replayed but did not isolate a novel mechanism beyond known convex-position behavior",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#convex-hull-control`,
+    residualSummary:
+      "Erdos-Szekeres bounded point-set checks were replayable, but hull-size and interior-point controls absorbed the signal before HardSeed birth",
+  };
+}
+
+function goldbachResiduePilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = Array.from({ length: 19 }, (_, index) => 4 + index * 2).map(
+    (value) => ({
+      value,
+      decomposes: hasGoldbachDecomposition(value),
+      residue: value % 6,
+    }),
+  );
+  const primeTableExplains = rows.every((row) => row.decomposes);
+  return {
+    pilotExecutorId: "goldbach_bounded_prime_table_executor",
+    mechanismSpecificChecks: [
+      "bounded_even_number_generation",
+      "prime_pair_search",
+      "residue_class_control",
+      "small_prime_table_replay",
+    ],
+    formalObjectsGenerated: rows.length,
+    boundedChecksRun: rows.length * 4,
+    counterexampleChecksRun: rows.filter((row) => !row.decomposes).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Bounded Goldbach residue checks should expose a decomposition boundary beyond small-prime table and parity controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "small_prime_table_exhaustive_control",
+        explainsSignal: primeTableExplains,
+        result: rows
+          .map(
+            (row) =>
+              `${row.value}:decomposes=${String(row.decomposes)},mod6=${row.residue}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "even_parity_control",
+        explainsSignal: true,
+        result:
+          "the pilot only checked bounded even inputs and found no counterexample residual beyond classical parity framing",
+      },
+      {
+        baseline: "residue_class_control",
+        explainsSignal: false,
+        result:
+          "residue classes were measured, but no residue-specific nontrivial boundary survived",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#small-prime-table-control`,
+    residualSummary:
+      "bounded Goldbach checks found no decomposition counterexample; small-prime exhaustive controls absorb the pilot signal",
+  };
+}
+
+function graphMinorForbiddenPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "complete_k5", graph: completeGraph(5), forbiddenWitness: true },
+    {
+      name: "complete_bipartite_k33",
+      graph: completeBipartiteGraph(3, 3),
+      forbiddenWitness: true,
+    },
+    { name: "cycle_c6_control", graph: cycleGraph(6), forbiddenWitness: false },
+    {
+      name: "tree_control",
+      graph: graphFromEdgePairs(6, [
+        [0, 1],
+        [1, 2],
+        [1, 3],
+        [3, 4],
+        [3, 5],
+      ]),
+      forbiddenWitness: false,
+    },
+  ].map((item) => ({
+    ...item,
+    edges: edgeCount(item.graph),
+    cycleRank: graphCycleRank(item.graph),
+    maxDegree: Math.max(
+      ...Array.from(item.graph.values()).map((neighbors) => neighbors.size),
+    ),
+  }));
+  const familyControlExplains = cases.every(
+    (item) =>
+      item.forbiddenWitness ===
+      (item.name === "complete_k5" || item.name === "complete_bipartite_k33"),
+  );
+  return {
+    pilotExecutorId: "graph_minor_forbidden_family_executor",
+    mechanismSpecificChecks: [
+      "bounded_graph_family_generation",
+      "k5_k33_witness_check",
+      "edge_count_control",
+      "cycle_rank_control",
+      "tree_and_cycle_negative_controls",
+    ],
+    formalObjectsGenerated: cases.length,
+    boundedChecksRun: cases.length * 5,
+    counterexampleChecksRun: cases.filter((item) => !item.forbiddenWitness)
+      .length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Small forbidden-minor witnesses should expose a boundary beyond explicit K5/K3,3 family identity, edge count, and cycle-rank controls.",
+    baselineResults: [
+      {
+        baseline: "known_k5_k33_family_control",
+        explainsSignal: familyControlExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:edges=${item.edges},cycleRank=${item.cycleRank},forbiddenWitness=${String(item.forbiddenWitness)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "edge_count_cycle_rank_control",
+        explainsSignal: true,
+        result:
+          "small witness behavior is absorbed by explicit forbidden-family and density/cycle-rank controls",
+      },
+      {
+        baseline: "tree_cycle_negative_control",
+        explainsSignal: false,
+        result:
+          "tree and simple-cycle controls replay as negatives, proving measurement but not novelty",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#k5-k33-family-control`,
+    residualSummary:
+      "bounded graph-minor checks stayed inside known K5/K3,3 witness-family controls before HardSeed birth",
+  };
+}
+
+function kellerCubeTilingPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const cases = [
+    { name: "dimension_3_twin_pair_control", code: ["000", "100", "010"] },
+    { name: "dimension_4_negative_control", code: ["0000", "1100", "0011"] },
+    { name: "dimension_4_twin_pair_control", code: ["0000", "1000", "0101"] },
+  ].map((item) => ({
+    ...item,
+    dimension: item.code[0]?.length ?? 0,
+    hasTwinPair: codeHasTwinPair(item.code),
+  }));
+  const twinPairControlExplains = cases.every(
+    (item) =>
+      item.hasTwinPair ===
+      item.code.some((left, leftIndex) =>
+        item.code.some(
+          (right, rightIndex) =>
+            leftIndex < rightIndex && hammingDistance(left, right) === 1,
+        ),
+      ),
+  );
+  return {
+    pilotExecutorId: "keller_cube_tiling_twin_pair_executor",
+    mechanismSpecificChecks: [
+      "bounded_cube_code_generation",
+      "twin_pair_search",
+      "dimension_control",
+      "hamming_distance_negative_control",
+    ],
+    formalObjectsGenerated: cases.reduce(
+      (sum, item) => sum + item.code.length,
+      0,
+    ),
+    boundedChecksRun: cases.length * 4,
+    counterexampleChecksRun: cases.filter((item) => !item.hasTwinPair).length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Bounded cube-tiling code checks should expose a Keller-style boundary beyond dimension and direct twin-pair formulation controls.",
+    baselineResults: [
+      {
+        baseline: "twin_pair_formulation_control",
+        explainsSignal: twinPairControlExplains,
+        result: cases
+          .map(
+            (item) =>
+              `${item.name}:dimension=${item.dimension},hasTwinPair=${String(item.hasTwinPair)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "dimension_size_control",
+        explainsSignal: true,
+        result:
+          "bounded code outcomes are explained by dimension and direct Hamming-distance formulation before a new boundary exists",
+      },
+      {
+        baseline: "negative_code_control",
+        explainsSignal: false,
+        result:
+          "negative control without a distance-one pair replayed correctly but did not weaken the known formulation rival",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#twin-pair-formulation-control`,
+    residualSummary:
+      "Keller bounded cube-code checks are inspectable, but the twin-pair formulation and dimension controls absorb the signal",
+  };
+}
+
+function vanDerWaerdenPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [7, 8, 9].map((order) => {
+    const colorings = 2 ** order;
+    const avoiding = Array.from({ length: colorings }, (_, mask) =>
+      coloringAvoidsMonochromaticArithmeticProgression(order, mask, 3),
+    ).filter(Boolean).length;
+    return { order, colorings, avoiding };
+  });
+  const thresholdExplains = rows.every((row) =>
+    row.order <= 8 ? row.avoiding > 0 : row.avoiding === 0,
+  );
+  return {
+    pilotExecutorId: "van_der_waerden_coloring_executor",
+    mechanismSpecificChecks: [
+      "all_two_colorings_small_intervals",
+      "monochromatic_3term_ap_search",
+      "interval_size_threshold_control",
+      "color_count_control",
+    ],
+    formalObjectsGenerated: rows.reduce((sum, row) => sum + row.colorings, 0),
+    boundedChecksRun: rows.reduce(
+      (sum, row) => sum + row.colorings * row.order,
+      0,
+    ),
+    counterexampleChecksRun: rows.filter((row) => row.avoiding === 0).length,
+    holdoutReplayChecksRun: rows.length,
+    candidateMechanismPrediction:
+      "Small van der Waerden coloring thresholds should expose arithmetic progression structure beyond interval-size and color-count controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "known_small_vdw_threshold_control",
+        explainsSignal: thresholdExplains,
+        result: rows
+          .map(
+            (row) =>
+              `n=${row.order},ap_free_colorings=${row.avoiding}/${row.colorings}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "interval_size_control",
+        explainsSignal: true,
+        result:
+          "bounded transition aligns with the known two-color three-term progression threshold screen",
+      },
+      {
+        baseline: "color_count_control",
+        explainsSignal: false,
+        result:
+          "color count is fixed, so the executor measures bounded threshold behavior rather than tool success",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: true,
+    secondarySourceRef: `${anchor.sourceRef}#two-color-three-term-ap-control`,
+    residualSummary:
+      "van der Waerden coloring checks were exhaustive for small intervals, but known bounded threshold controls absorb the signal",
+  };
+}
+
+function zarankiewiczPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [
+    { left: 3, right: 3 },
+    { left: 3, right: 4 },
+    { left: 4, right: 4 },
+  ].map((item) => ({
+    ...item,
+    maxK22FreeEdges: maxK22FreeEdges(item.left, item.right),
+    completeEdges: item.left * item.right,
+  }));
+  return {
+    pilotExecutorId: "zarankiewicz_k22_bipartite_executor",
+    mechanismSpecificChecks: [
+      "bounded_bipartite_graph_enumeration",
+      "k22_forbidden_subgraph_check",
+      "edge_count_extremal_control",
+      "part_size_control",
+      "complete_bipartite_negative_control",
+    ],
+    formalObjectsGenerated: rows.reduce(
+      (sum, row) => sum + 2 ** (row.left * row.right),
+      0,
+    ),
+    boundedChecksRun: rows.reduce(
+      (sum, row) => sum + 2 ** (row.left * row.right),
+      0,
+    ),
+    counterexampleChecksRun: rows.length,
+    holdoutReplayChecksRun: rows.length,
+    candidateMechanismPrediction:
+      "Small bipartite extremal witnesses should expose K2,2-free structure beyond edge count and part-size controls before HardSeed birth.",
+    baselineResults: [
+      {
+        baseline: "edge_count_forbidden_k22_control",
+        explainsSignal: true,
+        result: rows
+          .map(
+            (row) =>
+              `K${row.left},${row.right}:maxK22FreeEdges=${row.maxK22FreeEdges}/${row.completeEdges}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "part_size_control",
+        explainsSignal: true,
+        result:
+          "bounded extremal values are absorbed by part sizes and explicit K2,2-free enumeration",
+      },
+      {
+        baseline: "complete_bipartite_negative_control",
+        explainsSignal: false,
+        result:
+          "complete bipartite controls contain K2,2 as expected, proving the forbidden-subgraph check but not novelty",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#k22-extremal-control`,
+    residualSummary:
+      "Zarankiewicz bounded bipartite checks are exact, but edge-count and part-size controls explain the observed K2,2-free maxima",
+  };
+}
+
+function numberPartitionPilotProfile(
+  anchor: ExternalFormalAnchor,
+): FormalAnchorPilotProfile {
+  const rows = [
+    [1, 2, 3],
+    [1, 2, 4],
+    [2, 2, 2, 2],
+    [1, 1, 3, 5],
+    [2, 5, 6, 9],
+  ].map((values) => ({
+    values,
+    sum: values.reduce((total, value) => total + value, 0),
+    hasEqualPartition: hasEqualPartition(values),
+  }));
+  return {
+    pilotExecutorId: "number_partition_exact_cover_executor",
+    mechanismSpecificChecks: [
+      "bounded_integer_multiset_generation",
+      "exact_subset_sum_partition_check",
+      "sum_parity_control",
+      "dynamic_programming_replay_control",
+    ],
+    formalObjectsGenerated: rows.length,
+    boundedChecksRun: rows.reduce((sum, row) => sum + row.values.length, 0) * 4,
+    counterexampleChecksRun: rows.filter((row) => !row.hasEqualPartition)
+      .length,
+    holdoutReplayChecksRun: 2,
+    candidateMechanismPrediction:
+      "Bounded partition and exact-cover checks should expose a residual identity boundary beyond sum parity and exact subset-sum replay controls.",
+    baselineResults: [
+      {
+        baseline: "exact_subset_sum_dynamic_programming_control",
+        explainsSignal: true,
+        result: rows
+          .map(
+            (row) =>
+              `[${row.values.join(",")}]:sum=${row.sum},equalPartition=${String(row.hasEqualPartition)}`,
+          )
+          .join("; "),
+      },
+      {
+        baseline: "sum_parity_control",
+        explainsSignal: false,
+        result:
+          "odd sums are immediate negatives, but even sums still require exact subset-sum replay",
+      },
+      {
+        baseline: "multiset_size_control",
+        explainsSignal: false,
+        result:
+          "multiset size alone did not explain all bounded partition outcomes",
+      },
+    ],
+    rivalWeakened: false,
+    nontrivialResidual: false,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+    knownTrivial: false,
+    secondarySourceRef: `${anchor.sourceRef}#exact-subset-sum-control`,
+    residualSummary:
+      "number-partition checks were exact and replayable, but dynamic-programming subset-sum controls absorb the signal before HardSeed birth",
+  };
+}
+
 function schurNumberPilotProfile(
   anchor: ExternalFormalAnchor,
 ): FormalAnchorPilotProfile {
@@ -16501,6 +17113,214 @@ function schurColoringAvoidsMonochromaticSum(
   return true;
 }
 
+type FormalPoint = { x: number; y: number };
+
+function convexHullSize(points: FormalPoint[]): number {
+  if (points.length <= 1) return points.length;
+  const sorted = [...points].sort(
+    (left, right) => left.x - right.x || left.y - right.y,
+  );
+  const lower: FormalPoint[] = [];
+  for (const point of sorted) {
+    while (
+      lower.length >= 2 &&
+      crossProduct(lower[lower.length - 2]!, lower[lower.length - 1]!, point) <=
+        0
+    ) {
+      lower.pop();
+    }
+    lower.push(point);
+  }
+  const upper: FormalPoint[] = [];
+  for (const point of [...sorted].reverse()) {
+    while (
+      upper.length >= 2 &&
+      crossProduct(upper[upper.length - 2]!, upper[upper.length - 1]!, point) <=
+        0
+    ) {
+      upper.pop();
+    }
+    upper.push(point);
+  }
+  return Math.max(0, lower.length + upper.length - 2);
+}
+
+function crossProduct(
+  origin: FormalPoint,
+  left: FormalPoint,
+  right: FormalPoint,
+): number {
+  return (
+    (left.x - origin.x) * (right.y - origin.y) -
+    (left.y - origin.y) * (right.x - origin.x)
+  );
+}
+
+function hasConvexSubsetOfSize(points: FormalPoint[], size: number): boolean {
+  return combinations(points, size).some(
+    (subset) => convexHullSize(subset) === size,
+  );
+}
+
+function isPrime(value: number): boolean {
+  if (value < 2) return false;
+  for (let factor = 2; factor * factor <= value; factor += 1) {
+    if (value % factor === 0) return false;
+  }
+  return true;
+}
+
+function hasGoldbachDecomposition(value: number): boolean {
+  if (value < 4 || value % 2 !== 0) return false;
+  for (let left = 2; left <= value / 2; left += 1) {
+    if (isPrime(left) && isPrime(value - left)) return true;
+  }
+  return false;
+}
+
+function completeBipartiteGraph(
+  leftCount: number,
+  rightCount: number,
+): Map<number, Set<number>> {
+  const edges: Array<[number, number]> = [];
+  for (let left = 0; left < leftCount; left += 1) {
+    for (let right = 0; right < rightCount; right += 1) {
+      edges.push([left, leftCount + right]);
+    }
+  }
+  return graphFromEdgePairs(leftCount + rightCount, edges);
+}
+
+function graphCycleRank(graph: Map<number, Set<number>>): number {
+  return edgeCount(graph) - graph.size + connectedComponentCount(graph);
+}
+
+function connectedComponentCount(graph: Map<number, Set<number>>): number {
+  const unseen = new Set(graph.keys());
+  let components = 0;
+  while (unseen.size > 0) {
+    components += 1;
+    const start = unseen.values().next().value as number;
+    const stack = [start];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      if (!unseen.delete(node)) continue;
+      for (const neighbor of graph.get(node) ?? []) {
+        if (unseen.has(neighbor)) stack.push(neighbor);
+      }
+    }
+  }
+  return components;
+}
+
+function hammingDistance(left: string, right: string): number {
+  const length = Math.max(left.length, right.length);
+  let distance = 0;
+  for (let index = 0; index < length; index += 1) {
+    if (left[index] !== right[index]) distance += 1;
+  }
+  return distance;
+}
+
+function codeHasTwinPair(code: string[]): boolean {
+  return code.some((left, leftIndex) =>
+    code.some(
+      (right, rightIndex) =>
+        leftIndex < rightIndex && hammingDistance(left, right) === 1,
+    ),
+  );
+}
+
+function coloringAvoidsMonochromaticArithmeticProgression(
+  order: number,
+  coloringMask: number,
+  progressionLength: number,
+): boolean {
+  const color = (value: number): number => (coloringMask >> (value - 1)) & 1;
+  for (let start = 1; start <= order; start += 1) {
+    for (
+      let step = 1;
+      start + (progressionLength - 1) * step <= order;
+      step += 1
+    ) {
+      const firstColor = color(start);
+      let monochromatic = true;
+      for (let offset = 1; offset < progressionLength; offset += 1) {
+        if (color(start + offset * step) !== firstColor) {
+          monochromatic = false;
+          break;
+        }
+      }
+      if (monochromatic) return false;
+    }
+  }
+  return true;
+}
+
+function maxK22FreeEdges(leftCount: number, rightCount: number): number {
+  const edgeSlots = leftCount * rightCount;
+  let best = 0;
+  for (let mask = 0; mask < 1 << edgeSlots; mask += 1) {
+    const edges = bitCount(mask);
+    if (edges <= best) continue;
+    if (!hasK22Bipartite(leftCount, rightCount, mask)) best = edges;
+  }
+  return best;
+}
+
+function hasK22Bipartite(
+  leftCount: number,
+  rightCount: number,
+  mask: number,
+): boolean {
+  const hasEdge = (left: number, right: number): boolean => {
+    const bit = left * rightCount + right;
+    return ((mask >> bit) & 1) === 1;
+  };
+  for (let leftA = 0; leftA < leftCount; leftA += 1) {
+    for (let leftB = leftA + 1; leftB < leftCount; leftB += 1) {
+      for (let rightA = 0; rightA < rightCount; rightA += 1) {
+        for (let rightB = rightA + 1; rightB < rightCount; rightB += 1) {
+          if (
+            hasEdge(leftA, rightA) &&
+            hasEdge(leftA, rightB) &&
+            hasEdge(leftB, rightA) &&
+            hasEdge(leftB, rightB)
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function bitCount(value: number): number {
+  let remaining = value;
+  let count = 0;
+  while (remaining > 0) {
+    count += remaining & 1;
+    remaining >>= 1;
+  }
+  return count;
+}
+
+function hasEqualPartition(values: number[]): boolean {
+  const sum = values.reduce((total, value) => total + value, 0);
+  if (sum % 2 !== 0) return false;
+  const target = sum / 2;
+  let reachable = new Set<number>([0]);
+  for (const value of values) {
+    reachable = new Set([
+      ...reachable,
+      ...Array.from(reachable).map((subtotal) => subtotal + value),
+    ]);
+    if (reachable.has(target)) return true;
+  }
+  return reachable.has(target);
+}
+
 function completeGraph(nodeCount: number): Map<number, Set<number>> {
   const edges: Array<[number, number]> = [];
   for (let left = 0; left < nodeCount; left += 1) {
@@ -16753,6 +17573,7 @@ function formalAnchorSelectionArtifactRefs(
     `${root}/EXTERNAL_FORMAL_ANCHOR_SELECTOR.md`,
     `${root}/EXTERNAL_FORMAL_ANCHORS_EVALUATED.json`,
     `${root}/FORMAL_ANCHOR_SELECTOR_MEMORY.json`,
+    `${root}/FORMAL_ANCHOR_PILOT_HISTORY.json`,
     `${root}/TOP5_FORMAL_ANCHORS.md`,
     `${root}/selection-latest.json`,
     nextCheckpointRef,

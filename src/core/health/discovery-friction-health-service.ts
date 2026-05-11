@@ -218,6 +218,17 @@ export type FormalAnchorYieldSignal = {
   auditRef: string | null;
 };
 
+export type GeneratorFamilyYieldSignal = {
+  runAvailable: boolean;
+  runtimeChecks: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  dominantBlocker: string | null;
+  noBirthAfterRun: boolean;
+  recommendedAction: string;
+  runRef: string | null;
+};
+
 export type DiscoveryFrictionHealthReport = {
   kind: "discovery_friction_health";
   terminalStatus:
@@ -246,6 +257,7 @@ export type DiscoveryFrictionHealthReport = {
   promotionReadinessBlockers: string[];
   fakeGreenAuditRisks: string[];
   formalAnchorYield: FormalAnchorYieldSignal;
+  generatorFamilyYield: GeneratorFamilyYieldSignal;
   largestCodeHotspots: Array<{ file: string; lines: number; risk: string }>;
   discoveryCandidatesCreated: number;
   fundGateResult: {
@@ -264,6 +276,7 @@ const marathonRootRel = `${daemonRootRel}/marathon`;
 const depthRootRel = `${marathonRootRel}/depth-gauntlet`;
 const remainingClosureRel = `${depthRootRel}/remaining-strict-closure`;
 const formalAnchorAuditRel = `${daemonRootRel}/formal-anchor-selection/FORMAL_ANCHOR_AUDIT.json`;
+const generatorFamilyLatestRel = `${daemonRootRel}/generator-families/latest.json`;
 const engineRootRel = ".sovryn/discovery-engine";
 const githubCorpusPrefix =
   "https://github.com/n57d30top/sovryn-open-inventions/tree/main/";
@@ -817,6 +830,7 @@ export class DiscoveryFrictionHealthService {
       birthEvaluations,
     });
     const formalAnchorYield = await this.loadFormalAnchorYieldSignal();
+    const generatorFamilyYield = await this.loadGeneratorFamilyYieldSignal();
     const codeHotspots = await this.codeHotspots();
     const rankedDeathCauses = rankDeathCauses(yieldReport.after.deathCauses);
     const promotionReadinessBlockers = promotionBlockers(
@@ -824,6 +838,7 @@ export class DiscoveryFrictionHealthService {
       holdoutReport,
       yieldReport,
       formalAnchorYield,
+      generatorFamilyYield,
     );
     const fakeGreenAuditRisks = fakeGreenRisks(
       evidence.summary,
@@ -831,6 +846,7 @@ export class DiscoveryFrictionHealthService {
       yieldReport,
       codeHotspots,
       formalAnchorYield,
+      generatorFamilyYield,
     );
     const nextCheckpointRef =
       ".sovryn/discovery-daemon/checkpoints/discovery-engine-friction-health-continue-searching.json";
@@ -881,6 +897,7 @@ export class DiscoveryFrictionHealthService {
       promotionReadinessBlockers,
       fakeGreenAuditRisks,
       formalAnchorYield,
+      generatorFamilyYield,
       largestCodeHotspots: codeHotspots,
       discoveryCandidatesCreated: 0,
       fundGateResult: {
@@ -894,6 +911,7 @@ export class DiscoveryFrictionHealthService {
         holdoutReport,
         yieldReport,
         formalAnchorYield,
+        generatorFamilyYield,
       ),
       artifactRefs,
       evidenceHash: hashJson({
@@ -901,6 +919,7 @@ export class DiscoveryFrictionHealthService {
         holdoutBank: holdoutReport,
         yieldAfter: yieldReport.after,
         formalAnchorYield,
+        generatorFamilyYield,
       }),
     };
 
@@ -911,6 +930,7 @@ export class DiscoveryFrictionHealthService {
       holdoutAssessments: holdoutReport.assessments,
       candidateYield: yieldReport,
       formalAnchorYield,
+      generatorFamilyYield,
       targetLoadExecutionRecords: targetLoadRepair.records,
       insightBirthGateEvaluations: birthEvaluations,
     });
@@ -925,6 +945,7 @@ export class DiscoveryFrictionHealthService {
       discoveryCandidatesCreated: 0,
       remainingBottleneck: report.remainingBottleneck,
       formalAnchorYield,
+      generatorFamilyYield,
     });
     await this.writeReports({
       engineRoot,
@@ -1029,6 +1050,51 @@ export class DiscoveryFrictionHealthService {
               ? "pressure born formal HardSeeds through required-next-test closure"
               : "maintain formal anchor reserve and continue external problem-anchor selection",
       auditRef: audit === null ? null : formalAnchorAuditRel,
+    };
+  }
+
+  private async loadGeneratorFamilyYieldSignal(): Promise<GeneratorFamilyYieldSignal> {
+    const run = await readJsonIfExists<{
+      runtimeChecks?: number;
+      hardSeedBirthAttempts?: number;
+      hardSeedsBorn?: number;
+      blockedOutputsByCause?: Record<string, number>;
+    }>(join(this.root, generatorFamilyLatestRel));
+    const runRecord = run as Record<string, unknown> | null;
+    const runtimeChecks = numberField(runRecord, "runtimeChecks", 0);
+    const hardSeedBirthAttempts = numberField(
+      runRecord,
+      "hardSeedBirthAttempts",
+      0,
+    );
+    const hardSeedsBorn = numberField(runRecord, "hardSeedsBorn", 0);
+    const blockedOutputsByCause =
+      run?.blockedOutputsByCause === undefined
+        ? {}
+        : asRecordNumber(run.blockedOutputsByCause);
+    const dominantBlocker =
+      Object.entries(blockedOutputsByCause)
+        .filter(([, count]) => Number(count) > 0)
+        .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] ??
+      null;
+    const noBirthAfterRun =
+      run !== null && runtimeChecks > 0 && hardSeedsBorn === 0;
+    return {
+      runAvailable: run !== null,
+      runtimeChecks,
+      hardSeedBirthAttempts,
+      hardSeedsBorn,
+      dominantBlocker,
+      noBirthAfterRun,
+      recommendedAction:
+        run === null
+          ? "run discover-daemon generator-run before using generator-family yield as a health signal"
+          : noBirthAfterRun
+            ? `redesign generator families before rerunning long campaigns; current dominant birth blocker is ${dominantBlocker ?? "unknown"}`
+            : hardSeedsBorn > 0
+              ? "pressure born generator HardSeeds through required-next-test closure"
+              : "maintain generator registry and continue mechanism-first target selection",
+      runRef: run === null ? null : generatorFamilyLatestRel,
     };
   }
 
@@ -1674,6 +1740,7 @@ function promotionBlockers(
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
   formalAnchorYield: FormalAnchorYieldSignal,
+  generatorFamilyYield: GeneratorFamilyYieldSignal,
 ): string[] {
   const blockers = ["candidate_present"];
   if (evidenceSummary.failedRefs > 0) blockers.push("evidence_ref_closure");
@@ -1685,6 +1752,8 @@ function promotionBlockers(
     blockers.push("rival_theory_pressure");
   if (formalAnchorYield.noBirthAfterPilot)
     blockers.push("formal_anchor_no_birth_yield");
+  if (generatorFamilyYield.noBirthAfterRun)
+    blockers.push("generator_family_no_birth_yield");
   return blockers;
 }
 
@@ -1694,6 +1763,7 @@ function fakeGreenRisks(
   yieldReport: CandidateYieldReport,
   codeHotspots: Array<{ file: string; lines: number; risk: string }>,
   formalAnchorYield: FormalAnchorYieldSignal,
+  generatorFamilyYield: GeneratorFamilyYieldSignal,
 ): string[] {
   const risks: string[] = [];
   if (evidenceSummary.closureRate < 1)
@@ -1708,6 +1778,10 @@ function fakeGreenRisks(
     risks.push(
       "formal-anchor audits can pass while no pilot produces a birth-eligible HardSeed",
     );
+  if (generatorFamilyYield.noBirthAfterRun)
+    risks.push(
+      "generator-family audits can pass while no generator output produces a birth-eligible HardSeed",
+    );
   if (codeHotspots.some((item) => item.lines > 10000))
     risks.push(
       "daemon monolith can hide operational friction behind passing command audits",
@@ -1720,6 +1794,7 @@ function remainingBottleneck(
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
   formalAnchorYield: FormalAnchorYieldSignal,
+  generatorFamilyYield: GeneratorFamilyYieldSignal,
 ): string {
   const parts: string[] = [];
   if (evidenceSummary.failedRefs > 0) {
@@ -1736,6 +1811,11 @@ function remainingBottleneck(
   if (formalAnchorYield.noBirthAfterPilot) {
     parts.push(
       "formal-anchor pilots are externally anchored but still produce zero birth-eligible HardSeeds",
+    );
+  }
+  if (generatorFamilyYield.noBirthAfterRun) {
+    parts.push(
+      "mechanism-first generator families ran runtime checks but produced zero birth-eligible HardSeeds",
     );
   }
   return parts.length > 0
@@ -2056,6 +2136,16 @@ ${bulletList(report.promotionReadinessBlockers)}
 - InsightCandidates created: ${report.formalAnchorYield.insightCandidatesCreated}
 - No-birth after pilot: ${String(report.formalAnchorYield.noBirthAfterPilot)}
 - Recommended action: ${report.formalAnchorYield.recommendedAction}
+
+## Generator Family Yield
+
+- Run available: ${String(report.generatorFamilyYield.runAvailable)}
+- Runtime checks: ${report.generatorFamilyYield.runtimeChecks}
+- HardSeed birth attempts: ${report.generatorFamilyYield.hardSeedBirthAttempts}
+- HardSeeds born: ${report.generatorFamilyYield.hardSeedsBorn}
+- Dominant blocker: ${report.generatorFamilyYield.dominantBlocker ?? "none"}
+- No-birth after run: ${String(report.generatorFamilyYield.noBirthAfterRun)}
+- Recommended action: ${report.generatorFamilyYield.recommendedAction}
 
 ## Fake-Green Audit Risks
 

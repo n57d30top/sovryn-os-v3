@@ -325,6 +325,66 @@ test("health friction exposes formal-anchor no-birth yield as fake-green risk", 
   );
 });
 
+test("health friction exposes generator-family no-birth yield as fake-green risk", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  const generatorRoot = join(
+    root,
+    ".sovryn/discovery-daemon/generator-families",
+  );
+  await mkdir(generatorRoot, { recursive: true });
+  await writeFile(
+    join(generatorRoot, "latest.json"),
+    JSON.stringify({
+      kind: "mechanism_first_generator_run",
+      status: "continue_searching_checkpointed",
+      runtimeChecks: 30,
+      hardSeedBirthAttempts: 30,
+      hardSeedsBorn: 0,
+      blockedOutputsByCause: {
+        source_family_documented_signal: 9,
+        "baseline_dominated:stronger_residual_floor": 6,
+      },
+      fundFound: false,
+    }),
+  );
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    generatorFamilyYield: Record<string, unknown>;
+    promotionReadinessBlockers: string[];
+    fakeGreenAuditRisks: string[];
+    remainingBottleneck: string;
+  };
+  assert.equal(data.generatorFamilyYield.runAvailable, true);
+  assert.equal(data.generatorFamilyYield.runtimeChecks, 30);
+  assert.equal(data.generatorFamilyYield.hardSeedsBorn, 0);
+  assert.equal(data.generatorFamilyYield.noBirthAfterRun, true);
+  assert.equal(
+    data.generatorFamilyYield.dominantBlocker,
+    "source_family_documented_signal",
+  );
+  assert.ok(
+    data.promotionReadinessBlockers.includes("generator_family_no_birth_yield"),
+  );
+  assert.ok(
+    data.fakeGreenAuditRisks.includes(
+      "generator-family audits can pass while no generator output produces a birth-eligible HardSeed",
+    ),
+  );
+  assert.match(data.remainingBottleneck, /generator families/);
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/FUND_FOUND.md")),
+    false,
+  );
+  assert.equal(
+    await exists(join(root, ".sovryn/discovery-daemon/fund-candidate.json")),
+    false,
+  );
+});
+
 test("evidence refs verify and holdout audit commands expose repaired contracts", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);

@@ -4419,13 +4419,187 @@ test("formal anchor selector keeps bounded reserve anchors after repeated pilot 
   assert.equal(selection.top5Anchors.length, 5);
   assert.equal(
     [
-      "EXT-FORMAL-SCHUR-NUMBER-SMALL-COLORINGS",
-      "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
       "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
-      "EXT-FORMAL-STRONGLY-REGULAR-GRAPH-ISOMORPHISM-CONTROLS",
       "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+      "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+      "EXT-FORMAL-EULERIAN-TRAIL-PARITY-BOUNDARY",
+      "EXT-FORMAL-BROOKS-THEOREM-SMALL-GRAPHS",
     ].every((anchorId) => topIds.includes(anchorId)),
     true,
+  );
+});
+
+test("formal anchor selector keeps top five after deeper pilot-death memory", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  await mkdir(selectionRoot, { recursive: true });
+  await writeFile(
+    join(selectionRoot, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    JSON.stringify(
+      {
+        kind: "external_formal_anchor_selector_memory",
+        baselineDominatedAnchorIds: [
+          "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+          "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+          "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+          "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+          "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+          "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+          "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+          "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+          "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+          "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE",
+          "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS",
+          "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY",
+        ],
+        knownTrivialAnchorIds: [],
+        rivalStrongerAnchorIds: [],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+        evidenceHash: "test-memory",
+      },
+      null,
+      2,
+    ),
+  );
+
+  const selection = await service.formalAnchorSelect();
+  const topIds = selection.top5Anchors.map((item) => item.anchor.anchorId);
+
+  assert.equal(selection.anchorsEvaluated >= 35, true);
+  assert.equal(selection.top5Anchors.length, 5);
+  assert.deepEqual(topIds, [
+    "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY",
+    "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS",
+    "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
+    "EXT-FORMAL-EULERIAN-TRAIL-PARITY-BOUNDARY",
+    "EXT-FORMAL-BROOKS-THEOREM-SMALL-GRAPHS",
+  ]);
+
+  const pilot = await service.formalAnchorPilot();
+  assert.equal(pilot.anchorsPiloted, 3);
+  assert.equal(pilot.hardSeedsBorn, 0);
+
+  const pilotRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      pilotExecutorId: string;
+      mechanismSpecificChecks: string[];
+      birthEvaluation: { accepted: boolean };
+    }>;
+  };
+  assert.equal(
+    pilotRows.results.every(
+      (row) =>
+        row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+        row.mechanismSpecificChecks.length >= 3 &&
+        !row.birthEvaluation.accepted,
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("formal anchor late reserve pilots use mechanism-specific executors", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  await mkdir(selectionRoot, { recursive: true });
+  await writeFile(
+    join(selectionRoot, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    JSON.stringify(
+      {
+        kind: "external_formal_anchor_selector_memory",
+        baselineDominatedAnchorIds: [
+          "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
+          "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
+          "EXT-FORMAL-GRAPH-MINOR-FORBIDDEN-SMALL-FAMILIES",
+          "EXT-FORMAL-KELLER-CUBE-TILING-BOUNDARY",
+          "EXT-FORMAL-LATIN-SQUARE-TRANSVERSAL-SMALL-N",
+          "EXT-FORMAL-MATCHING-TUTTE-DEFICIENCY-SMALL-GRAPHS",
+          "EXT-FORMAL-MOORE-GRAPH-DEGREE-DIAMETER-BOUNDARY",
+          "EXT-FORMAL-NUMBER-PARTITION-EXACT-COVER",
+          "EXT-FORMAL-PERFECT-GRAPH-ODD-HOLE-BOUNDARY",
+          "EXT-FORMAL-PLANAR-GRAPH-HAMILTONICITY-TUTTE",
+          "EXT-FORMAL-ROTA-BASIS-CONJECTURE-SMALL-MATROIDS",
+          "EXT-FORMAL-SATLIB-3SAT-PHASE-BOUNDARY",
+          "EXT-FORMAL-TOURNAMENT-KINGS-BOUNDARY",
+          "EXT-FORMAL-VAN-DER-WAERDEN-SMALL-COLORINGS",
+          "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
+        ],
+        knownTrivialAnchorIds: [],
+        rivalStrongerAnchorIds: [],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+        evidenceHash: "test-memory",
+      },
+      null,
+      2,
+    ),
+  );
+
+  const selection = await service.formalAnchorSelect();
+  assert.deepEqual(
+    selection.top5Anchors.map((item) => item.anchor.anchorId),
+    [
+      "EXT-FORMAL-EULERIAN-TRAIL-PARITY-BOUNDARY",
+      "EXT-FORMAL-BROOKS-THEOREM-SMALL-GRAPHS",
+      "EXT-FORMAL-CHORDAL-GRAPH-PEO-BOUNDARY",
+      "EXT-FORMAL-HALL-MARRIAGE-SMALL-BIPARTITE",
+      "EXT-FORMAL-TURAN-TRIANGLE-FREE-STABILITY",
+    ],
+  );
+
+  const pilot = await service.formalAnchorPilot();
+  assert.equal(pilot.anchorsPiloted, 3);
+  assert.equal(pilot.hardSeedsBorn, 0);
+  assert.equal(pilot.fundFound, false);
+
+  const pilotRows = JSON.parse(
+    await readFile(
+      join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json"),
+      "utf8",
+    ),
+  ) as {
+    results: Array<{
+      pilotExecutorId: string;
+      mechanismSpecificChecks: string[];
+      birthEvaluation: { accepted: boolean; failedGates: string[] };
+      hardSeed: unknown | null;
+    }>;
+  };
+  assert.deepEqual(
+    pilotRows.results.map((row) => row.pilotExecutorId),
+    [
+      "eulerian_trail_parity_connectivity_executor",
+      "brooks_theorem_exception_executor",
+      "chordal_graph_peo_executor",
+    ],
+  );
+  assert.equal(
+    pilotRows.results.every(
+      (row) =>
+        row.pilotExecutorId !== "generic_formal_anchor_pilot_executor" &&
+        row.mechanismSpecificChecks.length >= 4 &&
+        row.birthEvaluation.accepted === false &&
+        row.birthEvaluation.failedGates.includes("nontrivial_residual") &&
+        row.hardSeed === null,
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
   );
 });
 

@@ -4122,6 +4122,13 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
       (candidate) =>
         candidate.fundGatePassed &&
         candidate.packageArtifactGatesPassed &&
+        candidate.domainSignificancePassed === false &&
+        candidate.domainSignificanceFailedGates.includes(
+          "no_anti_discovery_claim_text",
+        ) &&
+        candidate.domainSignificanceFailedGates.includes(
+          "not_pipeline_or_generator_scope_only",
+        ) &&
         candidate.fundClass === "pipeline_fund_candidate" &&
         candidate.countsForEinsteinNobelDiscoveryScore === false &&
         candidate.notificationAllowed === false,
@@ -4148,6 +4155,32 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+
+  const firstPackage = JSON.parse(
+    await readFile(
+      join(
+        root,
+        fundClosure.closureCandidateResults[0]!.externalReviewPackagePath!,
+        "CLAIM_EVIDENCE_BINDINGS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    domainSignificanceAssessment: {
+      passed: boolean;
+      failedGates: string[];
+    };
+    fundClass: string;
+    countsForEinsteinNobelDiscoveryScore: boolean;
+  };
+  assert.equal(firstPackage.domainSignificanceAssessment.passed, false);
+  assert.ok(
+    firstPackage.domainSignificanceAssessment.failedGates.includes(
+      "explicit_domain_significance_claim",
+    ),
+  );
+  assert.equal(firstPackage.fundClass, "pipeline_fund_candidate");
+  assert.equal(firstPackage.countsForEinsteinNobelDiscoveryScore, false);
 
   const postClosureAudit = await service.generatorAudit();
   assert.equal(postClosureAudit.passed, false);

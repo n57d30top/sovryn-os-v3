@@ -170,6 +170,22 @@ export type DomainRotationReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDomainSignificanceAssessment = {
+  kind: "generator_born_domain_significance_assessment";
+  candidateId: string;
+  passed: boolean;
+  gates: Array<{
+    code: string;
+    passed: boolean;
+    message: string;
+  }>;
+  failedGates: string[];
+  externalPublicRefCount: number;
+  executionGateCount: number;
+  rationale: string[];
+  evidenceHash: string;
+};
+
 export type FundCandidate = {
   candidateId: string;
   claim: string;
@@ -178,6 +194,7 @@ export type FundCandidate = {
   fundClass?: FundClass;
   nontrivialNewInsightAcrossRealTargets?: boolean;
   domainScientificSignificance?: boolean;
+  domainSignificanceAssessment?: GeneratorBornDomainSignificanceAssessment;
   insightEvidenceRefs?: string[];
   whyItMatters?: string;
   rivalTheories?: string[];
@@ -1507,6 +1524,8 @@ export type GeneratorBornFundClosureCandidateResult = {
   fatalUnresolvedAttack: boolean;
   externalReviewPackagePath: string | null;
   fundCandidateDraftRef: string | null;
+  domainSignificancePassed: boolean;
+  domainSignificanceFailedGates: string[];
   packageArtifactGatesPassed: boolean;
   fundGatePassed: boolean;
   fundClass: FundClass | null;
@@ -12758,6 +12777,10 @@ export class GeneratorBornFundClosureService {
         fatalUnresolvedAttack: killWeek.fatalUnresolvedAttack,
         externalReviewPackagePath: packagedCandidate.publicPackagePath ?? null,
         fundCandidateDraftRef: `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(packagedCandidate.candidateId)}.json`,
+        domainSignificancePassed:
+          packagedCandidate.domainSignificanceAssessment?.passed ?? false,
+        domainSignificanceFailedGates:
+          packagedCandidate.domainSignificanceAssessment?.failedGates ?? [],
         packageArtifactGatesPassed:
           packageGates.length > 0 && packageGates.every((item) => item.passed),
         fundGatePassed: fundGateResult.passed,
@@ -12955,6 +12978,12 @@ export class GeneratorBornFundClosureService {
     const identityLedgerRefs = [
       `${daemonArtifactRoot}/candidate-identity-ledger.json#${input.baseFundCandidate.candidateId}`,
     ];
+    const domainSignificanceAssessment =
+      generatorBornDomainSignificanceAssessment({
+        candidate: input.candidate,
+        executions: input.executions,
+        sourceEvidenceRefs,
+      });
     const bindingRefs = {
       evidenceRefs: [
         "PAPER.md#evidence-summary",
@@ -12974,6 +13003,8 @@ export class GeneratorBornFundClosureService {
     const packagedCandidate: FundCandidate = {
       ...input.baseFundCandidate,
       publicPackagePath: packageRef,
+      domainScientificSignificance: domainSignificanceAssessment.passed,
+      domainSignificanceAssessment,
       predictionsExecuted: input.predictionLedger.filter((row) => row.executed)
         .length,
       nonObviousPredictions: input.predictionLedger.filter(
@@ -12997,8 +13028,9 @@ export class GeneratorBornFundClosureService {
       ),
       replayOutcomes: refsForGate(input.executions, "replay_path"),
       killWeekResult: `${input.killWeekRef}#kill-week`,
-      whyItMatters:
-        "This package closes the generator-born formal boundary candidate against predictions, replay, counterexample, and inspectability contracts; it does not establish domain scientific significance.",
+      whyItMatters: domainSignificanceAssessment.passed
+        ? "This package closes generator-born discovery pressure and passes the explicit domain-scientific-significance pressure gates."
+        : "This package closes generator-born prediction, replay, counterexample, and inspectability contracts, but the explicit domain-scientific-significance pressure gates did not pass.",
       rivalTheories: [
         "size density or trivial invariant baseline explains the boundary",
         "small generated counterexamples erase the boundary",
@@ -13006,7 +13038,7 @@ export class GeneratorBornFundClosureService {
       ],
       remainingLimitations: [
         "The evidence is bounded to generated formal object families and replayed Product artifacts.",
-        "Domain scientific significance is not established by this package.",
+        `Domain scientific significance pressure failed gates: ${domainSignificanceAssessment.failedGates.join(", ") || "none"}.`,
         "This is not external validation, external adoption, Nobel-level discovery, breakthrough, AGI, human-level science, legal advice, medical advice, wet-lab capability, unsafe capability, or universal truth.",
       ],
       nextExternalReviewStep:
@@ -13051,6 +13083,7 @@ export class GeneratorBornFundClosureService {
       hardSeedRefs,
       predictionLedger: input.predictionLedger,
       killWeek: input.killWeek,
+      domainSignificanceAssessment,
       holdoutEvidenceRefs: packagedCandidate.holdoutOutcomes ?? [],
       counterexampleEvidenceRefs:
         packagedCandidate.counterexampleOutcomes ?? [],
@@ -13081,6 +13114,7 @@ export class GeneratorBornFundClosureService {
       countsForEinsteinNobelDiscoveryScore:
         fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
       fundClassAssessment,
+      domainSignificanceAssessment,
       sourceEvidenceRefs,
       hardSeedRefs,
       identityLedgerRefs,
@@ -23875,14 +23909,16 @@ function generatorBornFundClosureCandidateResultsMarkdown(
     "",
     "## Candidate Results",
     "",
-    "| Candidate | Discovery candidate | Fund class | Discovery-scored | Fund Gate passed | Package gates | Notification | Failed gates |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Candidate | Discovery candidate | Fund class | Discovery-scored | Domain significance | Fund Gate passed | Package gates | Notification | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...report.closureCandidateResults.map(
       (result) =>
-        `| ${result.candidateId} | ${result.discoveryCandidateId} | ${result.fundClass ?? "none"} | ${String(result.countsForEinsteinNobelDiscoveryScore)} | ${String(result.fundGatePassed)} | ${String(result.packageArtifactGatesPassed)} | ${String(result.notificationAllowed)} | ${result.failedGates.join(", ") || "none"} |`,
+        `| ${result.candidateId} | ${result.discoveryCandidateId} | ${result.fundClass ?? "none"} | ${String(result.countsForEinsteinNobelDiscoveryScore)} | ${String(result.domainSignificancePassed)} | ${String(result.fundGatePassed)} | ${String(result.packageArtifactGatesPassed)} | ${String(result.notificationAllowed)} | ${result.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.closureCandidateResults.length === 0
-      ? ["| none | none | none | false | false | false | false | none |"]
+      ? [
+          "| none | none | none | false | false | false | false | false | none |",
+        ]
       : []),
   ].join("\n");
 }
@@ -33457,6 +33493,144 @@ function fundCandidateFromInsightGauntlet(
     remainingLimitations: [
       "Insight gauntlet promotion still requires an external-review package, kill-week completion, and domain significance evidence before Fund notification.",
     ],
+  };
+}
+
+function generatorBornDomainSignificanceAssessment(input: {
+  candidate: InsightCandidate;
+  executions: InsightGauntletTestExecution[];
+  sourceEvidenceRefs: string[];
+}): GeneratorBornDomainSignificanceAssessment {
+  const refs = uniqueStrings([
+    ...input.candidate.parentEvidenceRefs,
+    ...input.sourceEvidenceRefs,
+    ...input.executions.flatMap((execution) => execution.evidenceRefs),
+    ...input.executions.map((execution) => execution.artifactRef),
+  ]).filter(Boolean);
+  const claimText = normalizeWhitespace(
+    [
+      input.candidate.exactNarrowClaim,
+      input.candidate.mechanismHypothesis,
+      input.candidate.evidenceScope,
+    ].join(" "),
+  ).toLowerCase();
+  const externalPublicRefCount = refs.filter((ref) =>
+    ref.startsWith("https://"),
+  ).length;
+  const executionGateCount = new Set(
+    input.executions
+      .filter((execution) => execution.passed)
+      .map((execution) => execution.promotionGate),
+  ).size;
+  const requiredExecutionGates = [
+    "nontrivial_pattern_beyond_pipeline_success",
+    "baseline_resistance",
+    "rival_discriminating_test",
+    "holdout_path",
+    "replay_path",
+    "counterexample_path",
+    "proof_or_mechanism_pressure_path",
+  ];
+  const allRequiredExecutionGatesPassed = requiredExecutionGates.every(
+    (gateId) =>
+      input.executions.some(
+        (execution) =>
+          execution.promotionGate === gateId && execution.passed === true,
+      ),
+  );
+  const hasRuntimeEvidence = refs.some(
+    (ref) =>
+      ref.includes("/runtime-evidence/") || ref.includes("/source-cache/"),
+  );
+  const hasPublicInspectability = refs.every(publicSafeRef);
+  const antiDiscoveryClaim =
+    /\bnot (a )?discovery fund\b|\bnot fund_found\b|\bnot einstein\b|\bnot nobel\b|\bthis remains an insightcandidate only\b|\bdeserves downstream\b/.test(
+      claimText,
+    );
+  const pipelineBoundScope =
+    /\bgenerator-born\b|\bruntime evidence\b|\bpipeline success\b|\bpipeline evidence\b/.test(
+      claimText,
+    );
+  const explicitDomainSignificance =
+    /\bdomain scientific significance\b|\bscientific significance\b|\bchanges? interpretation\b|\bpreviously unknown\b|\bnovel scientific\b|\bnew mechanism across real targets\b|\bvalidated conjecture\b|\bchecked proof\b|\bchecked refutation\b/.test(
+      claimText,
+    );
+  const explicitNovelty =
+    /\bpreviously unknown\b|\bnovel\b|\bnew mechanism\b|\bvalidated conjecture\b|\bchecked proof\b|\bchecked refutation\b/.test(
+      claimText,
+    );
+  const ordinaryKnownMechanism =
+    !explicitNovelty &&
+    /\bcloud-loss\b|\bclear-sky\b|\bday-of-year\b|\btemperature\b|\bastrometric excess\b|\bband gap\b|\bopenml\b|\bsatlib\b|\bsnap\b|\bdimacs\b|\bbenchmark\b|\bsource-family\b|\bpackage maturity\b/.test(
+      claimText,
+    );
+  const gates = [
+    gate(
+      "external_public_refs",
+      externalPublicRefCount >= 2,
+      "Domain significance requires at least two public external refs, not only local Product artifacts.",
+    ),
+    gate(
+      "runtime_evidence_bound",
+      hasRuntimeEvidence,
+      "Domain significance requires a concrete runtime/source-cache evidence artifact.",
+    ),
+    gate(
+      "all_required_execution_gates_passed",
+      allRequiredExecutionGatesPassed,
+      "Domain significance cannot be assessed until every required promotion gate has a passing execution ref.",
+    ),
+    gate(
+      "public_safe_inspectability_refs",
+      hasPublicInspectability,
+      "Every significance evidence ref must be public-safe or local inspectability evidence.",
+    ),
+    gate(
+      "no_anti_discovery_claim_text",
+      !antiDiscoveryClaim,
+      "A candidate whose frozen claim says it is not a discovery cannot be domain-significant without a new stable claim identity.",
+    ),
+    gate(
+      "not_pipeline_or_generator_scope_only",
+      !pipelineBoundScope,
+      "Domain significance requires a target-outcome claim, not only generator, runtime, or pipeline-scope evidence.",
+    ),
+    gate(
+      "explicit_domain_significance_claim",
+      explicitDomainSignificance,
+      "The frozen claim or package must explicitly state the domain-scientific significance being tested.",
+    ),
+    gate(
+      "not_ordinary_known_mechanism",
+      !ordinaryKnownMechanism,
+      "Ordinary known mechanisms or benchmark/source-family behavior cannot be scored as discovery without explicit novelty evidence.",
+    ),
+  ];
+  const failedGates = gates
+    .filter((item) => !item.passed)
+    .map((item) => item.code);
+  const assessment = {
+    kind: "generator_born_domain_significance_assessment" as const,
+    candidateId: input.candidate.candidateId,
+    passed: failedGates.length === 0,
+    gates,
+    failedGates,
+    externalPublicRefCount,
+    executionGateCount,
+    rationale:
+      failedGates.length === 0
+        ? [
+            "The generator-born package has public refs, runtime evidence, all required gate executions, and a frozen claim with explicit domain scientific significance.",
+          ]
+        : [
+            "The generator-born package remains non-discovery-scored because domain scientific significance is not closed by the current frozen claim and evidence scope.",
+            `Failed gates: ${failedGates.join(", ")}.`,
+          ],
+    evidenceHash: "",
+  };
+  return {
+    ...assessment,
+    evidenceHash: hashEvidence(assessment),
   };
 }
 

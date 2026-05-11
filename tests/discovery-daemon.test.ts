@@ -100,6 +100,7 @@ const commands = [
   "formal-anchor-pressure",
   "discovery-anchor-select",
   "discovery-anchor-audit",
+  "discovery-anchor-source-load",
   "discovery-anchor-run",
   "discovery-anchor-run-audit",
   "raw-insight-gate-closure",
@@ -354,6 +355,29 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function gaiaAstrometricExcessFixtureCsv(): string {
+  const rows = Array.from({ length: 24 }, (_, index) => {
+    const sourceId = 1000000000000 + index;
+    const ra = 10 + index;
+    const dec = index % 2 === 0 ? 4 : -4;
+    const g = 15 + (index % 4) * 0.35;
+    const color = 0.95 + (index % 3) * 0.08;
+    const excess = 1.18 + (index % 5) * 0.015;
+    return [
+      sourceId,
+      ra.toFixed(4),
+      dec.toFixed(4),
+      g.toFixed(4),
+      color.toFixed(4),
+      excess.toFixed(4),
+    ].join(",");
+  });
+  return [
+    "source_id,ra,dec,phot_g_mean_mag,bp_rp,astrometric_excess_noise",
+    ...rows,
+  ].join("\n");
 }
 
 async function writeRealityCorpusFixture(
@@ -5113,6 +5137,68 @@ test("discover-daemon discovery anchor run can birth HardSeed from loaded extern
   );
 });
 
+test("discover-daemon discovery anchor source load writes Gaia runtime cache without Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.discoveryAnchorSelect();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "last-modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    })) as typeof fetch;
+  try {
+    const report = await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+    assert.equal(report.kind, "discovery_anchor_source_load");
+    assert.equal(report.anchorsAttempted, 1);
+    assert.equal(report.sourceCachesWritten, 1);
+    assert.equal(report.fundFound, false);
+    assert.equal(report.attempts[0]!.status, "loaded_external_artifact");
+
+    const run = await service.discoveryAnchorRun();
+    assert.equal(run.fundFound, false);
+    const checksPayload = JSON.parse(
+      await readFile(
+        join(
+          root,
+          daemonRoot,
+          "discovery-anchor-run",
+          "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      checks: Array<{
+        anchorId: string;
+        runtimeEvidenceKind: string;
+        sourceReceipt: { loadedExternalArtifact: boolean; status: string };
+      }>;
+    };
+    const gaiaCheck = checksPayload.checks.find(
+      (check) =>
+        check.anchorId === "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    );
+    assert.ok(gaiaCheck);
+    assert.equal(gaiaCheck.runtimeEvidenceKind, "loaded_external_data");
+    assert.equal(gaiaCheck.sourceReceipt.status, "loaded_external_artifact");
+    assert.equal(gaiaCheck.sourceReceipt.loadedExternalArtifact, true);
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("discover-daemon discovery anchor run CLIs are bounded and non-funding", async () => {
   const root = await tempRoot();
 
@@ -5142,6 +5228,48 @@ test("discover-daemon discovery anchor run CLIs are bounded and non-funding", as
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+});
+
+test("discover-daemon discovery anchor source load CLI is bounded and non-funding", async () => {
+  const root = await tempRoot();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "last-modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    })) as typeof fetch;
+  try {
+    const load = await executeCli(
+      [
+        "discover-daemon",
+        "discovery-anchor-source-load",
+        "--anchor",
+        "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+        "--json",
+      ],
+      root,
+    );
+    assert.equal(load.ok, true, JSON.stringify(load.errors));
+    assert.equal(
+      (load.data as Record<string, unknown>).kind,
+      "discovery_anchor_source_load",
+    );
+    assert.equal(
+      Number((load.data as Record<string, unknown>).sourceCachesWritten),
+      1,
+    );
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("formal anchor pilot creates only external bounded hard seeds and no fake Fund", async () => {

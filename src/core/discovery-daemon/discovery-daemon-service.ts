@@ -1843,6 +1843,44 @@ export type DiscoveryAnchorRuntimeSourceArtifact = {
   evidenceRefs?: string[];
 };
 
+export type DiscoveryAnchorSourceLoadStatus =
+  | "loaded_external_artifact"
+  | "unsupported_anchor_source"
+  | "fetch_failed"
+  | "insufficient_runtime_rows"
+  | "invalid_runtime_artifact";
+
+export type DiscoveryAnchorSourceLoadAttempt = {
+  kind: "discovery_anchor_source_load_attempt";
+  anchorId: string;
+  domain: DiscoveryDomain;
+  loaderId: string;
+  status: DiscoveryAnchorSourceLoadStatus;
+  sourceRef: string;
+  localArtifactRef: string | null;
+  rawTargetCount: number;
+  sourceHash: string | null;
+  blockers: string[];
+  gates: FundGate[];
+  validationErrors: string[];
+  sourceReceipt: string | null;
+};
+
+export type DiscoveryAnchorSourceLoadReport = {
+  kind: "discovery_anchor_source_load";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string;
+  nextCheckpointRef: string;
+  anchorsLoaded: number;
+  anchorsAttempted: number;
+  sourceCachesWritten: number;
+  blockedByCause: Record<string, number>;
+  attempts: DiscoveryAnchorSourceLoadAttempt[];
+  fundFound: false;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type DiscoveryGradeAnchorRuntimeCheck = {
   kind: "discovery_grade_anchor_runtime_check";
   checkId: string;
@@ -14799,6 +14837,220 @@ export class DiscoveryGradeAnchorRunService {
   }
 }
 
+export class DiscoveryAnchorSourceLoadService {
+  constructor(private readonly root: string) {}
+
+  async load(
+    input: { anchorId?: string } = {},
+  ): Promise<DiscoveryAnchorSourceLoadReport> {
+    await mkdir(this.runRoot(), { recursive: true });
+    await mkdir(join(this.runRoot(), "source-cache"), { recursive: true });
+    const selection = await this.loadSelection();
+    const queue = input.anchorId
+      ? selection.recommendedGeneratorDesignQueue.filter(
+          (item) => item.anchor.anchorId === input.anchorId,
+        )
+      : selection.recommendedGeneratorDesignQueue;
+    const attempts: DiscoveryAnchorSourceLoadAttempt[] = [];
+    for (const evaluation of queue) {
+      attempts.push(await this.loadAnchor(evaluation.anchor));
+    }
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/discovery-anchor-source-load-continue-searching.json`;
+    const report: DiscoveryAnchorSourceLoadReport = withEvidenceHash({
+      kind: "discovery_anchor_source_load" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: selection.nextCheckpointRef,
+      nextCheckpointRef,
+      anchorsLoaded: selection.recommendedGeneratorDesignQueue.length,
+      anchorsAttempted: attempts.length,
+      sourceCachesWritten: attempts.filter(
+        (attempt) => attempt.status === "loaded_external_artifact",
+      ).length,
+      blockedByCause: discoveryAnchorSourceLoadBlockedByCause(attempts),
+      attempts,
+      fundFound: false as const,
+      artifactRefs: discoveryAnchorSourceLoadArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private async loadSelection(): Promise<DiscoveryGradeAnchorSelectionReport> {
+    const selection =
+      await readOptionalJson<DiscoveryGradeAnchorSelectionReport>(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          discoveryGradeAnchorSelectionDir,
+          "latest.json",
+        ),
+      );
+    if (selection !== null) return selection;
+    return new DiscoveryGradeAnchorSelectionService(this.root).select();
+  }
+
+  private async loadAnchor(
+    anchor: DiscoveryGradeExternalAnchor,
+  ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    if (anchor.anchorId === "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES") {
+      return this.loadGaiaAstrometricExcess(anchor);
+    }
+    const localArtifactRef = discoveryAnchorRuntimeSourceArtifactRef(
+      anchor.anchorId,
+    );
+    return withEvidenceHash({
+      kind: "discovery_anchor_source_load_attempt" as const,
+      anchorId: anchor.anchorId,
+      domain: anchor.domain,
+      loaderId: "unsupported_external_source_loader",
+      status: "unsupported_anchor_source" as const,
+      sourceRef: anchor.sourceRef,
+      localArtifactRef,
+      rawTargetCount: 0,
+      sourceHash: null,
+      blockers: ["dataset_specific_loader_required"],
+      gates: [
+        gate(
+          "external_source_loader_available",
+          false,
+          "This anchor requires a dataset-specific external loader before a runtime source-cache artifact can be written.",
+        ),
+        gate(
+          "no_fake_source_cache",
+          true,
+          "Unsupported anchors must not write synthetic source-cache artifacts.",
+        ),
+      ],
+      validationErrors: [],
+      sourceReceipt: null,
+    });
+  }
+
+  private async loadGaiaAstrometricExcess(
+    anchor: DiscoveryGradeExternalAnchor,
+  ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    const localArtifactRef = discoveryAnchorRuntimeSourceArtifactRef(
+      anchor.anchorId,
+    );
+    const loaded = await loadGaiaAstrometricExcessRuntimeSource(anchor);
+    if (loaded.status !== "loaded") {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "gaia_edr3_tap_astrometric_excess_loader",
+        status: loaded.status,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.rawTargetCount,
+        sourceHash: loaded.sourceHash,
+        blockers: loaded.blockers,
+        gates: [
+          gate(
+            "gaia_tap_loaded",
+            false,
+            "Gaia EDR3 TAP rows must load before runtime source-cache creation.",
+          ),
+          gate(
+            "no_fake_source_cache",
+            true,
+            "Failed Gaia loads must not write synthetic source-cache artifacts.",
+          ),
+        ],
+        validationErrors: [],
+        sourceReceipt: loaded.sourceReceipt,
+      });
+    }
+    const validationErrors = validateDiscoveryAnchorRuntimeSource(
+      anchor,
+      loaded.artifact,
+    );
+    if (validationErrors.length > 0) {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "gaia_edr3_tap_astrometric_excess_loader",
+        status: "invalid_runtime_artifact" as const,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.artifact.rawTargetCount,
+        sourceHash: loaded.artifact.sourceHash,
+        blockers: validationErrors,
+        gates: [
+          gate(
+            "runtime_source_contract_valid",
+            false,
+            "Loaded Gaia rows must satisfy the discovery-anchor runtime source contract.",
+          ),
+        ],
+        validationErrors,
+        sourceReceipt: loaded.artifact.sourceReceipt,
+      });
+    }
+    await writeJson(join(this.root, localArtifactRef), loaded.artifact);
+    return withEvidenceHash({
+      kind: "discovery_anchor_source_load_attempt" as const,
+      anchorId: anchor.anchorId,
+      domain: anchor.domain,
+      loaderId: "gaia_edr3_tap_astrometric_excess_loader",
+      status: "loaded_external_artifact" as const,
+      sourceRef: anchor.sourceRef,
+      localArtifactRef,
+      rawTargetCount: loaded.artifact.rawTargetCount,
+      sourceHash: loaded.artifact.sourceHash,
+      blockers: [],
+      gates: [
+        gate(
+          "gaia_tap_loaded",
+          true,
+          "Gaia EDR3 TAP rows loaded from the public archive.",
+        ),
+        gate(
+          "runtime_source_contract_valid",
+          true,
+          "The loaded rows satisfy the discovery-anchor runtime source contract.",
+        ),
+        gate(
+          "no_fund_shortcut",
+          true,
+          "Source loading writes only runtime-source cache; it cannot create InsightCandidates, DiscoveryCandidates, or Fund state.",
+        ),
+      ],
+      validationErrors: [],
+      sourceReceipt: loaded.artifact.sourceReceipt,
+    });
+  }
+
+  private async writeArtifacts(
+    report: DiscoveryAnchorSourceLoadReport,
+  ): Promise<void> {
+    await writeJson(join(this.runRoot(), "SOURCE_LOAD_ATTEMPTS.json"), {
+      kind: "discovery_anchor_source_load_attempts",
+      attempts: report.attempts,
+      evidenceHash: hashEvidence(report.attempts),
+    });
+    await writeJson(join(this.runRoot(), "SOURCE_LOAD_REPORT.json"), report);
+    await writeText(
+      join(this.runRoot(), "SOURCE_LOAD_REPORT.md"),
+      discoveryAnchorSourceLoadMarkdown(report),
+    );
+    await writeJson(join(this.runRoot(), "source-load-latest.json"), report);
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "discovery_anchor_source_load_checkpoint",
+      status: report.status,
+      fundFound: false,
+      sourceCachesWritten: report.sourceCachesWritten,
+      blockedByCause: report.blockedByCause,
+      reportRef: `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/source-load-latest.json`,
+    });
+  }
+
+  private runRoot(): string {
+    return join(this.root, daemonArtifactRoot, discoveryGradeAnchorRunDir);
+  }
+}
+
 async function discoveryGradeAnchorRuntimeCheck(
   root: string,
   anchor: DiscoveryGradeExternalAnchor,
@@ -15102,6 +15354,356 @@ function validateDiscoveryAnchorRuntimeSource(
 
 function discoveryAnchorRuntimeSourceArtifactRef(anchorId: string): string {
   return `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/source-cache/${normalizeCandidateIdPart(anchorId)}.json`;
+}
+
+type GaiaAstrometricExcessRow = {
+  sourceId: string;
+  ra: number;
+  dec: number;
+  g: number;
+  color: number;
+  excess: number;
+  sliceId: string;
+};
+
+async function loadGaiaAstrometricExcessRuntimeSource(
+  anchor: DiscoveryGradeExternalAnchor,
+): Promise<
+  | {
+      status: "loaded";
+      artifact: DiscoveryAnchorRuntimeSourceArtifact;
+    }
+  | {
+      status: "fetch_failed" | "insufficient_runtime_rows";
+      rawTargetCount: number;
+      sourceHash: string | null;
+      sourceReceipt: string | null;
+      blockers: string[];
+    }
+> {
+  const slices = [
+    { id: "ra_000_090", minRa: 0, maxRa: 90 },
+    { id: "ra_090_180", minRa: 90, maxRa: 180 },
+    { id: "ra_180_270", minRa: 180, maxRa: 270 },
+    { id: "ra_270_360", minRa: 270, maxRa: 360 },
+  ];
+  const rows: GaiaAstrometricExcessRow[] = [];
+  const receipts: string[] = [];
+  const sourceRefs: string[] = [
+    anchor.sourceRef,
+    "https://gea.esac.esa.int/archive/",
+  ];
+  for (const slice of slices) {
+    const query = [
+      "select top 40 source_id,ra,dec,phot_g_mean_mag,bp_rp,astrometric_excess_noise",
+      "from gaiaedr3.gaia_source",
+      `where ra >= ${slice.minRa} and ra < ${slice.maxRa}`,
+      "and dec > -30 and dec < 30",
+      "and phot_g_mean_mag between 14 and 20",
+      "and bp_rp is not null",
+      "and astrometric_excess_noise is not null",
+      "order by source_id",
+    ].join(" ");
+    const url = gaiaTapSyncUrl(query);
+    const fetched = await fetchDiscoveryAnchorText(url);
+    if (fetched === null) {
+      return {
+        status: "fetch_failed",
+        rawTargetCount: rows.length,
+        sourceHash: rows.length > 0 ? hashEvidence(rows) : null,
+        sourceReceipt: receipts.length > 0 ? receipts.join(" | ") : null,
+        blockers: [`gaia_tap_fetch_failed_${slice.id}`],
+      };
+    }
+    receipts.push(`${slice.id}:${fetched.receipt}`);
+    sourceRefs.push(url);
+    rows.push(...parseGaiaAstrometricExcessCsv(fetched.text, slice.id));
+  }
+  if (rows.length < 60) {
+    return {
+      status: "insufficient_runtime_rows",
+      rawTargetCount: rows.length,
+      sourceHash: hashEvidence({ rows, receipts }),
+      sourceReceipt: receipts.join(" | "),
+      blockers: ["gaia_runtime_rows_below_minimum"],
+    };
+  }
+  const measurement = scoreGaiaAstrometricExcessRows(rows);
+  const artifact: DiscoveryAnchorRuntimeSourceArtifact = {
+    kind: "discovery_anchor_runtime_source",
+    anchorId: anchor.anchorId,
+    sourceRef: anchor.sourceRef,
+    sourceReceipt: [
+      "Gaia EDR3 TAP public archive measurement",
+      `rows=${rows.length}`,
+      ...receipts,
+    ].join("; "),
+    sourceHash: hashEvidence({ rows, receipts, measurement }),
+    loaderCheckCommand:
+      "sovryn discover-daemon discovery-anchor-source-load --anchor DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    rawTargetCount: rows.length,
+    measuredVariable: anchor.measuredTargetOutcome,
+    targetOutcome:
+      "public Gaia EDR3 astrometric-excess residual recurrence after magnitude, color, and single-slice dominance controls",
+    measuredOutcome: measurement.measuredOutcome,
+    residualMagnitude: measurement.residualMagnitude,
+    baselineResults: measurement.baselineResults,
+    rivalWeakened: measurement.rivalWeakened,
+    nontrivialResidual: measurement.nontrivialResidual,
+    crossSourceSupport: measurement.crossSourceSupport,
+    counterexampleCollapsed: measurement.counterexampleCollapsed,
+    holdoutReplayAvailable: measurement.holdoutReplayAvailable,
+    holdoutPath:
+      "predeclared Gaia RA-slice holdout: withhold one sky quadrant after claim freeze and recompute residual direction on remaining independent quadrants",
+    replayPath:
+      "replay Gaia EDR3 TAP ADQL queries and recompute magnitude/color/slice residual controls from cached source receipts",
+    publicSafe: true,
+    sourceRefs: uniqueStrings(sourceRefs),
+    evidenceRefs: [
+      discoveryAnchorRuntimeSourceArtifactRef(anchor.anchorId),
+      `${anchor.sourceRef}#gaia-edr3-astrometric-excess-runtime-source`,
+      "https://gea.esac.esa.int/archive/#gaia-edr3-tap-adql",
+    ],
+  };
+  return { status: "loaded", artifact };
+}
+
+function gaiaTapSyncUrl(query: string): string {
+  return [
+    "https://gea.esac.esa.int/tap-server/tap/sync",
+    "?REQUEST=doQuery",
+    "&LANG=ADQL",
+    "&FORMAT=csv",
+    `&QUERY=${encodeURIComponent(query)}`,
+  ].join("");
+}
+
+async function fetchDiscoveryAnchorText(
+  sourceUrl: string,
+): Promise<{ text: string; receipt: string } | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await fetch(sourceUrl, { signal: controller.signal });
+    if (!response.ok) return null;
+    const text = await response.text();
+    return {
+      text,
+      receipt: [
+        `status=${response.status}`,
+        `etag=${response.headers.get("etag") ?? "none"}`,
+        `lastModified=${response.headers.get("last-modified") ?? "none"}`,
+        `contentLength=${response.headers.get("content-length") ?? text.length}`,
+        `sourceHash=${hashEvidence(text)}`,
+      ].join(";"),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseGaiaAstrometricExcessCsv(
+  text: string,
+  sliceId: string,
+): GaiaAstrometricExcessRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length < 2) return [];
+  const headers = lines[0]!.split(",").map((header) => header.trim());
+  return lines
+    .slice(1)
+    .map((line) => {
+      const cells = line.split(",").map((cell) => cell.trim());
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = cells[index] ?? "";
+      });
+      const row = {
+        sourceId: record.source_id ?? "",
+        ra: Number(record.ra),
+        dec: Number(record.dec),
+        g: Number(record.phot_g_mean_mag),
+        color: Number(record.bp_rp),
+        excess: Number(record.astrometric_excess_noise),
+        sliceId,
+      };
+      return row;
+    })
+    .filter(
+      (row) =>
+        row.sourceId.length > 0 &&
+        [row.ra, row.dec, row.g, row.color, row.excess].every(Number.isFinite),
+    );
+}
+
+function scoreGaiaAstrometricExcessRows(rows: GaiaAstrometricExcessRow[]): {
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+} {
+  const residuals = rows.map((row) => ({
+    ...row,
+    residual:
+      row.excess -
+      (0.08 + Math.max(0, row.g - 16) * 0.1 + Math.abs(row.color - 1.2) * 0.08),
+  }));
+  const measuredOutcome = roundMetric(gaiaMean(rows.map((row) => row.excess)));
+  const sliceMeans = uniqueStrings(residuals.map((row) => row.sliceId)).map(
+    (sliceId) => ({
+      sliceId,
+      residualMean: gaiaMean(
+        residuals
+          .filter((row) => row.sliceId === sliceId)
+          .map((row) => row.residual),
+      ),
+    }),
+  );
+  const residualMagnitude = roundMetric(
+    gaiaMean(sliceMeans.map((row) => Math.abs(row.residualMean))),
+  );
+  const magnitudeCorrelation = Math.abs(
+    gaiaPearson(
+      rows.map((row) => row.g),
+      rows.map((row) => row.excess),
+    ),
+  );
+  const colorCorrelation = Math.abs(
+    gaiaPearson(
+      rows.map((row) => row.color),
+      rows.map((row) => row.excess),
+    ),
+  );
+  const residualAbsSum = sliceMeans.reduce(
+    (sum, row) => sum + Math.abs(row.residualMean),
+    0,
+  );
+  const singleSliceDominance =
+    residualAbsSum === 0
+      ? 1
+      : Math.max(...sliceMeans.map((row) => Math.abs(row.residualMean))) /
+        residualAbsSum;
+  const positiveSlices = sliceMeans.filter(
+    (row) => row.residualMean > 0.05,
+  ).length;
+  const negativeSlices = sliceMeans.filter(
+    (row) => row.residualMean < -0.05,
+  ).length;
+  const crossSourceSupport = Math.max(positiveSlices, negativeSlices) >= 2;
+  const baselineResults = [
+    {
+      baseline: "phot_g_mean_magnitude_correlation",
+      result: roundMetric(magnitudeCorrelation),
+      explainsSignal: magnitudeCorrelation > 0.65,
+    },
+    {
+      baseline: "bp_rp_color_correlation",
+      result: roundMetric(colorCorrelation),
+      explainsSignal: colorCorrelation > 0.65,
+    },
+    {
+      baseline: "single_sky_slice_dominance_control",
+      result: roundMetric(singleSliceDominance),
+      explainsSignal: singleSliceDominance > 0.75,
+    },
+  ];
+  const counterexampleCollapsed =
+    !crossSourceSupport || singleSliceDominance > 0.85;
+  const nontrivialResidual = residualMagnitude >= 0.12;
+  const rivalWeakened =
+    nontrivialResidual &&
+    crossSourceSupport &&
+    !baselineResults.some((baseline) => baseline.explainsSignal);
+  return {
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable: rows.length >= 60 && sliceMeans.length >= 4,
+  };
+}
+
+function gaiaMean(values: number[]): number {
+  return values.length === 0
+    ? 0
+    : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function gaiaPearson(left: number[], right: number[]): number {
+  if (left.length !== right.length || left.length < 2) return 0;
+  const leftMean = gaiaMean(left);
+  const rightMean = gaiaMean(right);
+  let numerator = 0;
+  let leftSquares = 0;
+  let rightSquares = 0;
+  for (const [index, leftValue] of left.entries()) {
+    const leftDelta = leftValue - leftMean;
+    const rightDelta = right[index]! - rightMean;
+    numerator += leftDelta * rightDelta;
+    leftSquares += leftDelta * leftDelta;
+    rightSquares += rightDelta * rightDelta;
+  }
+  const denominator = Math.sqrt(leftSquares * rightSquares);
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
+function discoveryAnchorSourceLoadBlockedByCause(
+  attempts: DiscoveryAnchorSourceLoadAttempt[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const attempt of attempts) {
+    for (const blocker of attempt.blockers) {
+      counts[blocker] = (counts[blocker] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function discoveryAnchorSourceLoadArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}`;
+  return [
+    `${root}/SOURCE_LOAD_ATTEMPTS.json`,
+    `${root}/SOURCE_LOAD_REPORT.json`,
+    `${root}/SOURCE_LOAD_REPORT.md`,
+    `${root}/source-load-latest.json`,
+    `${root}/source-cache/`,
+    nextCheckpointRef,
+  ];
+}
+
+function discoveryAnchorSourceLoadMarkdown(
+  report: DiscoveryAnchorSourceLoadReport,
+): string {
+  return [
+    "# Discovery Anchor Source Load",
+    "",
+    `Status: ${report.status}.`,
+    `Anchors attempted: ${report.anchorsAttempted}.`,
+    `Source caches written: ${report.sourceCachesWritten}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Anchor | Loader | Status | Rows | Cache | Blockers |",
+    "| --- | --- | --- | ---: | --- | --- |",
+    ...report.attempts.map(
+      (attempt) =>
+        `| ${attempt.anchorId} | ${attempt.loaderId} | ${attempt.status} | ${attempt.rawTargetCount} | ${attempt.localArtifactRef ?? "none"} | ${attempt.blockers.join(", ") || "none"} |`,
+    ),
+    "",
+    "This command only writes externally loaded runtime-source cache artifacts. It cannot create InsightCandidates, DiscoveryCandidates, fund-candidate.json, or FUND_FOUND.md.",
+  ].join("\n");
 }
 
 function discoveryGradeAnchorRuntimeProfile(
@@ -34954,6 +35556,13 @@ export class AutonomousDiscoveryDaemonService {
   async discoveryAnchorAudit(): Promise<DiscoveryGradeAnchorAuditReport> {
     await this.ensureInitialized();
     return new DiscoveryGradeAnchorSelectionService(this.root).audit();
+  }
+
+  async discoveryAnchorSourceLoad(
+    input: { anchorId?: string } = {},
+  ): Promise<DiscoveryAnchorSourceLoadReport> {
+    await this.ensureInitialized();
+    return new DiscoveryAnchorSourceLoadService(this.root).load(input);
   }
 
   async discoveryAnchorRun(): Promise<DiscoveryGradeAnchorRunReport> {

@@ -199,7 +199,7 @@ Commands:
   sovryn discover-daemon mechanism-first-pressure [--json]
   sovryn discover-daemon raw-insight-gate-closure [--json]
   sovryn discover-daemon overnight-completion [--json]
-  sovryn discover-daemon overnight-min-runtime [--json]
+  sovryn discover-daemon overnight-min-runtime [--min-runtime-ms N] [--runtime-limit-ms N] [--heartbeat-ms N] [--generator-variant-limit N] [--stagnation-iteration-limit N] [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1822,6 +1822,14 @@ async function discoverDaemonCommand(
           ? flagInt(parsed.flags, "--runtime-limit-ms", 28800000)
           : undefined,
         heartbeatMs: flagInt(parsed.flags, "--heartbeat-ms", 3600000),
+        stagnationIterationLimit: parsed.flags.has(
+          "--stagnation-iteration-limit",
+        )
+          ? flagInt(parsed.flags, "--stagnation-iteration-limit", 3)
+          : undefined,
+        generatorVariantLimit: parsed.flags.has("--generator-variant-limit")
+          ? flagInt(parsed.flags, "--generator-variant-limit", 4)
+          : undefined,
       });
     case "cycle":
       return service.cycle({

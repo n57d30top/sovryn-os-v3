@@ -3792,6 +3792,7 @@ test("discover-daemon overnight-min-runtime stops deterministic no-insight repet
     minRuntimeMs: 60_000,
     heartbeatMs: 1,
     stagnationIterationLimit: 2,
+    generatorVariantLimit: 1,
   });
 
   assert.equal(
@@ -3836,6 +3837,84 @@ test("discover-daemon overnight-min-runtime stops deterministic no-insight repet
   assert.equal(
     runningCheckpoint.adaptiveStopReason,
     "deterministic_no_candidate_birth",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon overnight-min-runtime rotates generator variants before adaptive stop", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.mechanismFirstPressure();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 1,
+    stagnationIterationLimit: 2,
+    generatorVariantLimit: 3,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.adaptiveStopTriggered, true);
+  assert.equal(
+    report.adaptiveStopReason,
+    "generator_variants_exhausted_without_candidate_birth",
+  );
+  assert.equal(report.adaptiveStopIteration, 3);
+  assert.equal(report.waveExecutions, 18);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.mechanismsRivalsGenerated.length, 18);
+  const waveLedger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "overnight-min-runtime", "WAVE_EXECUTIONS.json"),
+      "utf8",
+    ),
+  ) as { waves: Array<Record<string, unknown>> };
+  assert.deepEqual(
+    Array.from(new Set(waveLedger.waves.map((wave) => wave.generatorVariant))),
+    ["cross-source-residual", "mechanism-falsifier", "holdout-first"],
+  );
+  assert.equal(
+    waveLedger.waves.every(
+      (wave) =>
+        typeof wave.rawTargetStrategy === "string" &&
+        typeof wave.baselineRivalDesign === "string",
+    ),
+    true,
+  );
+  assert.equal(
+    waveLedger.waves.every(
+      (wave) =>
+        wave.runtimeInputStatus ===
+          "loaded_from_tool_expansion_seed_and_pipeline" &&
+        Array.isArray(wave.parentSeedIds) &&
+        wave.parentSeedIds.length === 1 &&
+        Array.isArray(wave.parentPipelineIds) &&
+        wave.parentPipelineIds.length === 1 &&
+        Array.isArray(wave.sourceRefs) &&
+        wave.sourceRefs.length >= 2 &&
+        Array.isArray(wave.pipelineEvidenceRefs) &&
+        wave.pipelineEvidenceRefs.some((ref) =>
+          String(ref).includes("pipeline-evidence"),
+        ) &&
+        typeof wave.measuredVariable === "string" &&
+        typeof wave.measuredOutcome === "number" &&
+        typeof wave.residual === "number",
+    ),
+    true,
+  );
+  assert.equal(
+    report.nextCheckpointRef,
+    ".sovryn/discovery-daemon/checkpoints/overnight-min-runtime-adaptive-stop.json",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

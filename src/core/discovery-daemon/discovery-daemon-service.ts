@@ -1033,6 +1033,7 @@ export type MinimumRuntimeOvernightOptions = {
   runtimeLimitMs?: number;
   heartbeatMs?: number;
   stagnationIterationLimit?: number;
+  generatorVariantLimit?: number;
   abortSignal?: AbortSignal;
 };
 
@@ -1043,11 +1044,23 @@ export type MinimumRuntimeOvernightInterruptSignal =
 
 export type MinimumRuntimeOvernightAdaptiveStopReason =
   | "deterministic_no_candidate_birth"
+  | "generator_variants_exhausted_without_candidate_birth"
   | null;
 
 export type MechanismDesignedOvernightWave = {
   waveId: string;
   iteration: number;
+  generatorVariant: string;
+  rawTargetStrategy: string;
+  baselineRivalDesign: string;
+  runtimeInputStatus: string;
+  parentSeedIds: string[];
+  parentPipelineIds: string[];
+  sourceRefs: string[];
+  pipelineEvidenceRefs: string[];
+  measuredVariable: string;
+  measuredOutcome: number | null;
+  residual: number | null;
   domain: DiscoveryDomain;
   toolFamilies: string[];
   candidateMechanism: string;
@@ -1121,6 +1134,7 @@ export type MinimumRuntimeOvernightProgressReport = {
   latestWave: {
     waveId: string;
     iteration: number;
+    generatorVariant: string;
     domain: DiscoveryDomain;
     deathCause: string;
   } | null;
@@ -10500,6 +10514,7 @@ const minimumRuntimeOvernightDir = "overnight-min-runtime" as const;
 const eightHoursMs = 8 * 60 * 60 * 1000;
 const defaultOvernightHeartbeatMs = 60 * 60 * 1000;
 const defaultOvernightStagnationIterationLimit = 3;
+const defaultOvernightGeneratorVariantLimit = 4;
 
 export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
   constructor(
@@ -10517,9 +10532,15 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       this.options.stagnationIterationLimit ??
         defaultOvernightStagnationIterationLimit,
     );
+    const generatorVariantLimit = Math.max(
+      1,
+      this.options.generatorVariantLimit ??
+        defaultOvernightGeneratorVariantLimit,
+    );
     const startedAtMs = Date.now();
     const wallClockStart = new Date(startedAtMs).toISOString();
     const checkpointUsed = await this.checkpointUsed();
+    const experimentInputs = await minimumRuntimeExperimentInputs(this.root);
     const waveRows: MechanismDesignedOvernightWave[] = [];
     const abortController = new AbortController();
     let interruptSignal: MinimumRuntimeOvernightInterruptSignal | null = null;
@@ -10553,6 +10574,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         minRuntimeMs,
         runtimeLimitMs,
         stagnationIterationLimit,
+        generatorVariantLimit,
         checkpointUsed,
         currentIteration: iteration,
         waves: waveRows,
@@ -10573,7 +10595,11 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           break;
         }
         iteration += 1;
-        for (const spec of mechanismDesignedOvernightWaveSpecs()) {
+        for (const spec of mechanismDesignedOvernightWaveSpecs(
+          iteration,
+          generatorVariantLimit,
+          experimentInputs,
+        )) {
           if (interruptSignal) break;
           waveRows.push(mechanismDesignedOvernightWave(spec, iteration));
           await this.writeProgress({
@@ -10583,6 +10609,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
             minRuntimeMs,
             runtimeLimitMs,
             stagnationIterationLimit,
+            generatorVariantLimit,
             checkpointUsed,
             currentIteration: iteration,
             waves: waveRows,
@@ -10594,6 +10621,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           waveRows,
           iteration,
           stagnationIterationLimit,
+          generatorVariantLimit,
         );
         if (adaptiveStopReason) {
           adaptiveStopIteration = iteration;
@@ -10604,6 +10632,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
             minRuntimeMs,
             runtimeLimitMs,
             stagnationIterationLimit,
+            generatorVariantLimit,
             checkpointUsed,
             currentIteration: iteration,
             waves: waveRows,
@@ -10634,6 +10663,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           minRuntimeMs,
           runtimeLimitMs,
           stagnationIterationLimit,
+          generatorVariantLimit,
           checkpointUsed,
           currentIteration: iteration,
           waves: waveRows,
@@ -10723,7 +10753,10 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       remainingBottleneck:
         adaptiveStopReason === "deterministic_no_candidate_birth"
           ? "The overnight minimum-runtime loop repeated the same mechanism-designed wave pattern without any InsightCandidate birth; the next step is to switch experiment generation rather than continue linear repetition."
-          : "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
+          : adaptiveStopReason ===
+              "generator_variants_exhausted_without_candidate_birth"
+            ? "The overnight minimum-runtime loop exhausted its configured mechanism-designed generator variants without any InsightCandidate birth; the next step is to add a genuinely new raw-target/mechanism/baseline generator before resuming."
+            : "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
       artifactRefs: minimumRuntimeOvernightArtifactRefs(
         nextCheckpointRef,
         interruptSignal !== null,
@@ -10738,6 +10771,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
       minRuntimeMs,
       runtimeLimitMs,
       stagnationIterationLimit,
+      generatorVariantLimit,
       checkpointUsed,
       currentIteration: iteration,
       waves: waveRows,
@@ -10788,6 +10822,11 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
           domain: wave.domain,
           mechanism: wave.candidateMechanism,
           rival: wave.rivalMechanism,
+          generatorVariant: wave.generatorVariant,
+          parentSeedIds: wave.parentSeedIds,
+          parentPipelineIds: wave.parentPipelineIds,
+          sourceRefs: wave.sourceRefs,
+          pipelineEvidenceRefs: wave.pipelineEvidenceRefs,
           frozenBeforeExecution: true,
         })),
       ),
@@ -10876,6 +10915,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
     minRuntimeMs: number;
     runtimeLimitMs: number | null;
     stagnationIterationLimit: number;
+    generatorVariantLimit: number;
     checkpointUsed: string | null;
     currentIteration: number;
     waves: MechanismDesignedOvernightWave[];
@@ -10901,6 +10941,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         ? {
             waveId: latestWave.waveId,
             iteration: latestWave.iteration,
+            generatorVariant: latestWave.generatorVariant,
             domain: latestWave.domain,
             deathCause: latestWave.deathCause,
           }
@@ -10968,7 +11009,9 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         currentIteration: report.currentIteration,
         completedWaveExecutions: report.completedWaveExecutions,
         stagnationIterationLimit: input.stagnationIterationLimit,
+        generatorVariantLimit: input.generatorVariantLimit,
         latestWaveId: report.latestWave?.waveId ?? null,
+        latestGeneratorVariant: report.latestWave?.generatorVariant ?? null,
         latestDeathCause: report.latestWave?.deathCause ?? null,
         fundFound: report.currentFundState.fundFound,
         adaptiveStopTriggered: report.adaptiveStopTriggered,
@@ -11046,10 +11089,60 @@ type MechanismDesignedOvernightWaveSpec = Omit<
   "iteration" | "artifactRef" | "evidenceHash"
 >;
 
-function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
+type MinimumRuntimeGeneratorVariant = {
+  id: string;
+  rawTargetStrategy: string;
+  baselineRivalDesign: string;
+  mechanismFocus: string;
+  rivalFocus: string;
+  deathCauseOverrides: Record<string, string>;
+};
+
+type MinimumRuntimeExperimentInput = {
+  waveId: string;
+  runtimeInputStatus: string;
+  parentSeedIds: string[];
+  parentPipelineIds: string[];
+  sourceRefs: string[];
+  pipelineEvidenceRefs: string[];
+  measuredVariable: string;
+  measuredOutcome: number | null;
+  residual: number | null;
+};
+
+function mechanismDesignedOvernightWaveSpecs(
+  iteration: number,
+  generatorVariantLimit: number,
+  experimentInputs: Map<string, MinimumRuntimeExperimentInput>,
+): MechanismDesignedOvernightWaveSpec[] {
+  const variants = minimumRuntimeGeneratorVariants(generatorVariantLimit);
+  const variant = variants[(iteration - 1) % variants.length];
+  return minimumRuntimeBaseWaveSpecs().map((spec) =>
+    minimumRuntimeApplyGeneratorVariant(
+      minimumRuntimeApplyExperimentInput(
+        spec,
+        experimentInputs.get(spec.waveId),
+      ),
+      variant,
+    ),
+  );
+}
+
+function minimumRuntimeBaseWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
   return [
     {
       waveId: "wave-1-mechanism-designed-materials",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "computational_materials_property_data",
       toolFamilies: ["pymatgen", "matminer", "ase", "numpy", "scipy"],
       candidateMechanism:
@@ -11071,6 +11164,17 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
     },
     {
       waveId: "wave-2-mechanism-designed-astrophysics",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "astrophysics_open_catalog_anomalies",
       toolFamilies: ["astropy", "astroquery", "statsmodels", "numpy"],
       candidateMechanism:
@@ -11092,6 +11196,17 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
     },
     {
       waveId: "wave-3-mechanism-designed-climate-energy",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "climate_energy_residuals",
       toolFamilies: ["xarray", "netcdf4", "statsmodels", "pandas"],
       candidateMechanism:
@@ -11113,6 +11228,17 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
     },
     {
       waveId: "wave-4-formal-bounded-property",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "formal_mathematics_conjecture_refutation",
       toolFamilies: ["networkx", "sympy", "z3-solver"],
       candidateMechanism:
@@ -11134,6 +11260,17 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
     },
     {
       waveId: "wave-5-benchmark-protocol-delta",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "benchmark_protocol_methodology",
       toolFamilies: ["OpenML", "scikit-learn", "xgboost", "statsmodels"],
       candidateMechanism:
@@ -11155,6 +11292,17 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
     },
     {
       waveId: "wave-6-repo-reproduction-outcome-labels",
+      generatorVariant: "base",
+      rawTargetStrategy: "base domain-tool hard seed targets",
+      baselineRivalDesign: "base simple baseline and strongest rival controls",
+      runtimeInputStatus: "static_wave_spec_no_runtime_input",
+      parentSeedIds: [],
+      parentPipelineIds: [],
+      sourceRefs: [],
+      pipelineEvidenceRefs: [],
+      measuredVariable: "unknown",
+      measuredOutcome: null,
+      residual: null,
       domain: "scientific_software_reproduction_mechanisms",
       toolFamilies: ["pytest", "tox", "repo reproduction tools"],
       candidateMechanism:
@@ -11175,6 +11323,180 @@ function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSp
       deathCause: "baseline_dominated",
     },
   ];
+}
+
+function minimumRuntimeGeneratorVariants(
+  limit: number,
+): MinimumRuntimeGeneratorVariant[] {
+  const variants: MinimumRuntimeGeneratorVariant[] = [
+    {
+      id: "cross-source-residual",
+      rawTargetStrategy:
+        "prefer independent source families and cross-source residual recurrence before seed birth",
+      baselineRivalDesign:
+        "same-source matched controls plus cross-source negative slices before residual scoring",
+      mechanismFocus: "cross-source recurrence",
+      rivalFocus: "same-source population and source-family rival",
+      deathCauseOverrides: {},
+    },
+    {
+      id: "mechanism-falsifier",
+      rawTargetStrategy:
+        "select targets with explicit falsifier slices where the candidate mechanism should fail",
+      baselineRivalDesign:
+        "falsifier-first rival comparison with negative/control slices before holdout",
+      mechanismFocus: "falsifier-resistant mechanism",
+      rivalFocus: "falsifier and negative-control rival",
+      deathCauseOverrides: {
+        "wave-1-mechanism-designed-materials": "counterexample_dense",
+        "wave-3-mechanism-designed-climate-energy": "rival_theory_stronger",
+      },
+    },
+    {
+      id: "holdout-first",
+      rawTargetStrategy:
+        "only use targets with predeclared independent holdout or bounded no-holdout caveat",
+      baselineRivalDesign:
+        "holdout-first baselines with leakage and source-family independence checks",
+      mechanismFocus: "holdout-stable mechanism",
+      rivalFocus: "holdout leakage and source-family rival",
+      deathCauseOverrides: {
+        "wave-2-mechanism-designed-astrophysics": "holdout_not_supported",
+        "wave-5-benchmark-protocol-delta": "baseline_dominated",
+      },
+    },
+    {
+      id: "null-model-ablation",
+      rawTargetStrategy:
+        "prefer targets where null-model, shuffled-label, or ablation controls can be recomputed",
+      baselineRivalDesign:
+        "null distribution plus ablation controls before mechanism pressure",
+      mechanismFocus: "null-model-resistant mechanism",
+      rivalFocus: "null-model and ablation rival",
+      deathCauseOverrides: {
+        "wave-4-formal-bounded-property": "no_nontrivial_residual",
+        "wave-6-repo-reproduction-outcome-labels": "rival_theory_stronger",
+      },
+    },
+  ];
+  return variants.slice(0, Math.max(1, limit));
+}
+
+function minimumRuntimeApplyGeneratorVariant(
+  spec: MechanismDesignedOvernightWaveSpec,
+  variant: MinimumRuntimeGeneratorVariant,
+): MechanismDesignedOvernightWaveSpec {
+  return {
+    ...spec,
+    generatorVariant: variant.id,
+    rawTargetStrategy: variant.rawTargetStrategy,
+    baselineRivalDesign: variant.baselineRivalDesign,
+    candidateMechanism: `${spec.candidateMechanism} (${variant.mechanismFocus})`,
+    rivalMechanism: `${spec.rivalMechanism} (${variant.rivalFocus})`,
+    deathCause: variant.deathCauseOverrides[spec.waveId] ?? spec.deathCause,
+  };
+}
+
+function minimumRuntimeApplyExperimentInput(
+  spec: MechanismDesignedOvernightWaveSpec,
+  input: MinimumRuntimeExperimentInput | undefined,
+): MechanismDesignedOvernightWaveSpec {
+  if (!input) return spec;
+  return {
+    ...spec,
+    runtimeInputStatus: input.runtimeInputStatus,
+    parentSeedIds: input.parentSeedIds,
+    parentPipelineIds: input.parentPipelineIds,
+    sourceRefs: input.sourceRefs,
+    pipelineEvidenceRefs: input.pipelineEvidenceRefs,
+    measuredVariable: input.measuredVariable,
+    measuredOutcome: input.measuredOutcome,
+    residual: input.residual,
+  };
+}
+
+async function minimumRuntimeExperimentInputs(
+  root: string,
+): Promise<Map<string, MinimumRuntimeExperimentInput>> {
+  const seedPayload = await readOptionalJson<{ hardSeeds?: unknown[] }>(
+    join(
+      root,
+      daemonArtifactRoot,
+      "tool-expansion",
+      "HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json",
+    ),
+  );
+  const pipelinePayload = await readOptionalJson<{ pipelines?: unknown[] }>(
+    join(
+      root,
+      daemonArtifactRoot,
+      "tool-expansion",
+      "DOMAIN_EVIDENCE_PIPELINES.json",
+    ),
+  );
+  const seeds = Array.isArray(seedPayload?.hardSeeds)
+    ? seedPayload.hardSeeds.filter(isRecord)
+    : [];
+  const pipelines = Array.isArray(pipelinePayload?.pipelines)
+    ? pipelinePayload.pipelines.filter(isRecord)
+    : [];
+  const seedByPipeline = new Map<string, Record<string, unknown>>();
+  for (const seed of seeds) {
+    const parentPipelineId = stringValue(seed.parentPipelineId);
+    if (parentPipelineId) seedByPipeline.set(parentPipelineId, seed);
+  }
+  const inputs = new Map<string, MinimumRuntimeExperimentInput>();
+  for (const pipeline of pipelines) {
+    const pipelineId = stringValue(pipeline.pipelineId);
+    const waveId = minimumRuntimeWaveIdForPipeline(pipelineId);
+    if (!pipelineId || !waveId) continue;
+    const seed = seedByPipeline.get(pipelineId);
+    inputs.set(waveId, {
+      waveId,
+      runtimeInputStatus: seed
+        ? "loaded_from_tool_expansion_seed_and_pipeline"
+        : "loaded_from_tool_expansion_pipeline_without_seed",
+      parentSeedIds: seed ? [stringValue(seed.seedId)].filter(Boolean) : [],
+      parentPipelineIds: [pipelineId],
+      sourceRefs: uniqueStrings([
+        ...stringArray(seed?.sourceRefs),
+        stringValue(pipeline.targetRef),
+        stringValue(pipeline.targetEvidenceRef),
+      ]).filter(Boolean),
+      pipelineEvidenceRefs: uniqueStrings([
+        stringValue(pipeline.producedArtifact),
+        `${daemonArtifactRoot}/tool-expansion/DOMAIN_EVIDENCE_PIPELINES.json#${pipelineId}`,
+        seed
+          ? `${daemonArtifactRoot}/tool-expansion/HARD_SEEDS_FROM_TOOL_MEASUREMENTS.json#${stringValue(seed.seedId)}`
+          : "",
+      ]).filter(Boolean),
+      measuredVariable:
+        stringValue(seed?.measuredVariable) ||
+        stringValue(pipeline.measuredVariable) ||
+        "unknown",
+      measuredOutcome:
+        numberOrNull(seed?.measuredOutcome) ??
+        numberOrNull(pipeline.measuredOutcome),
+      residual: numberOrNull(seed?.residual) ?? numberOrNull(pipeline.residual),
+    });
+  }
+  return inputs;
+}
+
+function minimumRuntimeWaveIdForPipeline(pipelineId: string): string | null {
+  const byPipeline: Record<string, string> = {
+    "TOOL-MATERIALS-001": "wave-1-mechanism-designed-materials",
+    "TOOL-ASTRO-001": "wave-2-mechanism-designed-astrophysics",
+    "TOOL-CLIMATE-001": "wave-3-mechanism-designed-climate-energy",
+    "TOOL-FORMAL-001": "wave-4-formal-bounded-property",
+    "TOOL-BENCH-001": "wave-5-benchmark-protocol-delta",
+    "TOOL-REPRO-001": "wave-6-repo-reproduction-outcome-labels",
+  };
+  return byPipeline[pipelineId] ?? null;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function mechanismDesignedOvernightWave(
@@ -11232,22 +11554,45 @@ function minimumRuntimeAdaptiveStopReason(
   waves: MechanismDesignedOvernightWave[],
   currentIteration: number,
   stagnationIterationLimit: number,
+  generatorVariantLimit: number,
 ): MinimumRuntimeOvernightAdaptiveStopReason {
   if (stagnationIterationLimit <= 0) return null;
-  if (currentIteration < stagnationIterationLimit) return null;
   if (sumOvernightBy(waves, "insightCandidatesCreated") > 0) return null;
   if (sumOvernightBy(waves, "discoveryCandidatesCreated") > 0) return null;
-  const recentIterations = Array.from(
-    { length: stagnationIterationLimit },
-    (_, index) => currentIteration - index,
-  );
-  const signatures = recentIterations.map((iteration) =>
-    minimumRuntimeIterationSignature(waves, iteration),
-  );
-  if (signatures.some((signature) => signature === "")) return null;
-  return new Set(signatures).size === 1
-    ? "deterministic_no_candidate_birth"
-    : null;
+  if (currentIteration >= stagnationIterationLimit) {
+    const recentIterations = Array.from(
+      { length: stagnationIterationLimit },
+      (_, index) => currentIteration - index,
+    );
+    const signatures = recentIterations.map((iteration) =>
+      minimumRuntimeIterationSignature(waves, iteration),
+    );
+    if (
+      signatures.every((signature) => signature !== "") &&
+      new Set(signatures).size === 1
+    ) {
+      return "deterministic_no_candidate_birth";
+    }
+  }
+  if (
+    currentIteration >=
+      Math.max(generatorVariantLimit, stagnationIterationLimit) &&
+    minimumRuntimeGeneratorVariantsExhausted(waves, generatorVariantLimit)
+  ) {
+    return "generator_variants_exhausted_without_candidate_birth";
+  }
+  return null;
+}
+
+function minimumRuntimeGeneratorVariantsExhausted(
+  waves: MechanismDesignedOvernightWave[],
+  generatorVariantLimit: number,
+): boolean {
+  const expectedVariants = minimumRuntimeGeneratorVariants(
+    generatorVariantLimit,
+  ).map((variant) => variant.id);
+  const seen = new Set(waves.map((wave) => wave.generatorVariant));
+  return expectedVariants.every((variant) => seen.has(variant));
 }
 
 function minimumRuntimeIterationSignature(
@@ -11259,7 +11604,7 @@ function minimumRuntimeIterationSignature(
     .sort((left, right) => left.waveId.localeCompare(right.waveId))
     .map(
       (wave) =>
-        `${wave.waveId}:${wave.deathCause}:${wave.insightCandidatesCreated}:${wave.discoveryCandidatesCreated}`,
+        `${wave.waveId}:${wave.generatorVariant}:${wave.deathCause}:${wave.insightCandidatesCreated}:${wave.discoveryCandidatesCreated}`,
     )
     .join("|");
 }
@@ -11267,8 +11612,13 @@ function minimumRuntimeIterationSignature(
 function minimumRuntimeAdaptiveStopRecommendation(
   reason: MinimumRuntimeOvernightAdaptiveStopReason,
 ): string | null {
-  if (reason !== "deterministic_no_candidate_birth") return null;
-  return "Stop repeating the same six mechanism-designed waves; switch to a different experiment generator that changes raw target selection, mechanism hypotheses, or baseline/rival design before resuming overnight execution.";
+  if (reason === "deterministic_no_candidate_birth") {
+    return "Stop repeating the same six mechanism-designed waves; switch to a different experiment generator that changes raw target selection, mechanism hypotheses, or baseline/rival design before resuming overnight execution.";
+  }
+  if (reason === "generator_variants_exhausted_without_candidate_birth") {
+    return "The configured raw-target/mechanism/baseline generator variants were all tried without InsightCandidate birth; add a genuinely new generator family before resuming long runtime execution.";
+  }
+  return null;
 }
 
 function minimumRuntimeOvernightArtifactRefs(
@@ -11315,11 +11665,11 @@ function minimumRuntimeExperimentsMarkdown(
   return [
     "# Mechanism Designed Overnight Experiments",
     "",
-    "| Wave | Iteration | Domain | Tools | Mechanism | Rival | Outcome | Checks | Death cause |",
-    "| --- | ---: | --- | --- | --- | --- | --- | ---: | --- |",
+    "| Wave | Iteration | Variant | Runtime input | Parent seed | Parent pipeline | Target strategy | Baseline/rival design | Domain | Tools | Mechanism | Rival | Measured variable | Measured outcome | Residual | Checks | Death cause |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |",
     ...waves.map(
       (wave) =>
-        `| ${wave.waveId} | ${wave.iteration} | ${wave.domain} | ${wave.toolFamilies.join(", ")} | ${wave.candidateMechanism} | ${wave.rivalMechanism} | ${wave.measurableOutcome} | ${wave.realChecksFormalEvaluations} | ${wave.deathCause} |`,
+        `| ${wave.waveId} | ${wave.iteration} | ${wave.generatorVariant} | ${wave.runtimeInputStatus} | ${wave.parentSeedIds.join(", ") || "none"} | ${wave.parentPipelineIds.join(", ") || "none"} | ${wave.rawTargetStrategy} | ${wave.baselineRivalDesign} | ${wave.domain} | ${wave.toolFamilies.join(", ")} | ${wave.candidateMechanism} | ${wave.rivalMechanism} | ${wave.measuredVariable} | ${wave.measuredOutcome ?? "n/a"} | ${wave.residual ?? "n/a"} | ${wave.realChecksFormalEvaluations} | ${wave.deathCause} |`,
     ),
   ].join("\n");
 }

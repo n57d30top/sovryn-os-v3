@@ -1,11 +1,11 @@
 # Graph Report - /Users/sovryn/Desktop/sovryn-os-v3  (2026-05-11)
 
 ## Corpus Check
-- 194 files · ~1,127,276 words
+- 194 files · ~1,127,447 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5383 nodes · 17914 edges · 46 communities detected
+- 5383 nodes · 17916 edges · 46 communities detected
 - Extraction: 77% EXTRACTED · 23% INFERRED · 0% AMBIGUOUS · INFERRED: 4070 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -89,15 +89,15 @@ Nodes (767): acceptedPackageHardSeed(), additionalExternalFormalAnchors(), adjac
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (265): assertRejected(), candidate(), makeResultRoot(), makeTargetCorpusRepo(), policy(), writeCorpusResult(), writeExternalResult(), writeResultFiles() (+257 more)
+Nodes (274): assertRejected(), candidate(), makeResultRoot(), makeTargetCorpusRepo(), policy(), writeCorpusResult(), writeExternalResult(), writeResultFiles() (+266 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.02
-Nodes (216): analyzePublicResultQuality(), average(), buildReadabilityReport(), clampScore(), collectTextFiles(), fileText(), finding(), listFiles() (+208 more)
+Cohesion: 0.01
+Nodes (244): analyzePublicResultQuality(), average(), buildReadabilityReport(), clampScore(), collectTextFiles(), fileText(), finding(), listFiles() (+236 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.01
-Nodes (215): concreteSourceTypesRead(), directorySize(), evaluateFactoryGates(), evidenceHashValid(), exists(), findMissionById(), generatedSafetyReviewsPresent(), hashesBound() (+207 more)
+Cohesion: 0.02
+Nodes (179): concreteSourceTypesRead(), directorySize(), evaluateFactoryGates(), evidenceHashValid(), exists(), findMissionById(), generatedSafetyReviewsPresent(), hashesBound() (+171 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.03
@@ -164,12 +164,12 @@ Cohesion: 0.06
 Nodes (46): artifactsForRoute(), assertSafeGoal(), auditScientificClaimText(), average(), boundedScientistLimitations(), buildMemoryUpdate(), candidate(), containsUnsafeDomainClaim() (+38 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.07
-Nodes (35): realityCommand(), realityGradeCommand(), auditFromGates(), baselinesForDomain(), benchmarkResult(), benchmarkTask(), clampInt(), dedupeBy() (+27 more)
-
-### Community 21 - "Community 21"
 Cohesion: 0.06
 Nodes (41): qualityCommand(), boolOrDefault(), buildFactoryFindings(), buildRubric(), clampInt(), clampScore(), collectTextFiles(), dimension() (+33 more)
+
+### Community 21 - "Community 21"
+Cohesion: 0.07
+Nodes (34): realityGradeCommand(), auditFromGates(), baselinesForDomain(), benchmarkResult(), benchmarkTask(), clampInt(), dedupeBy(), exists() (+26 more)
 
 ### Community 22 - "Community 22"
 Cohesion: 0.08
@@ -297,11 +297,11 @@ Nodes (0):
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `writeJson()` connect `Community 4` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`?**
-  _High betweenness centrality (0.146) - this node is a cross-community bridge._
+  _High betweenness centrality (0.192) - this node is a cross-community bridge._
 - **Why does `nowIso()` connect `Community 5` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 29`, `Community 30`?**
-  _High betweenness centrality (0.067) - this node is a cross-community bridge._
-- **Why does `executeCli()` connect `Community 1` to `Community 0`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 12`, `Community 16`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
+- **Why does `executeCli()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 12`, `Community 16`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **Are the 604 inferred relationships involving `writeJson()` (e.g. with `theoryFixture()` and `writePriorResult()`) actually correct?**
   _`writeJson()` has 604 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 386 inferred relationships involving `nowIso()` (e.g. with `.check()` and `.demo()`) actually correct?**

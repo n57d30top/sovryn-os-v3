@@ -1431,7 +1431,11 @@ export type GeneratorBornInsightClosureReport = {
   gatesPassed: string[];
   gatesFailed: string[];
   promotionDecisions: InsightGauntletPromotionDecision[];
+  closureCandidatesCreated: number;
   discoveryCandidatesCreated: number;
+  discoveryScoredCandidatesCreated: number;
+  nonDiscoveryPromotionCandidates: number;
+  fundClassDistribution: Record<string, number>;
   fundGateResult: FundGateResult;
   fundFound: boolean;
   remainingBottleneck: string;
@@ -12027,6 +12031,14 @@ export class GeneratorBornInsightClosureService {
       )?.fundGateResult ??
       promotionDecisions[0]?.fundGateResult ??
       new FundGateEvaluator().evaluate(null);
+    const closureCandidatesCreated = promotionDecisions.filter(
+      (decision) => decision.promotedToDiscoveryCandidate,
+    ).length;
+    const discoveryScoredCandidatesCreated = promotionDecisions.filter(
+      (decision) =>
+        decision.promotedToDiscoveryCandidate &&
+        decision.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    ).length;
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-born-insight-closure-continue-searching.json`;
     const report: GeneratorBornInsightClosureReport = withEvidenceHash({
       kind: "generator_born_insight_closure" as const,
@@ -12052,9 +12064,17 @@ export class GeneratorBornInsightClosureService {
           .map((execution) => execution.promotionGate),
       ),
       promotionDecisions,
-      discoveryCandidatesCreated: promotionDecisions.filter(
-        (decision) => decision.promotedToDiscoveryCandidate,
-      ).length,
+      closureCandidatesCreated,
+      discoveryCandidatesCreated: discoveryScoredCandidatesCreated,
+      discoveryScoredCandidatesCreated,
+      nonDiscoveryPromotionCandidates:
+        closureCandidatesCreated - discoveryScoredCandidatesCreated,
+      fundClassDistribution: countBy(
+        promotionDecisions.map((decision) => ({
+          fundClass: decision.fundGateResult.fundClass ?? "unclassified",
+        })),
+        "fundClass",
+      ),
       fundGateResult,
       fundFound: fundGateResult.notificationAllowed,
       remainingBottleneck: generatorBornInsightClosureBottleneck(
@@ -12176,6 +12196,13 @@ export class GeneratorBornInsightClosureService {
       kind: "generator_born_insight_closure_results",
       executions: input.executions,
       promotionDecisions: input.promotionDecisions,
+      closureCandidatesCreated: input.report.closureCandidatesCreated,
+      discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
+      discoveryScoredCandidatesCreated:
+        input.report.discoveryScoredCandidatesCreated,
+      nonDiscoveryPromotionCandidates:
+        input.report.nonDiscoveryPromotionCandidates,
+      fundClassDistribution: input.report.fundClassDistribution,
       evidenceHash: hashEvidence({
         executions: input.executions,
         promotionDecisions: input.promotionDecisions,
@@ -12186,6 +12213,13 @@ export class GeneratorBornInsightClosureService {
       status: input.report.status,
       fundFound: input.report.fundFound,
       candidateIds: input.report.candidateIds,
+      closureCandidatesCreated: input.report.closureCandidatesCreated,
+      discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
+      discoveryScoredCandidatesCreated:
+        input.report.discoveryScoredCandidatesCreated,
+      nonDiscoveryPromotionCandidates:
+        input.report.nonDiscoveryPromotionCandidates,
+      fundClassDistribution: input.report.fundClassDistribution,
       gatesFailed: input.report.gatesFailed,
       reportRef: `${daemonArtifactRoot}/generator-insight-closure/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -20276,6 +20310,15 @@ function generatorBornInsightClosureBottleneck(
   ) {
     return "none";
   }
+  const closureCandidates = decisions.filter(
+    (decision) => decision.promotedToDiscoveryCandidate,
+  );
+  const discoveryScoredCandidates = closureCandidates.filter(
+    (decision) => decision.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+  );
+  if (closureCandidates.length > 0 && discoveryScoredCandidates.length === 0) {
+    return `${closureCandidates.length} generator-born candidate(s) reached downstream closure, but 0 are discovery-scored at Insight closure. Run FundClass/package closure and continue searching for externally significant nontrivial scientific signal.`;
+  }
   const failedGates = uniqueStrings(
     executions
       .filter((execution) => !execution.passed)
@@ -20488,8 +20531,20 @@ function generatorBornInsightPromotionDecisionMarkdown(
     "# Promotion Decision",
     "",
     `Candidates loaded: ${report.candidatesLoaded}.`,
+    `Closure candidates created: ${report.closureCandidatesCreated}.`,
+    `Discovery-scored candidates created: ${report.discoveryScoredCandidatesCreated}.`,
+    `Non-discovery promotion candidates: ${report.nonDiscoveryPromotionCandidates}.`,
     `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
     `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Fund Class Distribution",
+    "",
+    ...Object.entries(report.fundClassDistribution).map(
+      ([fundClass, count]) => `- ${fundClass}: ${count}`,
+    ),
+    ...(Object.keys(report.fundClassDistribution).length === 0
+      ? ["- none"]
+      : []),
     "",
     "## Decisions",
     "",

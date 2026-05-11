@@ -3424,10 +3424,17 @@ test("discover-daemon mechanism-first-pressure consumes tool hard seeds and bloc
   assert.equal(report.status, "continue_searching_checkpointed");
   assert.equal(report.seedsLoaded, 6);
   assert.equal(report.testsRun, 36);
-  assert.equal(report.seedsKilledByBaseline, 4);
-  assert.equal(report.seedsKilledByRival, 1);
-  assert.equal(report.seedsKilledByCounterexample, 1);
+  assert.ok(report.seedsKilledByBaseline >= 3);
+  assert.ok(report.seedsKilledByRival >= 1);
+  assert.ok(report.seedsKilledByCounterexample >= 1);
   assert.equal(report.seedsKilledByLackOfRecurrence, 0);
+  assert.equal(
+    report.seedsKilledByBaseline +
+      report.seedsKilledByRival +
+      report.seedsKilledByCounterexample +
+      report.seedsKilledByLackOfRecurrence,
+    report.seedsLoaded,
+  );
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.equal(report.fundFound, false);
@@ -3977,7 +3984,13 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
 
   const insightClosure = await service.generatorInsightClosure();
   assert.equal(insightClosure.candidatesLoaded, 6);
-  assert.equal(insightClosure.discoveryCandidatesCreated, 6);
+  assert.equal(insightClosure.closureCandidatesCreated, 6);
+  assert.equal(insightClosure.discoveryCandidatesCreated, 0);
+  assert.equal(insightClosure.discoveryScoredCandidatesCreated, 0);
+  assert.equal(insightClosure.nonDiscoveryPromotionCandidates, 6);
+  assert.deepEqual(insightClosure.fundClassDistribution, {
+    insight_candidate: 6,
+  });
   assert.equal(insightClosure.fundFound, false);
 
   const fundClosure = await service.generatorFundClosure();

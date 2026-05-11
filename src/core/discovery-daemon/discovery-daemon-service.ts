@@ -1346,10 +1346,24 @@ export type MechanismFirstGeneratorAuditReport = {
   runtimeChecks: number;
   hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
+  pressureYield: GeneratorPressureYieldSignal;
   gates: FundGate[];
   failedGates: string[];
   artifactRefs: string[];
   evidenceHash: string;
+};
+
+export type GeneratorPressureYieldSignal = {
+  pressureRunFound: boolean;
+  seedsLoaded: number;
+  testsRun: number;
+  seedsKilledByBaseline: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  noInsightAfterBornSeeds: boolean;
+  dominantBlocker: string | null;
+  recommendedAction: string;
+  pressureRef: string | null;
 };
 
 export type GeneratorBornHardSeedPressureReport = {
@@ -11331,7 +11345,17 @@ export class MechanismFirstEvidenceGeneratorService {
     const outputPayload = await readOptionalJson<{
       outputs?: MechanismFirstGeneratorOutput[];
     }>(join(this.generatorRoot(), "GENERATOR_OUTPUTS.json"));
+    const pressure =
+      await readOptionalJson<GeneratorBornHardSeedPressureReport>(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          generatorBornPressureDir,
+          "latest.json",
+        ),
+      );
     const outputs = outputPayload?.outputs ?? [];
+    const pressureYield = generatorPressureYieldSignal(pressure);
     const gates = [
       gate(
         "registry_has_three_new_families",
@@ -11398,6 +11422,11 @@ export class MechanismFirstEvidenceGeneratorService {
         "Focused validation must either produce a birth-eligible hard seed or prove precise blocker causes for every output.",
       ),
       gate(
+        "pressure_yield_not_fake_green",
+        !pressureYield.noInsightAfterBornSeeds,
+        "Generator audit must not stay green after generator-pressure kills every born hard seed before InsightCandidate birth.",
+      ),
+      gate(
         "no_fake_fund",
         latest?.fundFound === false &&
           !(await exists(
@@ -11420,11 +11449,15 @@ export class MechanismFirstEvidenceGeneratorService {
       runtimeChecks: latest?.runtimeChecks ?? 0,
       hardSeedBirthAttempts: latest?.hardSeedBirthAttempts ?? 0,
       hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
+      pressureYield,
       gates,
       failedGates,
       artifactRefs: [
         `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_AUDIT.md`,
         `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
+        ...(pressureYield.pressureRef === null
+          ? []
+          : [pressureYield.pressureRef]),
       ],
     });
     await writeJson(join(this.generatorRoot(), "GENERATOR_AUDIT.json"), report);
@@ -20844,12 +20877,76 @@ function generatorAuditMarkdown(
     `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
     `Hard seeds born: ${report.hardSeedsBorn}.`,
     "",
+    "## Generator Pressure Yield",
+    "",
+    `Pressure run found: ${String(report.pressureYield.pressureRunFound)}.`,
+    `Seeds loaded: ${report.pressureYield.seedsLoaded}.`,
+    `Tests run: ${report.pressureYield.testsRun}.`,
+    `Seeds killed by baseline: ${report.pressureYield.seedsKilledByBaseline}.`,
+    `InsightCandidates created: ${report.pressureYield.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.pressureYield.discoveryCandidatesCreated}.`,
+    `No InsightCandidate after born seeds: ${String(report.pressureYield.noInsightAfterBornSeeds)}.`,
+    `Dominant blocker: ${report.pressureYield.dominantBlocker ?? "none"}.`,
+    `Recommended action: ${report.pressureYield.recommendedAction}.`,
+    "",
     "| Gate | Passed | Message |",
     "| --- | --- | --- |",
     ...report.gates.map(
       (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
     ),
   ].join("\n");
+}
+
+function generatorPressureYieldSignal(
+  pressure: GeneratorBornHardSeedPressureReport | null,
+): GeneratorPressureYieldSignal {
+  if (pressure === null) {
+    return {
+      pressureRunFound: false,
+      seedsLoaded: 0,
+      testsRun: 0,
+      seedsKilledByBaseline: 0,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      noInsightAfterBornSeeds: false,
+      dominantBlocker: null,
+      recommendedAction:
+        "run discover-daemon generator-pressure after generator-run before treating generator births as productive evidence",
+      pressureRef: null,
+    };
+  }
+  const blockerCounts: Record<string, number> = {
+    baseline_dominated: pressure.seedsKilledByBaseline,
+    rival_theory_stronger: pressure.seedsKilledByRival,
+    counterexample_dense: pressure.seedsKilledByCounterexample,
+    no_cross_source_support: pressure.seedsKilledByLackOfRecurrence,
+    holdout_or_replay_failed: pressure.seedsKilledByHoldoutReplay,
+    proof_or_mechanism_failed: pressure.seedsKilledByMechanismProof,
+  };
+  const dominantBlocker =
+    Object.entries(blockerCounts)
+      .filter(([, count]) => count > 0)
+      .sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+  const noInsightAfterBornSeeds =
+    pressure.seedsLoaded > 0 &&
+    pressure.insightCandidatesCreated === 0 &&
+    pressure.discoveryCandidatesCreated === 0;
+  return {
+    pressureRunFound: true,
+    seedsLoaded: pressure.seedsLoaded,
+    testsRun: pressure.testsRun,
+    seedsKilledByBaseline: pressure.seedsKilledByBaseline,
+    insightCandidatesCreated: pressure.insightCandidatesCreated,
+    discoveryCandidatesCreated: pressure.discoveryCandidatesCreated,
+    noInsightAfterBornSeeds,
+    dominantBlocker,
+    recommendedAction: noInsightAfterBornSeeds
+      ? `redesign or replace generator families before rerunning long campaigns; current born seeds die at ${dominantBlocker ?? "unknown"} pressure`
+      : pressure.insightCandidatesCreated > 0
+        ? "continue generator-born InsightCandidate closure with full downstream gates"
+        : "continue generator pressure only after new birth-eligible hard seeds appear",
+    pressureRef: `${daemonArtifactRoot}/${generatorBornPressureDir}/latest.json`,
+  };
 }
 
 function generatorFundGateMarkdown(

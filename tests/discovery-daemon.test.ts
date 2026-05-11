@@ -3808,7 +3808,38 @@ test("mechanism-first generator audit verifies birth gate artifacts", async () =
   assert.equal(audit.runtimeChecks, 30);
   assert.equal(audit.hardSeedBirthAttempts, 30);
   assert.equal(audit.hardSeedsBorn >= 1, true);
+  assert.equal(audit.pressureYield.pressureRunFound, false);
+  assert.equal(audit.pressureYield.noInsightAfterBornSeeds, false);
   assert.deepEqual(audit.failedGates, []);
+});
+
+test("mechanism-first generator audit exposes pressure fake-green after born seeds die", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun();
+  await service.generatorPressure();
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, false);
+  assert.equal(audit.pressureYield.pressureRunFound, true);
+  assert.equal(audit.pressureYield.seedsLoaded, 2);
+  assert.equal(audit.pressureYield.insightCandidatesCreated, 0);
+  assert.equal(audit.pressureYield.discoveryCandidatesCreated, 0);
+  assert.equal(audit.pressureYield.noInsightAfterBornSeeds, true);
+  assert.equal(audit.pressureYield.dominantBlocker, "baseline_dominated");
+  assert.ok(audit.failedGates.includes("pressure_yield_not_fake_green"));
+  assert.match(
+    audit.pressureYield.recommendedAction,
+    /redesign or replace generator families/,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
 });
 
 test("generator-born hard-seed pressure blocks weak generator-born seeds without fake Fund", async () => {

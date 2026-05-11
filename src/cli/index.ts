@@ -199,6 +199,7 @@ Commands:
   sovryn discover-daemon mechanism-first-pressure [--json]
   sovryn discover-daemon raw-insight-gate-closure [--json]
   sovryn discover-daemon overnight-completion [--json]
+  sovryn discover-daemon overnight-min-runtime [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1690,7 +1691,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|raw-insight-gate-closure|overnight-completion|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1814,6 +1815,14 @@ async function discoverDaemonCommand(
       return service.rawInsightGateClosure();
     case "overnight-completion":
       return service.overnightCompletionRun();
+    case "overnight-min-runtime":
+      return service.overnightMinimumRuntime({
+        minRuntimeMs: flagInt(parsed.flags, "--min-runtime-ms", 28800000),
+        runtimeLimitMs: parsed.flags.has("--runtime-limit-ms")
+          ? flagInt(parsed.flags, "--runtime-limit-ms", 28800000)
+          : undefined,
+        heartbeatMs: flagInt(parsed.flags, "--heartbeat-ms", 3600000),
+      });
     case "cycle":
       return service.cycle({
         mode:

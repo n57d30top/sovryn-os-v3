@@ -85,6 +85,7 @@ const commands = [
   "mechanism-first-pressure",
   "raw-insight-gate-closure",
   "overnight-completion",
+  "overnight-min-runtime",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -3676,6 +3677,98 @@ test("discover-daemon overnight-completion CLI is bounded and silent", async () 
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+});
+
+test("discover-daemon overnight-min-runtime enforces runtime terminal status and wave scale", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.mechanismFirstPressure();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 0,
+    heartbeatMs: 1,
+  });
+
+  assert.equal(
+    report.kind,
+    "minimum_runtime_overnight_autonomous_discovery_run",
+  );
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_after_min_runtime",
+  );
+  assert.equal(report.minimumRuntimeReached, true);
+  assert.equal(
+    report.checkpointUsed,
+    ".sovryn/discovery-daemon/checkpoints/mechanism-first-pressure-continue-searching.json",
+  );
+  assert.equal(report.majorWavesCompleted, 6);
+  assert.equal(report.realChecksFormalEvaluations >= 300, true);
+  assert.equal(report.baselineRivalChecks >= 100, true);
+  assert.equal(report.counterexampleControlChecks >= 80, true);
+  assert.equal(report.holdoutReplayRecomputeChecks >= 50, true);
+  assert.equal(report.mechanismProofPressureChecks >= 30, true);
+  assert.equal(report.frozenPredictions >= 20, true);
+  assert.equal(report.hardSeedsBorn > 0, true);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(report.deathCauseDistribution.no_death_cause ?? 0, 0);
+  for (const artifact of [
+    "latest.json",
+    "WAVE_EXECUTIONS.json",
+    "FROZEN_PREDICTIONS.json",
+    "DEATH_CAUSE_DISTRIBUTION.json",
+    "MECHANISM_DESIGNED_EXPERIMENTS.md",
+    "MINIMUM_RUNTIME_COMPLIANCE.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "overnight-min-runtime", artifact)),
+      true,
+      artifact,
+    );
+  }
+  assert.equal(await exists(join(root, report.nextCheckpointRef)), true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("discover-daemon overnight-min-runtime CLI supports runtime-limit checkpoint", async () => {
+  const root = await tempRoot();
+
+  const response = await executeCli(
+    [
+      "discover-daemon",
+      "overnight-min-runtime",
+      "--min-runtime-ms",
+      "1000",
+      "--runtime-limit-ms",
+      "1",
+      "--heartbeat-ms",
+      "1",
+      "--json",
+    ],
+    root,
+  );
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  assert.equal(
+    (response.data as Record<string, unknown>).kind,
+    "minimum_runtime_overnight_autonomous_discovery_run",
+  );
+  assert.equal(
+    (response.data as Record<string, unknown>).terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal((response.data as Record<string, unknown>).fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
 test("top-level pipeline commands produce instrumental evidence without Fund state", async () => {

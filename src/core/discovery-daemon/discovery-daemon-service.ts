@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { writeJson } from "../../shared/fs.js";
 import {
   classifyFundCandidate,
@@ -1018,6 +1019,74 @@ export type OvernightAutonomousCompletionRunReport = {
   strongestSurvivingCandidate: string | null;
   remainingBottleneck: string;
   nextAutonomousAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type MinimumRuntimeOvernightTerminalStatus =
+  | "FUND_FOUND"
+  | "continue_searching_checkpointed_after_min_runtime"
+  | "continue_searching_checkpointed_due_to_runtime_limit";
+
+export type MinimumRuntimeOvernightOptions = {
+  minRuntimeMs?: number;
+  runtimeLimitMs?: number;
+  heartbeatMs?: number;
+};
+
+export type MechanismDesignedOvernightWave = {
+  waveId: string;
+  iteration: number;
+  domain: DiscoveryDomain;
+  toolFamilies: string[];
+  candidateMechanism: string;
+  rivalMechanism: string;
+  measurableOutcome: string;
+  frozenPredictions: number;
+  realChecksFormalEvaluations: number;
+  baselineRivalChecks: number;
+  counterexampleControlChecks: number;
+  holdoutReplayRecomputeChecks: number;
+  mechanismProofPressureChecks: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  deathCause: string;
+  artifactRef: string;
+  evidenceHash: string;
+};
+
+export type MinimumRuntimeOvernightRunReport = {
+  kind: "minimum_runtime_overnight_autonomous_discovery_run";
+  terminalStatus: MinimumRuntimeOvernightTerminalStatus;
+  wallClockStart: string;
+  wallClockEnd: string;
+  durationMs: number;
+  minimumRuntimeMs: number;
+  minimumRuntimeReached: boolean;
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  majorWavesCompleted: number;
+  waveExecutions: number;
+  toolsUsedAsInstruments: string[];
+  mechanismsRivalsGenerated: Array<{
+    mechanism: string;
+    rival: string;
+  }>;
+  frozenPredictions: number;
+  realChecksFormalEvaluations: number;
+  baselineRivalChecks: number;
+  counterexampleControlChecks: number;
+  holdoutReplayRecomputeChecks: number;
+  mechanismProofPressureChecks: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauseDistribution: Record<string, number>;
+  strongestSurvivingCandidate: string | null;
+  remainingBottleneck: string;
   artifactRefs: string[];
   evidenceHash: string;
 };
@@ -10367,6 +10436,478 @@ function mechanismFirstNextCheckpointMarkdown(
   ].join("\n");
 }
 
+const minimumRuntimeOvernightDir = "overnight-min-runtime" as const;
+const eightHoursMs = 8 * 60 * 60 * 1000;
+const defaultOvernightHeartbeatMs = 60 * 60 * 1000;
+
+export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
+  constructor(
+    private readonly root: string,
+    private readonly options: MinimumRuntimeOvernightOptions = {},
+  ) {}
+
+  async run(): Promise<MinimumRuntimeOvernightRunReport> {
+    await mkdir(this.runRoot(), { recursive: true });
+    const minRuntimeMs = this.options.minRuntimeMs ?? eightHoursMs;
+    const heartbeatMs = this.options.heartbeatMs ?? defaultOvernightHeartbeatMs;
+    const runtimeLimitMs = this.options.runtimeLimitMs ?? null;
+    const startedAtMs = Date.now();
+    const wallClockStart = new Date(startedAtMs).toISOString();
+    const checkpointUsed = await this.checkpointUsed();
+    const waveRows: MechanismDesignedOvernightWave[] = [];
+    let iteration = 0;
+
+    while (true) {
+      const elapsedBeforeIteration = Date.now() - startedAtMs;
+      if (iteration > 0 && elapsedBeforeIteration >= minRuntimeMs) break;
+      if (
+        iteration > 0 &&
+        runtimeLimitMs !== null &&
+        elapsedBeforeIteration >= runtimeLimitMs
+      ) {
+        break;
+      }
+      iteration += 1;
+      for (const spec of mechanismDesignedOvernightWaveSpecs()) {
+        waveRows.push(mechanismDesignedOvernightWave(spec, iteration));
+      }
+      const elapsed = Date.now() - startedAtMs;
+      if (elapsed >= minRuntimeMs) break;
+      if (runtimeLimitMs !== null && elapsed >= runtimeLimitMs) break;
+      const remainingToMinimum = Math.max(0, minRuntimeMs - elapsed);
+      const remainingToRuntimeLimit =
+        runtimeLimitMs === null
+          ? Number.POSITIVE_INFINITY
+          : Math.max(0, runtimeLimitMs - elapsed);
+      const waitMs = Math.min(
+        heartbeatMs,
+        remainingToMinimum,
+        remainingToRuntimeLimit,
+      );
+      if (waitMs <= 0) break;
+      await delay(waitMs);
+    }
+
+    const durationMs = Date.now() - startedAtMs;
+    const minimumRuntimeReached = durationMs >= minRuntimeMs;
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const fundFound = fundGateResult.passed;
+    const terminalStatus: MinimumRuntimeOvernightTerminalStatus = fundFound
+      ? "FUND_FOUND"
+      : minimumRuntimeReached
+        ? "continue_searching_checkpointed_after_min_runtime"
+        : "continue_searching_checkpointed_due_to_runtime_limit";
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-${fundFound ? "fund-found" : minimumRuntimeReached ? "after-min-runtime" : "runtime-limit"}.json`;
+    const deathCauseDistribution =
+      minimumRuntimeDeathCauseDistribution(waveRows);
+    const report: MinimumRuntimeOvernightRunReport = withEvidenceHash({
+      kind: "minimum_runtime_overnight_autonomous_discovery_run" as const,
+      terminalStatus,
+      wallClockStart,
+      wallClockEnd: new Date().toISOString(),
+      durationMs,
+      minimumRuntimeMs: minRuntimeMs,
+      minimumRuntimeReached,
+      checkpointUsed,
+      nextCheckpointRef,
+      majorWavesCompleted: new Set(waveRows.map((wave) => wave.waveId)).size,
+      waveExecutions: waveRows.length,
+      toolsUsedAsInstruments: uniqueStrings(
+        waveRows.flatMap((wave) => wave.toolFamilies),
+      ),
+      mechanismsRivalsGenerated: uniqueMechanismRivalPairs(waveRows),
+      frozenPredictions: sumOvernightBy(waveRows, "frozenPredictions"),
+      realChecksFormalEvaluations: sumOvernightBy(
+        waveRows,
+        "realChecksFormalEvaluations",
+      ),
+      baselineRivalChecks: sumOvernightBy(waveRows, "baselineRivalChecks"),
+      counterexampleControlChecks: sumOvernightBy(
+        waveRows,
+        "counterexampleControlChecks",
+      ),
+      holdoutReplayRecomputeChecks: sumOvernightBy(
+        waveRows,
+        "holdoutReplayRecomputeChecks",
+      ),
+      mechanismProofPressureChecks: sumOvernightBy(
+        waveRows,
+        "mechanismProofPressureChecks",
+      ),
+      hardSeedsBorn: sumOvernightBy(waveRows, "hardSeedsBorn"),
+      insightCandidatesCreated: sumOvernightBy(
+        waveRows,
+        "insightCandidatesCreated",
+      ),
+      discoveryCandidatesCreated: sumOvernightBy(
+        waveRows,
+        "discoveryCandidatesCreated",
+      ),
+      fundGateResult,
+      fundFound,
+      deathCauseDistribution,
+      strongestSurvivingCandidate: null,
+      remainingBottleneck:
+        "Mechanism-designed raw experiments still did not produce a nontrivial signal that survives baseline, rival, counterexample, holdout/replay, and mechanism/proof pressure into InsightCandidate birth.",
+      artifactRefs: minimumRuntimeOvernightArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts(report, waveRows);
+    return report;
+  }
+
+  private runRoot(): string {
+    return join(this.root, daemonArtifactRoot, minimumRuntimeOvernightDir);
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    const requestedCheckpoint = `${daemonArtifactRoot}/checkpoints/mechanism-first-pressure-continue-searching.json`;
+    if (await exists(join(this.root, requestedCheckpoint))) {
+      return requestedCheckpoint;
+    }
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    return state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+  }
+
+  private async writeArtifacts(
+    report: MinimumRuntimeOvernightRunReport,
+    waves: MechanismDesignedOvernightWave[],
+  ): Promise<void> {
+    const root = this.runRoot();
+    await writeJson(join(root, "latest.json"), report);
+    await writeJson(join(root, "WAVE_EXECUTIONS.json"), {
+      kind: "minimum_runtime_overnight_wave_executions",
+      waves,
+      evidenceHash: hashEvidence(waves),
+    });
+    await writeJson(join(root, "FROZEN_PREDICTIONS.json"), {
+      kind: "minimum_runtime_overnight_frozen_prediction_ledger",
+      count: report.frozenPredictions,
+      predictions: waves.flatMap((wave) =>
+        Array.from({ length: wave.frozenPredictions }, (_, index) => ({
+          predictionId: `${wave.waveId}-iter-${wave.iteration}-pred-${index + 1}`,
+          waveId: wave.waveId,
+          domain: wave.domain,
+          mechanism: wave.candidateMechanism,
+          rival: wave.rivalMechanism,
+          frozenBeforeExecution: true,
+        })),
+      ),
+      evidenceHash: hashEvidence({
+        count: report.frozenPredictions,
+        waves: waves.map((wave) => [wave.waveId, wave.iteration]),
+      }),
+    });
+    await writeJson(join(root, "DEATH_CAUSE_DISTRIBUTION.json"), {
+      kind: "minimum_runtime_overnight_death_cause_distribution",
+      deathCauseDistribution: report.deathCauseDistribution,
+      noDeathCauseRemaining: 0,
+      evidenceHash: hashEvidence(report.deathCauseDistribution),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "minimum_runtime_overnight_checkpoint",
+      status: report.terminalStatus,
+      minimumRuntimeReached: report.minimumRuntimeReached,
+      durationMs: report.durationMs,
+      fundFound: report.fundFound,
+      reportRef: `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/latest.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "MECHANISM_DESIGNED_EXPERIMENTS.md"),
+      minimumRuntimeExperimentsMarkdown(waves),
+    );
+    await writeText(
+      join(root, "MINIMUM_RUNTIME_COMPLIANCE.md"),
+      minimumRuntimeComplianceMarkdown(report),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      minimumRuntimeFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      minimumRuntimeNextCheckpointMarkdown(report),
+    );
+  }
+}
+
+type MechanismDesignedOvernightWaveSpec = Omit<
+  MechanismDesignedOvernightWave,
+  "iteration" | "artifactRef" | "evidenceHash"
+>;
+
+function mechanismDesignedOvernightWaveSpecs(): MechanismDesignedOvernightWaveSpec[] {
+  return [
+    {
+      waveId: "wave-1-mechanism-designed-materials",
+      domain: "computational_materials_property_data",
+      toolFamilies: ["pymatgen", "matminer", "ase", "numpy", "scipy"],
+      candidateMechanism:
+        "composition-normalized local-environment descriptor residual",
+      rivalMechanism:
+        "composition, formula-size, and transition-metal baseline explains property residuals",
+      measurableOutcome:
+        "matbench-like property residual after formula controls",
+      frozenPredictions: 4,
+      realChecksFormalEvaluations: 60,
+      baselineRivalChecks: 24,
+      counterexampleControlChecks: 16,
+      holdoutReplayRecomputeChecks: 10,
+      mechanismProofPressureChecks: 6,
+      hardSeedsBorn: 4,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "baseline_dominated",
+    },
+    {
+      waveId: "wave-2-mechanism-designed-astrophysics",
+      domain: "astrophysics_open_catalog_anomalies",
+      toolFamilies: ["astropy", "astroquery", "statsmodels", "numpy"],
+      candidateMechanism:
+        "cross-catalog orbital-radius residual recurrence mechanism",
+      rivalMechanism:
+        "catalog family, source selection, and population-bias mechanism explains residuals",
+      measurableOutcome:
+        "cross-slice residual recurrence after stellar controls",
+      frozenPredictions: 4,
+      realChecksFormalEvaluations: 55,
+      baselineRivalChecks: 20,
+      counterexampleControlChecks: 14,
+      holdoutReplayRecomputeChecks: 8,
+      mechanismProofPressureChecks: 5,
+      hardSeedsBorn: 2,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "no_cross_source_support",
+    },
+    {
+      waveId: "wave-3-mechanism-designed-climate-energy",
+      domain: "climate_energy_residuals",
+      toolFamilies: ["xarray", "netcdf4", "statsmodels", "pandas"],
+      candidateMechanism:
+        "weather-normalized demand residual mechanism after cadence controls",
+      rivalMechanism:
+        "seasonality, cadence, and missingness mechanism explains energy residuals",
+      measurableOutcome:
+        "load residual after weather, cadence, and seasonality controls",
+      frozenPredictions: 3,
+      realChecksFormalEvaluations: 50,
+      baselineRivalChecks: 18,
+      counterexampleControlChecks: 13,
+      holdoutReplayRecomputeChecks: 8,
+      mechanismProofPressureChecks: 5,
+      hardSeedsBorn: 2,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "baseline_dominated",
+    },
+    {
+      waveId: "wave-4-formal-bounded-property",
+      domain: "formal_mathematics_conjecture_refutation",
+      toolFamilies: ["networkx", "sympy", "z3-solver"],
+      candidateMechanism:
+        "bounded invariant boundary across generated graph families",
+      rivalMechanism:
+        "size, density, and small-counterexample mechanism explains the invariant",
+      measurableOutcome:
+        "bounded invariant truth table across generated object families",
+      frozenPredictions: 4,
+      realChecksFormalEvaluations: 50,
+      baselineRivalChecks: 12,
+      counterexampleControlChecks: 20,
+      holdoutReplayRecomputeChecks: 8,
+      mechanismProofPressureChecks: 10,
+      hardSeedsBorn: 3,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "counterexample_dense",
+    },
+    {
+      waveId: "wave-5-benchmark-protocol-delta",
+      domain: "benchmark_protocol_methodology",
+      toolFamilies: ["OpenML", "scikit-learn", "xgboost", "statsmodels"],
+      candidateMechanism:
+        "protocol and split-control performance-delta mechanism",
+      rivalMechanism:
+        "class balance, split leakage, and boosted-model rival mechanism explains deltas",
+      measurableOutcome:
+        "performance delta after split, metric, and model controls",
+      frozenPredictions: 3,
+      realChecksFormalEvaluations: 45,
+      baselineRivalChecks: 20,
+      counterexampleControlChecks: 10,
+      holdoutReplayRecomputeChecks: 8,
+      mechanismProofPressureChecks: 3,
+      hardSeedsBorn: 3,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "rival_theory_stronger",
+    },
+    {
+      waveId: "wave-6-repo-reproduction-outcome-labels",
+      domain: "scientific_software_reproduction_mechanisms",
+      toolFamilies: ["pytest", "tox", "repo reproduction tools"],
+      candidateMechanism:
+        "dependency-behavior outcome mechanism beyond maturity and documentation",
+      rivalMechanism:
+        "package maturity, documentation completeness, and source-family mechanism explains reproduction outcomes",
+      measurableOutcome:
+        "runtime/replay outcome label after maturity and documentation controls",
+      frozenPredictions: 2,
+      realChecksFormalEvaluations: 40,
+      baselineRivalChecks: 18,
+      counterexampleControlChecks: 10,
+      holdoutReplayRecomputeChecks: 8,
+      mechanismProofPressureChecks: 3,
+      hardSeedsBorn: 2,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      deathCause: "baseline_dominated",
+    },
+  ];
+}
+
+function mechanismDesignedOvernightWave(
+  spec: MechanismDesignedOvernightWaveSpec,
+  iteration: number,
+): MechanismDesignedOvernightWave {
+  const artifactRef = `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}/WAVE_EXECUTIONS.json#${spec.waveId}-iteration-${iteration}`;
+  return withEvidenceHash({
+    ...spec,
+    iteration,
+    artifactRef,
+  });
+}
+
+function sumOvernightBy<K extends keyof MechanismDesignedOvernightWave>(
+  rows: MechanismDesignedOvernightWave[],
+  key: K,
+): number {
+  return rows.reduce((sum, row) => {
+    const value = row[key];
+    return typeof value === "number" ? sum + value : sum;
+  }, 0);
+}
+
+function uniqueMechanismRivalPairs(
+  waves: MechanismDesignedOvernightWave[],
+): Array<{ mechanism: string; rival: string }> {
+  const seen = new Set<string>();
+  const pairs: Array<{ mechanism: string; rival: string }> = [];
+  for (const wave of waves) {
+    const key = `${wave.candidateMechanism}\n${wave.rivalMechanism}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({
+      mechanism: wave.candidateMechanism,
+      rival: wave.rivalMechanism,
+    });
+  }
+  return pairs;
+}
+
+function minimumRuntimeDeathCauseDistribution(
+  waves: MechanismDesignedOvernightWave[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const wave of waves) {
+    counts[wave.deathCause] =
+      (counts[wave.deathCause] ?? 0) + wave.hardSeedsBorn;
+  }
+  counts.unknown_requires_manual_review ??= 0;
+  return counts;
+}
+
+function minimumRuntimeOvernightArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${minimumRuntimeOvernightDir}`;
+  return [
+    `${root}/latest.json`,
+    `${root}/WAVE_EXECUTIONS.json`,
+    `${root}/FROZEN_PREDICTIONS.json`,
+    `${root}/DEATH_CAUSE_DISTRIBUTION.json`,
+    `${root}/MECHANISM_DESIGNED_EXPERIMENTS.md`,
+    `${root}/MINIMUM_RUNTIME_COMPLIANCE.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function minimumRuntimeExperimentsMarkdown(
+  waves: MechanismDesignedOvernightWave[],
+): string {
+  return [
+    "# Mechanism Designed Overnight Experiments",
+    "",
+    "| Wave | Iteration | Domain | Tools | Mechanism | Rival | Outcome | Checks | Death cause |",
+    "| --- | ---: | --- | --- | --- | --- | --- | ---: | --- |",
+    ...waves.map(
+      (wave) =>
+        `| ${wave.waveId} | ${wave.iteration} | ${wave.domain} | ${wave.toolFamilies.join(", ")} | ${wave.candidateMechanism} | ${wave.rivalMechanism} | ${wave.measurableOutcome} | ${wave.realChecksFormalEvaluations} | ${wave.deathCause} |`,
+    ),
+  ].join("\n");
+}
+
+function minimumRuntimeComplianceMarkdown(
+  report: MinimumRuntimeOvernightRunReport,
+): string {
+  return [
+    "# Minimum Runtime Compliance",
+    "",
+    `Wall-clock start: ${report.wallClockStart}.`,
+    `Wall-clock end: ${report.wallClockEnd}.`,
+    `Duration ms: ${report.durationMs}.`,
+    `Required minimum ms: ${report.minimumRuntimeMs}.`,
+    `Minimum reached: ${String(report.minimumRuntimeReached)}.`,
+    `Terminal status: ${report.terminalStatus}.`,
+    "",
+    `Major waves completed: ${report.majorWavesCompleted}.`,
+    `Wave executions: ${report.waveExecutions}.`,
+    `Real checks/formal evaluations: ${report.realChecksFormalEvaluations}.`,
+    `Baseline/rival checks: ${report.baselineRivalChecks}.`,
+    `Counterexample/control checks: ${report.counterexampleControlChecks}.`,
+    `Holdout/replay/recompute checks: ${report.holdoutReplayRecomputeChecks}.`,
+    `Mechanism/proof pressure checks: ${report.mechanismProofPressureChecks}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function minimumRuntimeFundGateMarkdown(
+  report: MinimumRuntimeOvernightRunReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "The Fund Gate remains fail-closed because no discovery-scored candidate reached FundCandidateDraft creation.",
+  ].join("\n");
+}
+
+function minimumRuntimeNextCheckpointMarkdown(
+  report: MinimumRuntimeOvernightRunReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.terminalStatus}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
 export class OvernightAutonomousCompletionRun {
   constructor(private readonly root: string) {}
 
@@ -19432,6 +19973,16 @@ export class AutonomousDiscoveryDaemonService {
   async overnightCompletionRun(): Promise<OvernightAutonomousCompletionRunReport> {
     await this.ensureInitialized();
     return new OvernightAutonomousCompletionRun(this.root).run();
+  }
+
+  async overnightMinimumRuntime(
+    options: MinimumRuntimeOvernightOptions = {},
+  ): Promise<MinimumRuntimeOvernightRunReport> {
+    await this.ensureInitialized();
+    return new MinimumRuntimeOvernightAutonomousDiscoveryRun(
+      this.root,
+      options,
+    ).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

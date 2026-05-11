@@ -4890,7 +4890,7 @@ test("discover-daemon discovery anchor CLIs are bounded and non-funding", async 
   );
 });
 
-test("discover-daemon discovery anchor run consumes generator design queue and creates only HardSeeds", async () => {
+test("discover-daemon discovery anchor run consumes queue but blocks design-profile seed birth", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -4904,7 +4904,8 @@ test("discover-daemon discovery anchor run consumes generator design queue and c
   assert.equal(run.anchorsRun, 3);
   assert.equal(run.runtimeChecks, 3);
   assert.equal(run.hardSeedBirthAttempts, 3);
-  assert.equal(run.hardSeedsBorn >= 1, true);
+  assert.equal(run.hardSeedsBorn, 0);
+  assert.equal(run.blockedOutputsByCause.missing_runtime_evidence >= 1, true);
   assert.equal(run.insightCandidatesCreated, 0);
   assert.equal(run.discoveryCandidatesCreated, 0);
   assert.equal(run.fundFound, false);
@@ -4932,6 +4933,35 @@ test("discover-daemon discovery anchor run consumes generator design queue and c
     bornPayload.validations.every((validation) => validation.accepted),
     true,
   );
+  const checksPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "discovery-anchor-run",
+        "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    checks: Array<{
+      runtimeEvidenceKind: string;
+      sourceReceipt: { loadedExternalArtifact: boolean };
+      birthEvaluation: { accepted: boolean; blockers: string[] };
+    }>;
+  };
+  assert.equal(
+    checksPayload.checks.every(
+      (check) =>
+        check.runtimeEvidenceKind === "deterministic_design_profile" &&
+        check.sourceReceipt.loadedExternalArtifact === false &&
+        check.birthEvaluation.accepted === false &&
+        check.birthEvaluation.blockers.includes(
+          "design_profile_not_runtime_evidence",
+        ),
+    ),
+    true,
+  );
 
   const audit = await service.discoveryAnchorRunAudit();
   assert.equal(audit.kind, "discovery_grade_anchor_run_audit");
@@ -4940,8 +4970,8 @@ test("discover-daemon discovery anchor run consumes generator design queue and c
 
   const pressure = await service.generatorPressure();
   assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
-  assert.equal(pressure.seedsLoaded >= run.hardSeedsBorn, true);
-  assert.equal(pressure.insightCandidatesCreated >= 1, true);
+  assert.equal(pressure.seedsLoaded, 0);
+  assert.equal(pressure.insightCandidatesCreated, 0);
   assert.equal(pressure.discoveryCandidatesCreated, 0);
   assert.equal(pressure.fundFound, false);
 
@@ -4964,10 +4994,7 @@ test("discover-daemon discovery anchor run CLIs are bounded and non-funding", as
     (run.data as Record<string, unknown>).kind,
     "discovery_grade_anchor_run",
   );
-  assert.equal(
-    Number((run.data as Record<string, unknown>).hardSeedsBorn) >= 1,
-    true,
-  );
+  assert.equal(Number((run.data as Record<string, unknown>).hardSeedsBorn), 0);
 
   const audit = await executeCli(
     ["discover-daemon", "discovery-anchor-run-audit", "--json"],

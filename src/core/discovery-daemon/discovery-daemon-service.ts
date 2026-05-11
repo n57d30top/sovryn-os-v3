@@ -1262,6 +1262,11 @@ export type HardSeedBirthEvaluationInput = {
   sourceFamilyDocumentedSignal?: boolean;
   knownTrivialSignal?: boolean;
   runtimeEvidencePresent: boolean;
+  runtimeEvidenceKind?:
+    | "loaded_external_data"
+    | "executed_public_artifact"
+    | "generated_formal_object"
+    | "deterministic_design_profile";
   sourceRefs: string[];
   evidenceRefs: string[];
   residualMagnitude?: number;
@@ -1282,6 +1287,9 @@ export type HardSeedBirthEvaluation = {
   generatorId: string;
   targetId: string;
   externalValueGate: ExternalValueGateAssessment;
+  runtimeEvidenceKind: NonNullable<
+    HardSeedBirthEvaluationInput["runtimeEvidenceKind"]
+  >;
   accepted: boolean;
   status: "born" | "blocked";
   primaryBlocker: string | null;
@@ -1786,6 +1794,13 @@ export type DiscoveryGradeAnchorRuntimeCheck = {
   anchorId: string;
   domain: DiscoveryDomain;
   executorId: string;
+  runtimeEvidenceKind: "deterministic_design_profile";
+  sourceReceipt: {
+    kind: "discovery_anchor_source_receipt";
+    status: "design_profile_only";
+    loadedExternalArtifact: false;
+    reason: string;
+  };
   sourceRefs: string[];
   evidenceRefs: string[];
   producedArtifact: string;
@@ -11433,6 +11448,8 @@ function externalAnchorLooksPipelineOnly(
 
 export class HardSeedBirthEvaluator {
   evaluate(input: HardSeedBirthEvaluationInput): HardSeedBirthEvaluation {
+    const runtimeEvidenceKind =
+      input.runtimeEvidenceKind ?? "executed_public_artifact";
     const explanatoryBaselines = input.baselineResults
       .filter((baseline) => baseline.explainsSignal)
       .map((baseline) => baseline.baseline);
@@ -11460,6 +11477,11 @@ export class HardSeedBirthEvaluator {
         "runtime_evidence_present",
         input.runtimeEvidencePresent,
         "HardSeed birth requires loaded, executed, generated, or checked runtime evidence.",
+      ),
+      gate(
+        "runtime_evidence_not_design_profile",
+        runtimeEvidenceKind !== "deterministic_design_profile",
+        "Deterministic design profiles are planning evidence only; HardSeed birth requires real loaded/executed/generated target evidence.",
       ),
       gate(
         "evidence_refs_resolve_shape",
@@ -11511,6 +11533,9 @@ export class HardSeedBirthEvaluator {
     const blockers = uniqueStrings([
       ...externalValueGate.blockers,
       input.runtimeEvidencePresent ? "" : "missing_runtime_evidence",
+      runtimeEvidenceKind === "deterministic_design_profile"
+        ? "design_profile_not_runtime_evidence"
+        : "",
       input.sourceRefs.length === 0 ||
       input.evidenceRefs.length < 2 ||
       !input.evidenceRefs.some((ref) => ref.startsWith("https://")) ||
@@ -11535,6 +11560,7 @@ export class HardSeedBirthEvaluator {
       generatorId: input.generatorId,
       targetId: input.targetId,
       externalValueGate,
+      runtimeEvidenceKind,
       accepted,
       status: accepted ? ("born" as const) : ("blocked" as const),
       primaryBlocker: blockers[0] ?? null,
@@ -14760,7 +14786,8 @@ function discoveryGradeAnchorRuntimeCheck(
     targetId: checkId,
     domain: anchor.domain,
     externalProblemAnchor,
-    runtimeEvidencePresent: true,
+    runtimeEvidencePresent: false,
+    runtimeEvidenceKind: "deterministic_design_profile",
     sourceRefs,
     evidenceRefs,
     residualMagnitude: profile.residualMagnitude,
@@ -14793,6 +14820,14 @@ function discoveryGradeAnchorRuntimeCheck(
     anchorId: anchor.anchorId,
     domain: anchor.domain,
     executorId: discoveryGradeAnchorExecutorId(anchor),
+    runtimeEvidenceKind: "deterministic_design_profile" as const,
+    sourceReceipt: {
+      kind: "discovery_anchor_source_receipt" as const,
+      status: "design_profile_only" as const,
+      loadedExternalArtifact: false as const,
+      reason:
+        "This check uses the selected anchor design profile to verify routing and blocker accounting. It does not load or measure the external source, so it cannot birth a HardSeed.",
+    },
     sourceRefs,
     evidenceRefs,
     producedArtifact,

@@ -4376,6 +4376,54 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   );
 });
 
+test("formal anchor audit rematerializes stale pilot rows before passing", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  await service.formalAnchorPilot();
+  const selectionRoot = join(root, daemonRoot, "formal-anchor-selection");
+  const rowPath = join(selectionRoot, "TOP3_FORMAL_PILOT_CHECKS.json");
+  const staleRows = JSON.parse(await readFile(rowPath, "utf8")) as {
+    results: Array<{ anchorId: string }>;
+  };
+  staleRows.results[0]!.anchorId = "EXT-FORMAL-STALE-GREEN-ANCHOR";
+  await writeFile(rowPath, JSON.stringify(staleRows, null, 2));
+
+  const audit = await service.formalAnchorAudit();
+
+  assert.equal(audit.passed, true);
+  assert.deepEqual(audit.failedGates, []);
+  assert.equal(
+    audit.gates.find(
+      (item) => item.code === "pilot_artifacts_match_selected_anchor_snapshot",
+    )?.passed,
+    true,
+  );
+
+  const latest = JSON.parse(
+    await readFile(join(selectionRoot, "latest.json"), "utf8"),
+  ) as { selectedPilotAnchorIds: string[] };
+  const repairedRows = JSON.parse(await readFile(rowPath, "utf8")) as {
+    results: Array<{ anchorId: string }>;
+  };
+  assert.deepEqual(
+    repairedRows.results.map((row) => row.anchorId),
+    latest.selectedPilotAnchorIds,
+  );
+  assert.equal(
+    repairedRows.results.some(
+      (row) => row.anchorId === "EXT-FORMAL-STALE-GREEN-ANCHOR",
+    ),
+    false,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("formal anchor selector keeps bounded reserve anchors after repeated pilot deaths", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

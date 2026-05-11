@@ -1570,6 +1570,8 @@ export type ExternalFormalAnchorPilotReport = {
   status: "continue_searching_checkpointed";
   checkpointUsed: string | null;
   nextCheckpointRef: string;
+  selectedPilotAnchorIds: string[];
+  selectionEvidenceHash: string;
   anchorsPiloted: number;
   boundedPilotChecksRun: number;
   hardSeedBirthAttempts: number;
@@ -13662,6 +13664,8 @@ export class ExternalFormalAnchorSelectionService {
       status: "continue_searching_checkpointed" as const,
       checkpointUsed: selection.nextCheckpointRef,
       nextCheckpointRef,
+      selectedPilotAnchorIds: top3.map((item) => item.anchor.anchorId),
+      selectionEvidenceHash: selection.evidenceHash,
       anchorsPiloted: rows.length,
       boundedPilotChecksRun: rows.reduce(
         (sum, row) => sum + row.boundedChecksRun,
@@ -13684,17 +13688,34 @@ export class ExternalFormalAnchorSelectionService {
 
   async audit(): Promise<ExternalFormalAnchorAuditReport> {
     await mkdir(this.anchorRoot(), { recursive: true });
-    const selection = await this.select();
     let pilot = await readOptionalJson<ExternalFormalAnchorPilotReport>(
       join(this.anchorRoot(), "latest.json"),
     );
-    if (pilot === null) {
-      pilot = await this.pilot();
-    }
-    const pilotRowsPayload = await readOptionalJson<{
+    let pilotRowsPayload = await readOptionalJson<{
       results?: ExternalFormalPilotResult[];
     }>(join(this.anchorRoot(), "TOP3_FORMAL_PILOT_CHECKS.json"));
-    const rows = pilotRowsPayload?.results ?? [];
+    let rows = pilotRowsPayload?.results ?? [];
+    let selection = await readOptionalJson<ExternalFormalAnchorSelectionReport>(
+      join(this.anchorRoot(), "selection-latest.json"),
+    );
+    if (
+      pilot === null ||
+      selection === null ||
+      !formalAnchorPilotArtifactsFresh(pilot, rows, selection)
+    ) {
+      pilot = await this.pilot();
+      pilotRowsPayload = await readOptionalJson<{
+        results?: ExternalFormalPilotResult[];
+      }>(join(this.anchorRoot(), "TOP3_FORMAL_PILOT_CHECKS.json"));
+      rows = pilotRowsPayload?.results ?? [];
+      selection = await readOptionalJson<ExternalFormalAnchorSelectionReport>(
+        join(this.anchorRoot(), "selection-latest.json"),
+      );
+    }
+    if (selection === null) {
+      selection = await this.select();
+    }
+    const pilotFresh = formalAnchorPilotArtifactsFresh(pilot, rows, selection);
     const gates = [
       gate(
         "at_least_25_external_anchors_evaluated",
@@ -13742,8 +13763,15 @@ export class ExternalFormalAnchorSelectionService {
       ),
       gate(
         "top3_piloted",
-        pilot.anchorsPiloted === 3 && rows.length === 3,
+        pilot.anchorsPiloted === 3 &&
+          rows.length === 3 &&
+          pilot.selectedPilotAnchorIds.length === 3,
         "Pilot must run bounded checks on the top three anchors only.",
+      ),
+      gate(
+        "pilot_artifacts_match_selected_anchor_snapshot",
+        pilotFresh,
+        "Formal-anchor audit must reject stale green pilot artifacts whose rows do not match the selected anchor snapshot that produced them.",
       ),
       gate(
         "every_pilot_has_birth_decision",
@@ -14137,6 +14165,8 @@ export class ExternalFormalAnchorSelectionService {
       kind: "external_formal_anchor_pilot_checkpoint",
       status: report.status,
       fundFound: report.fundFound,
+      selectedPilotAnchorIds: report.selectedPilotAnchorIds,
+      selectionEvidenceHash: report.selectionEvidenceHash,
       anchorsPiloted: report.anchorsPiloted,
       hardSeedsBorn: report.hardSeedsBorn,
       insightCandidatesCreated: report.insightCandidatesCreated,
@@ -14349,6 +14379,30 @@ function uniqueFormalPilotRows(
   }
   return Array.from(byAnchor.values()).sort((left, right) =>
     left.anchorId.localeCompare(right.anchorId),
+  );
+}
+
+function formalAnchorPilotArtifactsFresh(
+  pilot: ExternalFormalAnchorPilotReport,
+  rows: ExternalFormalPilotResult[],
+  selection: ExternalFormalAnchorSelectionReport,
+): boolean {
+  const selectedPilotAnchorIds = Array.isArray(pilot.selectedPilotAnchorIds)
+    ? pilot.selectedPilotAnchorIds
+    : [];
+  const rowAnchorIds = rows.map((row) => row.anchorId);
+  return (
+    pilot.selectionEvidenceHash === selection.evidenceHash &&
+    selectedPilotAnchorIds.length === pilot.anchorsPiloted &&
+    rowAnchorIds.length === pilot.anchorsPiloted &&
+    sameStringSequence(selectedPilotAnchorIds, rowAnchorIds)
+  );
+}
+
+function sameStringSequence(left: string[], right: string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
   );
 }
 

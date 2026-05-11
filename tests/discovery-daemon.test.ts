@@ -32,6 +32,7 @@ import {
   FundGateEvaluator,
   fundLabels,
   FundNotificationPackageBuilder,
+  HardSeedBirthEvaluator,
   hardSeedTypes,
   HardSeedToCandidateBuilder,
   HardSeedValidator,
@@ -83,6 +84,9 @@ const commands = [
   "generative-experiments",
   "tool-expansion",
   "mechanism-first-pressure",
+  "generator-families",
+  "generator-run",
+  "generator-audit",
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
@@ -3512,6 +3516,264 @@ test("discover-daemon mechanism-first-pressure CLI is bounded and silent", async
   );
 });
 
+test("mechanism-first generator registry loads required new families", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorFamilies();
+
+  assert.equal(report.kind, "mechanism_first_generator_family_registry");
+  assert.equal(report.familyCount, 3);
+  assert.deepEqual(report.families.map((family) => family.generatorId).sort(), [
+    "benchmark_protocol_perturbation_generator",
+    "formal_counterexample_boundary_generator",
+    "materials_descriptor_ablation_generator",
+  ]);
+  assert.equal(
+    report.families.every(
+      (family) =>
+        family.mechanismHypothesis.length > 0 &&
+        family.rivalHypothesis.length > 0 &&
+        family.birthGateCriteria.length >= 8,
+    ),
+    true,
+  );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "GENERATOR_FAMILY_REGISTRY.json",
+      ),
+    ),
+    true,
+  );
+});
+
+test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
+  const baseInput = {
+    generatorId: "test_generator",
+    targetId: "target-001",
+    domain: "formal_mathematics_conjecture_refutation" as const,
+    runtimeEvidencePresent: true,
+    sourceRefs: ["formal-generator://bounded-property/test-family"],
+    evidenceRefs: [
+      "https://example.org/public-target",
+      ".sovryn/discovery-daemon/generator-families/GENERATOR_RUN_RESULTS.md#target-001",
+    ],
+    baselineResults: [
+      { baseline: "size", explainsSignal: false, result: 0.1 },
+      { baseline: "density", explainsSignal: false, result: 0.2 },
+      { baseline: "trivial_rule", explainsSignal: false, result: 0.3 },
+    ],
+    rivalWeakened: true,
+    nontrivialResidual: true,
+    crossSourceSupport: true,
+    counterexampleCollapsed: false,
+    holdoutReplayAvailable: true,
+  };
+  const evaluator = new HardSeedBirthEvaluator();
+
+  assert.equal(evaluator.evaluate(baseInput).accepted, true);
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, runtimeEvidencePresent: false })
+      .primaryBlocker,
+    "missing_runtime_evidence",
+  );
+  assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      baselineResults: [
+        { baseline: "size", explainsSignal: true, result: 0.9 },
+        ...baseInput.baselineResults.slice(1),
+      ],
+    }).primaryBlocker,
+    "baseline_dominated:size",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, rivalWeakened: false }).primaryBlocker,
+    "rival_theory_stronger",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, nontrivialResidual: false })
+      .primaryBlocker,
+    "no_nontrivial_residual",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, crossSourceSupport: false })
+      .primaryBlocker,
+    "no_cross_source_support",
+  );
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, counterexampleCollapsed: true })
+      .primaryBlocker,
+    "counterexample_dense",
+  );
+});
+
+test("mechanism-first generator run creates only runtime-evidence birth-eligible hard seeds", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorRun();
+
+  assert.equal(report.kind, "mechanism_first_generator_run");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.familiesRun, 3);
+  assert.equal(report.runtimeChecks, 30);
+  assert.equal(report.hardSeedBirthAttempts, 30);
+  assert.equal(report.hardSeedsBorn >= 1, true);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  for (const artifact of [
+    "GENERATOR_FAMILY_REGISTRY.md",
+    "GENERATOR_FAMILY_REGISTRY.json",
+    "GENERATOR_RUN_RESULTS.md",
+    "HARD_SEED_BIRTH_EVALUATION.md",
+    "HARD_SEED_BIRTH_EVALUATION.json",
+    "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+    "BLOCKED_GENERATOR_OUTPUTS.md",
+    "BLOCKED_GENERATOR_OUTPUTS.json",
+    "NEXT_CHECKPOINT.md",
+    "latest.json",
+  ]) {
+    assert.equal(
+      await exists(join(root, daemonRoot, "generator-families", artifact)),
+      true,
+      artifact,
+    );
+  }
+  const seedPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeeds: Array<{ kind: string; evidenceRefs: string[] }>;
+    validations: Array<{ accepted: boolean }>;
+  };
+  assert.equal(seedPayload.hardSeeds.length, report.hardSeedsBorn);
+  assert.equal(
+    seedPayload.hardSeeds.every(
+      (seed) =>
+        seed.kind === "hard_seed" &&
+        seed.evidenceRefs.some((ref) => ref.startsWith("https://")),
+    ),
+    true,
+  );
+  assert.equal(
+    seedPayload.validations.every((validation) => validation.accepted),
+    true,
+  );
+  const outputPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      birthEvaluation: {
+        status: string;
+        accepted: boolean;
+        blockers: string[];
+      };
+      hardSeed: unknown | null;
+    }>;
+  };
+  assert.equal(outputPayload.outputs.length, 30);
+  assert.equal(
+    outputPayload.outputs.every(
+      (output) =>
+        output.birthEvaluation.status === "born" ||
+        (output.birthEvaluation.status === "blocked" &&
+          output.birthEvaluation.blockers.length > 0),
+    ),
+    true,
+  );
+  assert.equal(
+    outputPayload.outputs.every(
+      (output) =>
+        output.birthEvaluation.accepted === (output.hardSeed !== null),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("mechanism-first generator audit verifies birth gate artifacts", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun();
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, true);
+  assert.equal(audit.familyCount, 3);
+  assert.equal(audit.runtimeChecks, 30);
+  assert.equal(audit.hardSeedBirthAttempts, 30);
+  assert.equal(audit.hardSeedsBorn >= 1, true);
+  assert.deepEqual(audit.failedGates, []);
+});
+
+test("discover-daemon generator CLIs are bounded and non-funding", async () => {
+  const root = await tempRoot();
+
+  const families = await executeCli(
+    ["discover-daemon", "generator-families", "--json"],
+    root,
+  );
+  assert.equal(families.ok, true, JSON.stringify(families.errors));
+  assert.equal(
+    (families.data as Record<string, unknown>).kind,
+    "mechanism_first_generator_family_registry",
+  );
+
+  const run = await executeCli(
+    [
+      "discover-daemon",
+      "generator-run",
+      "--generator",
+      "formal_counterexample_boundary_generator",
+      "--json",
+    ],
+    root,
+  );
+  assert.equal(run.ok, true, JSON.stringify(run.errors));
+  assert.equal(
+    (run.data as Record<string, unknown>).kind,
+    "mechanism_first_generator_run",
+  );
+  assert.equal((run.data as Record<string, unknown>).runtimeChecks, 10);
+  assert.equal((run.data as Record<string, unknown>).fundFound, false);
+
+  const audit = await executeCli(
+    ["discover-daemon", "generator-audit", "--json"],
+    root,
+  );
+  assert.equal(audit.ok, true, JSON.stringify(audit.errors));
+  assert.equal(
+    (audit.data as Record<string, unknown>).kind,
+    "mechanism_first_generator_audit",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("discover-daemon raw-insight-gate-closure evaluates the raw-born InsightCandidate without fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -4787,6 +5049,27 @@ const cliScenarios: {
     name: "marathon",
     args: ["discover-daemon", "marathon", "status", "--json"],
     expectedKind: "instrumented_marathon_status",
+  },
+  {
+    name: "generator-families",
+    args: ["discover-daemon", "generator-families", "--json"],
+    expectedKind: "mechanism_first_generator_family_registry",
+  },
+  {
+    name: "generator-run",
+    args: [
+      "discover-daemon",
+      "generator-run",
+      "--generator",
+      "formal_counterexample_boundary_generator",
+      "--json",
+    ],
+    expectedKind: "mechanism_first_generator_run",
+  },
+  {
+    name: "generator-audit",
+    args: ["discover-daemon", "generator-audit", "--json"],
+    expectedKind: "mechanism_first_generator_audit",
   },
   {
     name: "cycle",

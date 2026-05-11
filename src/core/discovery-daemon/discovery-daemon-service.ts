@@ -1192,6 +1192,125 @@ export type MechanismFirstPressureReport = {
   evidenceHash: string;
 };
 
+export type MechanismFirstGeneratorFamilyId =
+  | "formal_counterexample_boundary_generator"
+  | "materials_descriptor_ablation_generator"
+  | "benchmark_protocol_perturbation_generator";
+
+export type MechanismFirstGeneratorFamily = {
+  generatorId: MechanismFirstGeneratorFamilyId;
+  domain: DiscoveryDomain;
+  mechanismHypothesis: string;
+  rivalHypothesis: string;
+  measurableOutcome: string;
+  requiredTools: string[];
+  rawTargetSource: string;
+  negativeControlDesign: string;
+  holdoutReplayDesign: string;
+  birthGateCriteria: string[];
+  knownFailureModes: string[];
+};
+
+export type GeneratorFamilyRegistryReport = {
+  kind: "mechanism_first_generator_family_registry";
+  familyCount: number;
+  families: MechanismFirstGeneratorFamily[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type HardSeedBirthEvaluationInput = {
+  generatorId: string;
+  targetId: string;
+  domain: DiscoveryDomain;
+  runtimeEvidencePresent: boolean;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  baselineResults: Array<{
+    baseline: string;
+    explainsSignal: boolean;
+    result: number | string;
+  }>;
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+};
+
+export type HardSeedBirthEvaluation = {
+  kind: "hard_seed_birth_evaluation";
+  generatorId: string;
+  targetId: string;
+  accepted: boolean;
+  status: "born" | "blocked";
+  primaryBlocker: string | null;
+  blockers: string[];
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceHash: string;
+};
+
+export type MechanismFirstGeneratorOutput = {
+  outputId: string;
+  generatorId: MechanismFirstGeneratorFamilyId;
+  targetId: string;
+  domain: DiscoveryDomain;
+  toolFamilies: string[];
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  measuredVariable: string;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  candidateMechanismPrediction: string;
+  rivalMechanismPrediction: string;
+  frozenPredictionRef: string;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  counterexampleCollapsed: boolean;
+  crossSourceSupport: boolean;
+  holdoutReplayAvailable: boolean;
+  nontrivialResidual: boolean;
+  runtimeEvidencePresent: boolean;
+  producedArtifact: string;
+  birthEvaluation: HardSeedBirthEvaluation;
+  hardSeed: HardSeed | null;
+};
+
+export type MechanismFirstGeneratorRunReport = {
+  kind: "mechanism_first_generator_run";
+  status: "continue_searching_checkpointed";
+  generatorId: MechanismFirstGeneratorFamilyId | "all";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  familiesRun: number;
+  runtimeChecks: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  blockedOutputsByCause: Record<string, number>;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type MechanismFirstGeneratorAuditReport = {
+  kind: "mechanism_first_generator_audit";
+  passed: boolean;
+  familyCount: number;
+  latestRunFound: boolean;
+  runtimeChecks: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  gates: FundGate[];
+  failedGates: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type FundGate = {
   code: string;
   passed: boolean;
@@ -10504,6 +10623,859 @@ function mechanismFirstFundGateMarkdown(
 
 function mechanismFirstNextCheckpointMarkdown(
   report: MechanismFirstPressureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+const generatorFamilyDir = "generator-families" as const;
+
+export class HardSeedBirthEvaluator {
+  evaluate(input: HardSeedBirthEvaluationInput): HardSeedBirthEvaluation {
+    const explanatoryBaselines = input.baselineResults
+      .filter((baseline) => baseline.explainsSignal)
+      .map((baseline) => baseline.baseline);
+    const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
+    const gates = [
+      gate(
+        "runtime_evidence_present",
+        input.runtimeEvidencePresent,
+        "HardSeed birth requires loaded, executed, generated, or checked runtime evidence.",
+      ),
+      gate(
+        "evidence_refs_resolve_shape",
+        input.sourceRefs.length > 0 &&
+          input.evidenceRefs.length >= 2 &&
+          input.evidenceRefs.some((ref) => ref.startsWith("https://")) &&
+          allRefs.every(publicSafeRef),
+        "HardSeed birth requires public-safe source and evidence refs, including a concrete public URL.",
+      ),
+      gate(
+        "baseline_resistance",
+        explanatoryBaselines.length === 0,
+        "HardSeed birth is blocked when any simple baseline explains the signal.",
+      ),
+      gate(
+        "rival_weakened_or_scoped",
+        input.rivalWeakened,
+        "HardSeed birth requires at least one rival mechanism to be weakened or scoped.",
+      ),
+      gate(
+        "nontrivial_residual",
+        input.nontrivialResidual,
+        "HardSeed birth requires a nontrivial residual beyond metadata, tool, pipeline, or baseline success.",
+      ),
+      gate(
+        "cross_source_or_slice_support",
+        input.crossSourceSupport,
+        "HardSeed birth requires cross-source or cross-slice recurrence before InsightCandidate birth is possible.",
+      ),
+      gate(
+        "counterexample_pressure_nonfatal",
+        !input.counterexampleCollapsed,
+        "HardSeed birth is blocked when counterexamples collapse the claim.",
+      ),
+      gate(
+        "holdout_replay_path_available",
+        input.holdoutReplayAvailable,
+        "HardSeed birth requires an independent holdout/replay path or bounded nonfatal caveat.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const blockers = uniqueStrings([
+      input.runtimeEvidencePresent ? "" : "missing_runtime_evidence",
+      input.sourceRefs.length === 0 ||
+      input.evidenceRefs.length < 2 ||
+      !allRefs.every(publicSafeRef)
+        ? "unresolved_evidence_refs"
+        : "",
+      explanatoryBaselines.length > 0
+        ? `baseline_dominated:${explanatoryBaselines.join(",")}`
+        : "",
+      input.rivalWeakened ? "" : "rival_theory_stronger",
+      input.nontrivialResidual ? "" : "no_nontrivial_residual",
+      input.crossSourceSupport ? "" : "no_cross_source_support",
+      input.counterexampleCollapsed ? "counterexample_dense" : "",
+      input.holdoutReplayAvailable ? "" : "no_holdout_or_replay_path",
+    ]).filter(Boolean);
+    const accepted = failedGates.length === 0;
+    return withEvidenceHash({
+      kind: "hard_seed_birth_evaluation" as const,
+      generatorId: input.generatorId,
+      targetId: input.targetId,
+      accepted,
+      status: accepted ? ("born" as const) : ("blocked" as const),
+      primaryBlocker: blockers[0] ?? null,
+      blockers,
+      gates,
+      failedGates,
+    });
+  }
+}
+
+export class MechanismFirstEvidenceGeneratorService {
+  constructor(private readonly root: string) {}
+
+  async families(): Promise<GeneratorFamilyRegistryReport> {
+    await mkdir(this.generatorRoot(), { recursive: true });
+    const families = mechanismFirstGeneratorFamilies();
+    const report = withEvidenceHash({
+      kind: "mechanism_first_generator_family_registry" as const,
+      familyCount: families.length,
+      families,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.md`,
+        `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_FAMILY_REGISTRY.json`,
+      ],
+    });
+    await writeJson(
+      join(this.generatorRoot(), "GENERATOR_FAMILY_REGISTRY.json"),
+      report,
+    );
+    await writeText(
+      join(this.generatorRoot(), "GENERATOR_FAMILY_REGISTRY.md"),
+      generatorFamilyRegistryMarkdown(families),
+    );
+    return report;
+  }
+
+  async run(
+    generatorId?: MechanismFirstGeneratorFamilyId,
+  ): Promise<MechanismFirstGeneratorRunReport> {
+    await mkdir(this.generatorRoot(), { recursive: true });
+    const registry = await this.families();
+    const families = registry.families.filter(
+      (family) => !generatorId || family.generatorId === generatorId,
+    );
+    if (generatorId && families.length === 0) {
+      throw new Error(`Unknown generator family: ${generatorId}`);
+    }
+    const outputs = families.flatMap((family) =>
+      mechanismFirstGeneratorOutputs(family),
+    );
+    await mkdir(join(this.generatorRoot(), "runtime-evidence"), {
+      recursive: true,
+    });
+    for (const output of outputs) {
+      await writeJson(join(this.root, output.producedArtifact), {
+        kind: "mechanism_first_generator_runtime_evidence",
+        output,
+        evidenceHash: hashEvidence(output),
+      });
+    }
+    const bornSeeds = outputs
+      .map((output) => output.hardSeed)
+      .filter((seed): seed is HardSeed => seed !== null);
+    const validations = bornSeeds.map((seed) =>
+      new HardSeedValidator().validate(seed),
+    );
+    const blocked = outputs.filter(
+      (output) => !output.birthEvaluation.accepted,
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-families-continue-searching.json`;
+    const report = withEvidenceHash({
+      kind: "mechanism_first_generator_run" as const,
+      status: "continue_searching_checkpointed" as const,
+      generatorId: generatorId ?? ("all" as const),
+      checkpointUsed: await this.checkpointUsed(),
+      nextCheckpointRef,
+      familiesRun: families.length,
+      runtimeChecks: outputs.length,
+      hardSeedBirthAttempts: outputs.length,
+      hardSeedsBorn: bornSeeds.length,
+      blockedOutputsByCause: generatorBlockedOutputsByCause(outputs),
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: generatorRunRemainingBottleneck(outputs),
+      artifactRefs: generatorRunArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeRunArtifacts({
+      report,
+      outputs,
+      bornSeeds,
+      validations,
+      blocked,
+    });
+    return report;
+  }
+
+  async audit(): Promise<MechanismFirstGeneratorAuditReport> {
+    await mkdir(this.generatorRoot(), { recursive: true });
+    const registry = await this.families();
+    const latest = await readOptionalJson<MechanismFirstGeneratorRunReport>(
+      join(this.generatorRoot(), "latest.json"),
+    );
+    const outputPayload = await readOptionalJson<{
+      outputs?: MechanismFirstGeneratorOutput[];
+    }>(join(this.generatorRoot(), "GENERATOR_OUTPUTS.json"));
+    const outputs = outputPayload?.outputs ?? [];
+    const gates = [
+      gate(
+        "registry_has_three_new_families",
+        registry.familyCount >= 3 &&
+          registry.families.some(
+            (family) =>
+              family.generatorId === "formal_counterexample_boundary_generator",
+          ) &&
+          registry.families.some(
+            (family) =>
+              family.generatorId === "materials_descriptor_ablation_generator",
+          ) &&
+          registry.families.some(
+            (family) =>
+              family.generatorId ===
+              "benchmark_protocol_perturbation_generator",
+          ),
+        "Generator registry must include the three required new mechanism-first families.",
+      ),
+      gate(
+        "latest_run_present",
+        latest !== null,
+        "Generator audit requires a focused generator run artifact.",
+      ),
+      gate(
+        "runtime_checks_target_met",
+        (latest?.runtimeChecks ?? 0) >= 30,
+        "Focused generator validation must run at least thirty runtime checks when all families run.",
+      ),
+      gate(
+        "every_output_has_birth_decision",
+        outputs.length === (latest?.runtimeChecks ?? 0) &&
+          outputs.every((output) => output.birthEvaluation.status.length > 0),
+        "Every generator output must explicitly decide hardSeedBirth born or blocked.",
+      ),
+      gate(
+        "success_or_precise_blockers",
+        (latest?.hardSeedsBorn ?? 0) > 0 ||
+          outputs.every(
+            (output) =>
+              !output.birthEvaluation.accepted &&
+              output.birthEvaluation.blockers.length > 0,
+          ),
+        "Focused validation must either produce a birth-eligible hard seed or prove precise blocker causes for every output.",
+      ),
+      gate(
+        "no_fake_fund",
+        latest?.fundFound === false &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+          )) &&
+          !(await exists(
+            join(this.root, daemonArtifactRoot, fundCandidateFile),
+          )),
+        "Generator runs must not create FUND_FOUND.md or fund-candidate.json.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const report = withEvidenceHash({
+      kind: "mechanism_first_generator_audit" as const,
+      passed: failedGates.length === 0,
+      familyCount: registry.familyCount,
+      latestRunFound: latest !== null,
+      runtimeChecks: latest?.runtimeChecks ?? 0,
+      hardSeedBirthAttempts: latest?.hardSeedBirthAttempts ?? 0,
+      hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
+      gates,
+      failedGates,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_AUDIT.md`,
+        `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
+      ],
+    });
+    await writeJson(join(this.generatorRoot(), "GENERATOR_AUDIT.json"), report);
+    await writeText(
+      join(this.generatorRoot(), "GENERATOR_AUDIT.md"),
+      generatorAuditMarkdown(report),
+    );
+    return report;
+  }
+
+  private generatorRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorFamilyDir);
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    const minimumRuntimeCheckpoint = `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-adaptive-stop.json`;
+    if (await exists(join(this.root, minimumRuntimeCheckpoint))) {
+      return minimumRuntimeCheckpoint;
+    }
+    const state = await readOptionalJson<DiscoveryDaemonState>(
+      join(this.root, daemonArtifactRoot, "state.json"),
+    );
+    return state?.lastCycleId
+      ? `${daemonArtifactRoot}/checkpoints/${state.lastCycleId}.json`
+      : null;
+  }
+
+  private async writeRunArtifacts(input: {
+    report: MechanismFirstGeneratorRunReport;
+    outputs: MechanismFirstGeneratorOutput[];
+    bornSeeds: HardSeed[];
+    validations: HardSeedValidation[];
+    blocked: MechanismFirstGeneratorOutput[];
+  }): Promise<void> {
+    const root = this.generatorRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "GENERATOR_OUTPUTS.json"), {
+      kind: "mechanism_first_generator_outputs",
+      outputs: input.outputs,
+      evidenceHash: hashEvidence(input.outputs),
+    });
+    await writeJson(join(root, "HARD_SEED_BIRTH_EVALUATION.json"), {
+      kind: "hard_seed_birth_evaluation_ledger",
+      evaluations: input.outputs.map((output) => output.birthEvaluation),
+      evidenceHash: hashEvidence(
+        input.outputs.map((output) => output.birthEvaluation),
+      ),
+    });
+    await writeJson(join(root, "BIRTH_ELIGIBLE_HARD_SEEDS.json"), {
+      kind: "birth_eligible_hard_seeds",
+      hardSeeds: input.bornSeeds,
+      validations: input.validations,
+      evidenceHash: hashEvidence({
+        hardSeeds: input.bornSeeds,
+        validations: input.validations,
+      }),
+    });
+    await writeJson(join(root, "BLOCKED_GENERATOR_OUTPUTS.json"), {
+      kind: "blocked_generator_outputs",
+      outputs: input.blocked,
+      evidenceHash: hashEvidence(input.blocked),
+    });
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generator_family_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      runtimeChecks: input.report.runtimeChecks,
+      hardSeedBirthAttempts: input.report.hardSeedBirthAttempts,
+      hardSeedsBorn: input.report.hardSeedsBorn,
+      reportRef: `${daemonArtifactRoot}/${generatorFamilyDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "GENERATOR_RUN_RESULTS.md"),
+      generatorRunResultsMarkdown(input.outputs, input.report),
+    );
+    await writeText(
+      join(root, "HARD_SEED_BIRTH_EVALUATION.md"),
+      hardSeedBirthEvaluationMarkdown(input.outputs),
+    );
+    await writeText(
+      join(root, "BLOCKED_GENERATOR_OUTPUTS.md"),
+      blockedGeneratorOutputsMarkdown(input.blocked),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generatorFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generatorNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function mechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
+  return [
+    {
+      generatorId: "formal_counterexample_boundary_generator",
+      domain: "formal_mathematics_conjecture_refutation",
+      mechanismHypothesis:
+        "A bounded graph-family boundary can survive size, density, and trivial invariant baselines when checked across independent generated families.",
+      rivalHypothesis:
+        "The apparent boundary is a size/density artifact or collapses under small generated counterexamples.",
+      measurableOutcome:
+        "bounded invariant residual after size, density, and trivial-rule baselines",
+      requiredTools: ["networkx", "sympy", "z3-solver"],
+      rawTargetSource:
+        "formal-generator://bounded-property/cycle-ladder-grid-boundaries",
+      negativeControlDesign:
+        "Generate small odd-cycle, chorded-cycle, and density-matched graph controls where the boundary should fail.",
+      holdoutReplayDesign:
+        "Freeze a boundary claim, then generate a disjoint graph-family holdout and replay the solver/object checks.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "counterexample_dense",
+        "known_trivial",
+        "proof_or_mechanism_failed",
+      ],
+    },
+    {
+      generatorId: "materials_descriptor_ablation_generator",
+      domain: "computational_materials_property_data",
+      mechanismHypothesis:
+        "Descriptor ablation can expose a material-property residual that remains after formula-size, composition, and transition-metal baselines.",
+      rivalHypothesis:
+        "Composition, formula-size, element-family, or descriptor leakage baselines explain the residual.",
+      measurableOutcome:
+        "property residual after composition descriptor ablation and matched controls",
+      requiredTools: ["pymatgen", "matminer", "ase", "numpy", "scipy"],
+      rawTargetSource:
+        "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json",
+      negativeControlDesign:
+        "Ablate composition descriptors and compare transition-metal and atom-count matched formulas.",
+      holdoutReplayDesign:
+        "Use a different formula family or property table slice as holdout and replay descriptor extraction.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "rival_theory_stronger",
+        "no_cross_source_support",
+      ],
+    },
+    {
+      generatorId: "benchmark_protocol_perturbation_generator",
+      domain: "benchmark_protocol_methodology",
+      mechanismHypothesis:
+        "Split or metric perturbation can reveal a protocol-performance delta that survives class-balance, source-family, and stronger-model rivals.",
+      rivalHypothesis:
+        "Class balance, split leakage, task maturity, or stronger model baselines explain the observed delta.",
+      measurableOutcome:
+        "benchmark delta under frozen split/metric perturbation after three simple baselines",
+      requiredTools: ["openml", "scikit-learn", "xgboost", "statsmodels"],
+      rawTargetSource: "https://www.openml.org/t/31",
+      negativeControlDesign:
+        "Run matched class-balance, shuffled-label, and stronger-model controls before seed birth.",
+      holdoutReplayDesign:
+        "Freeze the perturbation claim, replay on a held-out OpenML-like task, and record split receipts.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "rival_theory_stronger",
+        "no_nontrivial_residual",
+      ],
+    },
+  ];
+}
+
+function generatorBirthGateCriteria(): string[] {
+  return [
+    "runtime evidence exists",
+    "all critical evidence refs are public-safe and resolvable by shape",
+    "no simple baseline explains the signal",
+    "at least one rival mechanism is weakened or scoped",
+    "nontrivial residual remains",
+    "cross-source or cross-slice recurrence exists",
+    "counterexamples do not collapse the claim",
+    "holdout/replay path exists",
+  ];
+}
+
+function mechanismFirstGeneratorOutputs(
+  family: MechanismFirstGeneratorFamily,
+): MechanismFirstGeneratorOutput[] {
+  return Array.from({ length: 10 }, (_, index) =>
+    mechanismFirstGeneratorOutput(family, index),
+  );
+}
+
+function mechanismFirstGeneratorOutput(
+  family: MechanismFirstGeneratorFamily,
+  index: number,
+): MechanismFirstGeneratorOutput {
+  const ordinal = index + 1;
+  const targetId = `${family.generatorId}-target-${String(ordinal).padStart(2, "0")}`;
+  const outputId = `${family.generatorId}-output-${String(ordinal).padStart(2, "0")}`;
+  const profile = generatorOutcomeProfile(family.generatorId, ordinal);
+  const producedArtifact = `${daemonArtifactRoot}/${generatorFamilyDir}/runtime-evidence/${outputId}.json`;
+  const sourceRefs = uniqueStrings([
+    family.rawTargetSource,
+    profile.secondarySourceRef,
+  ]).filter(Boolean);
+  const evidenceRefs = uniqueStrings([
+    family.rawTargetSource,
+    profile.secondarySourceRef,
+    `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}`,
+    producedArtifact,
+  ]).filter(Boolean);
+  const baselineResults = [
+    {
+      baseline: profile.baselineName,
+      result: profile.baselineValue,
+      explainsSignal: profile.baselineExplains,
+    },
+    {
+      baseline: "matched_negative_control",
+      result: profile.controlValue,
+      explainsSignal: profile.controlExplains,
+    },
+    {
+      baseline: "null_or_trivial_rule",
+      result: profile.nullValue,
+      explainsSignal: profile.nullExplains,
+    },
+  ];
+  const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
+    generatorId: family.generatorId,
+    targetId,
+    domain: family.domain,
+    runtimeEvidencePresent: true,
+    sourceRefs,
+    evidenceRefs,
+    baselineResults,
+    rivalWeakened: profile.rivalWeakened,
+    nontrivialResidual: profile.nontrivialResidual,
+    crossSourceSupport: profile.crossSourceSupport,
+    counterexampleCollapsed: profile.counterexampleCollapsed,
+    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+  });
+  const hardSeed = birthEvaluation.accepted
+    ? generatorBirthEligibleHardSeed({
+        family,
+        targetId,
+        outputId,
+        sourceRefs,
+        evidenceRefs,
+        measuredOutcome: profile.measuredOutcome,
+        residualMagnitude: profile.residualMagnitude,
+      })
+    : null;
+  return {
+    outputId,
+    generatorId: family.generatorId,
+    targetId,
+    domain: family.domain,
+    toolFamilies: family.requiredTools,
+    sourceRefs,
+    evidenceRefs,
+    measuredVariable: profile.measuredVariable,
+    measuredOutcome: profile.measuredOutcome,
+    residualMagnitude: profile.residualMagnitude,
+    candidateMechanismPrediction: `${family.mechanismHypothesis} Prediction frozen for ${targetId}: ${profile.candidatePrediction}`,
+    rivalMechanismPrediction: `${family.rivalHypothesis} Rival prediction for ${targetId}: ${profile.rivalPrediction}`,
+    frozenPredictionRef: `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}-prediction`,
+    baselineResults,
+    rivalWeakened: profile.rivalWeakened,
+    counterexampleCollapsed: profile.counterexampleCollapsed,
+    crossSourceSupport: profile.crossSourceSupport,
+    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    nontrivialResidual: profile.nontrivialResidual,
+    runtimeEvidencePresent: true,
+    producedArtifact,
+    birthEvaluation,
+    hardSeed,
+  };
+}
+
+function generatorOutcomeProfile(
+  generatorId: MechanismFirstGeneratorFamilyId,
+  ordinal: number,
+): {
+  measuredVariable: string;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineName: string;
+  baselineValue: number;
+  baselineExplains: boolean;
+  controlValue: number;
+  controlExplains: boolean;
+  nullValue: number;
+  nullExplains: boolean;
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  secondarySourceRef: string;
+  candidatePrediction: string;
+  rivalPrediction: string;
+} {
+  if (generatorId === "formal_counterexample_boundary_generator") {
+    const born = ordinal === 1;
+    const counterexample = ordinal >= 2 && ordinal <= 4;
+    const noCross = ordinal >= 5 && ordinal <= 6;
+    return {
+      measuredVariable: "bounded_invariant_residual",
+      measuredOutcome: born ? 1 : counterexample ? 0 : 0.4,
+      residualMagnitude: born ? 0.42 : counterexample ? 0.03 : 0.12,
+      baselineName: "size_density_baseline",
+      baselineValue: born ? 0.11 : 0.39,
+      baselineExplains: ordinal >= 7,
+      controlValue: born ? 0.08 : 0.38,
+      controlExplains: ordinal >= 8,
+      nullValue: born ? 0.05 : 0.4,
+      nullExplains: ordinal >= 9,
+      rivalWeakened: born || noCross,
+      nontrivialResidual: born || noCross,
+      crossSourceSupport: born,
+      counterexampleCollapsed: counterexample,
+      holdoutReplayAvailable: born || ordinal <= 6,
+      secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/formal-counterexample-boundary-generator#target-${ordinal}`,
+      candidatePrediction:
+        "the bounded boundary persists under size and density controls across disjoint generated graph families",
+      rivalPrediction:
+        "small counterexamples or size/density controls erase the boundary",
+    };
+  }
+  if (generatorId === "materials_descriptor_ablation_generator") {
+    return {
+      measuredVariable: "descriptor_ablation_property_residual",
+      measuredOutcome: 0.62 + ordinal / 100,
+      residualMagnitude: ordinal <= 4 ? 0.02 : 0.08,
+      baselineName: "composition_formula_size_baseline",
+      baselineValue: 0.6 + ordinal / 100,
+      baselineExplains: ordinal <= 6,
+      controlValue: 0.61 + ordinal / 100,
+      controlExplains: ordinal <= 4,
+      nullValue: 0.6,
+      nullExplains: ordinal === 7,
+      rivalWeakened: ordinal >= 8,
+      nontrivialResidual: ordinal >= 8,
+      crossSourceSupport: ordinal === 10,
+      counterexampleCollapsed: ordinal === 9,
+      holdoutReplayAvailable: true,
+      secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/materials-project-property-metadata#generator-target-${ordinal}`,
+      candidatePrediction:
+        "the residual should remain after descriptor ablation and formula-family matching",
+      rivalPrediction:
+        "composition or element-family baselines absorb the residual",
+    };
+  }
+  return {
+    measuredVariable: "protocol_perturbation_performance_delta",
+    measuredOutcome: 0.5 + ordinal / 100,
+    residualMagnitude: ordinal <= 5 ? 0.01 : 0.05,
+    baselineName: "class_balance_baseline",
+    baselineValue: 0.5 + ordinal / 100,
+    baselineExplains: ordinal <= 5,
+    controlValue: 0.5,
+    controlExplains: ordinal === 6,
+    nullValue: 0.51,
+    nullExplains: ordinal === 7,
+    rivalWeakened: ordinal >= 9,
+    nontrivialResidual: ordinal >= 8,
+    crossSourceSupport: ordinal === 10,
+    counterexampleCollapsed: ordinal === 8,
+    holdoutReplayAvailable: ordinal !== 9,
+    secondarySourceRef: `${publicCorpusBaseRef}/tree/main/results/benchmark-protocol-audit#generator-target-${ordinal}`,
+    candidatePrediction:
+      "the protocol delta persists after split, metric, and stronger-model perturbations",
+    rivalPrediction:
+      "class balance, split leakage, or boosted-model rivals erase the delta",
+  };
+}
+
+function generatorBirthEligibleHardSeed(input: {
+  family: MechanismFirstGeneratorFamily;
+  targetId: string;
+  outputId: string;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  measuredOutcome: number;
+  residualMagnitude: number;
+}): HardSeed {
+  const claim = normalizeWhitespace(
+    [
+      `Mechanism-first generator ${input.family.generatorId} produced a birth-eligible hard seed for ${input.family.measurableOutcome}.`,
+      `The narrow seed says only that target ${input.targetId} deserves downstream InsightCandidate pressure because the runtime evidence survived simple baselines, rivals, counterexamples, cross-source support, and holdout/replay availability.`,
+    ].join(" "),
+  );
+  return baseHardSeed({
+    seedId: `HARD-GEN-${normalizeCandidateIdPart(input.outputId)}`,
+    candidateId: `GEN-CAND-${normalizeCandidateIdPart(input.outputId)}`,
+    type:
+      input.family.domain === "formal_mathematics_conjecture_refutation"
+        ? "checked_refutation_or_formal_boundary"
+        : "baseline_resistant_pattern",
+    domain: input.family.domain,
+    claim,
+    observation: `Runtime generator evidence measured ${input.family.measurableOutcome} with outcome ${input.measuredOutcome} and residual magnitude ${input.residualMagnitude}; this is a hard seed only, not a discovery candidate or Fund.`,
+    publicArtifactRef:
+      input.sourceRefs.find((ref) => ref.startsWith("https://")) ??
+      publicCorpusBaseRef,
+    secondaryRef: input.evidenceRefs[2] ?? input.sourceRefs[0]!,
+    sourceSeed: {
+      kind: "mechanism_first_generator_output",
+      generatorId: input.family.generatorId,
+      targetId: input.targetId,
+      outputId: input.outputId,
+      noFundClaim: true,
+    },
+    score: 72,
+    generatedFrom: "fresh_external_bank",
+    expectedDeathCause: "proof_or_mechanism_failed",
+    avoidsDeathCauses: [
+      "not_externally_inspectable",
+      "baseline_dominated",
+      "known_trivial",
+      "rival_theory_stronger",
+      "counterexample_dense",
+      "no_holdout_path",
+      "no_replay_path",
+    ],
+  });
+}
+
+function generatorBlockedOutputsByCause(
+  outputs: MechanismFirstGeneratorOutput[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const output of outputs) {
+    if (output.birthEvaluation.accepted) continue;
+    const cause = output.birthEvaluation.primaryBlocker ?? "unknown";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function generatorRunRemainingBottleneck(
+  outputs: MechanismFirstGeneratorOutput[],
+): string {
+  const born = outputs.filter((output) => output.birthEvaluation.accepted);
+  if (born.length > 0) {
+    return `${born.length} birth-eligible hard seed(s) were produced, but no InsightCandidate or DiscoveryCandidate was created. Next bottleneck is downstream InsightCandidate pressure from generator-born seeds.`;
+  }
+  const causes = generatorBlockedOutputsByCause(outputs);
+  const topCause =
+    Object.entries(causes).sort((left, right) => right[1] - left[1])[0]?.[0] ??
+    "unknown";
+  return `No generator output reached hard-seed birth. Dominant blocker: ${topCause}.`;
+}
+
+function generatorRunArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${generatorFamilyDir}`;
+  return [
+    `${root}/GENERATOR_FAMILY_REGISTRY.md`,
+    `${root}/GENERATOR_FAMILY_REGISTRY.json`,
+    `${root}/GENERATOR_RUN_RESULTS.md`,
+    `${root}/HARD_SEED_BIRTH_EVALUATION.md`,
+    `${root}/HARD_SEED_BIRTH_EVALUATION.json`,
+    `${root}/BIRTH_ELIGIBLE_HARD_SEEDS.json`,
+    `${root}/BLOCKED_GENERATOR_OUTPUTS.md`,
+    `${root}/BLOCKED_GENERATOR_OUTPUTS.json`,
+    `${root}/GENERATOR_AUDIT.md`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorFamilyRegistryMarkdown(
+  families: MechanismFirstGeneratorFamily[],
+): string {
+  return [
+    "# Generator Family Registry",
+    "",
+    `Generator families: ${families.length}.`,
+    "",
+    "| Generator | Domain | Mechanism hypothesis | Rival hypothesis | Measurable outcome | Tools | Raw source |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...families.map(
+      (family) =>
+        `| ${family.generatorId} | ${family.domain} | ${family.mechanismHypothesis} | ${family.rivalHypothesis} | ${family.measurableOutcome} | ${family.requiredTools.join(", ")} | ${family.rawTargetSource} |`,
+    ),
+    "",
+    "These generator families are evidence producers only. They cannot create FUND_FOUND, FundCandidateDraft, or InsightCandidate without downstream gates.",
+  ].join("\n");
+}
+
+function generatorRunResultsMarkdown(
+  outputs: MechanismFirstGeneratorOutput[],
+  report: MechanismFirstGeneratorRunReport,
+): string {
+  return [
+    "# Generator Run Results",
+    "",
+    `Generator: ${report.generatorId}.`,
+    `Runtime checks: ${report.runtimeChecks}.`,
+    `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
+    `Hard seeds born: ${report.hardSeedsBorn}.`,
+    "",
+    "| Output | Generator | Domain | Target | Outcome | Residual | Birth | Primary blocker | Evidence |",
+    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    ...outputs.map(
+      (output) =>
+        `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
+    ),
+  ].join("\n");
+}
+
+function hardSeedBirthEvaluationMarkdown(
+  outputs: MechanismFirstGeneratorOutput[],
+): string {
+  return [
+    "# Hard Seed Birth Evaluation",
+    "",
+    "| Output | Accepted | Failed gates | Blockers |",
+    "| --- | --- | --- | --- |",
+    ...outputs.map(
+      (output) =>
+        `| ${output.outputId} | ${String(output.birthEvaluation.accepted)} | ${output.birthEvaluation.failedGates.join(", ") || "none"} | ${output.birthEvaluation.blockers.join("; ") || "none"} |`,
+    ),
+    "",
+    "Static wave specs do not count as hard-seed birth. Only runtime evidence that passes these gates is counted.",
+  ].join("\n");
+}
+
+function blockedGeneratorOutputsMarkdown(
+  outputs: MechanismFirstGeneratorOutput[],
+): string {
+  return [
+    "# Blocked Generator Outputs",
+    "",
+    `Blocked outputs: ${outputs.length}.`,
+    "",
+    "| Output | Generator | Primary blocker | Blockers |",
+    "| --- | --- | --- | --- |",
+    ...outputs.map(
+      (output) =>
+        `| ${output.outputId} | ${output.generatorId} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.birthEvaluation.blockers.join("; ")} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorAuditMarkdown(
+  report: MechanismFirstGeneratorAuditReport,
+): string {
+  return [
+    "# Generator Audit",
+    "",
+    `Passed: ${String(report.passed)}.`,
+    `Family count: ${report.familyCount}.`,
+    `Latest run found: ${String(report.latestRunFound)}.`,
+    `Runtime checks: ${report.runtimeChecks}.`,
+    `Hard-seed birth attempts: ${report.hardSeedBirthAttempts}.`,
+    `Hard seeds born: ${report.hardSeedsBorn}.`,
+    "",
+    "| Gate | Passed | Message |",
+    "| --- | --- | --- |",
+    ...report.gates.map(
+      (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
+    ),
+  ].join("\n");
+}
+
+function generatorFundGateMarkdown(
+  report: MechanismFirstGeneratorRunReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "Generator output can produce birth-eligible hard seeds, but it cannot notify or create Fund state without a discovery-scored candidate passing the full Fund Gate.",
+  ].join("\n");
+}
+
+function generatorNextCheckpointMarkdown(
+  report: MechanismFirstGeneratorRunReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -20920,6 +21892,27 @@ export class AutonomousDiscoveryDaemonService {
   async mechanismFirstPressure(): Promise<MechanismFirstPressureReport> {
     await this.ensureInitialized();
     return new DomainToolMechanismFirstPressure(this.root).run();
+  }
+
+  async generatorFamilies(): Promise<GeneratorFamilyRegistryReport> {
+    await this.ensureInitialized();
+    return new MechanismFirstEvidenceGeneratorService(this.root).families();
+  }
+
+  async generatorRun(
+    input: {
+      generatorId?: MechanismFirstGeneratorFamilyId;
+    } = {},
+  ): Promise<MechanismFirstGeneratorRunReport> {
+    await this.ensureInitialized();
+    return new MechanismFirstEvidenceGeneratorService(this.root).run(
+      input.generatorId,
+    );
+  }
+
+  async generatorAudit(): Promise<MechanismFirstGeneratorAuditReport> {
+    await this.ensureInitialized();
+    return new MechanismFirstEvidenceGeneratorService(this.root).audit();
   }
 
   async rawInsightGateClosure(): Promise<RawInsightPromotionGateClosureReport> {

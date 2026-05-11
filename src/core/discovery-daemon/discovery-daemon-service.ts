@@ -14847,9 +14847,9 @@ export class DiscoveryAnchorSourceLoadService {
     await mkdir(join(this.runRoot(), "source-cache"), { recursive: true });
     const selection = await this.loadSelection();
     const queue = input.anchorId
-      ? selection.recommendedGeneratorDesignQueue.filter(
-          (item) => item.anchor.anchorId === input.anchorId,
-        )
+      ? new DiscoveryGradeAnchorSelector()
+          .select()
+          .filter((item) => item.anchor.anchorId === input.anchorId)
       : selection.recommendedGeneratorDesignQueue;
     const attempts: DiscoveryAnchorSourceLoadAttempt[] = [];
     for (const evaluation of queue) {
@@ -14892,6 +14892,9 @@ export class DiscoveryAnchorSourceLoadService {
   private async loadAnchor(
     anchor: DiscoveryGradeExternalAnchor,
   ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    if (anchor.anchorId === "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL") {
+      return this.loadNasaPowerSolarResidual(anchor);
+    }
     if (anchor.anchorId === "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP") {
       return this.loadMatbenchExperimentalGap(anchor);
     }
@@ -14926,6 +14929,102 @@ export class DiscoveryAnchorSourceLoadService {
       ],
       validationErrors: [],
       sourceReceipt: null,
+    });
+  }
+
+  private async loadNasaPowerSolarResidual(
+    anchor: DiscoveryGradeExternalAnchor,
+  ): Promise<DiscoveryAnchorSourceLoadAttempt> {
+    const localArtifactRef = discoveryAnchorRuntimeSourceArtifactRef(
+      anchor.anchorId,
+    );
+    const loaded = await loadNasaPowerSolarResidualRuntimeSource(anchor);
+    if (loaded.status !== "loaded") {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "nasa_power_daily_solar_residual_loader",
+        status: loaded.status,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.rawTargetCount,
+        sourceHash: loaded.sourceHash,
+        blockers: loaded.blockers,
+        gates: [
+          gate(
+            "nasa_power_daily_solar_loaded",
+            false,
+            "NASA POWER daily solar rows must load before runtime source-cache creation.",
+          ),
+          gate(
+            "no_fake_source_cache",
+            true,
+            "Failed NASA POWER loads must not write synthetic source-cache artifacts.",
+          ),
+        ],
+        validationErrors: [],
+        sourceReceipt: loaded.sourceReceipt,
+      });
+    }
+    const validationErrors = validateDiscoveryAnchorRuntimeSource(
+      anchor,
+      loaded.artifact,
+    );
+    if (validationErrors.length > 0) {
+      return withEvidenceHash({
+        kind: "discovery_anchor_source_load_attempt" as const,
+        anchorId: anchor.anchorId,
+        domain: anchor.domain,
+        loaderId: "nasa_power_daily_solar_residual_loader",
+        status: "invalid_runtime_artifact" as const,
+        sourceRef: anchor.sourceRef,
+        localArtifactRef,
+        rawTargetCount: loaded.artifact.rawTargetCount,
+        sourceHash: loaded.artifact.sourceHash,
+        blockers: validationErrors,
+        gates: [
+          gate(
+            "runtime_source_contract_valid",
+            false,
+            "Loaded NASA POWER rows must satisfy the discovery-anchor runtime source contract.",
+          ),
+        ],
+        validationErrors,
+        sourceReceipt: loaded.artifact.sourceReceipt,
+      });
+    }
+    await writeJson(join(this.root, localArtifactRef), loaded.artifact);
+    return withEvidenceHash({
+      kind: "discovery_anchor_source_load_attempt" as const,
+      anchorId: anchor.anchorId,
+      domain: anchor.domain,
+      loaderId: "nasa_power_daily_solar_residual_loader",
+      status: "loaded_external_artifact" as const,
+      sourceRef: anchor.sourceRef,
+      localArtifactRef,
+      rawTargetCount: loaded.artifact.rawTargetCount,
+      sourceHash: loaded.artifact.sourceHash,
+      blockers: [],
+      gates: [
+        gate(
+          "nasa_power_daily_solar_loaded",
+          true,
+          "NASA POWER daily solar rows loaded from the public API.",
+        ),
+        gate(
+          "runtime_source_contract_valid",
+          true,
+          "The loaded rows satisfy the discovery-anchor runtime source contract.",
+        ),
+        gate(
+          "no_fund_shortcut",
+          true,
+          "Source loading writes only runtime-source cache; it cannot create InsightCandidates, DiscoveryCandidates, or Fund state.",
+        ),
+      ],
+      validationErrors: [],
+      sourceReceipt: loaded.artifact.sourceReceipt,
     });
   }
 
@@ -15453,6 +15552,344 @@ function validateDiscoveryAnchorRuntimeSource(
 
 function discoveryAnchorRuntimeSourceArtifactRef(anchorId: string): string {
   return `${daemonArtifactRoot}/${discoveryGradeAnchorRunDir}/source-cache/${normalizeCandidateIdPart(anchorId)}.json`;
+}
+
+type NasaPowerSolarRow = {
+  siteId: string;
+  dateKey: string;
+  dayOfYear: number;
+  allSky: number;
+  clearSky: number;
+  temperature: number;
+  cloudLoss: number;
+};
+
+async function loadNasaPowerSolarResidualRuntimeSource(
+  anchor: DiscoveryGradeExternalAnchor,
+): Promise<
+  | {
+      status: "loaded";
+      artifact: DiscoveryAnchorRuntimeSourceArtifact;
+    }
+  | {
+      status: "fetch_failed" | "insufficient_runtime_rows";
+      rawTargetCount: number;
+      sourceHash: string | null;
+      sourceReceipt: string | null;
+      blockers: string[];
+    }
+> {
+  const targets = [
+    {
+      siteId: "colorado_front_range",
+      latitude: 39.742,
+      longitude: -105.1786,
+    },
+    {
+      siteId: "arizona_sonoran_desert",
+      latitude: 33.4484,
+      longitude: -112.074,
+    },
+    {
+      siteId: "washington_puget_sound",
+      latitude: 47.6062,
+      longitude: -122.3321,
+    },
+  ];
+  const rows: NasaPowerSolarRow[] = [];
+  const receipts: string[] = [];
+  const sourceRefs = [anchor.sourceRef, "https://power.larc.nasa.gov/"];
+  for (const target of targets) {
+    const url = nasaPowerDailySolarUrl(target.latitude, target.longitude);
+    const fetched = await fetchDiscoveryAnchorText(url);
+    if (fetched === null) {
+      return {
+        status: "fetch_failed",
+        rawTargetCount: rows.length,
+        sourceHash: rows.length > 0 ? hashEvidence(rows) : null,
+        sourceReceipt: receipts.length > 0 ? receipts.join(" | ") : null,
+        blockers: [`nasa_power_fetch_failed_${target.siteId}`],
+      };
+    }
+    receipts.push(`${target.siteId}:${fetched.receipt}`);
+    sourceRefs.push(url);
+    rows.push(...parseNasaPowerSolarRows(fetched.text, target.siteId));
+  }
+  if (rows.length < 90) {
+    return {
+      status: "insufficient_runtime_rows",
+      rawTargetCount: rows.length,
+      sourceHash: hashEvidence({ rows, receipts }),
+      sourceReceipt: receipts.join(" | "),
+      blockers: ["nasa_power_daily_rows_below_minimum"],
+    };
+  }
+  const measurement = scoreNasaPowerSolarRows(rows);
+  const artifact: DiscoveryAnchorRuntimeSourceArtifact = {
+    kind: "discovery_anchor_runtime_source",
+    anchorId: anchor.anchorId,
+    sourceRef: anchor.sourceRef,
+    sourceReceipt: [
+      "NASA POWER daily point public solar measurement",
+      `rows=${rows.length}`,
+      ...receipts,
+    ].join("; "),
+    sourceHash: hashEvidence({ rows, receipts, measurement }),
+    loaderCheckCommand:
+      "sovryn discover-daemon discovery-anchor-source-load --anchor DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL",
+    rawTargetCount: rows.length,
+    measuredVariable: anchor.measuredTargetOutcome,
+    targetOutcome:
+      "NASA POWER daily all-sky minus clear-sky solar residual recurrence after site, seasonality, and temperature controls",
+    measuredOutcome: measurement.measuredOutcome,
+    residualMagnitude: measurement.residualMagnitude,
+    baselineResults: measurement.baselineResults,
+    rivalWeakened: measurement.rivalWeakened,
+    nontrivialResidual: measurement.nontrivialResidual,
+    crossSourceSupport: measurement.crossSourceSupport,
+    counterexampleCollapsed: measurement.counterexampleCollapsed,
+    holdoutReplayAvailable: measurement.holdoutReplayAvailable,
+    holdoutPath:
+      "predeclared NASA POWER site/time holdout: freeze one site or later-month slice after claim freeze and recompute all-sky versus clear-sky residual recurrence",
+    replayPath:
+      "replay NASA POWER daily point API requests for the same public coordinates, date range, and parameters, then recompute site/month baselines and residual controls",
+    publicSafe: true,
+    sourceRefs: uniqueStrings(sourceRefs),
+    evidenceRefs: [
+      discoveryAnchorRuntimeSourceArtifactRef(anchor.anchorId),
+      `${anchor.sourceRef}#nasa-power-daily-solar-runtime-source`,
+      "https://power.larc.nasa.gov/docs/services/api/temporal/daily/#parameters",
+    ],
+  };
+  return { status: "loaded", artifact };
+}
+
+function nasaPowerDailySolarUrl(latitude: number, longitude: number): string {
+  return [
+    "https://power.larc.nasa.gov/api/temporal/daily/point",
+    "?parameters=ALLSKY_SFC_SW_DWN,CLRSKY_SFC_SW_DWN,T2M",
+    "&community=RE",
+    `&longitude=${encodeURIComponent(String(longitude))}`,
+    `&latitude=${encodeURIComponent(String(latitude))}`,
+    "&start=20230101",
+    "&end=20230430",
+    "&format=JSON",
+  ].join("");
+}
+
+function parseNasaPowerSolarRows(
+  text: string,
+  siteId: string,
+): NasaPowerSolarRow[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!isRecord(parsed)) return [];
+  const properties = isRecord(parsed.properties) ? parsed.properties : {};
+  const parameter = isRecord(properties.parameter) ? properties.parameter : {};
+  const allSky = nasaPowerParameterMap(parameter.ALLSKY_SFC_SW_DWN);
+  const clearSky = nasaPowerParameterMap(parameter.CLRSKY_SFC_SW_DWN);
+  const temperature = nasaPowerParameterMap(parameter.T2M);
+  return Object.keys(allSky)
+    .sort()
+    .map((dateKey) => {
+      const allSkyValue = allSky[dateKey] ?? Number.NaN;
+      const clearSkyValue = clearSky[dateKey] ?? Number.NaN;
+      const temperatureValue = temperature[dateKey] ?? Number.NaN;
+      return {
+        siteId,
+        dateKey,
+        dayOfYear: nasaPowerDayOfYear(dateKey),
+        allSky: allSkyValue,
+        clearSky: clearSkyValue,
+        temperature: temperatureValue,
+        cloudLoss: Math.max(0, clearSkyValue - allSkyValue),
+      };
+    })
+    .filter(
+      (row) =>
+        row.dateKey.length === 8 &&
+        [row.dayOfYear, row.allSky, row.clearSky, row.temperature].every(
+          Number.isFinite,
+        ) &&
+        row.allSky > -900 &&
+        row.clearSky > -900 &&
+        row.temperature > -900,
+    );
+}
+
+function nasaPowerParameterMap(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {};
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const numberValue = Number(raw);
+    if (Number.isFinite(numberValue)) result[key] = numberValue;
+  }
+  return result;
+}
+
+function nasaPowerDayOfYear(dateKey: string): number {
+  if (!/^\d{8}$/.test(dateKey)) return Number.NaN;
+  const year = Number(dateKey.slice(0, 4));
+  const month = Number(dateKey.slice(4, 6));
+  const day = Number(dateKey.slice(6, 8));
+  const current = Date.UTC(year, month - 1, day);
+  const start = Date.UTC(year, 0, 0);
+  return Math.floor((current - start) / 86_400_000);
+}
+
+function scoreNasaPowerSolarRows(rows: NasaPowerSolarRow[]): {
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineResults: HardSeedBirthEvaluationInput["baselineResults"];
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+} {
+  const measuredOutcome = roundMetric(
+    nasaPowerMean(rows.map((row) => row.cloudLoss)),
+  );
+  const siteMonthMeans = new Map<string, number>();
+  for (const row of rows) {
+    const key = nasaPowerSiteMonthKey(row);
+    if (siteMonthMeans.has(key)) continue;
+    const group = rows.filter(
+      (candidate) => nasaPowerSiteMonthKey(candidate) === key,
+    );
+    siteMonthMeans.set(
+      key,
+      nasaPowerMean(group.map((candidate) => candidate.cloudLoss)),
+    );
+  }
+  const residuals = rows.map((row) => ({
+    ...row,
+    residual:
+      row.cloudLoss -
+      (siteMonthMeans.get(nasaPowerSiteMonthKey(row)) ?? measuredOutcome),
+  }));
+  const residualMagnitude = roundMetric(
+    nasaPowerMean(residuals.map((row) => Math.abs(row.residual))),
+  );
+  const seasonalityCorrelation = Math.abs(
+    nasaPowerPearson(
+      rows.map((row) => row.dayOfYear),
+      rows.map((row) => row.cloudLoss),
+    ),
+  );
+  const clearSkyCorrelation = Math.abs(
+    nasaPowerPearson(
+      rows.map((row) => row.clearSky),
+      rows.map((row) => row.cloudLoss),
+    ),
+  );
+  const temperatureCorrelation = Math.abs(
+    nasaPowerPearson(
+      rows.map((row) => row.temperature),
+      rows.map((row) => row.cloudLoss),
+    ),
+  );
+  const siteResidualMeans = uniqueStrings(rows.map((row) => row.siteId)).map(
+    (siteId) => ({
+      siteId,
+      residualMean: nasaPowerMean(
+        residuals
+          .filter((row) => row.siteId === siteId)
+          .map((row) => Math.abs(row.residual)),
+      ),
+    }),
+  );
+  const supportedSites = siteResidualMeans.filter(
+    (row) => row.residualMean >= 0.3,
+  ).length;
+  const residualAbsSum = siteResidualMeans.reduce(
+    (sum, row) => sum + Math.abs(row.residualMean),
+    0,
+  );
+  const siteDominance =
+    residualAbsSum === 0
+      ? 1
+      : Math.max(
+          ...siteResidualMeans.map((row) => Math.abs(row.residualMean)),
+        ) / residualAbsSum;
+  const lowLossRows = rows
+    .slice()
+    .sort((left, right) => left.cloudLoss - right.cloudLoss)
+    .slice(0, Math.max(1, Math.floor(rows.length * 0.2)));
+  const negativeControlMean = nasaPowerMean(
+    lowLossRows.map((row) => row.cloudLoss),
+  );
+  const baselineResults = [
+    {
+      baseline: "day_of_year_seasonality_correlation",
+      result: roundMetric(seasonalityCorrelation),
+      explainsSignal: seasonalityCorrelation > 0.75,
+    },
+    {
+      baseline: "clear_sky_irradiance_correlation",
+      result: roundMetric(clearSkyCorrelation),
+      explainsSignal: clearSkyCorrelation > 0.75,
+    },
+    {
+      baseline: "temperature_correlation",
+      result: roundMetric(temperatureCorrelation),
+      explainsSignal: temperatureCorrelation > 0.7,
+    },
+  ];
+  const crossSourceSupport = supportedSites >= 2;
+  const nontrivialResidual = residualMagnitude >= 0.3;
+  const counterexampleCollapsed =
+    !crossSourceSupport ||
+    siteDominance > 0.78 ||
+    negativeControlMean > measuredOutcome * 0.75;
+  const rivalWeakened =
+    nontrivialResidual &&
+    crossSourceSupport &&
+    !baselineResults.some((baseline) => baseline.explainsSignal);
+  return {
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable:
+      rows.length >= 90 &&
+      uniqueStrings(rows.map((row) => row.siteId)).length >= 3,
+  };
+}
+
+function nasaPowerSiteMonthKey(row: NasaPowerSolarRow): string {
+  return `${row.siteId}:${row.dateKey.slice(0, 6)}`;
+}
+
+function nasaPowerMean(values: number[]): number {
+  return values.length === 0
+    ? 0
+    : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function nasaPowerPearson(left: number[], right: number[]): number {
+  if (left.length !== right.length || left.length < 2) return 0;
+  const leftMean = nasaPowerMean(left);
+  const rightMean = nasaPowerMean(right);
+  let numerator = 0;
+  let leftSquares = 0;
+  let rightSquares = 0;
+  for (const [index, leftValue] of left.entries()) {
+    const leftDelta = leftValue - leftMean;
+    const rightDelta = right[index]! - rightMean;
+    numerator += leftDelta * rightDelta;
+    leftSquares += leftDelta * leftDelta;
+    rightSquares += rightDelta * rightDelta;
+  }
+  const denominator = Math.sqrt(leftSquares * rightSquares);
+  return denominator === 0 ? 0 : numerator / denominator;
 }
 
 type MatbenchExperimentalGapRow = {
@@ -16770,6 +17207,50 @@ function discoveryGradeAnchors(): DiscoveryGradeExternalAnchor[] {
       expectedDomainValue: 4,
     }),
     discoveryGradeAnchor({
+      anchorId: "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL",
+      domain: "climate_energy_residuals",
+      anchorType: "public_scientific_dataset",
+      sourceRef:
+        "https://power.larc.nasa.gov/docs/services/api/temporal/daily/",
+      problemStatement:
+        "NASA POWER daily solar-radiation point data expose public all-sky and clear-sky outcomes where cloud-loss residual recurrence can be tested before any climate-energy discovery claim.",
+      measuredTargetOutcome:
+        "daily all-sky minus clear-sky solar residual recurrence after site, seasonality, clear-sky irradiance, and temperature controls",
+      mechanismHypothesis:
+        "multi-site temporal cloud-loss variability predicts recurring solar residual bursts better than day-of-year, clear-sky, temperature, or site-family baselines",
+      rivalMechanisms: [
+        "day-of-year seasonality explains the residual",
+        "clear-sky irradiance level explains the residual",
+        "site and temperature baselines explain the residual",
+      ],
+      falsifier:
+        "Matched site/month, clear-sky, and temperature controls eliminate residual recurrence on held-out time or site slices.",
+      boundedCheckPlan:
+        "Load NASA POWER daily all-sky, clear-sky, and temperature rows for multiple public coordinates, freeze site/time holdouts, and compare mechanism residuals against simple baselines.",
+      counterexamplePath:
+        "Use low cloud-loss days and site/month matched periods where the mechanism predicts no residual burst.",
+      holdoutReplayPath:
+        "Hold out one public coordinate or later-month slice, then replay the same NASA POWER API requests and residual scoring.",
+      domainScientificSignificance:
+        "A stable solar residual mechanism would improve inspectable climate-energy data-quality and forecasting diagnostics without treating source availability or pipeline execution as discovery.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a bounded, replayable cloud-loss residual mechanism that beats seasonality, clear-sky, temperature, and site rivals on independent public holdouts.",
+      significanceEvidenceRefs: [
+        "https://power.larc.nasa.gov/",
+        "https://power.larc.nasa.gov/docs/services/api/temporal/daily/",
+      ],
+      recommendedGeneratorDesign:
+        "public_measurement_residual_generator with site/time holdout and clear-sky negative controls",
+      sourceFamilyTrivialityRisk: 0.24,
+      baselineDominanceRisk: 0.41,
+      publicInspectability: 5,
+      boundedCheckability: 5,
+      mechanismDiscriminationStrength: 4,
+      holdoutFeasibility: 5,
+      replayFeasibility: 5,
+      expectedDomainValue: 4,
+    }),
+    discoveryGradeAnchor({
       anchorId: "DISC-ANCHOR-NSRDB-PV-RESIDUAL-MECHANISM",
       domain: "climate_energy_residuals",
       anchorType: "public_scientific_dataset",
@@ -16804,7 +17285,7 @@ function discoveryGradeAnchors(): DiscoveryGradeExternalAnchor[] {
       recommendedGeneratorDesign:
         "public_measurement_residual_generator with time/site holdout and clear-sky negative controls",
       sourceFamilyTrivialityRisk: 0.26,
-      baselineDominanceRisk: 0.52,
+      baselineDominanceRisk: 0.64,
       publicInspectability: 4,
       boundedCheckability: 4,
       mechanismDiscriminationStrength: 4,

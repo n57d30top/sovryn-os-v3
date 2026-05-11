@@ -400,6 +400,38 @@ function matbenchExperimentalGapFixtureJson(): string {
   return JSON.stringify(rows);
 }
 
+function nasaPowerSolarFixtureJson(siteOffset = 0): string {
+  const start = Date.UTC(2023, 0, 1);
+  const parameter = {
+    ALLSKY_SFC_SW_DWN: {} as Record<string, number>,
+    CLRSKY_SFC_SW_DWN: {} as Record<string, number>,
+    T2M: {} as Record<string, number>,
+  };
+  for (let index = 0; index < 120; index += 1) {
+    const date = new Date(start + index * 86_400_000);
+    const dateKey = [
+      String(date.getUTCFullYear()),
+      String(date.getUTCMonth() + 1).padStart(2, "0"),
+      String(date.getUTCDate()).padStart(2, "0"),
+    ].join("");
+    const seasonal = 3.2 + index * 0.025 + siteOffset * 0.18;
+    const burst = index % 17 < 4 ? 1.15 + siteOffset * 0.08 : 0.22;
+    parameter.CLRSKY_SFC_SW_DWN[dateKey] = Number(seasonal.toFixed(4));
+    parameter.ALLSKY_SFC_SW_DWN[dateKey] = Number(
+      Math.max(0.1, seasonal - burst).toFixed(4),
+    );
+    parameter.T2M[dateKey] = Number((6 + index * 0.04 + siteOffset).toFixed(3));
+  }
+  return JSON.stringify({
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [-105.18 + siteOffset, 39.74 + siteOffset, 1000],
+    },
+    properties: { parameter },
+  });
+}
+
 async function writeRealityCorpusFixture(
   root: string,
   count = 320,
@@ -5273,6 +5305,74 @@ test("discover-daemon discovery anchor source load writes Matbench runtime cache
       "loaded_external_artifact",
     );
     assert.equal(matbenchCheck.sourceReceipt.loadedExternalArtifact, true);
+    assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+    assert.equal(
+      await exists(join(root, daemonRoot, "fund-candidate.json")),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("discover-daemon discovery anchor source load writes NASA POWER runtime cache without Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.discoveryAnchorSelect();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const siteOffset = url.includes("33.4484")
+      ? 1
+      : url.includes("47.6062")
+        ? 2
+        : 0;
+    return new Response(nasaPowerSolarFixtureJson(siteOffset), {
+      status: 200,
+      headers: {
+        etag: `fixture-nasa-power-etag-${siteOffset}`,
+        "last-modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+        "content-length": String(nasaPowerSolarFixtureJson(siteOffset).length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    const report = await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL",
+    });
+    assert.equal(report.kind, "discovery_anchor_source_load");
+    assert.equal(report.anchorsAttempted, 1);
+    assert.equal(report.sourceCachesWritten, 1);
+    assert.equal(report.fundFound, false);
+    assert.equal(report.attempts[0]!.status, "loaded_external_artifact");
+
+    const run = await service.discoveryAnchorRun();
+    assert.equal(run.fundFound, false);
+    const checksPayload = JSON.parse(
+      await readFile(
+        join(
+          root,
+          daemonRoot,
+          "discovery-anchor-run",
+          "DISCOVERY_ANCHOR_RUNTIME_CHECKS.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      checks: Array<{
+        anchorId: string;
+        runtimeEvidenceKind: string;
+        sourceReceipt: { loadedExternalArtifact: boolean; status: string };
+      }>;
+    };
+    const nasaCheck = checksPayload.checks.find(
+      (check) => check.anchorId === "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL",
+    );
+    assert.ok(nasaCheck);
+    assert.equal(nasaCheck.runtimeEvidenceKind, "loaded_external_data");
+    assert.equal(nasaCheck.sourceReceipt.status, "loaded_external_artifact");
+    assert.equal(nasaCheck.sourceReceipt.loadedExternalArtifact, true);
     assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
     assert.equal(
       await exists(join(root, daemonRoot, "fund-candidate.json")),

@@ -1450,6 +1450,7 @@ export type ExternalFormalAnchorStatus =
   | "pilot_ready"
   | "rejected_known_source_family"
   | "rejected_known_prior_absorbed"
+  | "rejected_baseline_dominated_anchor"
   | "rejected_missing_external_source"
   | "rejected_missing_bounded_check"
   | "rejected_low_external_value";
@@ -1478,6 +1479,9 @@ export type ExternalFormalAnchor = {
   knownPriorAbsorptionRisk: number;
   knownPriorAbsorbsPilot: boolean;
   knownPriorAbsorptionReason: string;
+  expectedBaselineDominanceRisk: number;
+  mechanismDiscriminationStrength: number;
+  baselineDominanceReason: string;
   knownSourceFamilyMechanism: boolean;
   hasExternalSource: boolean;
   hasBoundedCheckPath: boolean;
@@ -1507,10 +1511,20 @@ export type ExternalFormalAnchorSelectionReport = {
   pilotReadyAnchors: number;
   rejectedKnownSourceFamily: number;
   rejectedKnownPriorAbsorbed: number;
+  rejectedBaselineDominatedAnchors: number;
   rejectedMissingExternalSource: number;
   rejectedMissingBoundedCheck: number;
   top5Anchors: ExternalFormalAnchorEvaluation[];
   artifactRefs: string[];
+  evidenceHash: string;
+};
+
+type ExternalFormalAnchorSelectorMemory = {
+  kind: "external_formal_anchor_selector_memory";
+  baselineDominatedAnchorIds: string[];
+  knownTrivialAnchorIds: string[];
+  rivalStrongerAnchorIds: string[];
+  updatedAt: string;
   evidenceHash: string;
 };
 
@@ -13440,8 +13454,20 @@ function dimacsNextCheckpointMarkdown(
 const formalAnchorSelectionDir = "formal-anchor-selection" as const;
 
 export class ExternalFormalAnchorSelector {
+  constructor(
+    private readonly memory: ExternalFormalAnchorSelectorMemory = emptyExternalFormalAnchorSelectorMemory(),
+  ) {}
+
   evaluate(anchor: ExternalFormalAnchor): ExternalFormalAnchorEvaluation {
     const score = externalFormalAnchorScore(anchor);
+    const previouslyBaselineDominated =
+      this.memory.baselineDominatedAnchorIds.includes(anchor.anchorId);
+    const previouslyKnownTrivial = this.memory.knownTrivialAnchorIds.includes(
+      anchor.anchorId,
+    );
+    const previouslyRivalStronger = this.memory.rivalStrongerAnchorIds.includes(
+      anchor.anchorId,
+    );
     const gates = [
       gate(
         "external_source_present",
@@ -13471,6 +13497,23 @@ export class ExternalFormalAnchorSelector {
         !anchor.knownPriorAbsorbsPilot &&
           anchor.knownPriorAbsorptionRisk <= 0.66,
         "Formal anchors whose bounded pilot would only replay an absorbed known witness or theorem are rejected before HardSeed birth.",
+      ),
+      gate(
+        "expected_baseline_dominance_risk_low",
+        anchor.expectedBaselineDominanceRisk <= 0.66,
+        "Formal anchors with expected size, symmetry, theorem-context, source-family, or simple-control dominance are rejected before pilot selection.",
+      ),
+      gate(
+        "mechanism_discrimination_sufficient",
+        anchor.mechanismDiscriminationStrength >= 3,
+        "Formal anchors must define a mechanism-vs-rival prediction that can beat at least one strong simple baseline before pilot selection.",
+      ),
+      gate(
+        "not_repeated_failed_pilot_anchor",
+        !previouslyBaselineDominated &&
+          !previouslyKnownTrivial &&
+          !previouslyRivalStronger,
+        "Formal anchors killed by recent pilot evidence are not reselected until a different mechanism design exists.",
       ),
       gate(
         "public_inspectability_sufficient",
@@ -13551,7 +13594,10 @@ export class ExternalFormalAnchorSelectionService {
     const dimacsReport = await this.readDimacsReport();
     const dimacsFailureLessons =
       dimacsReport?.killReasons ?? defaultDimacsFailureLessons();
-    const evaluations = new ExternalFormalAnchorSelector().select();
+    const selectorMemory = await this.readSelectorMemory();
+    const evaluations = new ExternalFormalAnchorSelector(
+      selectorMemory,
+    ).select();
     const top5 = evaluations.filter((item) => item.selectedForTop5);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/formal-anchor-selection-continue-searching.json`;
     const report: ExternalFormalAnchorSelectionReport = withEvidenceHash({
@@ -13570,6 +13616,9 @@ export class ExternalFormalAnchorSelectionService {
       ).length,
       rejectedKnownPriorAbsorbed: evaluations.filter(
         (item) => item.status === "rejected_known_prior_absorbed",
+      ).length,
+      rejectedBaselineDominatedAnchors: evaluations.filter(
+        (item) => item.status === "rejected_baseline_dominated_anchor",
       ).length,
       rejectedMissingExternalSource: evaluations.filter(
         (item) => item.status === "rejected_missing_external_source",
@@ -13659,6 +13708,11 @@ export class ExternalFormalAnchorSelectionService {
         "Classical known witness/theorem anchors that only replay absorbed prior results must be rejected before pilot birth.",
       ),
       gate(
+        "expected_baseline_dominated_anchor_rejected",
+        selection.rejectedBaselineDominatedAnchors >= 3,
+        "Anchors expected to be dominated by simple baselines must be rejected before pilot selection.",
+      ),
+      gate(
         "top5_selected",
         selection.top5Anchors.length === 5,
         "Selector must choose exactly five top formal anchors for mechanism-first design.",
@@ -13669,6 +13723,13 @@ export class ExternalFormalAnchorSelectionService {
           (item) => !item.anchor.knownPriorAbsorbsPilot,
         ),
         "Top formal anchors must exclude fatal known-prior absorbed witness families.",
+      ),
+      gate(
+        "top5_excludes_expected_baseline_dominance",
+        selection.top5Anchors.every(
+          (item) => item.anchor.expectedBaselineDominanceRisk <= 0.66,
+        ),
+        "Top formal anchors must exclude anchors expected to be dominated by simple baselines before pilot birth.",
       ),
       gate(
         "top3_piloted",
@@ -13790,6 +13851,48 @@ export class ExternalFormalAnchorSelectionService {
     );
   }
 
+  private async readSelectorMemory(): Promise<ExternalFormalAnchorSelectorMemory> {
+    const existing = await readOptionalJson<ExternalFormalAnchorSelectorMemory>(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+    );
+    return existing ?? emptyExternalFormalAnchorSelectorMemory();
+  }
+
+  private async updateSelectorMemoryFromPilot(
+    rows: ExternalFormalPilotResult[],
+  ): Promise<void> {
+    const current = await this.readSelectorMemory();
+    const baselineDominated = rows
+      .filter((row) => row.primaryDeathCause === "baseline_dominated")
+      .map((row) => row.anchorId);
+    const knownTrivial = rows
+      .filter((row) => row.primaryDeathCause === "known_trivial")
+      .map((row) => row.anchorId);
+    const rivalStronger = rows
+      .filter((row) => row.primaryDeathCause === "rival_theory_stronger")
+      .map((row) => row.anchorId);
+    const next = withEvidenceHash({
+      kind: "external_formal_anchor_selector_memory" as const,
+      baselineDominatedAnchorIds: uniqueStrings([
+        ...current.baselineDominatedAnchorIds,
+        ...baselineDominated,
+      ]).sort(),
+      knownTrivialAnchorIds: uniqueStrings([
+        ...current.knownTrivialAnchorIds,
+        ...knownTrivial,
+      ]).sort(),
+      rivalStrongerAnchorIds: uniqueStrings([
+        ...current.rivalStrongerAnchorIds,
+        ...rivalStronger,
+      ]).sort(),
+      updatedAt: nowIso(),
+    });
+    await writeJson(
+      join(this.anchorRoot(), "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+      next,
+    );
+  }
+
   private async writeSelectionArtifacts(
     report: ExternalFormalAnchorSelectionReport,
     evaluations: ExternalFormalAnchorEvaluation[],
@@ -13801,6 +13904,10 @@ export class ExternalFormalAnchorSelectionService {
       evaluations,
       evidenceHash: hashEvidence(evaluations),
     });
+    await writeJson(
+      join(root, "FORMAL_ANCHOR_SELECTOR_MEMORY.json"),
+      await this.readSelectorMemory(),
+    );
     await writeText(
       join(root, "DIMACS_FAILURE_LESSONS.md"),
       dimacsFailureLessonsMarkdown(report),
@@ -13962,6 +14069,7 @@ export class ExternalFormalAnchorSelectionService {
     bornSeeds: HardSeed[],
   ): Promise<void> {
     const root = this.anchorRoot();
+    await this.updateSelectorMemoryFromPilot(rows);
     await writeJson(join(root, "latest.json"), report);
     await writeJson(join(root, "TOP3_FORMAL_PILOT_CHECKS.json"), {
       kind: "top3_formal_pilot_checks",
@@ -14177,11 +14285,30 @@ function externalFormalAnchorScore(anchor: ExternalFormalAnchor): number {
   const penalty =
     anchor.sourceFamilyTrivialityRisk * 24 +
     anchor.knownPriorAbsorptionRisk * 30 +
+    anchor.expectedBaselineDominanceRisk * 28 +
     (anchor.knownSourceFamilyMechanism ? 35 : 0) +
     (anchor.knownPriorAbsorbsPilot ? 45 : 0) +
     (anchor.hasExternalSource ? 0 : 40) +
     (anchor.hasBoundedCheckPath ? 0 : 35);
-  return Math.max(0, Math.min(100, Math.round(positive - penalty)));
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        positive + anchor.mechanismDiscriminationStrength * 8 - penalty,
+      ),
+    ),
+  );
+}
+
+function emptyExternalFormalAnchorSelectorMemory(): ExternalFormalAnchorSelectorMemory {
+  return withEvidenceHash({
+    kind: "external_formal_anchor_selector_memory" as const,
+    baselineDominatedAnchorIds: [],
+    knownTrivialAnchorIds: [],
+    rivalStrongerAnchorIds: [],
+    updatedAt: nowIso(),
+  });
 }
 
 function externalFormalAnchorPriority(anchorId: string): number {
@@ -14220,6 +14347,15 @@ function externalFormalAnchorStatus(
     return "rejected_known_prior_absorbed";
   }
   if (
+    failedGates.includes("expected_baseline_dominance_risk_low") ||
+    failedGates.includes("mechanism_discrimination_sufficient") ||
+    failedGates.includes("not_repeated_failed_pilot_anchor") ||
+    anchor.expectedBaselineDominanceRisk > 0.66 ||
+    anchor.mechanismDiscriminationStrength < 3
+  ) {
+    return "rejected_baseline_dominated_anchor";
+  }
+  if (
     failedGates.includes("bounded_check_path_present") ||
     !anchor.hasBoundedCheckPath
   ) {
@@ -14248,6 +14384,19 @@ function externalFormalAnchorRejectionReasons(
       : "",
     anchor.knownPriorAbsorbsPilot && anchor.knownPriorAbsorptionReason
       ? anchor.knownPriorAbsorptionReason
+      : "",
+    anchor.expectedBaselineDominanceRisk > 0.66
+      ? "expected_baseline_dominance_risk_too_high"
+      : "",
+    anchor.mechanismDiscriminationStrength < 3
+      ? "weak_mechanism_discrimination"
+      : "",
+    failedGates.includes("not_repeated_failed_pilot_anchor")
+      ? "recent_pilot_failure_memory"
+      : "",
+    anchor.expectedBaselineDominanceRisk > 0.66 &&
+    anchor.baselineDominanceReason
+      ? anchor.baselineDominanceReason
       : "",
     score < 64 ? "low_external_formal_anchor_score" : "",
     ...failedGates,
@@ -14292,6 +14441,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       knownPriorAbsorbsPilot: true,
       knownPriorAbsorptionReason:
         "The bounded Paley/residue graph is a known Ramsey R(4,4) lower-bound witness, so a pilot would replay known Ramsey witness theory before discovery pressure.",
+      expectedBaselineDominanceRisk: 0.7,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Matched Ramsey witness controls are dominated by known construction and density/complement baselines.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
@@ -14330,6 +14483,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       knownPriorAbsorbsPilot: true,
       knownPriorAbsorptionReason:
         "Finite unit-distance lower-bound witnesses are dominated by known Moser-spindle/de Grey family prior before a fresh non-source-family obstruction exists.",
+      expectedBaselineDominanceRisk: 0.72,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Known spindle-family and density coloring pressure baselines remain stronger than the current bounded pilot mechanism.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
@@ -14367,6 +14524,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       knownPriorAbsorbsPilot: true,
       knownPriorAbsorptionReason:
         "Bounded bit-vector/integer-lift divergences in the current pilot design are absorbed by documented SMT-LIB modular arithmetic semantics.",
+      expectedBaselineDominanceRisk: 0.85,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Documented modular semantics and constant-folding controls explain the current bit-vector divergence design.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-BOOLEAN-SENSITIVITY-SMALL-FUNCTIONS",
@@ -14400,6 +14561,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: 5,
       proofMechanismFeasibility: 4,
       sourceFamilyTrivialityRisk: 0.45,
+      expectedBaselineDominanceRisk: 0.82,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Solved sensitivity theorem context and truth-table size controls dominate the current bounded pilot design.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-GRACEFUL-TREE-SMALL-N",
@@ -14432,6 +14597,10 @@ function externalFormalAnchors(): ExternalFormalAnchor[] {
       counterexampleFeasibility: 4,
       proofMechanismFeasibility: 4,
       sourceFamilyTrivialityRisk: 0.42,
+      expectedBaselineDominanceRisk: 0.84,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Degree sequence and automorphism controls dominate the current graceful-labeling pilot design.",
     }),
     formalAnchor({
       anchorId: "EXT-FORMAL-DIMACS-COLOR-BOUNDARY",
@@ -14488,6 +14657,9 @@ function formalAnchor(input: {
   knownPriorAbsorptionRisk?: number;
   knownPriorAbsorbsPilot?: boolean;
   knownPriorAbsorptionReason?: string;
+  expectedBaselineDominanceRisk?: number;
+  mechanismDiscriminationStrength?: number;
+  baselineDominanceReason?: string;
   knownSourceFamilyMechanism?: boolean;
   hasExternalSource?: boolean;
   hasBoundedCheckPath?: boolean;
@@ -14521,6 +14693,14 @@ function formalAnchor(input: {
     knownPriorAbsorptionReason:
       input.knownPriorAbsorptionReason ??
       "No fatal known-prior absorption recorded before pilot.",
+    expectedBaselineDominanceRisk:
+      input.expectedBaselineDominanceRisk ?? input.sourceFamilyTrivialityRisk,
+    mechanismDiscriminationStrength:
+      input.mechanismDiscriminationStrength ??
+      Math.max(1, Math.round(input.unresolvedPotential)),
+    baselineDominanceReason:
+      input.baselineDominanceReason ??
+      "No fatal expected baseline dominance recorded before pilot.",
     knownSourceFamilyMechanism: input.knownSourceFamilyMechanism === true,
     hasExternalSource: input.hasExternalSource !== false,
     hasBoundedCheckPath: input.hasBoundedCheckPath !== false,
@@ -14535,6 +14715,9 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
     risk: number;
     unresolved: number;
     checkability: number;
+    baselineRisk?: number;
+    discrimination?: number;
+    baselineReason?: string;
     known?: boolean;
     external?: boolean;
     bounded?: boolean;
@@ -14546,6 +14729,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.5,
       unresolved: 3,
       checkability: 5,
+      baselineRisk: 0.7,
+      discrimination: 2,
+      baselineReason:
+        "Magnitude and residue-class baselines are expected to dominate bounded stopping-time observations before a proof mechanism exists.",
     },
     {
       id: "EXT-FORMAL-ERDOS-SZEKERES-CONVEX-POSITION",
@@ -14602,6 +14789,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.46,
       unresolved: 4,
       checkability: 4,
+      baselineRisk: 0.78,
+      discrimination: 2,
+      baselineReason:
+        "The last automata pilot family stayed dominated by size/minimization baselines before isolating a new CEGAR mechanism.",
     },
     {
       id: "EXT-FORMAL-OEIS-GRAPH-COUNT-CONSISTENCY",
@@ -14635,6 +14826,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.45,
       unresolved: 4,
       checkability: 3,
+      baselineRisk: 0.48,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must beat order, symbol-frequency, and random-permutation baselines before HardSeed birth.",
     },
     {
       id: "EXT-FORMAL-QUEEN-GRAPH-COLOR-DIMACS",
@@ -14687,6 +14882,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.48,
       unresolved: 4,
       checkability: 2,
+      baselineRisk: 0.5,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate exchange obstruction mechanism from rank and ground-set size controls.",
     },
     {
       id: "EXT-FORMAL-ZARANKIEWICZ-SMALL-BIPARTITE",
@@ -14695,6 +14894,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.43,
       unresolved: 4,
       checkability: 4,
+      baselineRisk: 0.44,
+      discrimination: 4,
+      baselineReason:
+        "A pilot must separate extremal witness structure from edge count and forbidden-subgraph baselines before HardSeed birth.",
     },
     {
       id: "EXT-FORMAL-CAGES-REGULAR-GIRTH-GRAPHS",
@@ -14703,6 +14906,10 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
       risk: 0.52,
       unresolved: 4,
       checkability: 4,
+      baselineRisk: 0.74,
+      discrimination: 2,
+      baselineReason:
+        "Known small cage catalogs and degree/girth baselines are expected to dominate the current bounded pilot design.",
     },
     {
       id: "EXT-FORMAL-GOLDBACH-BOUNDED-RESIDUE-CHECK",
@@ -14749,6 +14956,12 @@ function additionalExternalFormalAnchors(): ExternalFormalAnchor[] {
         item.known === true
           ? `The external source already documents the ${item.topic} mechanism closely enough that a pilot would replay a known family.`
           : `No fatal known-prior absorption is predeclared for ${item.topic}.`,
+      expectedBaselineDominanceRisk: item.baselineRisk ?? item.risk,
+      mechanismDiscriminationStrength:
+        item.discrimination ?? Math.max(1, item.unresolved),
+      baselineDominanceReason:
+        item.baselineReason ??
+        `No fatal expected baseline dominance is predeclared for ${item.topic}.`,
       knownSourceFamilyMechanism: item.known === true,
       hasExternalSource: item.external !== false,
       hasBoundedCheckPath: item.bounded !== false,
@@ -15152,6 +15365,7 @@ function formalAnchorSelectionArtifactRefs(
     `${root}/DIMACS_FAILURE_LESSONS.md`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SELECTOR.md`,
     `${root}/EXTERNAL_FORMAL_ANCHORS_EVALUATED.json`,
+    `${root}/FORMAL_ANCHOR_SELECTOR_MEMORY.json`,
     `${root}/TOP5_FORMAL_ANCHORS.md`,
     `${root}/selection-latest.json`,
     nextCheckpointRef,
@@ -15218,11 +15432,11 @@ function externalFormalAnchorSelectorMarkdown(
     "",
     `Anchors evaluated: ${evaluations.length}.`,
     "",
-    "| Anchor | Score | Status | Source-family risk | Known-prior risk | Known-prior absorbed | External source | Bounded check | Selected top5 | Selected pilot |",
-    "| --- | ---: | --- | ---: | ---: | --- | --- | --- | --- | --- |",
+    "| Anchor | Score | Status | Source-family risk | Known-prior risk | Baseline risk | Mechanism discrimination | Known-prior absorbed | External source | Bounded check | Selected top5 | Selected pilot |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- |",
     ...evaluations.map(
       (item) =>
-        `| ${item.anchor.anchorId} | ${item.score} | ${item.status} | ${item.anchor.sourceFamilyTrivialityRisk} | ${item.anchor.knownPriorAbsorptionRisk} | ${String(item.anchor.knownPriorAbsorbsPilot)} | ${String(item.anchor.hasExternalSource)} | ${String(item.anchor.hasBoundedCheckPath)} | ${String(item.selectedForTop5)} | ${String(item.selectedForPilot)} |`,
+        `| ${item.anchor.anchorId} | ${item.score} | ${item.status} | ${item.anchor.sourceFamilyTrivialityRisk} | ${item.anchor.knownPriorAbsorptionRisk} | ${item.anchor.expectedBaselineDominanceRisk} | ${item.anchor.mechanismDiscriminationStrength} | ${String(item.anchor.knownPriorAbsorbsPilot)} | ${String(item.anchor.hasExternalSource)} | ${String(item.anchor.hasBoundedCheckPath)} | ${String(item.selectedForTop5)} | ${String(item.selectedForPilot)} |`,
     ),
   ].join("\n");
 }
@@ -15233,11 +15447,11 @@ function topFormalAnchorsMarkdown(
   return [
     "# Top 5 Formal Anchors",
     "",
-    "| Anchor | Problem | Target outcome | Candidate mechanism | Rival mechanisms | Falsifier | Bounded plan | Counterexample path | Replay path | Nontrivial if | Kill if | Known-prior absorption guard |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Anchor | Problem | Target outcome | Candidate mechanism | Rival mechanisms | Falsifier | Bounded plan | Counterexample path | Replay path | Nontrivial if | Kill if | Known-prior absorption guard | Baseline dominance guard |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...evaluations.map((item) => {
       const anchor = item.anchor;
-      return `| ${anchor.anchorId} | ${anchor.problemAnchor} | ${anchor.measurableFormalOutcome} | ${anchor.candidateMechanismHypothesis} | ${anchor.rivalMechanisms.join("; ")} | ${anchor.falsifier} | ${anchor.boundedSearchPlan} | ${anchor.counterexamplePath} | ${anchor.replayPath} | ${anchor.nontrivialityCriteria} | ${anchor.knownTrivialKillCriteria} | ${anchor.knownPriorAbsorptionReason} |`;
+      return `| ${anchor.anchorId} | ${anchor.problemAnchor} | ${anchor.measurableFormalOutcome} | ${anchor.candidateMechanismHypothesis} | ${anchor.rivalMechanisms.join("; ")} | ${anchor.falsifier} | ${anchor.boundedSearchPlan} | ${anchor.counterexamplePath} | ${anchor.replayPath} | ${anchor.nontrivialityCriteria} | ${anchor.knownTrivialKillCriteria} | ${anchor.knownPriorAbsorptionReason} | ${anchor.baselineDominanceReason} |`;
     }),
   ].join("\n");
 }

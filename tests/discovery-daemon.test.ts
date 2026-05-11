@@ -4188,6 +4188,10 @@ test("external formal anchor selector rejects weak anchors and accepts bounded e
     knownPriorAbsorbsPilot: false,
     knownPriorAbsorptionReason:
       "No fatal known-prior absorption recorded for the synthetic selector test anchor.",
+    expectedBaselineDominanceRisk: 0.25,
+    mechanismDiscriminationStrength: 4,
+    baselineDominanceReason:
+      "No fatal baseline dominance recorded for the synthetic selector test anchor.",
     knownSourceFamilyMechanism: false,
     hasExternalSource: true,
     hasBoundedCheckPath: true,
@@ -4213,6 +4217,17 @@ test("external formal anchor selector rejects weak anchors and accepts bounded e
         "The bounded pilot would replay a known witness family.",
     }).status,
     "rejected_known_prior_absorbed",
+  );
+  assert.equal(
+    selector.evaluate({
+      ...baseAnchor,
+      anchorId: "EXT-TEST-BASELINE-DOMINATED",
+      expectedBaselineDominanceRisk: 0.9,
+      mechanismDiscriminationStrength: 2,
+      baselineDominanceReason:
+        "Simple size and symmetry baselines would dominate the pilot.",
+    }).status,
+    "rejected_baseline_dominated_anchor",
   );
   assert.equal(
     selector.evaluate({
@@ -4246,13 +4261,16 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
   assert.equal(selection.top5Anchors.length, 5);
   assert.equal(selection.rejectedKnownSourceFamily >= 1, true);
   assert.equal(selection.rejectedKnownPriorAbsorbed >= 3, true);
+  assert.equal(selection.rejectedBaselineDominatedAnchors >= 3, true);
   assert.equal(
     selection.top5Anchors.every(
       (item) =>
         item.status === "pilot_ready" &&
         item.anchor.sourceRef.startsWith("https://") &&
         item.anchor.hasBoundedCheckPath &&
-        !item.anchor.knownPriorAbsorbsPilot,
+        !item.anchor.knownPriorAbsorbsPilot &&
+        item.anchor.expectedBaselineDominanceRisk <= 0.66 &&
+        item.anchor.mechanismDiscriminationStrength >= 3,
     ),
     true,
   );
@@ -4272,6 +4290,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
     "DIMACS_FAILURE_LESSONS.md",
     "EXTERNAL_FORMAL_ANCHOR_SELECTOR.md",
     "EXTERNAL_FORMAL_ANCHORS_EVALUATED.json",
+    "FORMAL_ANCHOR_SELECTOR_MEMORY.json",
     "TOP5_FORMAL_ANCHORS.md",
     "TOP3_FORMAL_PILOT_CHECKS.md",
     "TOP3_FORMAL_PILOT_CHECKS.json",
@@ -4304,6 +4323,7 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
       birthEvaluation: { accepted: boolean; primaryBlocker: string | null };
       hardSeed: unknown | null;
       knownTrivial: boolean;
+      primaryDeathCause: string | null;
     }>;
   };
   assert.equal(
@@ -4320,6 +4340,17 @@ test("formal anchor pilot creates only external bounded hard seeds and no fake F
           "EXT-FORMAL-HADWIGER-NELSON-FINITE-UDG",
           "EXT-FORMAL-SMTLIB-BV-INTEGER-LIFT-BOUNDARY",
         ].includes(row.anchorId),
+    ),
+    true,
+  );
+  const postPilotSelection = await service.formalAnchorSelect();
+  assert.equal(
+    postPilotSelection.top5Anchors.every(
+      (item) =>
+        !pilotRows.results
+          .filter((row) => row.primaryDeathCause === "baseline_dominated")
+          .map((row) => row.anchorId)
+          .includes(item.anchor.anchorId),
     ),
     true,
   );

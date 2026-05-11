@@ -22056,7 +22056,7 @@ export class MinimumRuntimeOvernightAutonomousDiscoveryRun {
         adaptiveStopReason === "deterministic_no_candidate_birth"
           ? "The overnight minimum-runtime loop repeated the same mechanism-designed wave pattern without any InsightCandidate birth; the next step is to switch experiment generation rather than continue linear repetition."
           : adaptiveStopReason === "generator_family_replacement_required"
-            ? `The latest mechanism-first generator run marked ${generatorReplacementSignal.replacementFamilies.length} generator family/families as replacement_required; the next step is to add genuinely new external problem anchored generator families before resuming long runtime execution.`
+            ? `The latest mechanism-first generator surface marked ${generatorReplacementSignal.replacementFamilies.length} generator family/families as replacement_required or post-closure non-discovery; dominant blocker: ${generatorReplacementSignal.dominantBlocker ?? "unknown"}. The next step is to add genuinely new external problem anchored generator families before resuming long runtime execution.`
             : adaptiveStopReason ===
                 "generator_variants_exhausted_without_candidate_birth"
               ? "The overnight minimum-runtime loop exhausted its configured mechanism-designed generator variants without any InsightCandidate birth; the next step is to add a genuinely new raw-target/mechanism/baseline generator before resuming."
@@ -22930,6 +22930,7 @@ async function minimumRuntimeGeneratorReplacementSignal(
   root: string,
 ): Promise<MinimumRuntimeGeneratorReplacementSignal> {
   const run = await readOptionalJson<{
+    generatorSet?: MechanismFirstGeneratorSet;
     replacementRequired?: boolean;
     replacementRequirements?: Array<{
       generatorId?: string;
@@ -22937,6 +22938,12 @@ async function minimumRuntimeGeneratorReplacementSignal(
       dominantBlocker?: string | null;
     }>;
   }>(join(root, daemonArtifactRoot, generatorFamilyDir, "latest.json"));
+  const closure = await readOptionalJson<{
+    closureCandidateCount?: number;
+    discoveryScoredCandidates?: number;
+    nonDiscoveryClassifiedCandidates?: number;
+    fundClassDistribution?: Record<string, number>;
+  }>(join(root, daemonArtifactRoot, generatorFundClosureDir, "latest.json"));
   const replacementRequirements = Array.isArray(run?.replacementRequirements)
     ? run.replacementRequirements
     : [];
@@ -22950,6 +22957,42 @@ async function minimumRuntimeGeneratorReplacementSignal(
         item.status === "replacement_required" &&
         typeof item.dominantBlocker === "string",
     )?.dominantBlocker ?? null;
+  const closureCandidateCount = Number(closure?.closureCandidateCount ?? 0);
+  const nonDiscoveryClassifiedCandidates = Number(
+    closure?.nonDiscoveryClassifiedCandidates ?? 0,
+  );
+  const discoveryScoredCandidates = Number(
+    closure?.discoveryScoredCandidates ?? 0,
+  );
+  const closureAllNonDiscovery =
+    closure !== null &&
+    closureCandidateCount > 0 &&
+    discoveryScoredCandidates === 0 &&
+    nonDiscoveryClassifiedCandidates === closureCandidateCount;
+  const dominantClosureFundClass =
+    Object.entries(closure?.fundClassDistribution ?? {})
+      .filter(([, count]) => Number(count) > 0)
+      .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] ??
+    null;
+  if (closureAllNonDiscovery) {
+    const explicitFamilies = replacementRequirements
+      .map((item) => item.generatorId)
+      .filter((item): item is string => typeof item === "string");
+    const closureReplacementFamilies =
+      explicitFamilies.length > 0
+        ? explicitFamilies
+        : run?.generatorSet
+          ? mechanismFirstGeneratorFamilies(run.generatorSet).map(
+              (family) => family.generatorId,
+            )
+          : [];
+    return {
+      replacementRequired: true,
+      replacementFamilies: uniqueStrings(closureReplacementFamilies),
+      dominantBlocker: `post_closure_non_discovery:${dominantClosureFundClass ?? "non_discovery"}`,
+      replacementRunRef: `${daemonArtifactRoot}/${generatorFundClosureDir}/latest.json`,
+    };
+  }
   return {
     replacementRequired:
       run?.replacementRequired === true || replacementFamilies.length > 0,
@@ -23113,7 +23156,7 @@ function minimumRuntimeAdaptiveStopRecommendation(
     return "Stop repeating the same six mechanism-designed waves; switch to a different experiment generator that changes raw target selection, mechanism hypotheses, or baseline/rival design before resuming overnight execution.";
   }
   if (reason === "generator_family_replacement_required") {
-    return "Do not rerun long overnight searches on generator families already marked replacement_required; add or select new external problem anchored generator families first.";
+    return "Do not rerun long overnight searches on generator families already marked replacement_required or closed entirely as non-discovery FundClasses; add or select new external problem anchored generator families first.";
   }
   if (reason === "generator_variants_exhausted_without_candidate_birth") {
     return "The configured raw-target/mechanism/baseline generator variants were all tried without InsightCandidate birth; add a genuinely new generator family before resuming long runtime execution.";

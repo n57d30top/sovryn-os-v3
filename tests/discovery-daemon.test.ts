@@ -6036,6 +6036,72 @@ test("discover-daemon overnight-min-runtime stops on replacement-required genera
   );
 });
 
+test("discover-daemon overnight-min-runtime stops after generator closure yields only non-discovery classes", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ replacementCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+
+  const report = await service.overnightMinimumRuntime({
+    minRuntimeMs: 60_000,
+    heartbeatMs: 1,
+    stagnationIterationLimit: 3,
+  });
+
+  assert.equal(
+    report.terminalStatus,
+    "continue_searching_checkpointed_due_to_runtime_limit",
+  );
+  assert.equal(report.minimumRuntimeReached, false);
+  assert.equal(report.adaptiveStopTriggered, true);
+  assert.equal(
+    report.adaptiveStopReason,
+    "generator_family_replacement_required",
+  );
+  assert.equal(report.adaptiveStopIteration, 1);
+  assert.equal(report.generatorReplacementRequired, true);
+  assert.deepEqual(report.generatorReplacementFamilies, [
+    "satlib_bounded_sat_boundary_generator",
+    "snap_network_cut_resilience_generator",
+    "openml_shift_instability_generator",
+  ]);
+  assert.equal(
+    report.generatorReplacementDominantBlocker,
+    "post_closure_non_discovery:pipeline_fund_candidate",
+  );
+  assert.match(report.remainingBottleneck, /post-closure non-discovery/);
+
+  const runningCheckpoint = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "overnight-min-runtime",
+        "RUNNING_CHECKPOINT.json",
+      ),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(runningCheckpoint.generatorReplacementRequired, true);
+  assert.deepEqual(runningCheckpoint.generatorReplacementFamilies, [
+    "satlib_bounded_sat_boundary_generator",
+    "snap_network_cut_resilience_generator",
+    "openml_shift_instability_generator",
+  ]);
+  assert.equal(
+    runningCheckpoint.generatorReplacementDominantBlocker,
+    "post_closure_non_discovery:pipeline_fund_candidate",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("discover-daemon overnight-min-runtime writes interrupt checkpoint on abort", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

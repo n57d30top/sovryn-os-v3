@@ -1597,6 +1597,7 @@ export type GeneratorBornDiscoveryClaimLiftReport = {
   acceptedClaimLifts: number;
   blockedClaimLifts: number;
   discoveryCandidatesCreated: number;
+  discoveryCandidateRefs: string[];
   fundCandidateDraftsCreated: number;
   fundGateResult: FundGateResult;
   fundFound: false;
@@ -13648,6 +13649,10 @@ export class GeneratorBornDiscoveryClaimLiftService {
         }),
       ),
     );
+    const discoveryCandidateRefs = await this.writeAcceptedDiscoveryCandidates(
+      decisions,
+      proposals,
+    );
     const fundGateResult = new FundGateEvaluator().evaluate(null);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-continue-searching.json`;
     const report: GeneratorBornDiscoveryClaimLiftReport = withEvidenceHash({
@@ -13662,13 +13667,16 @@ export class GeneratorBornDiscoveryClaimLiftService {
         .length,
       blockedClaimLifts: decisions.filter((decision) => !decision.accepted)
         .length,
-      discoveryCandidatesCreated: 0,
+      discoveryCandidatesCreated: discoveryCandidateRefs.length,
+      discoveryCandidateRefs,
       fundCandidateDraftsCreated: 0,
       fundGateResult,
       fundFound: false as const,
       remainingBottleneck: generatorBornDiscoveryClaimLiftBottleneck(decisions),
-      artifactRefs:
-        generatorBornDiscoveryClaimLiftArtifactRefs(nextCheckpointRef),
+      artifactRefs: generatorBornDiscoveryClaimLiftArtifactRefs(
+        nextCheckpointRef,
+        discoveryCandidateRefs,
+      ),
     });
     await this.writeArtifacts({ report, requirements, proposals });
     return report;
@@ -13715,6 +13723,49 @@ export class GeneratorBornDiscoveryClaimLiftService {
     );
   }
 
+  private async writeAcceptedDiscoveryCandidates(
+    decisions: GeneratorBornDiscoveryClaimLiftDecision[],
+    proposals: GeneratorBornDiscoveryClaimLiftProposal[],
+  ): Promise<string[]> {
+    const proposalByParent = new Map(
+      proposals.map((proposal) => [proposal.parentCandidateId, proposal]),
+    );
+    const refs: string[] = [];
+    for (const decision of decisions.filter((item) => item.accepted)) {
+      const proposal = proposalByParent.get(decision.candidateId);
+      if (!proposal || !decision.targetDiscoveryCandidateId) continue;
+      const candidateRef = `${daemonArtifactRoot}/${generatorClaimLiftDir}/discovery-candidates/${normalizeCandidateIdPart(decision.targetDiscoveryCandidateId)}.json`;
+      await writeJson(
+        join(this.root, candidateRef),
+        withEvidenceHash({
+          kind: "generator_born_lifted_discovery_candidate" as const,
+          status: "discovery_candidate_pending_fund_candidate_draft" as const,
+          candidateId: decision.targetDiscoveryCandidateId,
+          parentCandidateId: decision.candidateId,
+          exactClaim: proposal.exactTargetOutcomeClaim,
+          mechanismHypothesis: proposal.mechanismHypothesis,
+          externalSignificanceEvidenceRefs:
+            proposal.externalSignificanceEvidenceRefs,
+          sourceEvidenceRefs: proposal.sourceEvidenceRefs,
+          baselineRefs: proposal.baselineRefs,
+          rivalRefs: proposal.rivalRefs,
+          holdoutRefs: proposal.holdoutRefs,
+          replayRefs: proposal.replayRefs,
+          counterexampleRefs: proposal.counterexampleRefs,
+          mechanismPressureRefs: proposal.mechanismPressureRefs,
+          proposalRef: decision.proposalRef,
+          fundCandidateDraftCreated: false,
+          fundFound: false,
+          noOverclaim: proposal.noOverclaim,
+          notes:
+            "This is a forward-only DiscoveryCandidate artifact from a fully evidenced claim lift. It is not a FundCandidateDraft, FUND_FOUND, or external validation.",
+        }),
+      );
+      refs.push(candidateRef);
+    }
+    return refs;
+  }
+
   private async writeArtifacts(input: {
     report: GeneratorBornDiscoveryClaimLiftReport;
     requirements: GeneratorBornDiscoveryClaimLiftRequirement[];
@@ -13748,6 +13799,7 @@ export class GeneratorBornDiscoveryClaimLiftService {
       proposalsLoaded: input.report.proposalsLoaded,
       acceptedClaimLifts: input.report.acceptedClaimLifts,
       blockedClaimLifts: input.report.blockedClaimLifts,
+      discoveryCandidateRefs: input.report.discoveryCandidateRefs,
       reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
     });
@@ -24694,7 +24746,7 @@ function generatorBornDiscoveryClaimLiftBottleneck(
   }
   const accepted = decisions.filter((decision) => decision.accepted).length;
   if (accepted > 0) {
-    return `${accepted} claim lift proposal(s) are ready for the next DiscoveryCandidate construction step; no Fund state has been created.`;
+    return `${accepted} claim lift proposal(s) created forward-only DiscoveryCandidate artifact(s); next bottleneck is FundCandidateDraft construction from real package, prediction, kill-week, identity, and hard-seed evidence. No Fund state has been created.`;
   }
   const failedGateCounts = countBy(
     decisions
@@ -24715,6 +24767,7 @@ function generatorBornDiscoveryClaimLiftBottleneck(
 
 function generatorBornDiscoveryClaimLiftArtifactRefs(
   nextCheckpointRef: string,
+  discoveryCandidateRefs: string[] = [],
 ): string[] {
   const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
   return [
@@ -24726,6 +24779,7 @@ function generatorBornDiscoveryClaimLiftArtifactRefs(
     `${root}/FUND_GATE_RESULTS.json`,
     `${root}/NEXT_CHECKPOINT.md`,
     `${root}/latest.json`,
+    ...discoveryCandidateRefs,
     nextCheckpointRef,
   ];
 }

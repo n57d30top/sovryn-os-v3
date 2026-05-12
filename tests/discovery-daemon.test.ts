@@ -4648,7 +4648,7 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
   assert.equal(lift.proposalsLoaded, 1);
   assert.equal(lift.acceptedClaimLifts, 1);
   assert.equal(lift.blockedClaimLifts, 5);
-  assert.equal(lift.discoveryCandidatesCreated, 0);
+  assert.equal(lift.discoveryCandidatesCreated, 1);
   assert.equal(lift.fundCandidateDraftsCreated, 0);
   assert.equal(lift.fundFound, false);
   assert.equal(
@@ -4662,8 +4662,22 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
   );
   assert.match(
     lift.remainingBottleneck,
-    /ready for the next DiscoveryCandidate/,
+    /created forward-only DiscoveryCandidate/,
   );
+  assert.equal(lift.discoveryCandidateRefs.length, 1);
+  const liftedCandidate = JSON.parse(
+    await readFile(join(root, lift.discoveryCandidateRefs[0]!), "utf8"),
+  ) as Record<string, unknown>;
+  assert.equal(
+    liftedCandidate.kind,
+    "generator_born_lifted_discovery_candidate",
+  );
+  assert.equal(
+    liftedCandidate.status,
+    "discovery_candidate_pending_fund_candidate_draft",
+  );
+  assert.equal(liftedCandidate.fundFound, false);
+  assert.equal(liftedCandidate.fundCandidateDraftCreated, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

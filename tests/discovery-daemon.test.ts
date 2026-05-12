@@ -3735,6 +3735,19 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       significanceEvidenceRefs: ["https://example.org/public-target"],
       inspectabilityRef: "https://example.org/public-target",
     },
+    domainSignificanceHypothesis: {
+      statement:
+        "A bounded formal mechanism boundary has domain scientific significance when it changes the checked public formal problem state beyond trivial baselines.",
+      expectedDomainChange:
+        "A discovery-scored outcome would change interpretation of the public formal boundary by producing a checked refutation or validated conjecture.",
+      noveltyDiscriminator:
+        "The signal must be not documented outside known source-family behavior and must expose a new boundary beyond the trivial prior.",
+      falsifier:
+        "The hypothesis is falsified when a simple baseline, known-prior rival, or bounded counterexample explains the measured formal outcome.",
+      evidenceRefs: ["https://example.org/public-target"],
+      tested: true,
+      supported: true,
+    },
     runtimeEvidencePresent: true,
     sourceRefs: ["formal-generator://bounded-property/test-family"],
     evidenceRefs: [
@@ -3756,6 +3769,21 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   const evaluator = new HardSeedBirthEvaluator();
 
   assert.equal(evaluator.evaluate(baseInput).accepted, true);
+  assert.equal(
+    evaluator.evaluate({ ...baseInput, domainSignificanceHypothesis: null })
+      .primaryBlocker,
+    "missing_domain_significance_hypothesis",
+  );
+  assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      domainSignificanceHypothesis: {
+        ...baseInput.domainSignificanceHypothesis,
+        supported: false,
+      },
+    }).primaryBlocker,
+    "unsupported_domain_significance_hypothesis",
+  );
   assert.equal(
     evaluator.evaluate({ ...baseInput, externalProblemAnchor: null })
       .primaryBlocker,
@@ -4020,7 +4048,7 @@ test("mechanism-first generator run blocks pressure-weak outputs before hard-see
   );
 });
 
-test("replacement generator run creates birth-eligible hard seeds for downstream pressure", async () => {
+test("replacement generator run blocks domain-significance-unsupported outputs before hard-seed birth", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -4038,12 +4066,14 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
   assert.equal(report.familiesRun, 3);
   assert.equal(report.runtimeChecks, 30);
   assert.equal(report.hardSeedBirthAttempts, 30);
-  assert.equal(report.hardSeedsBorn, 6);
-  assert.equal(report.replacementRequired, false);
+  assert.equal(report.hardSeedsBorn, 0);
+  assert.equal(report.replacementRequired, true);
   assert.equal(
     report.replacementRequirements.every(
       (item) =>
-        item.status === "productive_or_not_run" && item.hardSeedsBorn === 2,
+        item.status === "replacement_required" &&
+        item.hardSeedsBorn === 0 &&
+        item.dominantBlocker === "unsupported_domain_significance_hypothesis",
     ),
     true,
   );
@@ -4070,7 +4100,7 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
     }>;
     validations: Array<{ accepted: boolean }>;
   };
-  assert.equal(seedPayload.hardSeeds.length, 6);
+  assert.equal(seedPayload.hardSeeds.length, 0);
   assert.equal(
     seedPayload.hardSeeds.every(
       (seed) =>
@@ -4089,142 +4119,57 @@ test("replacement generator run creates birth-eligible hard seeds for downstream
     true,
   );
 
-  const pressure = await service.generatorPressure();
-  assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
-  assert.equal(pressure.seedsLoaded, 6);
-  assert.equal(pressure.testsRun, 42);
-  assert.equal(pressure.insightCandidatesCreated, 6);
-  assert.equal(pressure.discoveryCandidatesCreated, 0);
-  assert.equal(pressure.fundFound, false);
+  const outputPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      hardSeed: unknown | null;
+      birthEvaluation: {
+        accepted: boolean;
+        blockers: string[];
+        domainSignificanceHypothesisGate: {
+          accepted: boolean;
+          failedGates: string[];
+        };
+      };
+      domainSignificanceHypothesis: { tested: boolean; supported: boolean };
+    }>;
+  };
+  assert.equal(outputPayload.outputs.length, 30);
+  assert.equal(
+    outputPayload.outputs.every(
+      (output) =>
+        output.hardSeed === null &&
+        output.birthEvaluation.accepted === false &&
+        output.domainSignificanceHypothesis.tested === true &&
+        output.domainSignificanceHypothesis.supported === false &&
+        output.birthEvaluation.blockers.includes(
+          "unsupported_domain_significance_hypothesis",
+        ) &&
+        output.birthEvaluation.domainSignificanceHypothesisGate.accepted ===
+          false &&
+        output.birthEvaluation.domainSignificanceHypothesisGate.failedGates.includes(
+          "domain_significance_supported",
+        ),
+    ),
+    true,
+  );
 
   const audit = await service.generatorAudit();
   assert.equal(audit.passed, true);
   assert.equal(audit.generatorSet, "replacement");
-  assert.equal(audit.replacementRequired, false);
-  assert.equal(audit.hardSeedsBorn, 6);
-  assert.equal(audit.pressureYield.pressureRunFound, true);
-  assert.equal(audit.pressureYield.insightCandidatesCreated, 6);
+  assert.equal(audit.replacementRequired, true);
+  assert.equal(audit.hardSeedsBorn, 0);
+  assert.equal(audit.pressureYield.pressureRunFound, false);
+  assert.equal(audit.pressureYield.insightCandidatesCreated, 0);
   assert.deepEqual(audit.failedGates, []);
-
-  const insightClosure = await service.generatorInsightClosure();
-  assert.equal(insightClosure.candidatesLoaded, 6);
-  assert.equal(insightClosure.closureCandidatesCreated, 6);
-  assert.equal(insightClosure.discoveryCandidatesCreated, 0);
-  assert.equal(insightClosure.discoveryScoredCandidatesCreated, 0);
-  assert.equal(insightClosure.nonDiscoveryPromotionCandidates, 6);
-  assert.deepEqual(insightClosure.fundClassDistribution, {
-    insight_candidate: 6,
-  });
-  assert.equal(insightClosure.fundFound, false);
-
-  const fundClosure = await service.generatorFundClosure();
-  assert.equal(fundClosure.closureCandidateCount, 6);
-  assert.equal(fundClosure.closureCandidateResults.length, 6);
-  assert.equal(fundClosure.discoveryScoredCandidates, 0);
-  assert.equal(fundClosure.nonDiscoveryClassifiedCandidates, 6);
-  assert.deepEqual(fundClosure.fundClassDistribution, {
-    pipeline_fund_candidate: 6,
-  });
-  assert.equal(
-    fundClosure.closureCandidateResults.every(
-      (candidate) =>
-        candidate.fundGatePassed &&
-        candidate.packageArtifactGatesPassed &&
-        candidate.domainSignificancePassed === false &&
-        !candidate.domainSignificanceFailedGates.includes(
-          "no_anti_discovery_claim_text",
-        ) &&
-        !candidate.domainSignificanceFailedGates.includes(
-          "not_pipeline_or_generator_scope_only",
-        ) &&
-        candidate.domainSignificanceFailedGates.includes(
-          "explicit_domain_significance_claim",
-        ) &&
-        candidate.fundClass === "pipeline_fund_candidate" &&
-        candidate.countsForEinsteinNobelDiscoveryScore === false &&
-        candidate.notificationAllowed === false,
-    ),
-    true,
-  );
-  assert.match(
-    fundClosure.remainingBottleneck,
-    /All 6 generator-born candidates/,
-  );
-  assert.equal(
-    await exists(
-      join(
-        root,
-        daemonRoot,
-        "generator-fund-closure",
-        "CANDIDATE_CLOSURE_RESULTS.json",
-      ),
-    ),
-    true,
-  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
-  );
-
-  const firstPackage = JSON.parse(
-    await readFile(
-      join(
-        root,
-        fundClosure.closureCandidateResults[0]!.externalReviewPackagePath!,
-        "CLAIM_EVIDENCE_BINDINGS.json",
-      ),
-      "utf8",
-    ),
-  ) as {
-    domainSignificanceAssessment: {
-      passed: boolean;
-      failedGates: string[];
-    };
-    fundClass: string;
-    countsForEinsteinNobelDiscoveryScore: boolean;
-  };
-  assert.equal(firstPackage.domainSignificanceAssessment.passed, false);
-  assert.ok(
-    firstPackage.domainSignificanceAssessment.failedGates.includes(
-      "explicit_domain_significance_claim",
-    ),
-  );
-  assert.equal(firstPackage.fundClass, "pipeline_fund_candidate");
-  assert.equal(firstPackage.countsForEinsteinNobelDiscoveryScore, false);
-
-  const postClosureAudit = await service.generatorAudit();
-  assert.equal(postClosureAudit.passed, false);
-  assert.equal(postClosureAudit.replacementRequired, true);
-  assert.equal(
-    postClosureAudit.replacementRequirements.every(
-      (item) =>
-        item.status === "replacement_required" &&
-        item.dominantBlocker ===
-          "post_closure_non_discovery:pipeline_fund_candidate",
-    ),
-    true,
-  );
-  assert.equal(postClosureAudit.closureYield.closureRunFound, true);
-  assert.equal(postClosureAudit.closureYield.closureCandidateCount, 6);
-  assert.equal(postClosureAudit.closureYield.discoveryScoredCandidates, 0);
-  assert.equal(
-    postClosureAudit.closureYield.nonDiscoveryClassifiedCandidates,
-    6,
-  );
-  assert.equal(postClosureAudit.closureYield.allClosedAsNonDiscovery, true);
-  assert.equal(
-    postClosureAudit.closureYield.dominantFundClass,
-    "pipeline_fund_candidate",
-  );
-  assert.ok(
-    postClosureAudit.failedGates.includes(
-      "post_closure_discovery_yield_not_fake_green",
-    ),
-  );
-  assert.match(
-    postClosureAudit.closureYield.recommendedAction,
-    /replace or redesign generator families/,
   );
 });
 
@@ -4313,6 +4258,14 @@ test("mechanism-first generator audit exposes closure fake-green when all closur
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
   await service.generatorRun({ replacementCandidates: true });
+  const generatorRoot = join(root, daemonRoot, "generator-families");
+  const latestRun = JSON.parse(
+    await readFile(join(generatorRoot, "latest.json"), "utf8"),
+  );
+  await writeFile(
+    join(generatorRoot, "latest.json"),
+    JSON.stringify({ ...latestRun, hardSeedsBorn: 2 }, null, 2),
+  );
   await mkdir(join(root, daemonRoot, "generator-fund-closure"), {
     recursive: true,
   });
@@ -4383,6 +4336,80 @@ test("mechanism-first generator audit exposes closure fake-green when all closur
   assert.match(
     audit.closureYield.recommendedAction,
     /external scientific significance/,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("mechanism-first generator audit treats old closure yield as stale after strict no-birth run", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ replacementCandidates: true });
+  await mkdir(join(root, daemonRoot, "generator-fund-closure"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-fund-closure", "latest.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_fund_closure",
+        status: "continue_searching_checkpointed",
+        checkpointUsed: null,
+        nextCheckpointRef:
+          ".sovryn/discovery-daemon/checkpoints/test-generator-fund-closure.json",
+        closureCandidateCount: 2,
+        closureCandidateResults: [],
+        discoveryScoredCandidates: 0,
+        nonDiscoveryClassifiedCandidates: 2,
+        fundClassDistribution: {
+          pipeline_fund_candidate: 2,
+        },
+        candidateId: null,
+        discoveryCandidateId: null,
+        exactClaim: null,
+        predictionsFrozen: 0,
+        predictionsExecuted: 0,
+        nonObviousPredictions: 0,
+        killWeekComplete: false,
+        fatalUnresolvedAttack: false,
+        externalReviewPackagePath: null,
+        fundCandidateDraftRef: null,
+        packageArtifactGatesPassed: false,
+        fundGateResult: {
+          passed: false,
+          gates: [],
+          failedGates: ["candidate_present"],
+        },
+        fundFound: false,
+        remainingBottleneck: "all closure candidates are non-discovery",
+        artifactRefs: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, true);
+  assert.equal(audit.hardSeedsBorn, 0);
+  assert.equal(audit.closureYield.closureRunFound, true);
+  assert.equal(audit.closureYield.allClosedAsNonDiscovery, true);
+  assert.equal(
+    audit.failedGates.includes("post_closure_discovery_yield_not_fake_green"),
+    false,
+  );
+  assert.equal(
+    audit.replacementRequirements.every(
+      (item) =>
+        item.dominantBlocker === "unsupported_domain_significance_hypothesis",
+    ),
+    true,
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
@@ -5025,7 +5052,10 @@ test("discover-daemon discovery anchor run consumes queue but blocks design-prof
   assert.equal(run.runtimeChecks, 3);
   assert.equal(run.hardSeedBirthAttempts, 3);
   assert.equal(run.hardSeedsBorn, 0);
-  assert.equal(run.blockedOutputsByCause.missing_runtime_evidence >= 1, true);
+  assert.equal(
+    run.blockedOutputsByCause.untested_domain_significance_hypothesis >= 1,
+    true,
+  );
   assert.equal(run.insightCandidatesCreated, 0);
   assert.equal(run.discoveryCandidatesCreated, 0);
   assert.equal(run.fundFound, false);
@@ -6883,7 +6913,7 @@ test("discover-daemon overnight-min-runtime stops on replacement-required genera
   );
 });
 
-test("discover-daemon overnight-min-runtime stops after generator closure yields only non-discovery classes", async () => {
+test("discover-daemon overnight-min-runtime stops after generator domain-significance birth blocker", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -6917,9 +6947,9 @@ test("discover-daemon overnight-min-runtime stops after generator closure yields
   ]);
   assert.equal(
     report.generatorReplacementDominantBlocker,
-    "post_closure_non_discovery:pipeline_fund_candidate",
+    "unsupported_domain_significance_hypothesis",
   );
-  assert.match(report.remainingBottleneck, /post-closure non-discovery/);
+  assert.match(report.remainingBottleneck, /generator surface/i);
 
   const runningCheckpoint = JSON.parse(
     await readFile(
@@ -6940,7 +6970,7 @@ test("discover-daemon overnight-min-runtime stops after generator closure yields
   ]);
   assert.equal(
     runningCheckpoint.generatorReplacementDominantBlocker,
-    "post_closure_non_discovery:pipeline_fund_candidate",
+    "unsupported_domain_significance_hypothesis",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

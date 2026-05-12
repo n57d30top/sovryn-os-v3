@@ -1273,6 +1273,7 @@ export type HardSeedBirthEvaluationInput = {
   targetId: string;
   domain: DiscoveryDomain;
   externalProblemAnchor?: ExternalProblemAnchor | null;
+  domainSignificanceHypothesis?: DomainSignificanceHypothesis | null;
   generatorOnlySignal?: boolean;
   packageOnlySignal?: boolean;
   internallyInterestingOnly?: boolean;
@@ -1299,11 +1300,31 @@ export type HardSeedBirthEvaluationInput = {
   holdoutReplayAvailable: boolean;
 };
 
+export type DomainSignificanceHypothesis = {
+  statement: string;
+  expectedDomainChange: string;
+  noveltyDiscriminator: string;
+  falsifier: string;
+  evidenceRefs: string[];
+  tested: boolean;
+  supported: boolean;
+};
+
+export type DomainSignificanceHypothesisGateAssessment = {
+  kind: "domain_significance_hypothesis_gate_assessment";
+  accepted: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  blockers: string[];
+  evidenceHash: string;
+};
+
 export type HardSeedBirthEvaluation = {
   kind: "hard_seed_birth_evaluation";
   generatorId: string;
   targetId: string;
   externalValueGate: ExternalValueGateAssessment;
+  domainSignificanceHypothesisGate: DomainSignificanceHypothesisGateAssessment;
   runtimeEvidenceKind: NonNullable<
     HardSeedBirthEvaluationInput["runtimeEvidenceKind"]
   >;
@@ -1337,6 +1358,8 @@ export type MechanismFirstGeneratorOutput = {
   evidenceRefs: string[];
   externalProblemAnchor: ExternalProblemAnchor;
   externalValueGate: ExternalValueGateAssessment;
+  domainSignificanceHypothesis: DomainSignificanceHypothesis;
+  domainSignificanceHypothesisGate: DomainSignificanceHypothesisGateAssessment;
   measuredVariable: string;
   measuredOutcome: number;
   residualMagnitude: number;
@@ -11554,6 +11577,159 @@ function externalAnchorLooksPipelineOnly(
   return operationalTerms && !scientificTerms;
 }
 
+function domainSignificanceHypothesisFromExternalAnchor(
+  anchor: ExternalProblemAnchor,
+  input: {
+    noveltyDiscriminator: string;
+    falsifier: string;
+    tested: boolean;
+    supported: boolean;
+  },
+): DomainSignificanceHypothesis {
+  return {
+    statement: anchor.domainScientificSignificance,
+    expectedDomainChange: anchor.discoveryScoredOutcome,
+    noveltyDiscriminator: input.noveltyDiscriminator,
+    falsifier: input.falsifier,
+    evidenceRefs: anchor.significanceEvidenceRefs,
+    tested: input.tested,
+    supported: input.supported,
+  };
+}
+
+export class DomainSignificanceHypothesisGate {
+  evaluate(input: {
+    hypothesis?: DomainSignificanceHypothesis | null;
+    sourceRefs: string[];
+    evidenceRefs: string[];
+  }): DomainSignificanceHypothesisGateAssessment {
+    const hypothesis = input.hypothesis ?? null;
+    const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
+    const statement = normalizeWhitespace(hypothesis?.statement ?? "");
+    const expectedDomainChange = normalizeWhitespace(
+      hypothesis?.expectedDomainChange ?? "",
+    );
+    const noveltyDiscriminator = normalizeWhitespace(
+      hypothesis?.noveltyDiscriminator ?? "",
+    );
+    const falsifier = normalizeWhitespace(hypothesis?.falsifier ?? "");
+    const combined = [
+      statement,
+      expectedDomainChange,
+      noveltyDiscriminator,
+      falsifier,
+    ]
+      .join(" ")
+      .toLowerCase();
+    const scientificTerms =
+      /\b(scientific|formal|proof|refutation|conjecture|measurement|domain|mechanism|residual|invariant|boundary|causal|physical|astronom|material|climate|energy|benchmark)\b/.test(
+        combined,
+      );
+    const noveltyTerms =
+      /\b(previously unknown|novel|new mechanism|new boundary|validated conjecture|checked proof|checked refutation|changes? interpretation|not documented|outside known source-family|beyond known source-family)\b/.test(
+        combined,
+      );
+    const pipelineOnly =
+      /\b(pipeline|package|tool install|tool capability|runtime reproduction|preflight|audit|manifest)\b/.test(
+        combined,
+      ) && !scientificTerms;
+    const hypothesisRefs = hypothesis?.evidenceRefs ?? [];
+    const gates = [
+      gate(
+        "domain_significance_hypothesis_present",
+        hypothesis !== null,
+        "HardSeed birth requires an explicit pre-birth domain-significance hypothesis, not only a runtime residual.",
+      ),
+      gate(
+        "domain_significance_statement",
+        statement.length >= 48 && scientificTerms && !pipelineOnly,
+        "The domain-significance hypothesis must state the scientific/formal/measurement significance being tested.",
+      ),
+      gate(
+        "domain_significance_expected_change",
+        expectedDomainChange.length >= 48 && scientificTerms && !pipelineOnly,
+        "The hypothesis must state what external domain interpretation, formal boundary, or measurement conclusion would change.",
+      ),
+      gate(
+        "domain_significance_novelty_discriminator",
+        noveltyDiscriminator.length >= 32 && noveltyTerms,
+        "The hypothesis must define a novelty discriminator against known/source-family mechanisms.",
+      ),
+      gate(
+        "domain_significance_falsifier",
+        falsifier.length >= 32,
+        "The hypothesis must define a falsifier before HardSeed birth.",
+      ),
+      gate(
+        "domain_significance_refs_bound",
+        hypothesisRefs.length > 0 &&
+          hypothesisRefs.every((ref) => ref.startsWith("https://")) &&
+          hypothesisRefs.every((ref) => allRefs.includes(ref)) &&
+          hypothesisRefs.every(publicSafeRef),
+        "The domain-significance hypothesis must bind public-safe external evidence refs already present in the runtime evidence set.",
+      ),
+      gate(
+        "domain_significance_tested",
+        hypothesis?.tested === true,
+        "The domain-significance hypothesis must be tested by runtime evidence before HardSeed birth.",
+      ),
+      gate(
+        "domain_significance_supported",
+        hypothesis?.supported === true,
+        "The domain-significance hypothesis must be supported by runtime evidence before HardSeed birth.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const blockers = uniqueStrings([
+      hypothesis === null ? "missing_domain_significance_hypothesis" : "",
+      gates.some(
+        (item) => item.code === "domain_significance_statement" && !item.passed,
+      )
+        ? "weak_domain_significance_statement"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "domain_significance_expected_change" && !item.passed,
+      )
+        ? "missing_domain_significance_expected_change"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "domain_significance_novelty_discriminator" &&
+          !item.passed,
+      )
+        ? "missing_domain_significance_novelty_discriminator"
+        : "",
+      gates.some(
+        (item) => item.code === "domain_significance_falsifier" && !item.passed,
+      )
+        ? "missing_domain_significance_falsifier"
+        : "",
+      gates.some(
+        (item) =>
+          item.code === "domain_significance_refs_bound" && !item.passed,
+      )
+        ? "missing_domain_significance_evidence_refs"
+        : "",
+      hypothesis?.tested === true
+        ? ""
+        : "untested_domain_significance_hypothesis",
+      hypothesis?.supported === true
+        ? ""
+        : "unsupported_domain_significance_hypothesis",
+    ]).filter(Boolean);
+    return withEvidenceHash({
+      kind: "domain_significance_hypothesis_gate_assessment" as const,
+      accepted: failedGates.length === 0,
+      gates,
+      failedGates,
+      blockers,
+    });
+  }
+}
+
 export class HardSeedBirthEvaluator {
   evaluate(input: HardSeedBirthEvaluationInput): HardSeedBirthEvaluation {
     const runtimeEvidenceKind =
@@ -11575,11 +11751,22 @@ export class HardSeedBirthEvaluator {
       sourceFamilyDocumentedSignal: input.sourceFamilyDocumentedSignal,
       knownTrivialSignal: input.knownTrivialSignal,
     });
+    const domainSignificanceHypothesisGate =
+      new DomainSignificanceHypothesisGate().evaluate({
+        hypothesis: input.domainSignificanceHypothesis ?? null,
+        sourceRefs: input.sourceRefs,
+        evidenceRefs: input.evidenceRefs,
+      });
     const gates = [
       gate(
         "external_value_gate",
         externalValueGate.accepted,
         "HardSeed birth requires an external problem anchor with public inspectability and non-internal value before runtime evidence can count.",
+      ),
+      gate(
+        "domain_significance_hypothesis_gate",
+        domainSignificanceHypothesisGate.accepted,
+        "HardSeed birth requires a tested and supported domain-significance hypothesis before runtime evidence can count.",
       ),
       gate(
         "runtime_evidence_present",
@@ -11640,6 +11827,7 @@ export class HardSeedBirthEvaluator {
       .map((item) => item.code);
     const blockers = uniqueStrings([
       ...externalValueGate.blockers,
+      ...domainSignificanceHypothesisGate.blockers,
       input.runtimeEvidencePresent ? "" : "missing_runtime_evidence",
       runtimeEvidenceKind === "deterministic_design_profile"
         ? "design_profile_not_runtime_evidence"
@@ -11668,6 +11856,7 @@ export class HardSeedBirthEvaluator {
       generatorId: input.generatorId,
       targetId: input.targetId,
       externalValueGate,
+      domainSignificanceHypothesisGate,
       runtimeEvidenceKind,
       accepted,
       status: accepted ? ("born" as const) : ("blocked" as const),
@@ -11836,12 +12025,15 @@ export class MechanismFirstEvidenceGeneratorService {
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
     const closureYield = generatorClosureYieldSignal(closure);
+    const closureYieldAppliesToLatestRun =
+      closureYield.allClosedAsNonDiscovery &&
+      latest !== null &&
+      latest.hardSeedsBorn > 0;
     const baseReplacementRequirements =
       latest?.replacementRequirements ??
       generatorFamilyReplacementRequirements(outputs, registry.families);
     const replacementRequirements =
-      closureYield.allClosedAsNonDiscovery &&
-      baseReplacementRequirements.length > 0
+      closureYieldAppliesToLatestRun && baseReplacementRequirements.length > 0
         ? generatorClosureReplacementRequirements(
             baseReplacementRequirements,
             registry.families,
@@ -11849,7 +12041,7 @@ export class MechanismFirstEvidenceGeneratorService {
           )
         : baseReplacementRequirements;
     const replacementRequired =
-      closureYield.allClosedAsNonDiscovery ||
+      closureYieldAppliesToLatestRun ||
       (latest?.replacementRequired ??
         replacementRequirements.some(
           (item) => item.status === "replacement_required",
@@ -11944,7 +12136,7 @@ export class MechanismFirstEvidenceGeneratorService {
       ),
       gate(
         "post_closure_discovery_yield_not_fake_green",
-        !closureYield.allClosedAsNonDiscovery,
+        !closureYieldAppliesToLatestRun,
         "Generator audit must not stay green after package/Fund closure classifies every closure candidate as non-discovery.",
       ),
       gate(
@@ -15362,11 +15554,36 @@ async function discoveryGradeAnchorRuntimeCheck(
             "No cached external runtime-source artifact was found, so this check only uses the selected anchor design profile. Design profiles cannot birth HardSeeds.",
         }
       : runtimeSource.receipt;
+  const domainSignificanceHypothesis =
+    domainSignificanceHypothesisFromExternalAnchor(externalProblemAnchor, {
+      noveltyDiscriminator: normalizeWhitespace(
+        [
+          "The runtime source must show a not documented outside known source-family signal that changes interpretation of the external measured target outcome.",
+          profile.frozenPrediction,
+        ].join(" "),
+      ),
+      falsifier: normalizeWhitespace(
+        [
+          "The domain-significance hypothesis is falsified if the strongest rival, same-family control, counterexample, or simple baseline explains the measured outcome.",
+          profile.rivalPrediction,
+        ].join(" "),
+      ),
+      tested: runtimeEvidencePresent,
+      supported:
+        runtimeEvidencePresent &&
+        !anchor.knownSourceFamilyMechanism &&
+        rivalWeakened &&
+        nontrivialResidual &&
+        crossSourceSupport &&
+        !counterexampleCollapsed &&
+        holdoutReplayAvailable,
+    });
   const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
     generatorId: anchor.recommendedGeneratorDesign,
     targetId: checkId,
     domain: anchor.domain,
     externalProblemAnchor,
+    domainSignificanceHypothesis,
     runtimeEvidencePresent,
     runtimeEvidenceKind,
     sourceRefs,
@@ -18328,26 +18545,51 @@ export class ExternalFormalAnchorSelectionService {
       `${daemonArtifactRoot}/${formalAnchorSelectionDir}/TOP3_FORMAL_PILOT_CHECKS.md#${outputId}`,
       producedArtifact,
     ]).filter(Boolean);
+    const externalProblemAnchor: ExternalProblemAnchor = {
+      anchorId: anchor.anchorId,
+      anchorType: "known_formal_question",
+      sourceRef: anchor.sourceRef,
+      problemStatement: anchor.problemAnchor,
+      measuredTargetOutcome: anchor.measurableFormalOutcome,
+      knownBaselineOrPrior: anchor.rivalMechanisms.join("; "),
+      externalValueRationale:
+        "The pilot starts from a public formal problem anchor rather than a generator-internal signal.",
+      domainScientificSignificance:
+        "A checked bounded formal boundary can have domain scientific significance only when it changes what is known about the public formal problem anchor rather than replaying an internal generator pattern.",
+      discoveryScoredOutcome:
+        "A discovery-scored outcome would be a checked proof, checked refutation, or bounded validated conjecture with external formal value that survives known-prior, rival, counterexample, and replay pressure.",
+      significanceEvidenceRefs: [anchor.sourceRef, anchor.inspectabilityRef],
+      inspectabilityRef: anchor.inspectabilityRef,
+    };
+    const domainSignificanceHypothesis =
+      domainSignificanceHypothesisFromExternalAnchor(externalProblemAnchor, {
+        noveltyDiscriminator: normalizeWhitespace(
+          [
+            "The pilot must expose a not documented outside known source-family formal boundary that changes interpretation of the public formal problem anchor.",
+            profile.candidateMechanismPrediction,
+          ].join(" "),
+        ),
+        falsifier: normalizeWhitespace(
+          [
+            "The domain-significance hypothesis is falsified by known-prior absorption, rival mechanism dominance, or a bounded counterexample.",
+            anchor.rivalMechanisms[0] ?? "known-prior rival mechanism",
+          ].join(" "),
+        ),
+        tested: true,
+        supported:
+          !profile.knownTrivial &&
+          profile.rivalWeakened &&
+          profile.nontrivialResidual &&
+          profile.crossSourceSupport &&
+          !profile.counterexampleCollapsed &&
+          profile.holdoutReplayAvailable,
+      });
     const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
       generatorId: "external_formal_anchor_pilot",
       targetId,
       domain: anchor.domain,
-      externalProblemAnchor: {
-        anchorId: anchor.anchorId,
-        anchorType: "known_formal_question",
-        sourceRef: anchor.sourceRef,
-        problemStatement: anchor.problemAnchor,
-        measuredTargetOutcome: anchor.measurableFormalOutcome,
-        knownBaselineOrPrior: anchor.rivalMechanisms.join("; "),
-        externalValueRationale:
-          "The pilot starts from a public formal problem anchor rather than a generator-internal signal.",
-        domainScientificSignificance:
-          "A checked bounded formal boundary can have domain scientific significance only when it changes what is known about the public formal problem anchor rather than replaying an internal generator pattern.",
-        discoveryScoredOutcome:
-          "A discovery-scored outcome would be a checked proof, checked refutation, or bounded validated conjecture with external formal value that survives known-prior, rival, counterexample, and replay pressure.",
-        significanceEvidenceRefs: [anchor.sourceRef, anchor.inspectabilityRef],
-        inspectabilityRef: anchor.inspectabilityRef,
-      },
+      externalProblemAnchor,
+      domainSignificanceHypothesis,
       runtimeEvidencePresent: true,
       sourceRefs,
       evidenceRefs,
@@ -23213,6 +23455,14 @@ function formalAnchorDeathCause(
   birthEvaluation: HardSeedBirthEvaluation,
 ): DeathCause {
   if (profile.knownTrivial) return "known_trivial";
+  const failedGates = new Set(birthEvaluation.failedGates);
+  if (failedGates.has("baseline_resistance")) return "baseline_dominated";
+  if (failedGates.has("rival_weakened_or_scoped"))
+    return "rival_theory_stronger";
+  if (failedGates.has("counterexample_pressure_nonfatal"))
+    return "counterexample_dense";
+  if (failedGates.has("holdout_replay_path_available"))
+    return "no_holdout_path";
   const blocker = birthEvaluation.primaryBlocker ?? "";
   if (blocker.startsWith("baseline_dominated")) return "baseline_dominated";
   if (blocker === "rival_theory_stronger") return "rival_theory_stronger";
@@ -25043,11 +25293,16 @@ function mechanismFirstGeneratorOutput(
       explainsSignal: profile.nullExplains,
     },
   ];
+  const domainSignificanceHypothesis = generatorDomainSignificanceHypothesis(
+    family,
+    profile,
+  );
   const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
     generatorId: family.generatorId,
     targetId,
     domain: family.domain,
     externalProblemAnchor: family.externalProblemAnchor,
+    domainSignificanceHypothesis,
     generatorOnlySignal: profile.generatorOnlySignal,
     packageOnlySignal: profile.packageOnlySignal,
     internallyInterestingOnly: profile.internallyInterestingOnly,
@@ -25070,6 +25325,7 @@ function mechanismFirstGeneratorOutput(
         targetId,
         outputId,
         externalProblemAnchor: family.externalProblemAnchor,
+        domainSignificanceHypothesis,
         sourceRefs,
         evidenceRefs,
         measuredOutcome: profile.measuredOutcome,
@@ -25086,6 +25342,9 @@ function mechanismFirstGeneratorOutput(
     evidenceRefs,
     externalProblemAnchor: family.externalProblemAnchor,
     externalValueGate: birthEvaluation.externalValueGate,
+    domainSignificanceHypothesis,
+    domainSignificanceHypothesisGate:
+      birthEvaluation.domainSignificanceHypothesisGate,
     measuredVariable: profile.measuredVariable,
     measuredOutcome: profile.measuredOutcome,
     residualMagnitude: profile.residualMagnitude,
@@ -25131,6 +25390,8 @@ function generatorOutcomeProfile(
   internallyInterestingOnly: boolean;
   sourceFamilyDocumentedSignal: boolean;
   knownTrivialSignal: boolean;
+  domainSignificanceTested: boolean;
+  domainSignificanceSupported: boolean;
   secondarySourceRef: string;
   candidatePrediction: string;
   rivalPrediction: string;
@@ -25161,6 +25422,8 @@ function generatorOutcomeProfile(
       internallyInterestingOnly,
       sourceFamilyDocumentedSignal: true,
       knownTrivialSignal: born,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: false,
       secondarySourceRef: `https://mat.tepper.cmu.edu/COLOR/instances.html#dimacs-anchor-${ordinal}`,
       candidatePrediction:
         "the bounded coloring boundary persists under size density clique and trivial invariant controls across disjoint generated graph families tied to the public benchmark anchor",
@@ -25190,6 +25453,8 @@ function generatorOutcomeProfile(
       internallyInterestingOnly: false,
       sourceFamilyDocumentedSignal: false,
       knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: false,
       secondarySourceRef: `https://www.openml.org/t/31#protocol-anchor-${ordinal}`,
       candidatePrediction:
         "the protocol delta persists after split metric shuffled-label class-balance and stronger-model perturbations",
@@ -25224,6 +25489,8 @@ function generatorOutcomeProfile(
       internallyInterestingOnly: false,
       sourceFamilyDocumentedSignal: false,
       knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: false,
       secondarySourceRef: `https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html#bounded-sat-anchor-${ordinal}`,
       candidatePrediction:
         "the bounded formula-structure residual persists after clause-variable ratio unit-propagation pure-literal random-CNF and planted-control baselines",
@@ -25254,6 +25521,8 @@ function generatorOutcomeProfile(
       internallyInterestingOnly: ordinal === 10,
       sourceFamilyDocumentedSignal: false,
       knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: false,
       secondarySourceRef: `https://snap.stanford.edu/data/#network-cut-anchor-${ordinal}`,
       candidatePrediction:
         "the cut-resilience residual recurs across source-family independent graph slices after degree-sequence density component-size and random-rewire controls",
@@ -25284,6 +25553,8 @@ function generatorOutcomeProfile(
       internallyInterestingOnly: false,
       sourceFamilyDocumentedSignal: false,
       knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: false,
       secondarySourceRef: `https://www.openml.org/search?type=task#shift-instability-anchor-${ordinal}`,
       candidatePrediction:
         "the dataset-shift instability residual persists across independent OpenML task families after class-imbalance metric split shuffled-label and stronger-model controls",
@@ -25312,6 +25583,8 @@ function generatorOutcomeProfile(
     internallyInterestingOnly: ordinal === 2,
     sourceFamilyDocumentedSignal: false,
     knownTrivialSignal: false,
+    domainSignificanceTested: true,
+    domainSignificanceSupported: false,
     secondarySourceRef: `https://developer.nrel.gov/docs/solar/pvdaq-v3/#measurement-anchor-${ordinal}`,
     candidatePrediction:
       "the public measurement residual recurs across independent station or time slices after seasonality cadence and missingness controls",
@@ -25320,11 +25593,38 @@ function generatorOutcomeProfile(
   };
 }
 
+function generatorDomainSignificanceHypothesis(
+  family: MechanismFirstGeneratorFamily,
+  profile: ReturnType<typeof generatorOutcomeProfile>,
+): DomainSignificanceHypothesis {
+  return {
+    statement: family.externalProblemAnchor.domainScientificSignificance,
+    expectedDomainChange: family.externalProblemAnchor.discoveryScoredOutcome,
+    noveltyDiscriminator: normalizeWhitespace(
+      [
+        "The claimed signal must be not documented outside known source-family behavior and must change interpretation of the external target outcome.",
+        `Candidate prediction: ${profile.candidatePrediction}.`,
+        `Rival prediction: ${profile.rivalPrediction}.`,
+      ].join(" "),
+    ),
+    falsifier: normalizeWhitespace(
+      [
+        "The significance claim is falsified if source-family, metadata, simple baseline, or negative-control mechanisms erase the residual.",
+        profile.rivalPrediction,
+      ].join(" "),
+    ),
+    evidenceRefs: family.externalProblemAnchor.significanceEvidenceRefs,
+    tested: profile.domainSignificanceTested,
+    supported: profile.domainSignificanceSupported,
+  };
+}
+
 function generatorBirthEligibleHardSeed(input: {
   family: MechanismFirstGeneratorFamily;
   targetId: string;
   outputId: string;
   externalProblemAnchor: ExternalProblemAnchor;
+  domainSignificanceHypothesis: DomainSignificanceHypothesis;
   sourceRefs: string[];
   evidenceRefs: string[];
   measuredOutcome: number;
@@ -25333,7 +25633,10 @@ function generatorBirthEligibleHardSeed(input: {
   const claim = normalizeWhitespace(
     [
       `Mechanism-first generator ${input.family.generatorId} produced a birth-eligible hard seed for ${input.family.measurableOutcome}.`,
-      `The narrow seed says only that target ${input.targetId} deserves downstream InsightCandidate pressure because the runtime evidence survived simple baselines, rivals, counterexamples, cross-source support, and holdout/replay availability.`,
+      `Domain scientific significance hypothesis: ${input.domainSignificanceHypothesis.statement}`,
+      `Expected domain change: ${input.domainSignificanceHypothesis.expectedDomainChange}`,
+      `Novelty discriminator: ${input.domainSignificanceHypothesis.noveltyDiscriminator}`,
+      `The narrow seed says only that target ${input.targetId} deserves downstream InsightCandidate pressure because the runtime evidence survived simple baselines, rivals, counterexamples, cross-source support, holdout/replay availability, and the pre-birth domain-significance hypothesis gate.`,
     ].join(" "),
   );
   return baseHardSeed({
@@ -25356,6 +25659,7 @@ function generatorBirthEligibleHardSeed(input: {
       targetId: input.targetId,
       outputId: input.outputId,
       externalProblemAnchor: input.externalProblemAnchor,
+      domainSignificanceHypothesis: input.domainSignificanceHypothesis,
       noFundClaim: true,
     },
     score: 72,
@@ -25486,6 +25790,13 @@ function generatorReplacementRequiredChange(
   }
   if (dominantBlocker === "no_nontrivial_residual") {
     return "Replace the target outcome or mechanism prediction; current evidence has no nontrivial residual beyond simple controls.";
+  }
+  if (
+    dominantBlocker === "missing_domain_significance_hypothesis" ||
+    dominantBlocker === "unsupported_domain_significance_hypothesis" ||
+    dominantBlocker === "untested_domain_significance_hypothesis"
+  ) {
+    return "Redesign the generator so runtime evidence tests and supports an explicit domain-scientific-significance hypothesis before HardSeed birth; residual survival alone is insufficient.";
   }
   return `Redesign ${family.generatorId} around a stronger external target outcome, explicit rival falsifier, independent recurrence, and replayable runtime evidence.`;
 }
@@ -33554,7 +33865,7 @@ function generatorBornDomainSignificanceAssessment(input: {
       claimText,
     );
   const explicitNovelty =
-    /\bpreviously unknown\b|\bnovel\b|\bnew mechanism\b|\bvalidated conjecture\b|\bchecked proof\b|\bchecked refutation\b/.test(
+    /\bpreviously unknown\b|\bnovel\b|\bnew mechanism\b|\bnew boundary\b|\bnot documented\b|\boutside known source-family\b|\bchanges? interpretation\b|\bvalidated conjecture\b|\bchecked proof\b|\bchecked refutation\b/.test(
       claimText,
     );
   const ordinaryKnownMechanism =

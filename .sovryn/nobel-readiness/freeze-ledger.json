@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_freeze_ledger",
-  "frozenAt": "2026-05-11T10:19:00.055Z",
+  "frozenAt": "2026-05-12T09:46:15.238Z",
   "predictionCount": 24,
   "cards": [
     {
@@ -17,8 +17,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "4f46a4ed7d6af6d91a715f31d820d4ccdc047e114c8ded4cc28d446f4ad13fb4"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "adc7275ce9c04f8b78eb6a683b6c3bb722640d0ac0c6868dc886fa13500ea9c2"
     },
     {
       "predictionId": "NR-PRED-002",
@@ -34,8 +34,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "1af2ad10e42670a9ad2c26d8e201dee637a51f27692b1e3603689d44f0a12292"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "608956bd5f4be0dab2ebdb5ed0794d57c7b9648a1ee24ff0a49dd594a0b771bb"
     },
     {
       "predictionId": "NR-PRED-003",
@@ -51,8 +51,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "f06ca2170847e3b1160f8cf83788e0f4eecd637eaa17ed9017d2e97772256708"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "a0a0525ee0de52c1250a24cb5419889cb510b1e55e52820de4e6c19ff425c745"
     },
     {
       "predictionId": "NR-PRED-004",
@@ -68,8 +68,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "aaca284402323c0d24c09204f257435589b52fd39dfa4f11381328f8737ef217"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "6a4a7004f8bb316be39cf042974a693573cf47ed7d2bdbbef75449882c42c38c"
     },
     {
       "predictionId": "NR-PRED-005",
@@ -85,8 +85,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "c624f1a106864b6f05d9dad39c32419a38167214ddb945d0b82632b871fc3b38"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "20c4970188437a57bfc1843d60f6ff2b8aa143bd3a4728e07879183121d1ae8e"
     },
     {
       "predictionId": "NR-PRED-006",
@@ -102,8 +102,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "cf2b0348d78b683bd95205a4aabc87309ac7193eb799976a6a8ca5e3b1f9c762"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "b0834af80f340b4a9763ab1fcb6e916ac07ebcbef4c82a5b9b7b78cece8d9f61"
     },
     {
       "predictionId": "NR-PRED-007",
@@ -119,8 +119,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "3f49debb401a84233b17e1873f4fc89df2027b348a56795974351c5175259e5e"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "4e6046865f70d843ad731a531d6bdd96a1d90f160bf4cdeba6b7de383f60f6df"
     },
     {
       "predictionId": "NR-PRED-008",
@@ -136,8 +136,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "fd10a583f44b03ad288af7fb5aecdc1f048d34a0df5167ec412aed8b39fa8ec2"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "43cbebf408b02092b5780cc1701a40a870727e497b033643d8adcb1afef227ba"
     },
     {
       "predictionId": "NR-PRED-009",
@@ -153,8 +153,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "88fba2e9d4aa2197a369a99db105b5d95389b5e5b63801bf69c40732525d04ad"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "997c64b0e54e83a9fc31b83fdebbb4e4a71afeb346bbfdd1ce313a27b9ddcd6c"
     },
     {
       "predictionId": "NR-PRED-010",
@@ -170,8 +170,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "398c3f16f09b6db9be9e656b92e231b1ffa8e0feb43a302303632f9b41983c14"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "e37751cbecda7daee88e62a13d47bdb964bcaa10b5662c3b7a0f038fe75ba662"
     },
     {
       "predictionId": "NR-PRED-011",
@@ -187,8 +187,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "2e3b48deac6bab78c9603f055a62e44daa175e09c69dd3471abe55a2da5c41a1"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "03a39e12dbd9e3ce6937834a1f0d7f9eee67812a3b7671367e8dc0ec468c71a2"
     },
     {
       "predictionId": "NR-PRED-012",
@@ -204,8 +204,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "f548acf695a5babe91108454b538eb28c386a0e74c3fd0571338cd4115e74ab3"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "89b9353576cb80872984a9098c267f33e574bf4119288911d1d2699ff1613572"
     },
     {
       "predictionId": "NR-PRED-013",
@@ -221,8 +221,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "6313d157c58ee2fc1eaeffb3c0ef314505d81b323241c50e8c7b9a33c380c753"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "a0d0da1e0dd513b5c7e3c5902eff2f1fe310f12d08bff7c8c5030ebd13434f04"
     },
     {
       "predictionId": "NR-PRED-014",
@@ -238,8 +238,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "7e6c54aac129a2a9deec000ceb76d8e5325cd8641487c3cd4c06056801a43d75"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "b8b90a75e40aabe00d0bb4b153dbd7cb442ca4ac627a9a9ff14002bf2e706dcd"
     },
     {
       "predictionId": "NR-PRED-015",
@@ -255,8 +255,8 @@
       "holdoutPlan": "higher bounds and edge structures",
       "replayPlan": "deterministic recomputation",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "2853b010291991e342e15c007830aa78f199ac0e9af51be9b050ac1bdd81b992"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "b95820273795c589535a1bd7ec03470a8c6a4a9550a64eb38cc97fd69ea69915"
     },
     {
       "predictionId": "NR-PRED-016",
@@ -272,8 +272,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "624ec900873773ceb37f19a7742d36eda822c11e5f18b225ba20c0cbf7abaf07"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "fd87c64c52122cf6f16763715a88194772106205710c2f4e4b8c3a4c0a95c9fe"
     },
     {
       "predictionId": "NR-PRED-017",
@@ -289,8 +289,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "eee79d98353d84e83305fc8983db42f20dd5e92f8d827aaffc5540cc71bf1998"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "c65da73ad5f9c9b894ac17cbbec3c6a97c0e6a2e110b5e750862c85f93ac17cb"
     },
     {
       "predictionId": "NR-PRED-018",
@@ -306,8 +306,8 @@
       "holdoutPlan": "unseen material families",
       "replayPlan": "public table replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "0c32c14207d049300195e74550570fb1d1b24e722f89c1810bd7fe15a29d8639"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "269c3777363981dec781510fbdf3c20d1dc18a1c81aaa4911ae2ad69267d8450"
     },
     {
       "predictionId": "NR-PRED-019",
@@ -323,8 +323,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "84ad75e4e72781bb08725abf695206c853be31533accb140fb584c12a86d4d1d"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "68ab33a98adc3e807f636726b5ba3897d4339560a12acfc4d335564ea0bc09fa"
     },
     {
       "predictionId": "NR-PRED-020",
@@ -340,8 +340,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "45265d7c9f2b8af1bcad7b674a020e62ce9438a6df8ff3ba764419acdd027d3c"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "4fa2df73afccdfc3298b7f1e243747f76f4d43bedd81aa269e1441b12d60b04c"
     },
     {
       "predictionId": "NR-PRED-021",
@@ -357,8 +357,8 @@
       "holdoutPlan": "catalog region or object-class holdouts",
       "replayPlan": "public catalog query replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "59146d292dfce1de1ba00121ecfd8822c7a25ccea8684e615e6e41f75c836617"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "13665de642a4c3f287e5aec4308fe0c444d30a8c5f8ba3a23d0b4f45325cfa20"
     },
     {
       "predictionId": "NR-PRED-022",
@@ -374,8 +374,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "d2f01a002d3d3ff02c8f5eafe760a08434777efb856dc525ab1da2e27bdf8e53"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "eb68e94ae1ac742f7970f216464e1239401f820e59883dc55569c42f2e7874a1"
     },
     {
       "predictionId": "NR-PRED-023",
@@ -391,8 +391,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "711ee78a430d6849b03ec16dd89ba2d57c7942934a394a7fb6a27c795c26c6f4"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "549925a506904870e6ce3f3508fbd445de7ff18f0568d397c6a692fc82dc7037"
     },
     {
       "predictionId": "NR-PRED-024",
@@ -408,8 +408,8 @@
       "holdoutPlan": "fresh repo package holdouts",
       "replayPlan": "fresh workspace replay",
       "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-      "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-      "preregistrationHash": "1829b4b7ac4e8b84f9758cb5c3afb1010aa3244dc7a193232c2445adbdd7393a"
+      "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+      "preregistrationHash": "9fbb9db983f2b05c178132e963f4d04852f85526fa83994a4be10928cf5bd4e4"
     }
   ],
   "categoryCounts": {
@@ -418,5 +418,5 @@
     "rival_favoring": 4,
     "low_risk_control": 4
   },
-  "ledgerHash": "c973bd819865eb4ee853866ed0b8d8e30afa8ade83591de1de03ddfbc11fe7c8"
+  "ledgerHash": "e869e12ce855800a4981cb5ec027ee079240b4924f95682d74bfda730e0becba"
 }

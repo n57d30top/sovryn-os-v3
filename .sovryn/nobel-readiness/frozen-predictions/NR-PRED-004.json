@@ -12,6 +12,6 @@
   "holdoutPlan": "unseen material families",
   "replayPlan": "public table replay",
   "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-  "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-  "preregistrationHash": "aaca284402323c0d24c09204f257435589b52fd39dfa4f11381328f8737ef217"
+  "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+  "preregistrationHash": "6a4a7004f8bb316be39cf042974a693573cf47ed7d2bdbbef75449882c42c38c"
 }

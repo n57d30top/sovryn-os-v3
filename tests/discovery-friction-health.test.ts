@@ -271,6 +271,76 @@ test("health friction command writes strict reports without creating Fund state"
   assert.match(targetLoadReport, /## TARGET-002/);
 });
 
+test("health friction reports active discovery Fund state only when root Fund artifacts and gate agree", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    terminalStatus: string;
+    fundFound: boolean;
+    discoveryCandidatesCreated: number;
+    fundGateResult: Record<string, unknown>;
+    promotionReadinessBlockers: string[];
+    fakeGreenAuditRisks: string[];
+    remainingBottleneck: string;
+    nextCheckpointRef: string;
+  };
+  assert.equal(data.terminalStatus, "discovery_fund_found");
+  assert.equal(data.fundFound, true);
+  assert.equal(data.discoveryCandidatesCreated, 1);
+  assert.equal(data.fundGateResult.status, "FUND_FOUND");
+  assert.equal(data.fundGateResult.passed, true);
+  assert.equal(
+    data.fundGateResult.fundClass,
+    "externally_review_ready_discovery_candidate",
+  );
+  assert.equal(data.fundGateResult.countsForEinsteinNobelDiscoveryScore, true);
+  assert.ok(
+    data.promotionReadinessBlockers.includes("external_expert_validation"),
+  );
+  assert.ok(
+    data.promotionReadinessBlockers.includes("readiness_reconciliation"),
+  );
+  assert.ok(
+    data.fakeGreenAuditRisks.includes(
+      "internal discovery Fund state still requires external expert validation before any Nobel/Einstein claim",
+    ),
+  );
+  assert.match(data.remainingBottleneck, /external expert validation/);
+  assert.match(data.nextCheckpointRef, /fund-found/);
+});
+
+test("health friction clears readiness reconciliation blocker when Nobel-readiness score consumed FundClass", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writeReconciledNobelReadinessScore(root);
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    nobelReadinessReconciled: boolean;
+    promotionReadinessBlockers: string[];
+    remainingBottleneck: string;
+  };
+  assert.equal(data.fundFound, true);
+  assert.equal(data.nobelReadinessReconciled, true);
+  assert.ok(
+    data.promotionReadinessBlockers.includes("external_expert_validation"),
+  );
+  assert.equal(
+    data.promotionReadinessBlockers.includes("readiness_reconciliation"),
+    false,
+  );
+  assert.match(data.remainingBottleneck, /Nobel-readiness reconciliation/);
+});
+
 test("health friction exposes formal-anchor no-birth yield as fake-green risk", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);
@@ -531,6 +601,55 @@ test("evidence refs verify and holdout audit commands expose repaired contracts"
     false,
   );
 });
+
+async function writeActiveDiscoveryFundState(root: string): Promise<void> {
+  const daemonRoot = join(root, ".sovryn/discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  await writeFile(
+    join(daemonRoot, "state.json"),
+    JSON.stringify({
+      kind: "discovery_daemon_state",
+      status: "FUND_FOUND",
+      fundFound: true,
+    }),
+  );
+  await writeFile(
+    join(daemonRoot, "fund-gate-results.json"),
+    JSON.stringify({
+      kind: "fund_gate_result",
+      candidateId: "DISCOVERY-LIFT-DEMO",
+      passed: true,
+      status: "FUND_FOUND",
+      fundClass: "externally_review_ready_discovery_candidate",
+      countsForEinsteinNobelDiscoveryScore: true,
+      notificationAllowed: true,
+      failedGates: [],
+    }),
+  );
+  await writeFile(join(daemonRoot, "FUND_FOUND.md"), "# FUND_FOUND\n");
+  await writeFile(
+    join(daemonRoot, "fund-candidate.json"),
+    JSON.stringify({
+      kind: "fund_candidate",
+      candidateId: "DISCOVERY-LIFT-DEMO",
+    }),
+  );
+}
+
+async function writeReconciledNobelReadinessScore(root: string): Promise<void> {
+  const readinessRoot = join(root, ".sovryn/nobel-readiness");
+  await mkdir(readinessRoot, { recursive: true });
+  await writeFile(
+    join(readinessRoot, "readiness-score.json"),
+    JSON.stringify({
+      kind: "nobel_readiness_score",
+      label: "externally_review_ready_candidate",
+      totalScore: 72,
+      externallyReviewReadyCandidateCount: 1,
+      einsteinNobelDiscoveryScoreEligible: true,
+    }),
+  );
+}
 
 async function writeFrictionFixture(root: string): Promise<void> {
   const marathonRoot = join(root, ".sovryn/discovery-daemon/marathon");

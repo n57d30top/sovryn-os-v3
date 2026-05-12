@@ -242,10 +242,11 @@ export type GeneratorFamilyYieldSignal = {
 export type DiscoveryFrictionHealthReport = {
   kind: "discovery_friction_health";
   terminalStatus:
+    | "discovery_fund_found"
     | "discovery_engine_materially_improved_continue_searching"
     | "blocked_by_real_scientific_signal_absence_continue_searching";
   timestamp: string;
-  fundFound: false;
+  fundFound: boolean;
   evidenceRefSummary: EvidenceRefResolutionSummary;
   evidenceRefsRepaired: number;
   evidenceRefsUnrepaired: number;
@@ -266,19 +267,39 @@ export type DiscoveryFrictionHealthReport = {
   holdoutIndependenceRate: number;
   promotionReadinessBlockers: string[];
   fakeGreenAuditRisks: string[];
+  nobelReadinessReconciled: boolean;
   formalAnchorYield: FormalAnchorYieldSignal;
   generatorFamilyYield: GeneratorFamilyYieldSignal;
   largestCodeHotspots: Array<{ file: string; lines: number; risk: string }>;
   discoveryCandidatesCreated: number;
-  fundGateResult: {
-    passed: false;
-    failedGates: ["candidate_present"];
-    status: "continue_searching";
-  };
+  fundGateResult: DiscoveryFrictionFundGateSummary;
   nextCheckpointRef: string;
   remainingBottleneck: string;
   artifactRefs: string[];
   evidenceHash: string;
+};
+
+export type DiscoveryFrictionFundGateSummary = {
+  passed: boolean;
+  failedGates: string[];
+  status: "FUND_FOUND" | "continue_searching";
+  candidateId?: string | null;
+  fundClass?: string | null;
+  countsForEinsteinNobelDiscoveryScore?: boolean;
+  notificationAllowed?: boolean;
+};
+
+type ActiveDiscoveryFundState = {
+  active: boolean;
+  fundGateResult: DiscoveryFrictionFundGateSummary;
+  rootFundArtifactsPresent: boolean;
+};
+
+type NobelReadinessReconciliationState = {
+  reconciled: boolean;
+  label: string | null;
+  totalScore: number | null;
+  einsteinNobelDiscoveryScoreEligible: boolean;
 };
 
 const daemonRootRel = ".sovryn/discovery-daemon";
@@ -842,33 +863,53 @@ export class DiscoveryFrictionHealthService {
     });
     const formalAnchorYield = await this.loadFormalAnchorYieldSignal();
     const generatorFamilyYield = await this.loadGeneratorFamilyYieldSignal();
+    const activeFundState = await this.loadActiveDiscoveryFundState();
+    const nobelReadinessState =
+      await this.loadNobelReadinessReconciliationState();
     const codeHotspots = await this.codeHotspots();
-    const rankedDeathCauses = rankDeathCauses(yieldReport.after.deathCauses);
+    const adjustedYieldAfter = {
+      ...yieldReport.after,
+      discoveryCandidatesCreated: activeFundState.active
+        ? Math.max(yieldReport.after.discoveryCandidatesCreated, 1)
+        : yieldReport.after.discoveryCandidatesCreated,
+      fundFound: activeFundState.active,
+      deathCauses: activeFundState.active
+        ? omitDeathCauses(yieldReport.after.deathCauses, ["candidate_present"])
+        : yieldReport.after.deathCauses,
+    };
+    const rankedDeathCauses = rankDeathCauses(adjustedYieldAfter.deathCauses);
     const promotionReadinessBlockers = promotionBlockers(
       evidence.summary,
       holdoutReport,
       yieldReport,
       formalAnchorYield,
       generatorFamilyYield,
+      activeFundState.active,
+      nobelReadinessState.reconciled,
     );
     const fakeGreenAuditRisks = fakeGreenRisks(
       evidence.summary,
       holdoutReport,
-      yieldReport,
+      { ...yieldReport, after: adjustedYieldAfter },
       codeHotspots,
       formalAnchorYield,
       generatorFamilyYield,
+      activeFundState.active,
+      nobelReadinessState.reconciled,
     );
-    const nextCheckpointRef =
-      ".sovryn/discovery-daemon/checkpoints/discovery-engine-friction-health-continue-searching.json";
+    const nextCheckpointRef = activeFundState.active
+      ? ".sovryn/discovery-daemon/checkpoints/discovery-engine-friction-health-fund-found.json"
+      : ".sovryn/discovery-daemon/checkpoints/discovery-engine-friction-health-continue-searching.json";
     const artifactRefs = reportArtifactRefs(engineRootRel);
     const report: DiscoveryFrictionHealthReport = {
       kind: "discovery_friction_health",
-      terminalStatus: yieldReport.materialImprovement
-        ? "discovery_engine_materially_improved_continue_searching"
-        : "blocked_by_real_scientific_signal_absence_continue_searching",
+      terminalStatus: activeFundState.active
+        ? "discovery_fund_found"
+        : yieldReport.materialImprovement
+          ? "discovery_engine_materially_improved_continue_searching"
+          : "blocked_by_real_scientific_signal_absence_continue_searching",
       timestamp: nowIso(),
-      fundFound: false,
+      fundFound: activeFundState.active,
       evidenceRefSummary: evidence.summary,
       evidenceRefsRepaired: Math.max(
         rootCause.failedRefs - evidence.summary.failedRefs,
@@ -888,7 +929,7 @@ export class DiscoveryFrictionHealthService {
         independenceRate: holdoutReport.independenceRate,
       },
       yieldBefore: before,
-      yieldAfter: yieldReport.after,
+      yieldAfter: adjustedYieldAfter,
       insightBirthGate: {
         evaluated: birthEvaluations.length,
         allowed: birthEvaluations.filter((item) => item.allowed).length,
@@ -907,30 +948,33 @@ export class DiscoveryFrictionHealthService {
       holdoutIndependenceRate: holdoutReport.independenceRate,
       promotionReadinessBlockers,
       fakeGreenAuditRisks,
+      nobelReadinessReconciled: nobelReadinessState.reconciled,
       formalAnchorYield,
       generatorFamilyYield,
       largestCodeHotspots: codeHotspots,
-      discoveryCandidatesCreated: 0,
-      fundGateResult: {
-        passed: false,
-        failedGates: ["candidate_present"],
-        status: "continue_searching",
-      },
+      discoveryCandidatesCreated: adjustedYieldAfter.discoveryCandidatesCreated,
+      fundGateResult: activeFundState.fundGateResult,
       nextCheckpointRef,
-      remainingBottleneck: remainingBottleneck(
-        evidence.summary,
-        holdoutReport,
-        yieldReport,
-        formalAnchorYield,
-        generatorFamilyYield,
-      ),
+      remainingBottleneck: activeFundState.active
+        ? nobelReadinessState.reconciled
+          ? "internal discovery-scored Fund state and Nobel-readiness reconciliation are present; remaining bottleneck is external expert validation, not candidate_present"
+          : "internal discovery-scored Fund state is present; remaining bottleneck is external expert validation and readiness reconciliation, not candidate_present"
+        : remainingBottleneck(
+            evidence.summary,
+            holdoutReport,
+            yieldReport,
+            formalAnchorYield,
+            generatorFamilyYield,
+          ),
       artifactRefs,
       evidenceHash: hashJson({
         evidenceSummary: evidence.summary,
         holdoutBank: holdoutReport,
-        yieldAfter: yieldReport.after,
+        yieldAfter: adjustedYieldAfter,
         formalAnchorYield,
         generatorFamilyYield,
+        activeFundState,
+        nobelReadinessState,
       }),
     };
 
@@ -949,11 +993,13 @@ export class DiscoveryFrictionHealthService {
       kind: "discovery_engine_checkpoint",
       status: "continue_searching",
       terminalStatus: report.terminalStatus,
-      fundFound: false,
+      fundFound: report.fundFound,
       checkpointedAt: report.timestamp,
       evidenceRefClosureRate: report.evidenceRefClosureRate,
       holdoutIndependenceRate: report.holdoutIndependenceRate,
-      discoveryCandidatesCreated: 0,
+      discoveryCandidatesCreated: report.discoveryCandidatesCreated,
+      fundGateResult: report.fundGateResult,
+      nobelReadinessReconciled: report.nobelReadinessReconciled,
       remainingBottleneck: report.remainingBottleneck,
       formalAnchorYield,
       generatorFamilyYield,
@@ -970,6 +1016,71 @@ export class DiscoveryFrictionHealthService {
       birthEvaluations,
     });
     return report;
+  }
+
+  private async loadNobelReadinessReconciliationState(): Promise<NobelReadinessReconciliationState> {
+    const score = await readJsonIfExists<Record<string, unknown>>(
+      join(this.root, ".sovryn", "nobel-readiness", "readiness-score.json"),
+    );
+    const label = typeof score?.label === "string" ? score.label : null;
+    const totalScore =
+      typeof score?.totalScore === "number" ? score.totalScore : null;
+    const eligible = score?.einsteinNobelDiscoveryScoreEligible === true;
+    const externalReadyCount =
+      typeof score?.externallyReviewReadyCandidateCount === "number"
+        ? score.externallyReviewReadyCandidateCount
+        : 0;
+    return {
+      reconciled:
+        label === "externally_review_ready_candidate" &&
+        eligible &&
+        externalReadyCount > 0,
+      label,
+      totalScore,
+      einsteinNobelDiscoveryScoreEligible: eligible,
+    };
+  }
+
+  private async loadActiveDiscoveryFundState(): Promise<ActiveDiscoveryFundState> {
+    const gate = await readJsonIfExists<Record<string, unknown>>(
+      join(this.root, daemonRootRel, "fund-gate-results.json"),
+    );
+    const state = await readJsonIfExists<Record<string, unknown>>(
+      join(this.root, daemonRootRel, "state.json"),
+    );
+    const rootFundArtifactsPresent =
+      (await pathExists(join(this.root, daemonRootRel, "FUND_FOUND.md"))) &&
+      (await pathExists(join(this.root, daemonRootRel, "fund-candidate.json")));
+    const active =
+      gate?.kind === "fund_gate_result" &&
+      gate.passed === true &&
+      gate.status === "FUND_FOUND" &&
+      gate.notificationAllowed === true &&
+      gate.countsForEinsteinNobelDiscoveryScore === true &&
+      state?.status === "FUND_FOUND" &&
+      state.fundFound === true &&
+      rootFundArtifactsPresent;
+    return {
+      active,
+      rootFundArtifactsPresent,
+      fundGateResult: active
+        ? {
+            passed: true,
+            failedGates: stringArray(gate?.failedGates),
+            status: "FUND_FOUND",
+            candidateId:
+              typeof gate?.candidateId === "string" ? gate.candidateId : null,
+            fundClass:
+              typeof gate?.fundClass === "string" ? gate.fundClass : null,
+            countsForEinsteinNobelDiscoveryScore: true,
+            notificationAllowed: true,
+          }
+        : {
+            passed: false,
+            failedGates: ["candidate_present"],
+            status: "continue_searching",
+          },
+    };
   }
 
   async evidenceRefsVerify(): Promise<Record<string, unknown>> {
@@ -1819,13 +1930,36 @@ function rankDeathCauses(deathCauses: Record<string, number>): Array<{
     .map(([cause, count]) => ({ cause, count }));
 }
 
+function omitDeathCauses(
+  deathCauses: Record<string, number>,
+  causes: string[],
+): Record<string, number> {
+  const omitted = new Set(causes);
+  return Object.fromEntries(
+    Object.entries(deathCauses).filter(([cause]) => !omitted.has(cause)),
+  );
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
 function promotionBlockers(
   evidenceSummary: EvidenceRefResolutionSummary,
   holdoutReport: HoldoutBankReport,
   yieldReport: CandidateYieldReport,
   formalAnchorYield: FormalAnchorYieldSignal,
   generatorFamilyYield: GeneratorFamilyYieldSignal,
+  activeDiscoveryFund = false,
+  nobelReadinessReconciled = false,
 ): string[] {
+  if (activeDiscoveryFund) {
+    const blockers = ["external_expert_validation"];
+    if (!nobelReadinessReconciled) blockers.push("readiness_reconciliation");
+    if (evidenceSummary.failedRefs > 0) blockers.push("evidence_ref_closure");
+    return blockers;
+  }
   const blockers = ["candidate_present"];
   if (evidenceSummary.failedRefs > 0) blockers.push("evidence_ref_closure");
   if (holdoutReport.independenceRate < 0.5)
@@ -1850,6 +1984,8 @@ function fakeGreenRisks(
   codeHotspots: Array<{ file: string; lines: number; risk: string }>,
   formalAnchorYield: FormalAnchorYieldSignal,
   generatorFamilyYield: GeneratorFamilyYieldSignal,
+  activeDiscoveryFund = false,
+  nobelReadinessReconciled = false,
 ): string[] {
   const risks: string[] = [];
   if (evidenceSummary.closureRate < 1)
@@ -1858,7 +1994,11 @@ function fakeGreenRisks(
     risks.push(
       "candidate holdouts can appear available but lack source-family independence",
     );
-  if (yieldReport.before.discoveryCandidates === 0)
+  if (
+    yieldReport.before.discoveryCandidates === 0 &&
+    yieldReport.after.discoveryCandidatesCreated === 0 &&
+    !activeDiscoveryFund
+  )
     risks.push("green audits do not imply candidate formation");
   if (formalAnchorYield.noBirthAfterPilot)
     risks.push(
@@ -1875,6 +2015,14 @@ function fakeGreenRisks(
   if (codeHotspots.some((item) => item.lines > 10000))
     risks.push(
       "daemon monolith can hide operational friction behind passing command audits",
+    );
+  if (activeDiscoveryFund && !nobelReadinessReconciled)
+    risks.push(
+      "internal discovery Fund state still requires external expert validation before any Nobel/Einstein claim",
+    );
+  if (activeDiscoveryFund && nobelReadinessReconciled)
+    risks.push(
+      "internal Fund and readiness reconciliation still require external expert validation before any Nobel/Einstein claim",
     );
   return risks;
 }

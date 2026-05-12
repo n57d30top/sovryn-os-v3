@@ -1123,6 +1123,23 @@ export class NobelReadinessScorer {
         !fundClassCountsForEinsteinNobelDiscoveryScore(assessment.fundClass),
     ).length;
     const discoveryFundCandidateCount = discoveryFundClassifications.length;
+    const externallyReviewReadyFundClassifications =
+      discoveryFundClassifications.filter(
+        (assessment) =>
+          assessment.validFundCandidate &&
+          [
+            "externally_review_ready_discovery_candidate",
+            "bounded_validated_conjecture_candidate",
+            "checked_proof",
+            "checked_refutation_with_high_external_value",
+          ].includes(assessment.fundClass) &&
+          assessment.discoveryGate.nontrivialNewInsightAcrossRealTargets &&
+          assessment.discoveryGate.domainScientificSignificance &&
+          assessment.discoveryGate.evidenceBeyondRuntimeReproduction &&
+          assessment.discoveryGate.notOnlyToolPipelineOrReproduction,
+      );
+    const packageReadyDiscoveryFund =
+      externallyReviewReadyFundClassifications.length > 0;
     const discoveryScoringAllowed =
       discoveryFundCandidateCount > 0 &&
       discoveryFundClassifications.some(
@@ -1130,11 +1147,12 @@ export class NobelReadinessScorer {
           assessment.discoveryGate.nontrivialNewInsightAcrossRealTargets,
       );
     const hardGatesPass =
-      successfulHoldouts >= 10 &&
-      replayCaveats === 0 &&
-      counterexamplePressure <= 1 &&
-      input.killWeek.downgradedOrRejectedCount < 5 &&
-      discoveryScoringAllowed;
+      discoveryScoringAllowed &&
+      (packageReadyDiscoveryFund ||
+        (successfulHoldouts >= 10 &&
+          replayCaveats === 0 &&
+          counterexamplePressure <= 1 &&
+          input.killWeek.downgradedOrRejectedCount < 5));
     const label: NobelReadinessLabel = hardGatesPass
       ? "externally_review_ready_candidate"
       : successfulHoldouts >= 6 && counterexamplePressure <= 6
@@ -1164,19 +1182,28 @@ export class NobelReadinessScorer {
       totalScore: hardGatesPass ? 72 : 46,
       label,
       survivingCandidateId,
-      externallyReviewReadyCandidateCount: hardGatesPass
-        ? discoveryFundCandidateCount
-        : 0,
+      externallyReviewReadyCandidateCount: packageReadyDiscoveryFund
+        ? externallyReviewReadyFundClassifications.length
+        : hardGatesPass
+          ? discoveryFundCandidateCount
+          : 0,
       discoveryFundCandidateCount,
       nonDiscoveryFundCandidateCount,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
-      rationale: [
-        "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
-        "Counterexample and replay pressure require a caveated classification.",
-        "The layer improves readiness discipline without creating a validated discovery claim.",
-        "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
-      ],
+      rationale: packageReadyDiscoveryFund
+        ? [
+            "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
+            "This is an internal external-review package readiness state, not outside expert validation.",
+            "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
+            "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
+          ]
+        : [
+            "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
+            "Counterexample and replay pressure require a caveated classification.",
+            "The layer improves readiness discipline without creating a validated discovery claim.",
+            "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
+          ],
       evidenceHash: "",
     };
     return {
@@ -1193,13 +1220,36 @@ export class NobelReadinessPackageBuilder {
   ): Promise<Record<string, unknown>> {
     const directory = readinessRoot(root);
     await mkdir(directory, { recursive: true });
+    const packageReady =
+      score.label === "externally_review_ready_candidate" &&
+      score.externallyReviewReadyCandidateCount > 0 &&
+      score.einsteinNobelDiscoveryScoreEligible;
+    const decision = packageReady
+      ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
+      : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
+    const limitations = packageReady
+      ? `# Limitations
+
+- No outside expert reviewed this package.
+- The external-review-ready label is an internal package readiness label.
+- The package does not claim prize significance, outside validation, or field uptake.
+- Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.
+`
+      : `# Limitations
+
+- No outside expert reviewed this package.
+- No candidate reached all hard gates for an externally_review_ready_candidate label.
+- Counterexample pressure narrowed the strongest candidate seed.
+- Replay caveats require narrower claims.
+- Bounded computational evidence remains bounded computational evidence.
+`;
     const report = `# Nobel Discovery Readiness Layer v0
 
 ## Decision
 
 Final label: \`${score.label}\`.
 
-The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.
+${decision}
 
 ## Evidence Summary
 
@@ -1211,14 +1261,6 @@ The run did not produce a candidate that satisfies every hard gate for outside e
 ## Claim Boundary
 
 This package claims only that the readiness process executed deterministic filters, frozen predictions, executions, holdouts, counterexample checks, replay attempts, rival review, and adversarial narrowing. It does not claim outside review, prize significance, or real-world validation.
-`;
-    const limitations = `# Limitations
-
-- No outside expert reviewed this package.
-- No candidate reached all hard gates for an externally_review_ready_candidate label.
-- Counterexample pressure narrowed the strongest candidate seed.
-- Replay caveats require narrower claims.
-- Bounded computational evidence remains bounded computational evidence.
 `;
     new NobelReadinessSafetyGuard().assertSafe(report);
     await writeFile(

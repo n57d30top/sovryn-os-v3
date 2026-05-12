@@ -452,6 +452,53 @@ test("nobel-readiness audit excludes reproduction FundCandidate from discovery s
   assert.equal(score.externallyReviewReadyCandidateCount, 0);
 });
 
+test("nobel-readiness score reconciles persisted external-review discovery FundClass without external-validation claim", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-discovery-score-"));
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  const assessment = classifyFundCandidate({
+    candidateId: "DISCOVERY-LIFT-MATERIALS-001",
+    claim:
+      "A nontrivial new insight across real targets has domain scientific significance in computational materials property data.",
+    domain: "computational_materials_property_data",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#new-insight"],
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    notificationAllowed: true,
+    fundClassAssessment: assessment,
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+  await service.package();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "NOBEL_READINESS_REPORT.md"),
+    "utf8",
+  );
+  const limitations = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "LIMITATIONS.md"),
+    "utf8",
+  );
+
+  assert.equal(score.label, "externally_review_ready_candidate");
+  assert.equal(score.discoveryFundCandidateCount, 1);
+  assert.equal(score.externallyReviewReadyCandidateCount, 1);
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, true);
+  assert.equal(score.totalScore, 72);
+  assert.match(report, /internal external-review package readiness/);
+  assert.match(limitations, /No outside expert reviewed/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+  assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
+});
+
 for (const field of scoreFields) {
   test(`nobel readiness score has bounded numeric field ${field}`, () => {
     const value = readinessScore[field as keyof typeof readinessScore];

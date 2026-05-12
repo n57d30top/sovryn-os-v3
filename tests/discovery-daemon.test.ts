@@ -98,6 +98,7 @@ const commands = [
   "generator-claim-lift-pressure",
   "generator-claim-lift-experiment",
   "generator-claim-lift-rebind",
+  "generator-claim-lift-intake",
   "dimacs-boundary-closure",
   "formal-anchor-select",
   "formal-anchor-pilot",
@@ -5169,6 +5170,144 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
   );
 });
 
+test("generator-born claim lift intake consumes rebound discovery package through package-backed cycle", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  await service.generatorClaimLiftExperiment();
+  await service.generatorClaimLiftRebind();
+
+  const intake = await service.generatorClaimLiftIntake();
+
+  assert.equal(
+    intake.kind,
+    "generator_born_discovery_claim_lift_signal_intake",
+  );
+  assert.equal(intake.status, "FUND_FOUND");
+  assert.equal(intake.eligiblePackages, 4);
+  assert.equal(intake.packagesStaged, 1);
+  assert.equal(intake.acceptedPackages, 1);
+  assert.equal(intake.fundFound, true);
+  assert.equal(intake.fundGateResult.notificationAllowed, true);
+  assert.equal(
+    intake.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    true,
+  );
+  assert.equal(
+    intake.fundGateResult.fundClass,
+    "externally_review_ready_discovery_candidate",
+  );
+  assert.ok(intake.selectedCandidateId);
+  assert.ok(intake.intakeCycleRef);
+  assert.equal(
+    intake.decisions.filter((decision) => decision.intakeStatus === "accepted")
+      .length,
+    1,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    true,
+  );
+  const rootCandidatePayload = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-candidate.json"), "utf8"),
+  ) as { candidate?: FundCandidate };
+  assert.equal(
+    rootCandidatePayload.candidate?.candidateId,
+    intake.selectedCandidateId,
+  );
+  assert.match(
+    rootCandidatePayload.candidate?.publicPackagePath ?? "",
+    /evidence-packages/,
+  );
+  const fundFoundMarkdown = await readFile(
+    join(root, daemonRoot, "FUND_FOUND.md"),
+    "utf8",
+  );
+  assert.match(
+    fundFoundMarkdown,
+    /Counts for Einstein\/Nobel discovery score: true/,
+  );
+  const audit = await service.audit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.fundFound, true);
+  assert.equal(audit.discoveryNotificationAllowed, true);
+});
+
+test("generator-born claim lift intake remains checkpointed without rebound discovery-scored package", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+
+  const intake = await service.generatorClaimLiftIntake();
+
+  assert.equal(
+    intake.kind,
+    "generator_born_discovery_claim_lift_signal_intake",
+  );
+  assert.equal(intake.status, "continue_searching_checkpointed");
+  assert.equal(intake.eligiblePackages, 0);
+  assert.equal(intake.packagesStaged, 0);
+  assert.equal(intake.acceptedPackages, 0);
+  assert.equal(intake.fundFound, false);
+  assert.equal(intake.fundGateResult.notificationAllowed, false);
+  assert.equal(
+    intake.decisions.every(
+      (decision) =>
+        decision.intakeStatus === "blocked" && decision.failedGates.length > 0,
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -5718,6 +5857,55 @@ test("mechanism-first generator audit exposes closure fake-green when all closur
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("mechanism-first generator audit accepts root Fund owned by later discovery-scored claim-lift intake", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  const claimLiftRoot = join(root, daemonRoot, "generator-claim-lift");
+  await mkdir(claimLiftRoot, { recursive: true });
+  await writeFile(
+    join(claimLiftRoot, "SIGNAL_INTAKE.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_discovery_claim_lift_signal_intake",
+        status: "FUND_FOUND",
+        fundFound: true,
+        fundGateResult: {
+          kind: "fund_gate_result",
+          candidateId: "DISCOVERY-LIFT-TEST",
+          passed: true,
+          status: "FUND_FOUND",
+          fundClass: "externally_review_ready_discovery_candidate",
+          countsForEinsteinNobelDiscoveryScore: true,
+          notificationAllowed: true,
+          failedGates: [],
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(join(root, daemonRoot, "FUND_FOUND.md"), "# FUND_FOUND\n");
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify({
+      kind: "fund_candidate",
+      candidateId: "DISCOVERY-LIFT-TEST",
+    }),
+  );
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, true);
+  assert.equal(audit.failedGates.includes("no_fake_fund"), false);
+  assert.equal(
+    audit.failedGates.includes("post_closure_discovery_yield_not_fake_green"),
     false,
   );
 });
@@ -9236,6 +9424,11 @@ const cliScenarios: {
     name: "generator-claim-lift-rebind",
     args: ["discover-daemon", "generator-claim-lift-rebind", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_signal_rebind",
+  },
+  {
+    name: "generator-claim-lift-intake",
+    args: ["discover-daemon", "generator-claim-lift-intake", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_signal_intake",
   },
   {
     name: "formal-anchor-select",

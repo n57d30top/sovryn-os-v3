@@ -1768,6 +1768,44 @@ export type GeneratorBornDiscoveryClaimLiftSignalRebindReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftSignalIntakeDecision = {
+  kind: "generator_born_discovery_claim_lift_signal_intake_decision";
+  candidateId: string;
+  packageRef: string | null;
+  intakeStatus: "accepted" | "eligible_not_selected" | "blocked";
+  primaryBlocker: string;
+  intakeRef: string | null;
+  fundClass: FundClass | null;
+  countsForEinsteinNobelDiscoveryScore: boolean;
+  notificationAllowed: boolean;
+  fundGateResult: FundGateResult;
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSignalIntakeReport = {
+  kind: "generator_born_discovery_claim_lift_signal_intake";
+  status: "FUND_FOUND" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  rebindDecisionsLoaded: number;
+  packagesEvaluated: number;
+  eligiblePackages: number;
+  packagesStaged: number;
+  acceptedPackages: number;
+  blockedPackages: number;
+  selectedCandidateId: string | null;
+  decisions: GeneratorBornDiscoveryClaimLiftSignalIntakeDecision[];
+  blockerDistribution: Record<string, number>;
+  intakeCycleRef: string | null;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornFundClosureCandidateResult = {
   kind: "generator_born_fund_closure_candidate_result";
   candidateId: string;
@@ -12254,13 +12292,36 @@ export class MechanismFirstEvidenceGeneratorService {
         "latest.json",
       ),
     );
+    const claimLiftIntake =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSignalIntakeReport>(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          generatorClaimLiftDir,
+          "SIGNAL_INTAKE.json",
+        ),
+      );
+    const claimLiftIntakeFundFound =
+      claimLiftIntake?.status === "FUND_FOUND" &&
+      claimLiftIntake.fundFound === true &&
+      claimLiftIntake.fundGateResult.notificationAllowed === true &&
+      claimLiftIntake.fundGateResult.countsForEinsteinNobelDiscoveryScore ===
+        true;
+    const rootFundArtifactsPresent =
+      (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
+      (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
+    const rootFundAllowedByClaimLiftIntake =
+      claimLiftIntakeFundFound &&
+      (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) &&
+      (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
     const closureYield = generatorClosureYieldSignal(closure);
     const closureYieldAppliesToLatestRun =
       closureYield.allClosedAsNonDiscovery &&
       latest !== null &&
-      latest.hardSeedsBorn > 0;
+      latest.hardSeedsBorn > 0 &&
+      !claimLiftIntakeFundFound;
     const baseReplacementRequirements =
       latest?.replacementRequirements ??
       generatorFamilyReplacementRequirements(outputs, registry.families);
@@ -12377,18 +12438,13 @@ export class MechanismFirstEvidenceGeneratorService {
       gate(
         "post_closure_discovery_yield_not_fake_green",
         !closureYieldAppliesToLatestRun,
-        "Generator audit must not stay green after package/Fund closure classifies every closure candidate as non-discovery.",
+        "Generator audit must not stay green after package/Fund closure classifies every closure candidate as non-discovery unless a later claim-lift intake produced a discovery-scored Fund.",
       ),
       gate(
         "no_fake_fund",
         latest?.fundFound === false &&
-          !(await exists(
-            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
-          )) &&
-          !(await exists(
-            join(this.root, daemonArtifactRoot, fundCandidateFile),
-          )),
-        "Generator runs must not create FUND_FOUND.md or fund-candidate.json.",
+          (!rootFundArtifactsPresent || rootFundAllowedByClaimLiftIntake),
+        "Generator runs must not create FUND_FOUND.md or fund-candidate.json; a later discovery-scored claim-lift intake may own root Fund state.",
       ),
     ];
     const failedGates = gates
@@ -15029,6 +15085,300 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
     await writeText(
       join(root, "SIGNAL_REBIND_NEXT_CHECKPOINT.md"),
       generatorBornDiscoveryClaimLiftSignalRebindNextCheckpointMarkdown(report),
+    );
+  }
+}
+
+export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
+  constructor(
+    private readonly root: string,
+    private readonly runPackageBackedCycle: () => Promise<
+      Record<string, unknown>
+    >,
+  ) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftSignalIntakeReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    await mkdir(join(this.root, daemonArtifactRoot, candidateIntakeDir), {
+      recursive: true,
+    });
+    const rebind = await this.readRebindOrRun();
+    const evaluations = await Promise.all(
+      rebind.decisions.map((decision) => this.evaluateDecision(decision)),
+    );
+    const eligible = evaluations.filter((evaluation) =>
+      evaluation.gates.every((item) => item.passed),
+    );
+    const selected = eligible[0] ?? null;
+    const stagedIntakeRef =
+      selected !== null && selected.candidate !== null
+        ? await this.stageIntakeCandidate(selected)
+        : null;
+    const cycle =
+      stagedIntakeRef !== null ? await this.runPackageBackedCycle() : null;
+    const cycleFundGate =
+      isRecord(cycle?.fundGateEvaluation) &&
+      cycle?.fundGateEvaluation.kind === "fund_gate_result"
+        ? (cycle.fundGateEvaluation as FundGateResult)
+        : null;
+    const fundGateResult =
+      cycleFundGate ??
+      selected?.fundGateResult ??
+      eligible[0]?.fundGateResult ??
+      evaluations[0]?.fundGateResult ??
+      new FundGateEvaluator().evaluate(null);
+    const fundFound =
+      fundGateResult.notificationAllowed === true &&
+      cycle?.nextStatus === "FUND_FOUND";
+    const decisions = evaluations.map((evaluation) => {
+      const selectedDecision =
+        selected?.rebindDecision.candidateId ===
+        evaluation.rebindDecision.candidateId;
+      const eligibleDecision = evaluation.gates.every((item) => item.passed);
+      const decision = {
+        kind: "generator_born_discovery_claim_lift_signal_intake_decision" as const,
+        candidateId: evaluation.rebindDecision.candidateId,
+        packageRef: evaluation.rebindDecision.packageRef,
+        intakeStatus: selectedDecision
+          ? ("accepted" as const)
+          : eligibleDecision
+            ? ("eligible_not_selected" as const)
+            : ("blocked" as const),
+        primaryBlocker:
+          selectedDecision || eligibleDecision
+            ? "none"
+            : evaluation.primaryBlocker,
+        intakeRef: selectedDecision ? stagedIntakeRef : null,
+        fundClass: evaluation.fundGateResult.fundClass,
+        countsForEinsteinNobelDiscoveryScore:
+          evaluation.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+        notificationAllowed: evaluation.fundGateResult.notificationAllowed,
+        fundGateResult: evaluation.fundGateResult,
+        gates: evaluation.gates,
+        failedGates: evaluation.failedGates,
+      };
+      return { ...decision, evidenceHash: hashEvidence(decision) };
+    });
+    const nextCheckpointRef = fundFound
+      ? `${daemonArtifactRoot}/checkpoints/generator-claim-lift-intake-fund-found.json`
+      : `${daemonArtifactRoot}/checkpoints/generator-claim-lift-intake-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftSignalIntakeReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_signal_intake" as const,
+        status: fundFound
+          ? ("FUND_FOUND" as const)
+          : ("continue_searching_checkpointed" as const),
+        checkpointUsed: rebind.nextCheckpointRef,
+        nextCheckpointRef,
+        rebindDecisionsLoaded: rebind.decisions.length,
+        packagesEvaluated: evaluations.filter(
+          (evaluation) => evaluation.rebindDecision.packageRef !== null,
+        ).length,
+        eligiblePackages: eligible.length,
+        packagesStaged: stagedIntakeRef !== null ? 1 : 0,
+        acceptedPackages: decisions.filter(
+          (decision) => decision.intakeStatus === "accepted",
+        ).length,
+        blockedPackages: decisions.filter(
+          (decision) => decision.intakeStatus === "blocked",
+        ).length,
+        selectedCandidateId: selected?.rebindDecision.candidateId ?? null,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        intakeCycleRef: isRecord(cycle)
+          ? `${daemonArtifactRoot}/search-cycles/${String(cycle.cycleId)}.json`
+          : null,
+        fundGateResult,
+        fundFound,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftSignalIntakeBottleneck({
+            fundFound,
+            eligibleCount: eligible.length,
+            decisions,
+          }),
+        artifactRefs: generatorBornDiscoveryClaimLiftSignalIntakeArtifactRefs({
+          nextCheckpointRef,
+          fundFound,
+        }),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readRebindOrRun(): Promise<GeneratorBornDiscoveryClaimLiftSignalRebindReport> {
+    const existing =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSignalRebindReport>(
+        join(this.liftRoot(), "SIGNAL_REBIND.json"),
+      );
+    if (existing !== null) return existing;
+    return new GeneratorBornDiscoveryClaimLiftSignalRebindService(
+      this.root,
+    ).run();
+  }
+
+  private async evaluateDecision(
+    rebindDecision: GeneratorBornDiscoveryClaimLiftSignalRebindDecision,
+  ): Promise<{
+    rebindDecision: GeneratorBornDiscoveryClaimLiftSignalRebindDecision;
+    candidate: FundCandidate | null;
+    fundGateResult: FundGateResult;
+    gates: FundGate[];
+    failedGates: string[];
+    primaryBlocker: string;
+  }> {
+    const packageRoot =
+      rebindDecision.packageRef === null
+        ? null
+        : join(this.root, rebindDecision.packageRef);
+    const payload =
+      packageRoot === null
+        ? null
+        : await readOptionalJson<{ candidate?: FundCandidate }>(
+            join(packageRoot, "FUND_CANDIDATE.json"),
+          );
+    const candidate = isFundCandidate(payload?.candidate)
+      ? {
+          ...payload.candidate,
+          publicPackagePath:
+            payload.candidate.publicPackagePath ?? rebindDecision.packageRef!,
+        }
+      : null;
+    const fundGateResult =
+      candidate === null
+        ? new FundGateEvaluator().evaluate(null)
+        : await evaluateFundCandidateWithPackageForRoot(this.root, candidate);
+    const gates = [
+      gate(
+        "rebind_decision_rebound",
+        rebindDecision.rebindStatus === "rebound",
+        "Root intake requires a package already rebound from resolvable signal evidence.",
+      ),
+      gate(
+        "package_ref_present",
+        rebindDecision.packageRef !== null,
+        "Root intake requires a package ref.",
+      ),
+      gate(
+        "package_fund_candidate_present",
+        candidate !== null,
+        "Root intake requires the package-bound FundCandidate payload.",
+      ),
+      gate(
+        "rebind_discovery_scored",
+        rebindDecision.countsForEinsteinNobelDiscoveryScoreAfter === true,
+        "Rebind must classify the package as discovery-scored.",
+      ),
+      gate(
+        "rebind_notification_allowed",
+        rebindDecision.notificationAllowedAfter === true,
+        "Rebind must leave Fund notification allowed after unchanged package Fund Gate evaluation.",
+      ),
+      gate(
+        "package_fund_gate_passed",
+        fundGateResult.passed,
+        "The package candidate must pass the unchanged package-aware Fund Gate at intake time.",
+      ),
+      gate(
+        "package_notification_allowed",
+        fundGateResult.notificationAllowed,
+        "Root intake may write Fund state only when package-aware Fund Gate notification remains allowed.",
+      ),
+      gate(
+        "package_discovery_scored_fund_class",
+        fundGateResult.countsForEinsteinNobelDiscoveryScore,
+        "Root intake may write Fund state only for discovery-scored FundClasses.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    return {
+      rebindDecision,
+      candidate,
+      fundGateResult,
+      gates,
+      failedGates,
+      primaryBlocker:
+        failedGates.length === 0
+          ? "none"
+          : generatorBornDiscoveryClaimLiftSignalIntakeBlocker(failedGates),
+    };
+  }
+
+  private async stageIntakeCandidate(input: {
+    rebindDecision: GeneratorBornDiscoveryClaimLiftSignalRebindDecision;
+    candidate: FundCandidate | null;
+    fundGateResult: FundGateResult;
+  }): Promise<string> {
+    if (input.candidate === null || input.rebindDecision.packageRef === null) {
+      throw new Error(
+        "Cannot stage claim-lift intake without candidate package.",
+      );
+    }
+    const candidate: FundCandidate = {
+      ...input.candidate,
+      publicPackagePath:
+        input.candidate.publicPackagePath ?? input.rebindDecision.packageRef,
+    };
+    const intakeRef = `${daemonArtifactRoot}/${candidateIntakeDir}/${normalizeCandidateIdPart(candidate.candidateId)}-claim-lift-intake.json`;
+    await writeJson(
+      join(this.root, intakeRef),
+      withEvidenceHash({
+        kind: "generator_claim_lift_signal_intake_candidate",
+        source: "generator_claim_lift_signal_rebind",
+        candidate,
+        packageRef: input.rebindDecision.packageRef,
+        rebindDecisionRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SIGNAL_REBIND_DECISIONS.json#${candidate.candidateId}`,
+        fundGateResult: input.fundGateResult,
+        noGateWeakening: true,
+      }),
+    );
+    return intakeRef;
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftSignalIntakeReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "SIGNAL_INTAKE.json"), report);
+    await writeJson(join(root, "SIGNAL_INTAKE_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_intake_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(root, "SIGNAL_INTAKE_FUND_GATE_RESULTS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_intake_fund_gate",
+      fundGateResult: report.fundGateResult,
+      fundFound: report.fundFound,
+      evidenceHash: hashEvidence(report.fundGateResult),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_signal_intake_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      selectedCandidateId: report.selectedCandidateId,
+      acceptedPackages: report.acceptedPackages,
+      eligiblePackages: report.eligiblePackages,
+      intakeCycleRef: report.intakeCycleRef,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SIGNAL_INTAKE.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "SIGNAL_INTAKE_DECISIONS.md"),
+      generatorBornDiscoveryClaimLiftSignalIntakeMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_INTAKE_FUND_GATE_RESULTS.md"),
+      generatorBornDiscoveryClaimLiftSignalIntakeFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_INTAKE_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftSignalIntakeNextCheckpointMarkdown(report),
     );
   }
 }
@@ -26782,6 +27132,151 @@ function generatorBornDiscoveryClaimLiftSignalRebindNextCheckpointMarkdown(
 ): string {
   return [
     "# Signal Rebind Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeBlocker(
+  failedGates: string[],
+): string {
+  if (failedGates.includes("rebind_decision_rebound")) {
+    return "package_not_rebound";
+  }
+  if (
+    failedGates.includes("package_ref_present") ||
+    failedGates.includes("package_fund_candidate_present")
+  ) {
+    return "missing_package_candidate";
+  }
+  if (
+    failedGates.includes("rebind_discovery_scored") ||
+    failedGates.includes("package_discovery_scored_fund_class")
+  ) {
+    return "non_discovery_fund_class";
+  }
+  if (
+    failedGates.includes("rebind_notification_allowed") ||
+    failedGates.includes("package_notification_allowed")
+  ) {
+    return "notification_not_allowed";
+  }
+  if (failedGates.includes("package_fund_gate_passed")) {
+    return "package_fund_gate_failed";
+  }
+  return failedGates[0] ?? "unknown_requires_manual_review";
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeBottleneck(input: {
+  fundFound: boolean;
+  eligibleCount: number;
+  decisions: GeneratorBornDiscoveryClaimLiftSignalIntakeDecision[];
+}): string {
+  if (input.fundFound) {
+    return "A package-backed claim-lift candidate was ingested through the existing package-backed cycle path; root Fund state was written only after unchanged Fund Gate notification remained allowed.";
+  }
+  if (input.eligibleCount > 0) {
+    return "At least one package was eligible for root intake, but the package-backed cycle did not produce a discovery-scored Fund notification. Inspect SIGNAL_INTAKE_FUND_GATE_RESULTS.json.";
+  }
+  if (input.decisions.length === 0) {
+    return "No signal-rebind decisions are available for root package intake.";
+  }
+  const distribution = countBy(input.decisions, "primaryBlocker");
+  return `No rebound package is eligible for root Fund intake. Blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeArtifactRefs(input: {
+  nextCheckpointRef: string;
+  fundFound: boolean;
+}): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/SIGNAL_INTAKE.json`,
+    `${root}/SIGNAL_INTAKE_DECISIONS.json`,
+    `${root}/SIGNAL_INTAKE_DECISIONS.md`,
+    `${root}/SIGNAL_INTAKE_FUND_GATE_RESULTS.json`,
+    `${root}/SIGNAL_INTAKE_FUND_GATE_RESULTS.md`,
+    `${root}/SIGNAL_INTAKE_NEXT_CHECKPOINT.md`,
+    input.nextCheckpointRef,
+    ...(input.fundFound
+      ? [
+          `${daemonArtifactRoot}/${fundCandidateFile}`,
+          `${daemonArtifactRoot}/FUND_FOUND.md`,
+        ]
+      : []),
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalIntakeReport,
+): string {
+  return [
+    "# Claim Lift Signal Intake Decisions",
+    "",
+    `Status: ${report.status}.`,
+    `Rebind decisions loaded: ${report.rebindDecisionsLoaded}.`,
+    `Packages evaluated: ${report.packagesEvaluated}.`,
+    `Eligible packages: ${report.eligiblePackages}.`,
+    `Packages staged: ${report.packagesStaged}.`,
+    `Accepted packages: ${report.acceptedPackages}.`,
+    `Blocked packages: ${report.blockedPackages}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Intake cycle: ${report.intakeCycleRef ?? "none"}.`,
+    "",
+    "## Blockers",
+    "",
+    ...Object.entries(report.blockerDistribution).map(
+      ([blocker, count]) => `- ${blocker}: ${count}`,
+    ),
+    ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Package | Status | Fund class | Counts | Notification | Blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.packageRef ?? "none"} | ${decision.intakeStatus} | ${decision.fundClass ?? "none"} | ${String(decision.countsForEinsteinNobelDiscoveryScore)} | ${String(decision.notificationAllowed)} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | none | blocked | none | false | false | none | none |"]
+      : []),
+    "",
+    "The accepted package is handed to the existing package-backed candidate-intake cycle; this command does not bypass or change Fund Gate semantics.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeFundGateMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalIntakeReport,
+): string {
+  return [
+    "# Signal Intake Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalIntakeNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalIntakeReport,
+): string {
+  return [
+    "# Signal Intake Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -39496,11 +39991,11 @@ function searchCycleFundGateRecordConsistent(
   const candidateId = String(cycle.candidateId ?? fundGate?.candidateId ?? "");
   if (cycleFundGatePassed !== effectiveFundGatePassed) return false;
   if (!cycleFundGatePassed) return true;
-  if (!stateFundFound && classifiedNonDiscoveryFundIds.has(candidateId)) {
-    return true;
-  }
   const packageGateApplied = cycle.packageGateApplied === true;
   const packageBacked = packageBackedCandidateIntakeCycleComplete(cycle);
+  if (classifiedNonDiscoveryFundIds.has(candidateId)) {
+    return packageGateApplied || packageBacked;
+  }
   if (notificationAllowed) {
     return (
       stateFundFound &&
@@ -39510,7 +40005,6 @@ function searchCycleFundGateRecordConsistent(
     );
   }
   return (
-    !stateFundFound &&
     (packageGateApplied || packageBacked) &&
     cycle.notificationSuppressed === true &&
     cycle.nextStatus === "continue_searching"
@@ -40627,6 +41121,14 @@ export class AutonomousDiscoveryDaemonService {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSignalRebindService(
       this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftIntake(): Promise<GeneratorBornDiscoveryClaimLiftSignalIntakeReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftSignalIntakeService(
+      this.root,
+      () => this.cycle(),
     ).run();
   }
 

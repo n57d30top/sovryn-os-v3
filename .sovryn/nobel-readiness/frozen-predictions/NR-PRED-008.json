@@ -12,6 +12,6 @@
   "holdoutPlan": "catalog region or object-class holdouts",
   "replayPlan": "public catalog query replay",
   "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-  "frozenTimestamp": "2026-05-11T10:19:00.055Z",
-  "preregistrationHash": "fd10a583f44b03ad288af7fb5aecdc1f048d34a0df5167ec412aed8b39fa8ec2"
+  "frozenTimestamp": "2026-05-12T09:46:15.238Z",
+  "preregistrationHash": "43cbebf408b02092b5780cc1701a40a870727e497b033643d8adcb1afef227ba"
 }

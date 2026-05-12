@@ -1698,6 +1698,42 @@ export type GeneratorBornDiscoveryClaimLiftSignalPressureReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftSignalExperimentDecision = {
+  kind: "generator_born_discovery_claim_lift_signal_experiment_decision";
+  candidateId: string;
+  parentCandidateId: string | null;
+  domain: DiscoveryDomain | null;
+  packageRef: string | null;
+  sourceCacheRef: string | null;
+  measuredOutcome: number | null;
+  residualMagnitude: number | null;
+  experimentStatus: "insight_evidence_ready" | "blocked";
+  primaryBlocker: string;
+  gates: FundGate[];
+  failedGates: string[];
+  bindableInsightEvidenceRefs: string[];
+  requiredPackageUpdate: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSignalExperimentReport = {
+  kind: "generator_born_discovery_claim_lift_signal_experiment";
+  status: "insight_evidence_ready" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  liftedCandidatesLoaded: number;
+  experimentsRun: number;
+  insightEvidenceReady: number;
+  blockedExperiments: number;
+  decisions: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision[];
+  blockerDistribution: Record<string, number>;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornFundClosureCandidateResult = {
   kind: "generator_born_fund_closure_candidate_result";
   candidateId: string;
@@ -14503,6 +14539,230 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    const pressure = await this.readPressureOrRun();
+    const proposals = await this.readProposals();
+    const decisions = await Promise.all(
+      proposals.map((proposal) => this.evaluateProposal(proposal)),
+    );
+    const ready = decisions.filter(
+      (decision) => decision.experimentStatus === "insight_evidence_ready",
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-experiment-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftSignalExperimentReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_signal_experiment" as const,
+        status:
+          ready.length > 0
+            ? ("insight_evidence_ready" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: pressure.nextCheckpointRef,
+        nextCheckpointRef,
+        liftedCandidatesLoaded: proposals.length,
+        experimentsRun: decisions.length,
+        insightEvidenceReady: ready.length,
+        blockedExperiments: decisions.filter(
+          (decision) => decision.experimentStatus === "blocked",
+        ).length,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundGateResult: new FundGateEvaluator().evaluate(null),
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftSignalExperimentBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftSignalExperimentArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readPressureOrRun(): Promise<GeneratorBornDiscoveryClaimLiftSignalPressureReport> {
+    const existing =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSignalPressureReport>(
+        join(this.liftRoot(), "SIGNAL_PRESSURE.json"),
+      );
+    if (existing !== null) return existing;
+    return new GeneratorBornDiscoveryClaimLiftSignalPressureService(
+      this.root,
+    ).run();
+  }
+
+  private async readProposals(): Promise<
+    GeneratorBornDiscoveryClaimLiftProposal[]
+  > {
+    const payload = await readOptionalJson<{
+      proposals?: GeneratorBornDiscoveryClaimLiftProposal[];
+    }>(join(this.liftRoot(), "CLAIM_LIFT_PROPOSALS.json"));
+    return (payload?.proposals ?? []).filter(
+      (proposal) =>
+        proposal.kind === "generator_born_discovery_claim_lift_proposal" &&
+        typeof proposal.targetDiscoveryCandidateId === "string",
+    );
+  }
+
+  private async evaluateProposal(
+    proposal: GeneratorBornDiscoveryClaimLiftProposal,
+  ): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentDecision> {
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(proposal.targetDiscoveryCandidateId)}`;
+    const sourceCacheRef = generatorBornClaimLiftSignalSourceCacheRef(proposal);
+    const sourceCache =
+      sourceCacheRef === null
+        ? null
+        : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+            join(this.root, sourceCacheRef),
+          );
+    const packagePresent = await exists(join(this.root, packageRef));
+    const sourceCachePresent = sourceCache !== null;
+    const baselineExplains =
+      sourceCache?.baselineResults.some((item) => item.explainsSignal) ?? true;
+    const bindableInsightEvidenceRefs =
+      generatorBornClaimLiftBindableSignalEvidenceRefs({
+        sourceCacheRef,
+        sourceCache,
+        proposal,
+      });
+    const evidenceRefsResolve =
+      bindableInsightEvidenceRefs.length >= 2 &&
+      (await claimLiftEvidenceRefsResolvable(
+        this.root,
+        bindableInsightEvidenceRefs,
+      ));
+    const gates = [
+      gate(
+        "lifted_package_present",
+        packagePresent,
+        "Signal experiment requires the lifted package being tested.",
+      ),
+      gate(
+        "source_cache_present",
+        sourceCachePresent,
+        "Signal experiment requires real loaded/generated external source-cache evidence, not only generator design output.",
+      ),
+      gate(
+        "source_cache_public_safe",
+        sourceCache?.publicSafe === true,
+        "Source-cache evidence must be public-safe.",
+      ),
+      gate(
+        "source_cache_depth",
+        (sourceCache?.rawTargetCount ?? 0) >= 60,
+        "Signal experiment requires at least sixty loaded target rows/objects in the external source cache.",
+      ),
+      gate(
+        "strong_baselines_non_explanatory",
+        sourceCachePresent && !baselineExplains,
+        "All source-cache simple baselines must fail to explain the signal.",
+      ),
+      gate(
+        "rival_weakened",
+        sourceCache?.rivalWeakened === true,
+        "At least one source-cache rival mechanism must be weakened or scoped.",
+      ),
+      gate(
+        "nontrivial_residual",
+        sourceCache?.nontrivialResidual === true,
+        "Source-cache evidence must show a nontrivial residual beyond pipeline/tool success.",
+      ),
+      gate(
+        "cross_source_or_slice_support",
+        sourceCache?.crossSourceSupport === true,
+        "Signal experiment requires cross-source or cross-slice recurrence.",
+      ),
+      gate(
+        "counterexample_pressure_nonfatal",
+        sourceCache?.counterexampleCollapsed === false,
+        "Counterexample or negative-control pressure must not collapse the signal.",
+      ),
+      gate(
+        "holdout_replay_available",
+        sourceCache?.holdoutReplayAvailable === true,
+        "Signal experiment requires independent holdout/replay availability or a bounded nonfatal caveat.",
+      ),
+      gate(
+        "bindable_insight_refs_resolve",
+        evidenceRefsResolve,
+        "Bindable insight evidence refs must resolve before they can update any package contract.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const primaryBlocker =
+      generatorBornClaimLiftSignalExperimentPrimaryBlocker(failedGates);
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_signal_experiment_decision" as const,
+      candidateId: proposal.targetDiscoveryCandidateId,
+      parentCandidateId: proposal.parentCandidateId,
+      domain: proposal.domain ?? null,
+      packageRef: packagePresent ? packageRef : null,
+      sourceCacheRef,
+      measuredOutcome: sourceCache?.measuredOutcome ?? null,
+      residualMagnitude: sourceCache?.residualMagnitude ?? null,
+      experimentStatus:
+        failedGates.length === 0
+          ? ("insight_evidence_ready" as const)
+          : ("blocked" as const),
+      primaryBlocker,
+      gates,
+      failedGates,
+      bindableInsightEvidenceRefs,
+      requiredPackageUpdate:
+        failedGates.length === 0
+          ? "A later explicit package-rebind step may bind these refs as insightEvidenceRefs and rerun unchanged FundClass/Fund Gate checks. This command does not modify Fund state."
+          : generatorBornClaimLiftSignalExperimentRequiredFix(primaryBlocker),
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftSignalExperimentReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "SIGNAL_EXPERIMENTS.json"), report);
+    await writeJson(join(root, "SIGNAL_EXPERIMENT_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_experiment_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_signal_experiment_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      insightEvidenceReady: report.insightEvidenceReady,
+      blockedExperiments: report.blockedExperiments,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SIGNAL_EXPERIMENTS.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "SIGNAL_EXPERIMENTS.md"),
+      generatorBornDiscoveryClaimLiftSignalExperimentMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_EXPERIMENT_BINDABLE_REFS.md"),
+      generatorBornDiscoveryClaimLiftSignalExperimentRefsMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_EXPERIMENT_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftSignalExperimentNextCheckpointMarkdown(
+        report,
+      ),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftProposalBuilder {
   constructor(private readonly root: string) {}
 
@@ -25952,6 +26212,204 @@ function generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(
 ): string {
   return [
     "# Signal Pressure Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornClaimLiftSignalSourceCacheRef(
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): string | null {
+  const text = [
+    proposal.domain ?? "",
+    proposal.mechanismHypothesis,
+    proposal.exactTargetOutcomeClaim,
+  ]
+    .join(" ")
+    .toLowerCase();
+  if (text.includes("matbench") || text.includes("materials")) {
+    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json`;
+  }
+  if (text.includes("gaia") || text.includes("astrometric")) {
+    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES.json`;
+  }
+  return null;
+}
+
+function generatorBornClaimLiftBindableSignalEvidenceRefs(input: {
+  sourceCacheRef: string | null;
+  sourceCache: DiscoveryAnchorRuntimeSourceArtifact | null;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal;
+}): string[] {
+  if (input.sourceCacheRef === null || input.sourceCache === null) return [];
+  return uniqueStrings([
+    input.sourceCacheRef,
+    ...(input.sourceCache.evidenceRefs ?? []),
+    ...(input.sourceCache.sourceRefs ?? []),
+    ...input.proposal.sourceEvidenceRefs.filter((ref) =>
+      ref.includes("generator-families/runtime-evidence"),
+    ),
+  ]).filter(publicSafeRef);
+}
+
+function generatorBornClaimLiftSignalExperimentPrimaryBlocker(
+  failedGates: string[],
+): string {
+  if (failedGates.length === 0) return "none";
+  if (failedGates.includes("source_cache_present")) {
+    return "missing_external_source_cache";
+  }
+  if (failedGates.includes("source_cache_depth")) {
+    return "shallow_external_measurement";
+  }
+  if (failedGates.includes("strong_baselines_non_explanatory")) {
+    return "baseline_dominated";
+  }
+  if (failedGates.includes("rival_weakened")) {
+    return "rival_theory_stronger";
+  }
+  if (failedGates.includes("nontrivial_residual")) {
+    return "no_nontrivial_residual";
+  }
+  if (failedGates.includes("cross_source_or_slice_support")) {
+    return "no_cross_source_support";
+  }
+  if (failedGates.includes("counterexample_pressure_nonfatal")) {
+    return "counterexample_dense";
+  }
+  if (failedGates.includes("holdout_replay_available")) {
+    return "no_holdout_or_replay_path";
+  }
+  if (failedGates.includes("bindable_insight_refs_resolve")) {
+    return "unresolved_insight_evidence_refs";
+  }
+  return failedGates[0] ?? "unknown_requires_manual_review";
+}
+
+function generatorBornClaimLiftSignalExperimentRequiredFix(
+  blocker: string,
+): string {
+  switch (blocker) {
+    case "missing_external_source_cache":
+      return "Load or generate a real external/formal source-cache artifact for this lifted claim before insight evidence can be bound.";
+    case "baseline_dominated":
+      return "Redesign the mechanism experiment so the observed residual survives the strongest simple baselines before package rebinding.";
+    case "rival_theory_stronger":
+      return "Run a matched rival-discrimination experiment that weakens or scopes the strongest rival before package rebinding.";
+    case "no_nontrivial_residual":
+      return "Do not rebind the package until a nontrivial residual beyond tool/pipeline success is measured.";
+    case "no_cross_source_support":
+      return "Acquire independent source/slice recurrence before package rebinding.";
+    case "counterexample_dense":
+      return "Keep the package non-discovery until generated or real counterexamples no longer collapse the claim.";
+    case "no_holdout_or_replay_path":
+      return "Register an independent holdout and replay path before package rebinding.";
+    case "unresolved_insight_evidence_refs":
+      return "Repair evidence refs so every proposed insightEvidenceRef resolves before package rebinding.";
+    default:
+      return "Carry the blocker forward and do not promote this package.";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftSignalExperimentBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No lifted claim packages are available for mechanism-specific signal experiments.";
+  }
+  const ready = decisions.filter(
+    (decision) => decision.experimentStatus === "insight_evidence_ready",
+  );
+  if (ready.length > 0) {
+    return `${ready.length} lifted package(s) have bindable external-source signal evidence, but no package was rebound and no Fund state was written. Next step: explicit package rebind plus unchanged FundClass/Fund Gate evaluation.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `No lifted package produced bindable nontrivial signal evidence. Blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftSignalExperimentArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/SIGNAL_EXPERIMENTS.json`,
+    `${root}/SIGNAL_EXPERIMENTS.md`,
+    `${root}/SIGNAL_EXPERIMENT_DECISIONS.json`,
+    `${root}/SIGNAL_EXPERIMENT_BINDABLE_REFS.md`,
+    `${root}/SIGNAL_EXPERIMENT_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftSignalExperimentMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalExperimentReport,
+): string {
+  return [
+    "# Claim Lift Signal Experiments",
+    "",
+    `Lifted candidates loaded: ${report.liftedCandidatesLoaded}.`,
+    `Experiments run: ${report.experimentsRun}.`,
+    `Insight evidence ready: ${report.insightEvidenceReady}.`,
+    `Blocked experiments: ${report.blockedExperiments}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Blockers",
+    "",
+    ...Object.entries(report.blockerDistribution).map(
+      ([blocker, count]) => `- ${blocker}: ${count}`,
+    ),
+    ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Domain | Source cache | Status | Primary blocker | Residual | Failed gates |",
+    "| --- | --- | --- | --- | --- | ---: | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.domain ?? "unknown"} | ${decision.sourceCacheRef ?? "none"} | ${decision.experimentStatus} | ${decision.primaryBlocker} | ${decision.residualMagnitude ?? "n/a"} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | unknown | none | blocked | none | n/a | none |"]
+      : []),
+    "",
+    "This command does not update packages, write fund-candidate.json, or write FUND_FOUND.md.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalExperimentRefsMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalExperimentReport,
+): string {
+  return [
+    "# Bindable Insight Evidence Refs",
+    "",
+    ...report.decisions.flatMap((decision) => [
+      `## ${decision.candidateId}`,
+      "",
+      `Status: ${decision.experimentStatus}.`,
+      `Required package update: ${decision.requiredPackageUpdate}`,
+      "",
+      ...decision.bindableInsightEvidenceRefs.map((ref) => `- ${ref}`),
+      ...(decision.bindableInsightEvidenceRefs.length === 0 ? ["- none"] : []),
+      "",
+    ]),
+    ...(report.decisions.length === 0 ? ["- none"] : []),
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalExperimentNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalExperimentReport,
+): string {
+  return [
+    "# Signal Experiment Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -39782,6 +40240,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftPressure(): Promise<GeneratorBornDiscoveryClaimLiftSignalPressureReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSignalPressureService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftExperiment(): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftSignalExperimentService(
       this.root,
     ).run();
   }

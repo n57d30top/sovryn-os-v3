@@ -96,6 +96,7 @@ const commands = [
   "generator-claim-lift-propose",
   "generator-claim-lift",
   "generator-claim-lift-pressure",
+  "generator-claim-lift-experiment",
   "dimacs-boundary-closure",
   "formal-anchor-select",
   "formal-anchor-pilot",
@@ -4983,6 +4984,81 @@ test("generator-born claim lift signal pressure recognizes explicit discovery in
   );
 });
 
+test("generator-born claim lift signal experiment identifies bindable external-source insight refs without Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const experiment = await service.generatorClaimLiftExperiment();
+
+  assert.equal(
+    experiment.kind,
+    "generator_born_discovery_claim_lift_signal_experiment",
+  );
+  assert.equal(experiment.status, "insight_evidence_ready");
+  assert.equal(experiment.liftedCandidatesLoaded, 6);
+  assert.equal(experiment.experimentsRun, 6);
+  assert.equal(experiment.insightEvidenceReady, 4);
+  assert.equal(experiment.blockedExperiments, 2);
+  assert.equal(experiment.blockerDistribution.missing_external_source_cache, 2);
+  assert.equal(
+    experiment.decisions
+      .filter(
+        (decision) => decision.experimentStatus === "insight_evidence_ready",
+      )
+      .every(
+        (decision) =>
+          decision.bindableInsightEvidenceRefs.length >= 2 &&
+          decision.failedGates.length === 0,
+      ),
+    true,
+  );
+  assert.equal(experiment.fundFound, false);
+  assert.equal(experiment.fundGateResult.passed, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -9040,6 +9116,11 @@ const cliScenarios: {
     name: "generator-claim-lift-pressure",
     args: ["discover-daemon", "generator-claim-lift-pressure", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_signal_pressure",
+  },
+  {
+    name: "generator-claim-lift-experiment",
+    args: ["discover-daemon", "generator-claim-lift-experiment", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_signal_experiment",
   },
   {
     name: "formal-anchor-select",

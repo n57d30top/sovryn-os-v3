@@ -1558,6 +1558,7 @@ export type GeneratorBornDiscoveryClaimLiftProposal = {
   kind: "generator_born_discovery_claim_lift_proposal";
   parentCandidateId: string;
   targetDiscoveryCandidateId: string;
+  domain?: DiscoveryDomain;
   exactTargetOutcomeClaim: string;
   mechanismHypothesis: string;
   externalSignificanceEvidenceRefs: string[];
@@ -1568,6 +1569,12 @@ export type GeneratorBornDiscoveryClaimLiftProposal = {
   replayRefs: string[];
   counterexampleRefs: string[];
   mechanismPressureRefs: string[];
+  identityLedgerRefs?: string[];
+  hardSeedRefs?: string[];
+  packageRef?: string;
+  predictionRefs?: string[];
+  killWeekRefs?: string[];
+  limitations?: string[];
   createdFromRuntimeEvidence: boolean;
   noOverclaim: boolean;
 };
@@ -1586,6 +1593,18 @@ export type GeneratorBornDiscoveryClaimLiftDecision = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftDraftDecision = {
+  kind: "generator_born_discovery_claim_lift_draft_decision";
+  candidateId: string;
+  targetDiscoveryCandidateId: string | null;
+  draftReady: boolean;
+  draftRef: string | null;
+  validationRef: string | null;
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornDiscoveryClaimLiftReport = {
   kind: "generator_born_discovery_claim_lift";
   status: "continue_searching_checkpointed";
@@ -1598,6 +1617,8 @@ export type GeneratorBornDiscoveryClaimLiftReport = {
   blockedClaimLifts: number;
   discoveryCandidatesCreated: number;
   discoveryCandidateRefs: string[];
+  draftDecisions: GeneratorBornDiscoveryClaimLiftDraftDecision[];
+  fundCandidateDraftRefs: string[];
   fundCandidateDraftsCreated: number;
   fundGateResult: FundGateResult;
   fundFound: false;
@@ -13649,10 +13670,15 @@ export class GeneratorBornDiscoveryClaimLiftService {
         }),
       ),
     );
-    const discoveryCandidateRefs = await this.writeAcceptedDiscoveryCandidates(
+    const materialized = await this.writeAcceptedDiscoveryCandidates(
       decisions,
       proposals,
     );
+    const discoveryCandidateRefs = materialized.discoveryCandidateRefs;
+    const draftDecisions = materialized.draftDecisions;
+    const fundCandidateDraftRefs = draftDecisions
+      .map((decision) => decision.draftRef)
+      .filter((ref): ref is string => ref !== null);
     const fundGateResult = new FundGateEvaluator().evaluate(null);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-continue-searching.json`;
     const report: GeneratorBornDiscoveryClaimLiftReport = withEvidenceHash({
@@ -13669,13 +13695,16 @@ export class GeneratorBornDiscoveryClaimLiftService {
         .length,
       discoveryCandidatesCreated: discoveryCandidateRefs.length,
       discoveryCandidateRefs,
-      fundCandidateDraftsCreated: 0,
+      draftDecisions,
+      fundCandidateDraftRefs,
+      fundCandidateDraftsCreated: fundCandidateDraftRefs.length,
       fundGateResult,
       fundFound: false as const,
       remainingBottleneck: generatorBornDiscoveryClaimLiftBottleneck(decisions),
       artifactRefs: generatorBornDiscoveryClaimLiftArtifactRefs(
         nextCheckpointRef,
         discoveryCandidateRefs,
+        fundCandidateDraftRefs,
       ),
     });
     await this.writeArtifacts({ report, requirements, proposals });
@@ -13726,11 +13755,15 @@ export class GeneratorBornDiscoveryClaimLiftService {
   private async writeAcceptedDiscoveryCandidates(
     decisions: GeneratorBornDiscoveryClaimLiftDecision[],
     proposals: GeneratorBornDiscoveryClaimLiftProposal[],
-  ): Promise<string[]> {
+  ): Promise<{
+    discoveryCandidateRefs: string[];
+    draftDecisions: GeneratorBornDiscoveryClaimLiftDraftDecision[];
+  }> {
     const proposalByParent = new Map(
       proposals.map((proposal) => [proposal.parentCandidateId, proposal]),
     );
     const refs: string[] = [];
+    const draftDecisions: GeneratorBornDiscoveryClaimLiftDraftDecision[] = [];
     for (const decision of decisions.filter((item) => item.accepted)) {
       const proposal = proposalByParent.get(decision.candidateId);
       if (!proposal || !decision.targetDiscoveryCandidateId) continue;
@@ -13762,8 +13795,80 @@ export class GeneratorBornDiscoveryClaimLiftService {
         }),
       );
       refs.push(candidateRef);
+      draftDecisions.push(
+        await this.writeDraftIfReady({
+          decision,
+          proposal,
+        }),
+      );
     }
-    return refs;
+    return { discoveryCandidateRefs: refs, draftDecisions };
+  }
+
+  private async writeDraftIfReady(input: {
+    decision: GeneratorBornDiscoveryClaimLiftDecision;
+    proposal: GeneratorBornDiscoveryClaimLiftProposal;
+  }): Promise<GeneratorBornDiscoveryClaimLiftDraftDecision> {
+    const initial = await generatorBornDiscoveryClaimLiftDraftDecision({
+      root: this.root,
+      decision: input.decision,
+      proposal: input.proposal,
+      draftRef: null,
+      validationRef: null,
+    });
+    if (!initial.draftReady || !input.decision.targetDiscoveryCandidateId) {
+      return initial;
+    }
+    const draftRef = `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(input.decision.targetDiscoveryCandidateId)}.json`;
+    const validationRef = draftRef.replace(".json", ".validation.json");
+    const draft: FundCandidateDraft = {
+      kind: "fund_candidate_draft",
+      draftId: `DRAFT-${normalizeCandidateIdPart(input.decision.targetDiscoveryCandidateId)}`,
+      candidateId: input.decision.targetDiscoveryCandidateId,
+      claim: input.proposal.exactTargetOutcomeClaim,
+      domain: input.proposal.domain as DiscoveryDomain,
+      sourceRefs: input.proposal.sourceEvidenceRefs.slice(0, 12),
+      evidenceRefs: uniqueStrings([
+        ...input.proposal.sourceEvidenceRefs,
+        ...input.proposal.baselineRefs,
+        ...input.proposal.rivalRefs,
+        ...input.proposal.mechanismPressureRefs,
+        ...(input.proposal.predictionRefs ?? []),
+        ...(input.proposal.killWeekRefs ?? []),
+      ]).slice(0, 24),
+      identityLedgerRefs: input.proposal.identityLedgerRefs ?? [],
+      hardSeedRefs: input.proposal.hardSeedRefs ?? [],
+      packageRefs: [...requiredFundPackageFiles],
+      inspectabilityPath: input.proposal.packageRef ?? "",
+      predictionRefs: input.proposal.predictionRefs ?? [],
+      holdoutRefs: input.proposal.holdoutRefs,
+      counterexampleRefs: input.proposal.counterexampleRefs,
+      replayRefs: input.proposal.replayRefs,
+      killWeekRefs: input.proposal.killWeekRefs ?? [],
+      limitations: input.proposal.limitations ?? [],
+      generatedFrom: "fresh_external_target",
+      synthetic: false,
+      partialCandidate: false,
+      versionedClaimChange: true,
+    };
+    const validation = new FundCandidateDraftValidator().validate({
+      draft,
+      ledger: new CandidateIdentityLedger(),
+    });
+    await writeJson(join(this.root, draftRef), draft);
+    await writeJson(join(this.root, validationRef), {
+      kind: "fund_candidate_draft_record",
+      draftRef,
+      validation,
+      evidenceHash: hashEvidence({ draft, validation }),
+    });
+    return generatorBornDiscoveryClaimLiftDraftDecision({
+      root: this.root,
+      decision: input.decision,
+      proposal: input.proposal,
+      draftRef,
+      validationRef,
+    });
   }
 
   private async writeArtifacts(input: {
@@ -13800,12 +13905,26 @@ export class GeneratorBornDiscoveryClaimLiftService {
       acceptedClaimLifts: input.report.acceptedClaimLifts,
       blockedClaimLifts: input.report.blockedClaimLifts,
       discoveryCandidateRefs: input.report.discoveryCandidateRefs,
+      draftDecisions: input.report.draftDecisions,
+      fundCandidateDraftRefs: input.report.fundCandidateDraftRefs,
+      fundCandidateDraftsCreated: input.report.fundCandidateDraftsCreated,
       reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
     });
     await writeText(
       join(root, "CLAIM_LIFT_DECISIONS.md"),
       generatorBornDiscoveryClaimLiftDecisionMarkdown(input.report),
+    );
+    await writeJson(join(root, "CLAIM_LIFT_DRAFT_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_draft_decisions",
+      draftDecisions: input.report.draftDecisions,
+      fundCandidateDraftRefs: input.report.fundCandidateDraftRefs,
+      fundCandidateDraftsCreated: input.report.fundCandidateDraftsCreated,
+      evidenceHash: hashEvidence(input.report.draftDecisions),
+    });
+    await writeText(
+      join(root, "CLAIM_LIFT_DRAFT_DECISIONS.md"),
+      generatorBornDiscoveryClaimLiftDraftDecisionMarkdown(input.report),
     );
     await writeText(
       join(root, "CLAIM_LIFT_PROPOSAL_TEMPLATE.md"),
@@ -24712,6 +24831,104 @@ async function claimLiftEvidenceRefsResolvable(
   return true;
 }
 
+async function generatorBornDiscoveryClaimLiftDraftDecision(input: {
+  root: string;
+  decision: GeneratorBornDiscoveryClaimLiftDecision;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal;
+  draftRef: string | null;
+  validationRef: string | null;
+}): Promise<GeneratorBornDiscoveryClaimLiftDraftDecision> {
+  const draftEvidenceRefs = uniqueStrings([
+    ...input.proposal.sourceEvidenceRefs,
+    ...input.proposal.baselineRefs,
+    ...input.proposal.rivalRefs,
+    ...input.proposal.holdoutRefs,
+    ...input.proposal.replayRefs,
+    ...input.proposal.counterexampleRefs,
+    ...input.proposal.mechanismPressureRefs,
+    ...(input.proposal.predictionRefs ?? []),
+    ...(input.proposal.killWeekRefs ?? []),
+  ]);
+  const identityLedgerRefs = input.proposal.identityLedgerRefs ?? [];
+  const hardSeedRefs = input.proposal.hardSeedRefs ?? [];
+  const packageRef = input.proposal.packageRef ?? "";
+  const limitations = input.proposal.limitations ?? [];
+  const gates = [
+    gate(
+      "accepted_claim_lift",
+      input.decision.accepted,
+      "FundCandidateDraft construction requires a fully accepted claim lift.",
+    ),
+    gate(
+      "draft_domain_present",
+      input.proposal.domain !== undefined &&
+        discoveryDaemonDomains().includes(input.proposal.domain),
+      "Draft-ready claim lifts must declare a valid discovery daemon domain.",
+    ),
+    gate(
+      "draft_evidence_refs_resolve",
+      await claimLiftEvidenceRefsResolvable(input.root, draftEvidenceRefs),
+      "Draft-ready claim lifts must resolve runtime, baseline, rival, holdout, replay, counterexample, prediction, mechanism, and kill-week refs.",
+    ),
+    gate(
+      "draft_identity_refs_resolve",
+      identityLedgerRefs.length > 0 &&
+        (await claimLiftEvidenceRefsResolvable(input.root, identityLedgerRefs)),
+      "Draft-ready claim lifts must bind resolvable candidate identity ledger refs.",
+    ),
+    gate(
+      "draft_hard_seed_refs_resolve",
+      hardSeedRefs.length > 0 &&
+        (await claimLiftEvidenceRefsResolvable(input.root, hardSeedRefs)),
+      "Draft-ready claim lifts must bind resolvable hard-seed refs.",
+    ),
+    gate(
+      "draft_package_ref_resolves",
+      await claimLiftPackageRefResolvable(input.root, packageRef),
+      "Draft-ready claim lifts must bind an inspectability package containing all required package files.",
+    ),
+    gate(
+      "draft_prediction_refs_present",
+      (input.proposal.predictionRefs ?? []).length > 0,
+      "Draft-ready claim lifts must bind frozen prediction refs.",
+    ),
+    gate(
+      "draft_kill_week_refs_present",
+      (input.proposal.killWeekRefs ?? []).length > 0,
+      "Draft-ready claim lifts must bind kill-week refs.",
+    ),
+    gate(
+      "draft_limitations_present",
+      limitations.length >= 2,
+      "Draft-ready claim lifts must carry explicit limitations.",
+    ),
+  ];
+  const failedGates = gates
+    .filter((item) => !item.passed)
+    .map((item) => item.code);
+  return withEvidenceHash({
+    kind: "generator_born_discovery_claim_lift_draft_decision" as const,
+    candidateId: input.decision.candidateId,
+    targetDiscoveryCandidateId: input.decision.targetDiscoveryCandidateId,
+    draftReady: failedGates.length === 0,
+    draftRef: failedGates.length === 0 ? input.draftRef : null,
+    validationRef: failedGates.length === 0 ? input.validationRef : null,
+    gates,
+    failedGates,
+  });
+}
+
+async function claimLiftPackageRefResolvable(
+  root: string,
+  packageRef: string,
+): Promise<boolean> {
+  if (!publicSafeRef(packageRef) || packageRef.startsWith("/")) return false;
+  for (const file of requiredFundPackageFiles) {
+    if (!(await exists(join(root, packageRef, file)))) return false;
+  }
+  return true;
+}
+
 function generatorBornDiscoveryClaimLiftProposalTemplate(
   requirement: GeneratorBornDiscoveryClaimLiftRequirement,
 ): GeneratorBornDiscoveryClaimLiftProposal {
@@ -24721,6 +24938,7 @@ function generatorBornDiscoveryClaimLiftProposalTemplate(
     targetDiscoveryCandidateId: `DISCOVERY-LIFT-${normalizeCandidateIdPart(
       requirement.candidateId,
     ).slice(0, 72)}`,
+    domain: undefined,
     exactTargetOutcomeClaim:
       "Replace this with a new exact target-outcome claim that states the externally significant scientific interpretation being tested; do not reuse anti-discovery, generator-only, runtime-only, pipeline-only, Nobel, Einstein, breakthrough, or external-validation language.",
     mechanismHypothesis:
@@ -24733,6 +24951,12 @@ function generatorBornDiscoveryClaimLiftProposalTemplate(
     replayRefs: [],
     counterexampleRefs: [],
     mechanismPressureRefs: [],
+    identityLedgerRefs: [],
+    hardSeedRefs: [],
+    packageRef: "",
+    predictionRefs: [],
+    killWeekRefs: [],
+    limitations: [],
     createdFromRuntimeEvidence: false,
     noOverclaim: true,
   };
@@ -24768,11 +24992,14 @@ function generatorBornDiscoveryClaimLiftBottleneck(
 function generatorBornDiscoveryClaimLiftArtifactRefs(
   nextCheckpointRef: string,
   discoveryCandidateRefs: string[] = [],
+  fundCandidateDraftRefs: string[] = [],
 ): string[] {
   const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
   return [
     `${root}/CLAIM_LIFT_DECISIONS.md`,
     `${root}/CLAIM_LIFT_DECISIONS.json`,
+    `${root}/CLAIM_LIFT_DRAFT_DECISIONS.md`,
+    `${root}/CLAIM_LIFT_DRAFT_DECISIONS.json`,
     `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.md`,
     `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.json`,
     `${root}/FUND_GATE_RESULTS.md`,
@@ -24780,6 +25007,7 @@ function generatorBornDiscoveryClaimLiftArtifactRefs(
     `${root}/NEXT_CHECKPOINT.md`,
     `${root}/latest.json`,
     ...discoveryCandidateRefs,
+    ...fundCandidateDraftRefs,
     nextCheckpointRef,
   ];
 }
@@ -24812,6 +25040,31 @@ function generatorBornDiscoveryClaimLiftDecisionMarkdown(
   ].join("\n");
 }
 
+function generatorBornDiscoveryClaimLiftDraftDecisionMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftReport,
+): string {
+  return [
+    "# Discovery Claim Lift Draft Decisions",
+    "",
+    `Accepted claim lifts: ${report.acceptedClaimLifts}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Candidate | Target DiscoveryCandidate | Draft ready | Draft ref | Failed gates |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.draftDecisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${String(decision.draftReady)} | ${decision.draftRef ?? "none"} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.draftDecisions.length === 0
+      ? ["| none | none | false | none | none |"]
+      : []),
+    "",
+    "A draft-ready claim lift may create a FundCandidateDraft artifact only from resolvable identity, hard-seed, package, prediction, kill-week, and evidence refs. This still does not create FUND_FOUND.md or notify the user.",
+  ].join("\n");
+}
+
 function generatorBornDiscoveryClaimLiftTemplateMarkdown(
   requirements: GeneratorBornDiscoveryClaimLiftRequirement[],
 ): string {
@@ -24820,7 +25073,7 @@ function generatorBornDiscoveryClaimLiftTemplateMarkdown(
     "",
     "A claim lift is a forward-only contract. It cannot reuse the InsightCandidate ID, cannot reuse the closure candidate ID, and cannot be satisfied by rewriting text in the same package.",
     "",
-    "Required proposal fields: parentCandidateId, targetDiscoveryCandidateId, exactTargetOutcomeClaim, mechanismHypothesis, externalSignificanceEvidenceRefs, sourceEvidenceRefs, baselineRefs, rivalRefs, holdoutRefs, replayRefs, counterexampleRefs, mechanismPressureRefs, createdFromRuntimeEvidence, noOverclaim. Every non-URL evidence ref must resolve to a local artifact before DiscoveryCandidate creation.",
+    "Required proposal fields: parentCandidateId, targetDiscoveryCandidateId, domain, exactTargetOutcomeClaim, mechanismHypothesis, externalSignificanceEvidenceRefs, sourceEvidenceRefs, baselineRefs, rivalRefs, holdoutRefs, replayRefs, counterexampleRefs, mechanismPressureRefs, createdFromRuntimeEvidence, noOverclaim. Every non-URL evidence ref must resolve to a local artifact before DiscoveryCandidate creation. FundCandidateDraft construction additionally requires identityLedgerRefs, hardSeedRefs, packageRef, predictionRefs, killWeekRefs, and limitations.",
     "",
     "| Parent candidate | Suggested target ID | Failed source gates |",
     "| --- | --- | --- |",

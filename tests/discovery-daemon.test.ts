@@ -4650,6 +4650,7 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
   assert.equal(lift.blockedClaimLifts, 5);
   assert.equal(lift.discoveryCandidatesCreated, 1);
   assert.equal(lift.fundCandidateDraftsCreated, 0);
+  assert.deepEqual(lift.fundCandidateDraftRefs, []);
   assert.equal(lift.fundFound, false);
   assert.equal(
     lift.decisions.some(
@@ -4678,6 +4679,160 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
   );
   assert.equal(liftedCandidate.fundFound, false);
   assert.equal(liftedCandidate.fundCandidateDraftCreated, false);
+  assert.equal(lift.draftDecisions.length, 1);
+  assert.equal(lift.draftDecisions[0]?.draftReady, false);
+  assert.equal(
+    lift.draftDecisions[0]?.failedGates.includes("draft_domain_present"),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born discovery claim lift creates FundCandidateDraft only from full draft contract refs", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  const closure = await service.generatorFundClosure();
+  const requirement = closure.claimLiftRequirements[0]!;
+  const sourceEvidenceRefs = [
+    ".sovryn/discovery-daemon/source-cache/materials-a.json",
+    ".sovryn/discovery-daemon/source-cache/materials-b.json",
+    ".sovryn/discovery-daemon/runtime-evidence/materials-c.json",
+  ];
+  const baselineRefs = [
+    ".sovryn/discovery-daemon/source-cache/baseline-a.json",
+  ];
+  const rivalRefs = [".sovryn/discovery-daemon/source-cache/rival-a.json"];
+  const holdoutRefs = [".sovryn/discovery-daemon/source-cache/holdout-a.json"];
+  const replayRefs = [".sovryn/discovery-daemon/source-cache/replay-a.json"];
+  const counterexampleRefs = [
+    ".sovryn/discovery-daemon/source-cache/counterexample-a.json",
+  ];
+  const mechanismPressureRefs = [
+    ".sovryn/discovery-daemon/source-cache/mechanism-a.json",
+  ];
+  const identityLedgerRefs = [
+    ".sovryn/discovery-daemon/candidate-identity-ledger.json#DISCOVERY-LIFT-TEST-DRAFT",
+  ];
+  const hardSeedRefs = [
+    ".sovryn/discovery-daemon/hard-seeds.json#HARD-SEED-LIFT-001",
+  ];
+  const predictionRefs = [
+    ".sovryn/discovery-daemon/generator-claim-lift/predictions.json#PRED-001",
+  ];
+  const killWeekRefs = [
+    ".sovryn/discovery-daemon/generator-claim-lift/kill-week.json#kill-week",
+  ];
+  const packageRef =
+    ".sovryn/discovery-daemon/generator-claim-lift/packages/DISCOVERY-LIFT-TEST-DRAFT";
+  for (const ref of [
+    ...sourceEvidenceRefs,
+    ...baselineRefs,
+    ...rivalRefs,
+    ...holdoutRefs,
+    ...replayRefs,
+    ...counterexampleRefs,
+    ...mechanismPressureRefs,
+    ...identityLedgerRefs,
+    ...hardSeedRefs,
+    ...predictionRefs,
+    ...killWeekRefs,
+  ]) {
+    const pathPart = ref.split("#")[0]!;
+    await mkdir(dirname(join(root, pathPart)), { recursive: true });
+    await writeFile(
+      join(root, pathPart),
+      JSON.stringify({ kind: "claim_lift_draft_test_evidence", ref }, null, 2),
+      "utf8",
+    );
+  }
+  for (const file of [
+    "PAPER.md",
+    "METHOD.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+  ]) {
+    await mkdir(join(root, packageRef), { recursive: true });
+    await writeFile(
+      join(root, packageRef, file),
+      file.endsWith(".json")
+        ? JSON.stringify({ kind: "claim_lift_package_binding" }, null, 2)
+        : `# ${file}\n\nClaim lift draft contract fixture.\n`,
+      "utf8",
+    );
+  }
+  await mkdir(join(root, daemonRoot, "generator-claim-lift"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-claim-lift", "CLAIM_LIFT_PROPOSALS.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_discovery_claim_lift_proposals",
+        proposals: [
+          {
+            kind: "generator_born_discovery_claim_lift_proposal",
+            parentCandidateId: requirement.candidateId,
+            targetDiscoveryCandidateId: "DISCOVERY-LIFT-TEST-DRAFT",
+            domain: "computational_materials_property_data",
+            exactTargetOutcomeClaim:
+              "The measured public materials target-outcome residual shows scientific significance by changing interpretation of descriptor transfer stability: a previously unknown mechanism across real targets remains after baseline, rival, holdout, replay, counterexample, and mechanism pressure.",
+            mechanismHypothesis:
+              "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
+            externalSignificanceEvidenceRefs: [
+              "https://example.org/materials-significance-a",
+              "https://example.org/materials-significance-b",
+            ],
+            sourceEvidenceRefs,
+            baselineRefs,
+            rivalRefs,
+            holdoutRefs,
+            replayRefs,
+            counterexampleRefs,
+            mechanismPressureRefs,
+            identityLedgerRefs,
+            hardSeedRefs,
+            packageRef,
+            predictionRefs,
+            killWeekRefs,
+            limitations: [
+              "Draft status is not a Fund.",
+              "Promotion requires full Fund Gate execution and external-review scrutiny.",
+            ],
+            createdFromRuntimeEvidence: true,
+            noOverclaim: true,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const lift = await service.generatorClaimLift();
+  const draftRef = lift.fundCandidateDraftRefs[0]!;
+  const validationRecord = JSON.parse(
+    await readFile(
+      join(root, draftRef.replace(".json", ".validation.json")),
+      "utf8",
+    ),
+  ) as { validation?: { accepted?: boolean } };
+
+  assert.equal(lift.acceptedClaimLifts, 1);
+  assert.equal(lift.discoveryCandidatesCreated, 1);
+  assert.equal(lift.fundCandidateDraftsCreated, 1);
+  assert.equal(lift.draftDecisions[0]?.draftReady, true);
+  assert.equal(validationRecord.validation?.accepted, true);
+  assert.equal(lift.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

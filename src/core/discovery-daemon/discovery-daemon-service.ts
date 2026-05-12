@@ -13401,6 +13401,18 @@ export class GeneratorBornFundClosureService {
       ...packagedCandidate,
       fundClass: fundClassAssessment.fundClass,
     };
+    const claimLiftProposalCandidate =
+      generatorBornClaimLiftProposalCandidateForPackage({
+        candidate: input.candidate,
+        packagedCandidate: classifiedPackagedCandidate,
+        domainSignificanceAssessment,
+        sourceEvidenceRefs,
+        hardSeedRefs,
+        identityLedgerRefs,
+        packageRef,
+        predictionRef: input.predictionRef,
+        killWeekRef: input.killWeekRef,
+      });
     const draftRef = await this.writeFundCandidateDraft({
       candidate: classifiedPackagedCandidate,
       insightCandidate: input.candidate,
@@ -13450,6 +13462,7 @@ export class GeneratorBornFundClosureService {
       countsForEinsteinNobelDiscoveryScore:
         fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
       fundClassAssessment,
+      claimLiftProposalCandidate,
       fundCandidate: classifiedPackagedCandidate,
     });
     await writeText(
@@ -35863,6 +35876,104 @@ function generatorBornDomainSignificanceAssessment(input: {
     ...assessment,
     evidenceHash: hashEvidence(assessment),
   };
+}
+
+function generatorBornClaimLiftProposalCandidateForPackage(input: {
+  candidate: InsightCandidate;
+  packagedCandidate: FundCandidate;
+  domainSignificanceAssessment: GeneratorBornDomainSignificanceAssessment;
+  sourceEvidenceRefs: string[];
+  hardSeedRefs: string[];
+  identityLedgerRefs: string[];
+  packageRef: string;
+  predictionRef: string;
+  killWeekRef: string;
+}): GeneratorBornDiscoveryClaimLiftProposal | null {
+  const failed = input.domainSignificanceAssessment.failedGates;
+  const eligible =
+    failed.length === 1 && failed[0] === "no_anti_discovery_claim_text";
+  const externalSignificanceEvidenceRefs = uniqueStrings(
+    input.sourceEvidenceRefs.filter(externalSignificanceRef),
+  ).slice(0, 8);
+  if (
+    !eligible ||
+    !externalSignificanceRefsMeetMinimum(externalSignificanceEvidenceRefs)
+  ) {
+    return null;
+  }
+  const targetLabel =
+    input.candidate.parentPipelineCandidateId ||
+    normalizeCandidateIdPart(input.candidate.candidateId);
+  const exactTargetOutcomeClaim = normalizeWhitespace(
+    `The measured public ${input.candidate.domain} target-outcome residual for ${targetLabel} has scientific significance: ${humanizeMechanismHypothesis(
+      input.candidate.mechanismHypothesis,
+    )} changes interpretation of the bounded measured target slice by surviving baseline, rival, holdout, replay, counterexample, recurrence, and mechanism pressure checks. The scope is limited to the cited public targets and the recorded evidence package.`,
+  );
+  return {
+    kind: "generator_born_discovery_claim_lift_proposal",
+    parentCandidateId: input.candidate.candidateId,
+    targetDiscoveryCandidateId: `DISCOVERY-LIFT-${normalizeCandidateIdPart(
+      input.candidate.candidateId,
+    ).slice(0, 72)}`,
+    domain: input.candidate.domain,
+    exactTargetOutcomeClaim,
+    mechanismHypothesis: humanizeMechanismHypothesis(
+      input.candidate.mechanismHypothesis,
+    ),
+    externalSignificanceEvidenceRefs,
+    sourceEvidenceRefs: input.sourceEvidenceRefs,
+    baselineRefs: [
+      `${input.packageRef}/CLAIM_EVIDENCE_BINDINGS.json#baseline`,
+      ...refsForClaimLiftGate(input.candidate, "baseline_resistance_test"),
+    ],
+    rivalRefs: [
+      `${input.packageRef}/CLAIM_EVIDENCE_BINDINGS.json#rival`,
+      ...refsForClaimLiftGate(input.candidate, "rival_discrimination_test"),
+    ],
+    holdoutRefs: [
+      `${input.packageRef}/CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs`,
+      ...refsForClaimLiftGate(input.candidate, "holdout_feasibility_test"),
+    ],
+    replayRefs: [
+      `${input.packageRef}/CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs`,
+      ...refsForClaimLiftGate(input.candidate, "replay_feasibility_test"),
+      `${input.packageRef}/REPRODUCE.md#replay`,
+    ],
+    counterexampleRefs: [
+      `${input.packageRef}/CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs`,
+      ...refsForClaimLiftGate(input.candidate, "counterexample_search"),
+    ],
+    mechanismPressureRefs: [
+      `${input.packageRef}/METHOD.md#mechanism-pressure`,
+      ...refsForClaimLiftGate(
+        input.candidate,
+        "proof_or_mechanism_pressure_test",
+      ),
+    ],
+    identityLedgerRefs: input.identityLedgerRefs,
+    hardSeedRefs: input.hardSeedRefs,
+    packageRef: input.packageRef,
+    predictionRefs: [`${input.predictionRef}#prediction-ledger`],
+    killWeekRefs: [`${input.killWeekRef}#kill-week`],
+    limitations: input.packagedCandidate.remainingLimitations ?? [],
+    createdFromRuntimeEvidence: true,
+    noOverclaim: true,
+  };
+}
+
+function humanizeMechanismHypothesis(mechanism: string): string {
+  return normalizeWhitespace(
+    mechanism.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim(),
+  );
+}
+
+function refsForClaimLiftGate(
+  candidate: InsightCandidate,
+  gateAnchor: string,
+): string[] {
+  return candidate.parentEvidenceRefs
+    .filter((ref) => ref.includes("/generator-insight-closure/"))
+    .map((ref) => `${ref.split("#")[0] ?? ref}#${gateAnchor}`);
 }
 
 function refsForGate(

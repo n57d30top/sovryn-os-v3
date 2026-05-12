@@ -4534,10 +4534,31 @@ test("significance generator-born fund closure remains silent until not-claimed 
       fundClass?: string;
       countsForEinsteinNobelDiscoveryScore?: boolean;
       fundCandidate?: { fundClass?: string };
+      claimLiftProposalCandidate?: {
+        targetDiscoveryCandidateId?: string;
+        exactTargetOutcomeClaim?: string;
+        createdFromRuntimeEvidence?: boolean;
+        noOverclaim?: boolean;
+      } | null;
     };
     assert.equal(bindings.fundClass, result.fundClass);
     assert.equal(bindings.fundCandidate?.fundClass, result.fundClass);
     assert.equal(bindings.countsForEinsteinNobelDiscoveryScore, false);
+    assert.equal(
+      bindings.claimLiftProposalCandidate?.targetDiscoveryCandidateId?.startsWith(
+        "DISCOVERY-LIFT-",
+      ),
+      true,
+    );
+    assert.match(
+      bindings.claimLiftProposalCandidate?.exactTargetOutcomeClaim ?? "",
+      /scientific significance/,
+    );
+    assert.equal(
+      bindings.claimLiftProposalCandidate?.createdFromRuntimeEvidence,
+      true,
+    );
+    assert.equal(bindings.claimLiftProposalCandidate?.noOverclaim, true);
   }
   assert.equal(
     await exists(
@@ -4575,7 +4596,21 @@ test("generator-born discovery claim lift blocks text-only closure candidates be
   await service.generatorRun({ significanceCandidates: true });
   await service.generatorPressure();
   await service.generatorInsightClosure();
-  await service.generatorFundClosure();
+  const closure = await service.generatorFundClosure();
+  for (const requirement of closure.claimLiftRequirements) {
+    const packagePath = requirement.externalReviewPackagePath!;
+    const bindingsPath = join(
+      root,
+      packagePath,
+      "CLAIM_EVIDENCE_BINDINGS.json",
+    );
+    const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    delete bindings.claimLiftProposalCandidate;
+    await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+  }
 
   const lift = await service.generatorClaimLift();
 
@@ -4686,7 +4721,21 @@ test("generator-born claim lift proposal builder blocks packages without explici
   await service.generatorRun({ significanceCandidates: true });
   await service.generatorPressure();
   await service.generatorInsightClosure();
-  await service.generatorFundClosure();
+  const closure = await service.generatorFundClosure();
+  for (const requirement of closure.claimLiftRequirements) {
+    const packagePath = requirement.externalReviewPackagePath!;
+    const bindingsPath = join(
+      root,
+      packagePath,
+      "CLAIM_EVIDENCE_BINDINGS.json",
+    );
+    const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    delete bindings.claimLiftProposalCandidate;
+    await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+  }
 
   const build = await service.generatorClaimLiftPropose();
 
@@ -4741,44 +4790,18 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   await service.generatorPressure();
   await service.generatorInsightClosure();
   const closure = await service.generatorFundClosure();
-  const requirement = closure.claimLiftRequirements[0]!;
-  const packagePath = requirement.externalReviewPackagePath!;
-  const bindingsPath = join(root, packagePath, "CLAIM_EVIDENCE_BINDINGS.json");
-  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
-    string,
-    unknown
-  >;
-  bindings.claimLiftProposalCandidate = {
-    targetDiscoveryCandidateId: "DISCOVERY-LIFT-BUILDER-TEST-001",
-    exactTargetOutcomeClaim:
-      "The measured public materials target-outcome residual has scientific significance because descriptor-transfer stability changes interpretation of composition-conditioned property prediction across real targets; a previously unknown mechanism remains after formula-size, source-family, shuffled-target, holdout, replay, counterexample, and mechanism pressure checks.",
-    mechanismHypothesis:
-      "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
-    externalSignificanceEvidenceRefs: [
-      "https://matbench.materialsproject.org/",
-      "https://materialsproject.org/",
-    ],
-    createdFromRuntimeEvidence: true,
-    noOverclaim: true,
-  };
-  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
 
   const build = await service.generatorClaimLiftPropose();
 
   assert.equal(build.requirementsLoaded, 6);
   assert.equal(build.proposalCandidatesEvaluated, 6);
-  assert.equal(build.proposalsReady, 1);
-  assert.equal(build.proposalsBlocked, 5);
-  assert.equal(build.proposalsWritten, 1);
+  assert.equal(build.proposalsReady, 6);
+  assert.equal(build.proposalsBlocked, 0);
+  assert.equal(build.proposalsWritten, 6);
   assert.equal(build.fundFound, false);
   assert.equal(
-    build.decisions.some(
-      (decision) =>
-        decision.candidateId === requirement.candidateId &&
-        decision.proposalReady &&
-        decision.targetDiscoveryCandidateId ===
-          "DISCOVERY-LIFT-BUILDER-TEST-001" &&
-        decision.failedGates.length === 0,
+    build.decisions.every(
+      (decision) => decision.proposalReady && decision.failedGates.length === 0,
     ),
     true,
   );
@@ -4793,15 +4816,20 @@ test("generator-born claim lift proposal builder writes only package-backed evid
       "utf8",
     ),
   ) as { proposals?: Array<Record<string, unknown>> };
-  assert.equal(proposalsPayload.proposals?.length, 1);
+  assert.equal(proposalsPayload.proposals?.length, 6);
   assert.equal(
-    proposalsPayload.proposals?.[0]?.targetDiscoveryCandidateId,
-    "DISCOVERY-LIFT-BUILDER-TEST-001",
+    proposalsPayload.proposals?.every(
+      (proposal) =>
+        typeof proposal.targetDiscoveryCandidateId === "string" &&
+        proposal.targetDiscoveryCandidateId.startsWith("DISCOVERY-LIFT-"),
+    ),
+    true,
   );
 
   const lift = await service.generatorClaimLift();
-  assert.equal(lift.acceptedClaimLifts, 1);
-  assert.equal(lift.discoveryCandidatesCreated, 1);
+  assert.equal(lift.acceptedClaimLifts, 6);
+  assert.equal(lift.discoveryCandidatesCreated, 6);
+  assert.equal(lift.fundCandidateDraftsCreated, 6);
   assert.equal(lift.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

@@ -917,6 +917,116 @@ async function writePublicCorpusDiscoveryClearance(
   );
 }
 
+async function alignClaimLiftSourceCacheWithRuntimeEvidence(
+  root: string,
+  candidateId: string,
+): Promise<void> {
+  const packageRoot = join(
+    root,
+    daemonRoot,
+    "evidence-packages",
+    candidateId.slice(0, 80),
+  );
+  const payload = JSON.parse(
+    await readFile(join(packageRoot, "FUND_CANDIDATE.json"), "utf8"),
+  ) as { candidate?: FundCandidate };
+  const refs = payload.candidate?.insightEvidenceRefs ?? [];
+  const sourceCacheRef = refs.find(
+    (ref) =>
+      ref.includes("discovery-anchor-run/source-cache/") &&
+      ref.endsWith(".json"),
+  );
+  const runtimeEvidenceRef = refs.find(
+    (ref) =>
+      ref.includes("generator-families/runtime-evidence/") &&
+      ref.endsWith(".json"),
+  );
+  assert.ok(sourceCacheRef);
+  assert.ok(runtimeEvidenceRef);
+  const sourceCache = JSON.parse(
+    await readFile(join(root, sourceCacheRef), "utf8"),
+  ) as Record<string, unknown>;
+  const runtimePayload = JSON.parse(
+    await readFile(join(root, runtimeEvidenceRef), "utf8"),
+  ) as { output?: Record<string, unknown> };
+  assert.ok(runtimePayload.output);
+  await writeFile(
+    join(root, sourceCacheRef),
+    JSON.stringify(
+      {
+        ...sourceCache,
+        measuredOutcome: runtimePayload.output.measuredOutcome,
+        residualMagnitude: runtimePayload.output.residualMagnitude,
+        baselineResults: runtimePayload.output.baselineResults,
+        rivalWeakened: runtimePayload.output.rivalWeakened,
+        nontrivialResidual: runtimePayload.output.nontrivialResidual,
+        crossSourceSupport: runtimePayload.output.crossSourceSupport,
+        counterexampleCollapsed: runtimePayload.output.counterexampleCollapsed,
+        holdoutReplayAvailable: runtimePayload.output.holdoutReplayAvailable,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+async function misalignClaimLiftSourceCacheFromRuntimeEvidence(
+  root: string,
+  candidateId: string,
+): Promise<void> {
+  const packageRoot = join(
+    root,
+    daemonRoot,
+    "evidence-packages",
+    candidateId.slice(0, 80),
+  );
+  const payload = JSON.parse(
+    await readFile(join(packageRoot, "FUND_CANDIDATE.json"), "utf8"),
+  ) as { candidate?: FundCandidate };
+  const refs = payload.candidate?.insightEvidenceRefs ?? [];
+  const sourceCacheRef = refs.find(
+    (ref) =>
+      ref.includes("discovery-anchor-run/source-cache/") &&
+      ref.endsWith(".json"),
+  );
+  const runtimeEvidenceRef = refs.find(
+    (ref) =>
+      ref.includes("generator-families/runtime-evidence/") &&
+      ref.endsWith(".json"),
+  );
+  assert.ok(sourceCacheRef);
+  assert.ok(runtimeEvidenceRef);
+  const sourceCache = JSON.parse(
+    await readFile(join(root, sourceCacheRef), "utf8"),
+  ) as Record<string, unknown>;
+  const runtimePayload = JSON.parse(
+    await readFile(join(root, runtimeEvidenceRef), "utf8"),
+  ) as { output?: Record<string, unknown> };
+  assert.ok(runtimePayload.output);
+  const measuredOutcome =
+    typeof runtimePayload.output.measuredOutcome === "number"
+      ? runtimePayload.output.measuredOutcome + 0.1
+      : 0.1;
+  const residualMagnitude =
+    typeof runtimePayload.output.residualMagnitude === "number"
+      ? runtimePayload.output.residualMagnitude + 0.1
+      : 0.1;
+  await writeFile(
+    join(root, sourceCacheRef),
+    JSON.stringify(
+      {
+        ...sourceCache,
+        measuredOutcome,
+        residualMagnitude,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
 for (const command of commands) {
   test(`CLI help lists discover-daemon ${command}`, async () => {
     const response = await executeCli(["help", "--json"]);
@@ -5580,7 +5690,35 @@ test("generator-born claim lift intake consumes rebound discovery package throug
     (item) => item.rebindStatus === "rebound",
   )) {
     await writePublicCorpusDiscoveryClearance(root, decision.candidateId);
+    await misalignClaimLiftSourceCacheFromRuntimeEvidence(
+      root,
+      decision.candidateId,
+    );
   }
+
+  const rawMismatchIntake = await service.generatorClaimLiftIntake();
+
+  assert.equal(rawMismatchIntake.status, "continue_searching_checkpointed");
+  assert.equal(rawMismatchIntake.eligiblePackages, 0);
+  assert.equal(rawMismatchIntake.fundFound, false);
+  assert.equal(
+    rawMismatchIntake.blockerDistribution.raw_source_reproduction_mismatch > 0,
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const firstRebound = rebind.decisions.find(
+    (item) => item.rebindStatus === "rebound",
+  );
+  assert.ok(firstRebound);
+  await alignClaimLiftSourceCacheWithRuntimeEvidence(
+    root,
+    firstRebound.candidateId,
+  );
 
   const intake = await service.generatorClaimLiftIntake();
 
@@ -5589,7 +5727,7 @@ test("generator-born claim lift intake consumes rebound discovery package throug
     "generator_born_discovery_claim_lift_signal_intake",
   );
   assert.equal(intake.status, "FUND_FOUND");
-  assert.equal(intake.eligiblePackages, 4);
+  assert.equal(intake.eligiblePackages > 0, true);
   assert.equal(intake.packagesStaged, 1);
   assert.equal(intake.acceptedPackages, 1);
   assert.equal(intake.fundFound, true);

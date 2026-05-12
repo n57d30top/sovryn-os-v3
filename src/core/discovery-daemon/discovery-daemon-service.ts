@@ -1781,7 +1781,20 @@ export type GeneratorBornDiscoveryClaimLiftSignalIntakeDecision = {
   fundGateResult: FundGateResult;
   gates: FundGate[];
   failedGates: string[];
+  rawSourceReproductionConsistency: GeneratorBornClaimLiftRawSourceReproductionConsistency;
   evidenceHash: string;
+};
+
+export type GeneratorBornClaimLiftRawSourceReproductionConsistency = {
+  checked: boolean;
+  passed: boolean;
+  sourceCacheRef: string | null;
+  runtimeEvidenceRef: string | null;
+  sourceMeasuredOutcome: number | null;
+  runtimeMeasuredOutcome: number | null;
+  sourceResidualMagnitude: number | null;
+  runtimeResidualMagnitude: number | null;
+  reason: string;
 };
 
 export type GeneratorBornDiscoveryClaimLiftSignalIntakeReport = {
@@ -15209,6 +15222,8 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         fundGateResult: evaluation.fundGateResult,
         gates: evaluation.gates,
         failedGates: evaluation.failedGates,
+        rawSourceReproductionConsistency:
+          evaluation.rawSourceReproductionConsistency,
       };
       return { ...decision, evidenceHash: hashEvidence(decision) };
     });
@@ -15288,6 +15303,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
     gates: FundGate[];
     failedGates: string[];
     primaryBlocker: string;
+    rawSourceReproductionConsistency: GeneratorBornClaimLiftRawSourceReproductionConsistency;
   }> {
     const packageRoot =
       rebindDecision.packageRef === null
@@ -15315,22 +15331,34 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
     ).publicFundReconciliationForCandidate(
       candidate?.candidateId ?? rebindDecision.candidateId,
     );
-    const fundGateResult = publicFundReconciliation.blocksDiscoveryScore
-      ? {
-          ...packageFundGateResult,
-          passed: false,
-          status: "continue_searching" as const,
-          failedGates: Array.from(
-            new Set([
-              ...packageFundGateResult.failedGates,
-              "public_corpus_downgrade",
-            ]),
-          ),
-          fundClass: packageFundGateResult.fundClass,
-          countsForEinsteinNobelDiscoveryScore: false,
-          notificationAllowed: false,
-        }
-      : packageFundGateResult;
+    const rawSourceReproductionConsistency =
+      await generatorBornClaimLiftRawSourceReproductionConsistency(
+        this.root,
+        candidate,
+      );
+    const fundGateResult =
+      publicFundReconciliation.blocksDiscoveryScore ||
+      rawSourceReproductionConsistency.passed !== true
+        ? {
+            ...packageFundGateResult,
+            passed: false,
+            status: "continue_searching" as const,
+            failedGates: Array.from(
+              new Set([
+                ...packageFundGateResult.failedGates,
+                ...(publicFundReconciliation.blocksDiscoveryScore
+                  ? ["public_corpus_downgrade"]
+                  : []),
+                ...(rawSourceReproductionConsistency.passed !== true
+                  ? ["raw_source_reproduction_consistency"]
+                  : []),
+              ]),
+            ),
+            fundClass: packageFundGateResult.fundClass,
+            countsForEinsteinNobelDiscoveryScore: false,
+            notificationAllowed: false,
+          }
+        : packageFundGateResult;
     const gates = [
       gate(
         "rebind_decision_rebound",
@@ -15351,6 +15379,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         "public_corpus_package_present",
         publicFundReconciliation.matched === true,
         "Root intake for generator-born claim-lift packages requires a matching public corpus package before root Fund state can be written.",
+      ),
+      gate(
+        "raw_source_reproduction_consistency",
+        rawSourceReproductionConsistency.passed === true,
+        "Root intake for generator-born claim-lift packages requires public/raw source-cache metrics to match the bound generator runtime evidence.",
       ),
       gate(
         "rebind_discovery_scored",
@@ -15396,6 +15429,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         failedGates.length === 0
           ? "none"
           : generatorBornDiscoveryClaimLiftSignalIntakeBlocker(failedGates),
+      rawSourceReproductionConsistency,
     };
   }
 
@@ -27061,6 +27095,112 @@ function generatorBornClaimLiftBindableSignalEvidenceRefs(input: {
   ]).filter(publicSafeRef);
 }
 
+async function generatorBornClaimLiftRawSourceReproductionConsistency(
+  root: string,
+  candidate: FundCandidate | null,
+): Promise<GeneratorBornClaimLiftRawSourceReproductionConsistency> {
+  const empty = (
+    reason: string,
+  ): GeneratorBornClaimLiftRawSourceReproductionConsistency => ({
+    checked: false,
+    passed: false,
+    sourceCacheRef: null,
+    runtimeEvidenceRef: null,
+    sourceMeasuredOutcome: null,
+    runtimeMeasuredOutcome: null,
+    sourceResidualMagnitude: null,
+    runtimeResidualMagnitude: null,
+    reason,
+  });
+  if (candidate === null) return empty("missing_candidate");
+  const refs = candidate.insightEvidenceRefs ?? [];
+  const sourceCacheRef =
+    refs.find(
+      (ref) =>
+        ref.includes("discovery-anchor-run/source-cache/") &&
+        ref.endsWith(".json"),
+    ) ?? null;
+  const runtimeEvidenceRef =
+    refs.find(
+      (ref) =>
+        ref.includes("generator-families/runtime-evidence/") &&
+        ref.endsWith(".json"),
+    ) ?? null;
+  if (sourceCacheRef === null || runtimeEvidenceRef === null) {
+    return {
+      ...empty("missing_source_cache_or_runtime_evidence_ref"),
+      checked: true,
+      sourceCacheRef,
+      runtimeEvidenceRef,
+    };
+  }
+  const sourceCache =
+    await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+      join(root, sourceCacheRef),
+    );
+  const runtimePayload = await readOptionalJson<Record<string, unknown>>(
+    join(root, runtimeEvidenceRef),
+  );
+  const runtimeOutput = isRecord(runtimePayload?.output)
+    ? runtimePayload.output
+    : runtimePayload;
+  const sourceMeasuredOutcome = numericField(sourceCache, "measuredOutcome");
+  const sourceResidualMagnitude = numericField(
+    sourceCache,
+    "residualMagnitude",
+  );
+  const runtimeMeasuredOutcome = numericField(runtimeOutput, "measuredOutcome");
+  const runtimeResidualMagnitude = numericField(
+    runtimeOutput,
+    "residualMagnitude",
+  );
+  const base: Omit<
+    GeneratorBornClaimLiftRawSourceReproductionConsistency,
+    "passed" | "reason"
+  > = {
+    checked: true,
+    sourceCacheRef,
+    runtimeEvidenceRef,
+    sourceMeasuredOutcome,
+    runtimeMeasuredOutcome,
+    sourceResidualMagnitude,
+    runtimeResidualMagnitude,
+  };
+  if (
+    sourceMeasuredOutcome === null ||
+    sourceResidualMagnitude === null ||
+    runtimeMeasuredOutcome === null ||
+    runtimeResidualMagnitude === null
+  ) {
+    return {
+      ...base,
+      passed: false,
+      reason: "missing_raw_reproduction_metrics",
+    };
+  }
+  const tolerance = 0.015;
+  const measuredMatches =
+    Math.abs(sourceMeasuredOutcome - runtimeMeasuredOutcome) <= tolerance;
+  const residualMatches =
+    Math.abs(sourceResidualMagnitude - runtimeResidualMagnitude) <= tolerance;
+  return {
+    ...base,
+    passed: measuredMatches && residualMatches,
+    reason:
+      measuredMatches && residualMatches
+        ? "raw_source_metrics_match_generator_runtime_evidence"
+        : "raw_source_metrics_do_not_match_generator_runtime_evidence",
+  };
+}
+
+function numericField(
+  object: Record<string, unknown> | null | undefined,
+  field: string,
+): number | null {
+  const value = object?.[field];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function generatorBornClaimLiftSignalExperimentPrimaryBlocker(
   failedGates: string[],
 ): string {
@@ -27343,6 +27483,9 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBlocker(
   }
   if (failedGates.includes("public_corpus_discovery_score_reconciliation")) {
     return "public_corpus_downgrade";
+  }
+  if (failedGates.includes("raw_source_reproduction_consistency")) {
+    return "raw_source_reproduction_mismatch";
   }
   if (
     failedGates.includes("rebind_discovery_scored") ||

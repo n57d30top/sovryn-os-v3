@@ -97,6 +97,7 @@ const commands = [
   "generator-claim-lift",
   "generator-claim-lift-pressure",
   "generator-claim-lift-experiment",
+  "generator-claim-lift-rebind",
   "dimacs-boundary-closure",
   "formal-anchor-select",
   "formal-anchor-pilot",
@@ -5059,6 +5060,115 @@ test("generator-born claim lift signal experiment identifies bindable external-s
   );
 });
 
+test("generator-born claim lift rebind updates only ready packages and keeps root Fund state empty", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  await service.generatorClaimLiftExperiment();
+
+  const rebind = await service.generatorClaimLiftRebind();
+
+  assert.equal(
+    rebind.kind,
+    "generator_born_discovery_claim_lift_signal_rebind",
+  );
+  assert.equal(rebind.status, "discovery_package_rebound");
+  assert.equal(rebind.packagesRebound, 4);
+  assert.equal(rebind.packagesSkipped, 2);
+  assert.equal(rebind.discoveryScoredPackages, 4);
+  assert.equal(rebind.fundFound, false);
+  assert.equal(rebind.fundGateResult.notificationAllowed, true);
+  assert.equal(
+    rebind.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    true,
+  );
+  assert.equal(
+    rebind.decisions
+      .filter((decision) => decision.rebindStatus === "rebound")
+      .every(
+        (decision) =>
+          decision.fundClassBefore === "pipeline_fund_candidate" &&
+          decision.fundClassAfter ===
+            "externally_review_ready_discovery_candidate" &&
+          decision.insightEvidenceRefsBound.length >= 2 &&
+          decision.packageMutated,
+      ),
+    true,
+  );
+  const reboundDecision = rebind.decisions.find(
+    (decision) => decision.rebindStatus === "rebound",
+  );
+  assert.ok(reboundDecision?.packageRef);
+  const reboundPayload = JSON.parse(
+    await readFile(
+      join(root, reboundDecision.packageRef, "FUND_CANDIDATE.json"),
+      "utf8",
+    ),
+  ) as {
+    candidate: {
+      nontrivialNewInsightAcrossRealTargets?: boolean;
+      insightEvidenceRefs?: string[];
+    };
+    fundClass?: string;
+    countsForEinsteinNobelDiscoveryScore?: boolean;
+  };
+  assert.equal(
+    reboundPayload.candidate.nontrivialNewInsightAcrossRealTargets,
+    true,
+  );
+  assert.equal(
+    (reboundPayload.candidate.insightEvidenceRefs?.length ?? 0) >= 2,
+    true,
+  );
+  assert.equal(
+    reboundPayload.fundClass,
+    "externally_review_ready_discovery_candidate",
+  );
+  assert.equal(reboundPayload.countsForEinsteinNobelDiscoveryScore, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -9121,6 +9231,11 @@ const cliScenarios: {
     name: "generator-claim-lift-experiment",
     args: ["discover-daemon", "generator-claim-lift-experiment", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_signal_experiment",
+  },
+  {
+    name: "generator-claim-lift-rebind",
+    args: ["discover-daemon", "generator-claim-lift-rebind", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_signal_rebind",
   },
   {
     name: "formal-anchor-select",

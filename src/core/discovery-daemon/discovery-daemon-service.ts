@@ -1734,6 +1734,40 @@ export type GeneratorBornDiscoveryClaimLiftSignalExperimentReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftSignalRebindDecision = {
+  kind: "generator_born_discovery_claim_lift_signal_rebind_decision";
+  candidateId: string;
+  packageRef: string | null;
+  rebindStatus: "rebound" | "skipped";
+  primaryBlocker: string;
+  insightEvidenceRefsBound: string[];
+  fundClassBefore: FundClass | null;
+  fundClassAfter: FundClass | null;
+  countsForEinsteinNobelDiscoveryScoreAfter: boolean;
+  notificationAllowedAfter: boolean;
+  packageMutated: boolean;
+  fundGateResult: FundGateResult;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSignalRebindReport = {
+  kind: "generator_born_discovery_claim_lift_signal_rebind";
+  status: "discovery_package_rebound" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  experimentsLoaded: number;
+  packagesRebound: number;
+  packagesSkipped: number;
+  discoveryScoredPackages: number;
+  decisions: GeneratorBornDiscoveryClaimLiftSignalRebindDecision[];
+  blockerDistribution: Record<string, number>;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornFundClosureCandidateResult = {
   kind: "generator_born_fund_closure_candidate_result";
   candidateId: string;
@@ -14763,6 +14797,242 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftSignalRebindReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    const experiment = await this.readExperimentOrRun();
+    const decisions: GeneratorBornDiscoveryClaimLiftSignalRebindDecision[] = [];
+    for (const decision of experiment.decisions) {
+      decisions.push(await this.rebindDecision(decision));
+    }
+    const rebound = decisions.filter(
+      (decision) => decision.rebindStatus === "rebound",
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-rebind-continue-searching.json`;
+    const notificationReady =
+      rebound.find((decision) => decision.notificationAllowedAfter) ??
+      rebound[0];
+    const report: GeneratorBornDiscoveryClaimLiftSignalRebindReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_signal_rebind" as const,
+        status:
+          rebound.length > 0
+            ? ("discovery_package_rebound" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: experiment.nextCheckpointRef,
+        nextCheckpointRef,
+        experimentsLoaded: experiment.decisions.length,
+        packagesRebound: rebound.length,
+        packagesSkipped: decisions.filter(
+          (decision) => decision.rebindStatus === "skipped",
+        ).length,
+        discoveryScoredPackages: decisions.filter(
+          (decision) =>
+            decision.countsForEinsteinNobelDiscoveryScoreAfter === true,
+        ).length,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundGateResult:
+          notificationReady?.fundGateResult ??
+          new FundGateEvaluator().evaluate(null),
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftSignalRebindBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftSignalRebindArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readExperimentOrRun(): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentReport> {
+    const existing =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSignalExperimentReport>(
+        join(this.liftRoot(), "SIGNAL_EXPERIMENTS.json"),
+      );
+    if (existing !== null) return existing;
+    return new GeneratorBornDiscoveryClaimLiftSignalExperimentService(
+      this.root,
+    ).run();
+  }
+
+  private async rebindDecision(
+    experimentDecision: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision,
+  ): Promise<GeneratorBornDiscoveryClaimLiftSignalRebindDecision> {
+    if (
+      experimentDecision.experimentStatus !== "insight_evidence_ready" ||
+      experimentDecision.packageRef === null
+    ) {
+      return this.skippedDecision(
+        experimentDecision,
+        experimentDecision.primaryBlocker,
+      );
+    }
+    const packageRoot = join(this.root, experimentDecision.packageRef);
+    const candidatePath = join(packageRoot, "FUND_CANDIDATE.json");
+    const bindingsPath = join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json");
+    const candidatePayload = await readOptionalJson<{
+      candidate?: FundCandidate;
+      fundClass?: FundClass;
+    }>(candidatePath);
+    const bindings =
+      await readOptionalJson<Record<string, unknown>>(bindingsPath);
+    if (!candidatePayload?.candidate || bindings === null) {
+      return this.skippedDecision(
+        experimentDecision,
+        "missing_package_contract",
+      );
+    }
+    const refsResolve =
+      experimentDecision.bindableInsightEvidenceRefs.length >= 2 &&
+      (await claimLiftEvidenceRefsResolvable(
+        this.root,
+        experimentDecision.bindableInsightEvidenceRefs,
+      ));
+    if (!refsResolve) {
+      return this.skippedDecision(
+        experimentDecision,
+        "unresolved_insight_evidence_refs",
+      );
+    }
+    const before = await evaluateFundCandidateWithPackageForRoot(
+      this.root,
+      candidatePayload.candidate,
+    );
+    const updatedCandidate: FundCandidate = {
+      ...candidatePayload.candidate,
+      nontrivialNewInsightAcrossRealTargets: true,
+      domainScientificSignificance: true,
+      insightEvidenceRefs: uniqueStrings([
+        ...(candidatePayload.candidate.insightEvidenceRefs ?? []),
+        ...experimentDecision.bindableInsightEvidenceRefs,
+      ]),
+    };
+    const updatedAssessment = classifyFundCandidateForGate(
+      updatedCandidate,
+      true,
+    );
+    const updatedPayload = {
+      ...candidatePayload,
+      candidate: updatedCandidate,
+      fundClass: updatedAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        updatedAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment: updatedAssessment,
+    };
+    const updatedBindings = {
+      ...bindings,
+      insightEvidenceRefs: updatedCandidate.insightEvidenceRefs,
+      nontrivialInsightEvidenceRefs:
+        experimentDecision.bindableInsightEvidenceRefs,
+      domainSignificanceEvidenceRefs: uniqueStrings([
+        ...stringArray(bindings.domainSignificanceEvidenceRefs),
+        ...experimentDecision.bindableInsightEvidenceRefs,
+      ]),
+      fundClass: updatedAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        updatedAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment: updatedAssessment,
+      fundCandidate: updatedCandidate,
+    };
+    await writeJson(candidatePath, updatedPayload);
+    await writeJson(bindingsPath, updatedBindings);
+    const after = await evaluateFundCandidateWithPackageForRoot(
+      this.root,
+      updatedCandidate,
+    );
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_signal_rebind_decision" as const,
+      candidateId: experimentDecision.candidateId,
+      packageRef: experimentDecision.packageRef,
+      rebindStatus: "rebound" as const,
+      primaryBlocker: after.countsForEinsteinNobelDiscoveryScore
+        ? "none"
+        : "non_discovery_fund_class_after_rebind",
+      insightEvidenceRefsBound: experimentDecision.bindableInsightEvidenceRefs,
+      fundClassBefore: before.fundClass,
+      fundClassAfter: after.fundClass,
+      countsForEinsteinNobelDiscoveryScoreAfter:
+        after.countsForEinsteinNobelDiscoveryScore,
+      notificationAllowedAfter: after.notificationAllowed,
+      packageMutated: true,
+      fundGateResult: after,
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private skippedDecision(
+    experimentDecision: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision,
+    blocker: string,
+  ): GeneratorBornDiscoveryClaimLiftSignalRebindDecision {
+    const result = new FundGateEvaluator().evaluate(null);
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_signal_rebind_decision" as const,
+      candidateId: experimentDecision.candidateId,
+      packageRef: experimentDecision.packageRef,
+      rebindStatus: "skipped" as const,
+      primaryBlocker: blocker,
+      insightEvidenceRefsBound: [],
+      fundClassBefore: null,
+      fundClassAfter: null,
+      countsForEinsteinNobelDiscoveryScoreAfter: false,
+      notificationAllowedAfter: false,
+      packageMutated: false,
+      fundGateResult: result,
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftSignalRebindReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "SIGNAL_REBIND.json"), report);
+    await writeJson(join(root, "SIGNAL_REBIND_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_rebind_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(root, "SIGNAL_REBIND_FUND_GATE_RESULTS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_rebind_fund_gate",
+      fundGateResult: report.fundGateResult,
+      fundFound: report.fundFound,
+      evidenceHash: hashEvidence(report.fundGateResult),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_signal_rebind_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      packagesRebound: report.packagesRebound,
+      discoveryScoredPackages: report.discoveryScoredPackages,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SIGNAL_REBIND.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "SIGNAL_REBIND_DECISIONS.md"),
+      generatorBornDiscoveryClaimLiftSignalRebindMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_REBIND_FUND_GATE_RESULTS.md"),
+      generatorBornDiscoveryClaimLiftSignalRebindFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_REBIND_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftSignalRebindNextCheckpointMarkdown(report),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftProposalBuilder {
   constructor(private readonly root: string) {}
 
@@ -26410,6 +26680,108 @@ function generatorBornDiscoveryClaimLiftSignalExperimentNextCheckpointMarkdown(
 ): string {
   return [
     "# Signal Experiment Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalRebindBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftSignalRebindDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No signal experiment decisions are available for package rebind.";
+  }
+  const scored = decisions.filter(
+    (decision) => decision.countsForEinsteinNobelDiscoveryScoreAfter,
+  );
+  if (scored.length > 0) {
+    return `${scored.length} package(s) now carry discovery-scored FundClass after explicit signal-evidence rebind. Root Fund state was not written; next step is explicit notification/package intake through unchanged Fund Gate.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `No package became discovery-scored after rebind. Blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftSignalRebindArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/SIGNAL_REBIND.json`,
+    `${root}/SIGNAL_REBIND_DECISIONS.json`,
+    `${root}/SIGNAL_REBIND_DECISIONS.md`,
+    `${root}/SIGNAL_REBIND_FUND_GATE_RESULTS.json`,
+    `${root}/SIGNAL_REBIND_FUND_GATE_RESULTS.md`,
+    `${root}/SIGNAL_REBIND_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftSignalRebindMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalRebindReport,
+): string {
+  return [
+    "# Claim Lift Signal Rebind Decisions",
+    "",
+    `Experiments loaded: ${report.experimentsLoaded}.`,
+    `Packages rebound: ${report.packagesRebound}.`,
+    `Packages skipped: ${report.packagesSkipped}.`,
+    `Discovery-scored packages: ${report.discoveryScoredPackages}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Blockers",
+    "",
+    ...Object.entries(report.blockerDistribution).map(
+      ([blocker, count]) => `- ${blocker}: ${count}`,
+    ),
+    ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Status | Before | After | Counts | Notification | Mutated | Blocker | Refs bound |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | ---: |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.rebindStatus} | ${decision.fundClassBefore ?? "none"} | ${decision.fundClassAfter ?? "none"} | ${String(decision.countsForEinsteinNobelDiscoveryScoreAfter)} | ${String(decision.notificationAllowedAfter)} | ${String(decision.packageMutated)} | ${decision.primaryBlocker} | ${decision.insightEvidenceRefsBound.length} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | skipped | none | none | false | false | false | none | 0 |"]
+      : []),
+    "",
+    "This command updates only package-bound artifacts for decisions whose signal experiment already produced resolvable insight evidence. It does not write root FUND_FOUND.md or root fund-candidate.json.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalRebindFundGateMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalRebindReport,
+): string {
+  return [
+    "# Signal Rebind Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Root Fund state remains unchanged. Use an explicit Fund notification/intake command only after reviewing this package-bound rebind result.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalRebindNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalRebindReport,
+): string {
+  return [
+    "# Signal Rebind Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -40247,6 +40619,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftExperiment(): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSignalExperimentService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftRebind(): Promise<GeneratorBornDiscoveryClaimLiftSignalRebindReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftSignalRebindService(
       this.root,
     ).run();
   }

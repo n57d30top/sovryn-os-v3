@@ -1,16 +1,12 @@
 {
-  "kind": "nobel_readiness_external_review_handoff",
-  "generatedAt": "2026-05-12T11:13:51.071Z",
-  "status": "ready_for_external_human_review",
-  "passed": true,
+  "kind": "external_review_bundle_manifest",
+  "generatedAt": "2026-05-12T11:13:51.073Z",
   "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
   "fundClass": "externally_review_ready_discovery_candidate",
-  "readinessLabel": "externally_review_ready_candidate",
-  "readinessScore": 72,
-  "externalReviewReadinessScore": 78,
-  "externalExpertValidationClaimed": false,
   "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
-  "requiredArtifacts": [
+  "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
+  "externalExpertValidationClaimed": false,
+  "requiredPackageArtifacts": [
     {
       "artifact": "PAPER.md",
       "exists": true,
@@ -42,7 +38,7 @@
       "forbiddenClaimFindings": []
     }
   ],
-  "refResolution": {
+  "evidenceRefSummary": {
     "totalRefs": 62,
     "resolvedRefs": 62,
     "unresolvedRefs": [],
@@ -482,48 +478,5 @@
         "reason": "external public URL recorded for human review"
       }
     ]
-  },
-  "gates": [
-    {
-      "code": "discovery_scored_fund_state",
-      "passed": true,
-      "message": "Root Fund state must be a discovery-scored Fund notification state."
-    },
-    {
-      "code": "readiness_score_reconciled",
-      "passed": true,
-      "message": "Nobel-readiness score must reconcile the discovery-scored FundClass."
-    },
-    {
-      "code": "required_package_artifacts_present",
-      "passed": true,
-      "message": "External handoff requires PAPER, METHOD, bindings, reproduce, limitations, and candidate JSON artifacts."
-    },
-    {
-      "code": "claim_bindings_match_candidate",
-      "passed": true,
-      "message": "CLAIM_EVIDENCE_BINDINGS.json must bind to the active Fund candidate identity."
-    },
-    {
-      "code": "all_review_refs_resolve",
-      "passed": true,
-      "message": "All local package and evidence refs used by the handoff must resolve."
-    },
-    {
-      "code": "no_forbidden_public_claims",
-      "passed": true,
-      "message": "Handoff artifacts must avoid forbidden public overclaim categories."
-    },
-    {
-      "code": "external_validation_not_claimed",
-      "passed": true,
-      "message": "The handoff is ready for human review but does not claim outside expert validation."
-    }
-  ],
-  "nextHumanAction": "Give the package path, claim, bindings, method, reproduce instructions, limitations, and this handoff audit to an independent domain expert for review and reproduction.",
-  "artifactRefs": [
-    ".sovryn/nobel-readiness/external-review-handoff.json",
-    ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md"
-  ],
-  "evidenceHash": "b1e7cb8d66bbbae094a38249c68e88fe9d1f4100fef0d347a100e072985bc81d"
+  }
 }

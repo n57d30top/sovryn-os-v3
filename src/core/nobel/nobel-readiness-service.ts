@@ -273,6 +273,42 @@ export type ExternalReviewHandoffAudit = {
   evidenceHash: string;
 };
 
+export type ExternalReviewBundleAudit = {
+  kind: "nobel_readiness_external_review_bundle";
+  generatedAt: string;
+  status: "ready_for_human_review_dispatch" | "blocked";
+  passed: boolean;
+  candidateId: string | null;
+  fundClass: string | null;
+  packagePath: string | null;
+  bundlePath: string;
+  handoffRef: string;
+  externalExpertValidationClaimed: false;
+  files: Array<{
+    path: string;
+    purpose: string;
+    exists: boolean;
+    forbiddenClaimFindings: string[];
+  }>;
+  reviewerChecklist: Array<{
+    gate: string;
+    question: string;
+    evidenceRefs: string[];
+    requiredOutcome: string;
+  }>;
+  reproductionQueue: Array<{
+    stepId: string;
+    action: string;
+    inputRefs: string[];
+    expectedEvidence: string;
+    status: "queued_for_human_review";
+  }>;
+  gates: Array<{ code: string; passed: boolean; message: string }>;
+  nextHumanAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type CandidateSearchResult = {
   kind: "nobel_readiness_candidate_search";
   generatedAt: string;
@@ -1870,6 +1906,147 @@ export class NobelReadinessService {
     return hashedHandoff;
   }
 
+  async externalReviewBundle(): Promise<ExternalReviewBundleAudit> {
+    const handoff = await this.externalReviewHandoff();
+    const bundleRel = ".sovryn/nobel-readiness/external-review-bundle";
+    const bundleRoot = join(this.root, bundleRel);
+    await mkdir(bundleRoot, { recursive: true });
+    const checklist = externalReviewChecklist(handoff);
+    const reproductionQueue = externalReviewReproductionQueue(handoff);
+    const artifactPayloads = [
+      {
+        file: "MANIFEST.json",
+        purpose:
+          "Machine-readable handoff, package, evidence, checklist, and queue manifest.",
+        text: JSON.stringify(
+          {
+            kind: "external_review_bundle_manifest",
+            generatedAt: nowIso(),
+            candidateId: handoff.candidateId,
+            fundClass: handoff.fundClass,
+            packagePath: handoff.packagePath,
+            handoffRef: ".sovryn/nobel-readiness/external-review-handoff.json",
+            externalExpertValidationClaimed: false,
+            requiredPackageArtifacts: handoff.requiredArtifacts,
+            evidenceRefSummary: handoff.refResolution,
+          },
+          null,
+          2,
+        ),
+      },
+      {
+        file: "SUBMISSION_COVER.md",
+        purpose: "Short bounded cover note for independent human reviewers.",
+        text: externalReviewBundleCoverMarkdown(handoff),
+      },
+      {
+        file: "REVIEWER_CHECKLIST.md",
+        purpose: "Concrete human review questions and required outcomes.",
+        text: externalReviewReviewerChecklistMarkdown(checklist),
+      },
+      {
+        file: "EVIDENCE_REF_INDEX.md",
+        purpose: "Resolved package and evidence ref index for inspection.",
+        text: externalReviewEvidenceIndexMarkdown(handoff),
+      },
+      {
+        file: "REPRODUCTION_QUEUE.md",
+        purpose: "Ordered human reproduction and inspection work queue.",
+        text: externalReviewReproductionQueueMarkdown(reproductionQueue),
+      },
+    ];
+    for (const payload of artifactPayloads) {
+      await writeFile(join(bundleRoot, payload.file), payload.text, "utf8");
+    }
+    const files = [];
+    for (const payload of artifactPayloads) {
+      const path = join(bundleRoot, payload.file);
+      const exists = await fileExists(path);
+      const text = exists ? await readFile(path, "utf8") : "";
+      files.push({
+        path: `${bundleRel}/${payload.file}`,
+        purpose: payload.purpose,
+        exists,
+        forbiddenClaimFindings: exists
+          ? auditNobelReadinessPublicText(text)
+          : [],
+      });
+    }
+    const allFilesWritten = files.every((file) => file.exists);
+    const noForbiddenClaims = files.every(
+      (file) => file.forbiddenClaimFindings.length === 0,
+    );
+    const gates = [
+      {
+        code: "handoff_passed",
+        passed: handoff.passed,
+        message:
+          "External review bundle requires a passed package handoff audit.",
+      },
+      {
+        code: "all_bundle_files_written",
+        passed: allFilesWritten,
+        message:
+          "Bundle must include manifest, cover, checklist, evidence index, and reproduction queue.",
+      },
+      {
+        code: "all_handoff_refs_resolve",
+        passed: handoff.refResolution.unresolvedRefs.length === 0,
+        message:
+          "Bundle may only dispatch when all package and evidence refs resolve.",
+      },
+      {
+        code: "no_forbidden_public_claims",
+        passed: noForbiddenClaims,
+        message:
+          "Bundle text must avoid prohibited public overclaim categories.",
+      },
+      {
+        code: "outside_expert_review_not_claimed",
+        passed: true,
+        message:
+          "Bundle queues outside expert review but does not claim that review already happened.",
+      },
+    ];
+    const passed = gates.every((gate) => gate.passed);
+    const bundle: ExternalReviewBundleAudit = {
+      kind: "nobel_readiness_external_review_bundle",
+      generatedAt: nowIso(),
+      status: passed ? "ready_for_human_review_dispatch" : "blocked",
+      passed,
+      candidateId: handoff.candidateId,
+      fundClass: handoff.fundClass,
+      packagePath: handoff.packagePath,
+      bundlePath: bundleRel,
+      handoffRef: ".sovryn/nobel-readiness/external-review-handoff.json",
+      externalExpertValidationClaimed: false,
+      files,
+      reviewerChecklist: checklist,
+      reproductionQueue,
+      gates,
+      nextHumanAction:
+        "Send this bundle and the referenced package to an independent domain expert for method, evidence, reproduction, limitation, and significance review.",
+      artifactRefs: [
+        ".sovryn/nobel-readiness/external-review-bundle.json",
+        ".sovryn/nobel-readiness/external-review-bundle/MANIFEST.json",
+        ".sovryn/nobel-readiness/external-review-bundle/SUBMISSION_COVER.md",
+        ".sovryn/nobel-readiness/external-review-bundle/REVIEWER_CHECKLIST.md",
+        ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
+        ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md",
+      ],
+      evidenceHash: "",
+    };
+    const hashedBundle = {
+      ...bundle,
+      evidenceHash: hashEvidence({ ...bundle, evidenceHash: "" }),
+    };
+    await writeJson(
+      join(this.rootDir, "external-review-bundle.json"),
+      hashedBundle,
+    );
+    return hashedBundle;
+  }
+
   private async resolveHandoffRef(
     ref: string,
     packagePath: string | null,
@@ -2117,6 +2294,188 @@ ${
     ? failedGates.map((gate) => `- ${gate.code}: ${gate.message}`).join("\n")
     : "None."
 }
+`;
+}
+
+function externalReviewChecklist(
+  handoff: ExternalReviewHandoffAudit,
+): ExternalReviewBundleAudit["reviewerChecklist"] {
+  const packageRef = handoff.packagePath ? [handoff.packagePath] : [];
+  return [
+    {
+      gate: "claim_identity",
+      question:
+        "Does the package preserve the exact candidate identity and claim without scope drift?",
+      evidenceRefs: [...packageRef, "CLAIM_EVIDENCE_BINDINGS.json#candidateId"],
+      requiredOutcome:
+        "Reviewer confirms the reviewed claim is the same bounded package claim or requests revision.",
+    },
+    {
+      gate: "method_reproduction",
+      question:
+        "Can the method and replay instructions be followed from the cited artifacts?",
+      evidenceRefs: ["METHOD.md#method", "REPRODUCE.md#replay"],
+      requiredOutcome:
+        "Reviewer records successful reproduction, bounded replay caveat, or blocking failure.",
+    },
+    {
+      gate: "evidence_bindings",
+      question:
+        "Do the claim-evidence bindings connect every major claim element to resolvable evidence?",
+      evidenceRefs: ["CLAIM_EVIDENCE_BINDINGS.json"],
+      requiredOutcome:
+        "Reviewer confirms bindings are inspectable and sufficient or lists missing evidence.",
+    },
+    {
+      gate: "baseline_rival_holdout_pressure",
+      question:
+        "Do baselines, rival mechanisms, holdouts, counterexamples, and replay pressure support the bounded claim?",
+      evidenceRefs: [
+        "CLAIM_EVIDENCE_BINDINGS.json#baseline",
+        "CLAIM_EVIDENCE_BINDINGS.json#rival",
+        "CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs",
+        "CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
+        "CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs",
+      ],
+      requiredOutcome:
+        "Reviewer confirms the pressure is nonfatal for the bounded claim or identifies a fatal blocker.",
+    },
+    {
+      gate: "limitations_and_no_overclaim",
+      question:
+        "Are limitations explicit, and does the package avoid prohibited overclaim categories?",
+      evidenceRefs: ["LIMITATIONS.md#limitations", "PAPER.md#evidence-summary"],
+      requiredOutcome:
+        "Reviewer confirms limitations are adequate or requests narrower wording.",
+    },
+  ];
+}
+
+function externalReviewReproductionQueue(
+  handoff: ExternalReviewHandoffAudit,
+): ExternalReviewBundleAudit["reproductionQueue"] {
+  const packageRef = handoff.packagePath ? [handoff.packagePath] : [];
+  return [
+    {
+      stepId: "review-package-inventory",
+      action:
+        "Open the package directory and verify required artifacts are present.",
+      inputRefs: packageRef,
+      expectedEvidence:
+        "Artifact inventory matches the handoff required-artifact table.",
+      status: "queued_for_human_review",
+    },
+    {
+      stepId: "review-claim-bindings",
+      action:
+        "Inspect CLAIM_EVIDENCE_BINDINGS.json and sample every evidence-ref class.",
+      inputRefs: ["CLAIM_EVIDENCE_BINDINGS.json"],
+      expectedEvidence:
+        "Each claim element has a resolvable, public-safe supporting ref.",
+      status: "queued_for_human_review",
+    },
+    {
+      stepId: "run-replay-path",
+      action:
+        "Follow REPRODUCE.md and record whether replay succeeds or fails with bounded caveats.",
+      inputRefs: ["REPRODUCE.md#replay"],
+      expectedEvidence:
+        "Reviewer-owned replay note with command/result summary.",
+      status: "queued_for_human_review",
+    },
+    {
+      stepId: "evaluate-scientific-pressure",
+      action:
+        "Assess baseline, rival, holdout, counterexample, and mechanism-pressure artifacts.",
+      inputRefs: [
+        "METHOD.md#mechanism-pressure",
+        "CLAIM_EVIDENCE_BINDINGS.json#baseline",
+        "CLAIM_EVIDENCE_BINDINGS.json#rival",
+      ],
+      expectedEvidence:
+        "Reviewer decision: support, request changes, or reject the bounded claim.",
+      status: "queued_for_human_review",
+    },
+  ];
+}
+
+function externalReviewBundleCoverMarkdown(
+  handoff: ExternalReviewHandoffAudit,
+): string {
+  return `# External Review Bundle Cover
+
+## Purpose
+
+This bundle is a dispatch packet for independent human review of one bounded discovery-scored candidate package. It does not assert that outside expert review has already occurred.
+
+## Candidate
+
+- Candidate ID: ${handoff.candidateId ?? "missing"}
+- Fund class: ${handoff.fundClass ?? "missing"}
+- Package path: ${handoff.packagePath ?? "missing"}
+- Handoff status: ${handoff.status}
+- Package refs resolved: ${handoff.refResolution.resolvedRefs}/${handoff.refResolution.totalRefs}
+
+## Reviewer Decision Needed
+
+The reviewer should inspect the package, run or assess the replay path, test the evidence bindings against the claim, and decide whether the bounded claim is supported, needs revision, or should be rejected.
+`;
+}
+
+function externalReviewReviewerChecklistMarkdown(
+  checklist: ExternalReviewBundleAudit["reviewerChecklist"],
+): string {
+  const rows = checklist
+    .map(
+      (item) =>
+        `| ${item.gate} | ${item.question} | ${item.evidenceRefs.join("<br>")} | ${item.requiredOutcome} |`,
+    )
+    .join("\n");
+  return `# Reviewer Checklist
+
+| Gate | Question | Evidence refs | Required outcome |
+| --- | --- | --- | --- |
+${rows}
+`;
+}
+
+function externalReviewEvidenceIndexMarkdown(
+  handoff: ExternalReviewHandoffAudit,
+): string {
+  const rows = handoff.refResolution.refs
+    .map(
+      (ref) =>
+        `| ${ref.ref} | ${ref.kind} | ${ref.resolved ? "yes" : "no"} | ${ref.publicSafe ? "yes" : "no"} | ${ref.reason} |`,
+    )
+    .join("\n");
+  return `# Evidence Ref Index
+
+## Summary
+
+- Total refs: ${handoff.refResolution.totalRefs}
+- Resolved refs: ${handoff.refResolution.resolvedRefs}
+- Unresolved refs: ${handoff.refResolution.unresolvedRefs.length}
+
+| Ref | Kind | Resolved | Public-safe | Reason |
+| --- | --- | --- | --- | --- |
+${rows}
+`;
+}
+
+function externalReviewReproductionQueueMarkdown(
+  queue: ExternalReviewBundleAudit["reproductionQueue"],
+): string {
+  const rows = queue
+    .map(
+      (item) =>
+        `| ${item.stepId} | ${item.action} | ${item.inputRefs.join("<br>")} | ${item.expectedEvidence} | ${item.status} |`,
+    )
+    .join("\n");
+  return `# Reproduction Queue
+
+| Step | Action | Input refs | Expected evidence | Status |
+| --- | --- | --- | --- | --- |
+${rows}
 `;
 }
 

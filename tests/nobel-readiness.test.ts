@@ -550,6 +550,90 @@ test("nobel-readiness external-review handoff blocks unresolved package anchors"
   ]);
 });
 
+test("nobel-readiness external-review bundle writes dispatch checklist without claiming outside review", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-bundle-pass-"));
+  await writeActiveDiscoveryFundPackage(root);
+
+  const bundle = await new NobelReadinessService(root).externalReviewBundle();
+  const cover = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-bundle",
+      "SUBMISSION_COVER.md",
+    ),
+    "utf8",
+  );
+  const checklist = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-bundle",
+      "REVIEWER_CHECKLIST.md",
+    ),
+    "utf8",
+  );
+  const evidenceIndex = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-bundle",
+      "EVIDENCE_REF_INDEX.md",
+    ),
+    "utf8",
+  );
+
+  assert.equal(bundle.passed, true);
+  assert.equal(bundle.status, "ready_for_human_review_dispatch");
+  assert.equal(bundle.externalExpertValidationClaimed, false);
+  assert.equal(
+    bundle.files.every((file) => file.exists),
+    true,
+  );
+  assert.equal(bundle.reviewerChecklist.length >= 5, true);
+  assert.equal(bundle.reproductionQueue.length >= 4, true);
+  assert.match(checklist, /baseline_rival_holdout_pressure/);
+  assert.match(evidenceIndex, /PAPER\.md#evidence-summary/);
+  assert.match(
+    cover,
+    /does not assert that outside expert review has already occurred/,
+  );
+  assert.deepEqual(auditNobelReadinessPublicText(cover), []);
+  assert.deepEqual(auditNobelReadinessPublicText(checklist), []);
+  assert.deepEqual(auditNobelReadinessPublicText(evidenceIndex), []);
+});
+
+test("nobel-readiness external-review bundle blocks when handoff refs are unresolved", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-bundle-block-"));
+  const { packageRoot } = await writeActiveDiscoveryFundPackage(root);
+  const bindingsPath = join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json");
+  const bindings = await readJson<Record<string, unknown>>(bindingsPath);
+  await writeJson(bindingsPath, {
+    ...bindings,
+    evidenceRefs: [
+      ...((bindings.evidenceRefs as string[]) ?? []),
+      "PAPER.md#missing-review-anchor",
+    ],
+  });
+
+  const bundle = await new NobelReadinessService(root).externalReviewBundle();
+
+  assert.equal(bundle.passed, false);
+  assert.equal(bundle.status, "blocked");
+  assert.equal(
+    bundle.gates.find((gate) => gate.code === "handoff_passed")?.passed,
+    false,
+  );
+  assert.equal(
+    bundle.gates.find((gate) => gate.code === "all_handoff_refs_resolve")
+      ?.passed,
+    false,
+  );
+});
+
 for (const field of scoreFields) {
   test(`nobel readiness score has bounded numeric field ${field}`, () => {
     const value = readinessScore[field as keyof typeof readinessScore];
@@ -603,6 +687,7 @@ const helpCommands = [
   "nobel-readiness score",
   "nobel-readiness package",
   "nobel-readiness external-review-handoff",
+  "nobel-readiness external-review-bundle",
   "nobel-readiness audit",
 ];
 
@@ -630,6 +715,7 @@ for (const args of [
   ["score"],
   ["package"],
   ["external-review-handoff"],
+  ["external-review-bundle"],
   ["audit"],
 ]) {
   test(`nobel readiness CLI command works: ${args.join(" ")}`, async () => {

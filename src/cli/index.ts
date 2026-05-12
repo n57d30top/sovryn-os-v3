@@ -171,6 +171,7 @@ Commands:
   sovryn nobel-readiness score [--json]
   sovryn nobel-readiness package [--json]
   sovryn nobel-readiness external-review-handoff [--json]
+  sovryn nobel-readiness external-review-bundle [--json]
   sovryn nobel-readiness audit [--json]
   sovryn discover-daemon status [--json]
   sovryn discover-daemon init [--json]
@@ -1669,7 +1670,7 @@ async function nobelReadinessCommand(
   if (!subcommand) {
     throw new AppError(
       "NOBEL_READINESS_COMMAND_REQUIRED",
-      "Use: sovryn nobel-readiness <status|criteria|domain-select|candidate-search|freeze|execute|holdout|replay|rival-review|score|package|external-review-handoff|audit>.",
+      "Use: sovryn nobel-readiness <status|criteria|domain-select|candidate-search|freeze|execute|holdout|replay|rival-review|score|package|external-review-handoff|external-review-bundle|audit>.",
     );
   }
   const service = new NobelReadinessService(root);
@@ -1698,6 +1699,8 @@ async function nobelReadinessCommand(
       return service.package();
     case "external-review-handoff":
       return service.externalReviewHandoff();
+    case "external-review-bundle":
+      return service.externalReviewBundle();
     case "audit":
       return service.audit();
     default:

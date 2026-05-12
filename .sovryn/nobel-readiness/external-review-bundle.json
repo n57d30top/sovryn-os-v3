@@ -1,0 +1,170 @@
+{
+  "kind": "nobel_readiness_external_review_bundle",
+  "generatedAt": "2026-05-12T11:13:51.075Z",
+  "status": "ready_for_human_review_dispatch",
+  "passed": true,
+  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
+  "fundClass": "externally_review_ready_discovery_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+  "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
+  "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
+  "externalExpertValidationClaimed": false,
+  "files": [
+    {
+      "path": ".sovryn/nobel-readiness/external-review-bundle/MANIFEST.json",
+      "purpose": "Machine-readable handoff, package, evidence, checklist, and queue manifest.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-bundle/SUBMISSION_COVER.md",
+      "purpose": "Short bounded cover note for independent human reviewers.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-bundle/REVIEWER_CHECKLIST.md",
+      "purpose": "Concrete human review questions and required outcomes.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
+      "purpose": "Resolved package and evidence ref index for inspection.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md",
+      "purpose": "Ordered human reproduction and inspection work queue.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    }
+  ],
+  "reviewerChecklist": [
+    {
+      "gate": "claim_identity",
+      "question": "Does the package preserve the exact candidate identity and claim without scope drift?",
+      "evidenceRefs": [
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+        "CLAIM_EVIDENCE_BINDINGS.json#candidateId"
+      ],
+      "requiredOutcome": "Reviewer confirms the reviewed claim is the same bounded package claim or requests revision."
+    },
+    {
+      "gate": "method_reproduction",
+      "question": "Can the method and replay instructions be followed from the cited artifacts?",
+      "evidenceRefs": [
+        "METHOD.md#method",
+        "REPRODUCE.md#replay"
+      ],
+      "requiredOutcome": "Reviewer records successful reproduction, bounded replay caveat, or blocking failure."
+    },
+    {
+      "gate": "evidence_bindings",
+      "question": "Do the claim-evidence bindings connect every major claim element to resolvable evidence?",
+      "evidenceRefs": [
+        "CLAIM_EVIDENCE_BINDINGS.json"
+      ],
+      "requiredOutcome": "Reviewer confirms bindings are inspectable and sufficient or lists missing evidence."
+    },
+    {
+      "gate": "baseline_rival_holdout_pressure",
+      "question": "Do baselines, rival mechanisms, holdouts, counterexamples, and replay pressure support the bounded claim?",
+      "evidenceRefs": [
+        "CLAIM_EVIDENCE_BINDINGS.json#baseline",
+        "CLAIM_EVIDENCE_BINDINGS.json#rival",
+        "CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs",
+        "CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
+        "CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs"
+      ],
+      "requiredOutcome": "Reviewer confirms the pressure is nonfatal for the bounded claim or identifies a fatal blocker."
+    },
+    {
+      "gate": "limitations_and_no_overclaim",
+      "question": "Are limitations explicit, and does the package avoid prohibited overclaim categories?",
+      "evidenceRefs": [
+        "LIMITATIONS.md#limitations",
+        "PAPER.md#evidence-summary"
+      ],
+      "requiredOutcome": "Reviewer confirms limitations are adequate or requests narrower wording."
+    }
+  ],
+  "reproductionQueue": [
+    {
+      "stepId": "review-package-inventory",
+      "action": "Open the package directory and verify required artifacts are present.",
+      "inputRefs": [
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45"
+      ],
+      "expectedEvidence": "Artifact inventory matches the handoff required-artifact table.",
+      "status": "queued_for_human_review"
+    },
+    {
+      "stepId": "review-claim-bindings",
+      "action": "Inspect CLAIM_EVIDENCE_BINDINGS.json and sample every evidence-ref class.",
+      "inputRefs": [
+        "CLAIM_EVIDENCE_BINDINGS.json"
+      ],
+      "expectedEvidence": "Each claim element has a resolvable, public-safe supporting ref.",
+      "status": "queued_for_human_review"
+    },
+    {
+      "stepId": "run-replay-path",
+      "action": "Follow REPRODUCE.md and record whether replay succeeds or fails with bounded caveats.",
+      "inputRefs": [
+        "REPRODUCE.md#replay"
+      ],
+      "expectedEvidence": "Reviewer-owned replay note with command/result summary.",
+      "status": "queued_for_human_review"
+    },
+    {
+      "stepId": "evaluate-scientific-pressure",
+      "action": "Assess baseline, rival, holdout, counterexample, and mechanism-pressure artifacts.",
+      "inputRefs": [
+        "METHOD.md#mechanism-pressure",
+        "CLAIM_EVIDENCE_BINDINGS.json#baseline",
+        "CLAIM_EVIDENCE_BINDINGS.json#rival"
+      ],
+      "expectedEvidence": "Reviewer decision: support, request changes, or reject the bounded claim.",
+      "status": "queued_for_human_review"
+    }
+  ],
+  "gates": [
+    {
+      "code": "handoff_passed",
+      "passed": true,
+      "message": "External review bundle requires a passed package handoff audit."
+    },
+    {
+      "code": "all_bundle_files_written",
+      "passed": true,
+      "message": "Bundle must include manifest, cover, checklist, evidence index, and reproduction queue."
+    },
+    {
+      "code": "all_handoff_refs_resolve",
+      "passed": true,
+      "message": "Bundle may only dispatch when all package and evidence refs resolve."
+    },
+    {
+      "code": "no_forbidden_public_claims",
+      "passed": true,
+      "message": "Bundle text must avoid prohibited public overclaim categories."
+    },
+    {
+      "code": "outside_expert_review_not_claimed",
+      "passed": true,
+      "message": "Bundle queues outside expert review but does not claim that review already happened."
+    }
+  ],
+  "nextHumanAction": "Send this bundle and the referenced package to an independent domain expert for method, evidence, reproduction, limitation, and significance review.",
+  "artifactRefs": [
+    ".sovryn/nobel-readiness/external-review-bundle.json",
+    ".sovryn/nobel-readiness/external-review-bundle/MANIFEST.json",
+    ".sovryn/nobel-readiness/external-review-bundle/SUBMISSION_COVER.md",
+    ".sovryn/nobel-readiness/external-review-bundle/REVIEWER_CHECKLIST.md",
+    ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
+    ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
+  ],
+  "evidenceHash": "5e4a9d9020c2cdba3fc83cee78044073b304c0d8aa1eeafb759ce0ebaac44bcf"
+}

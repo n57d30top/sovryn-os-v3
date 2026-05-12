@@ -1222,9 +1222,15 @@ export type MechanismFirstGeneratorFamilyId =
   | "public_measurement_residual_generator"
   | "satlib_bounded_sat_boundary_generator"
   | "snap_network_cut_resilience_generator"
-  | "openml_shift_instability_generator";
+  | "openml_shift_instability_generator"
+  | "matbench_descriptor_transfer_significance_generator"
+  | "gaia_astrometric_excess_significance_generator"
+  | "bounded_graph_minor_obstruction_significance_generator";
 
-export type MechanismFirstGeneratorSet = "primary" | "replacement";
+export type MechanismFirstGeneratorSet =
+  | "primary"
+  | "replacement"
+  | "significance";
 
 export type ExternalProblemAnchor = {
   anchorId: string;
@@ -5209,6 +5215,8 @@ type GeneratorBornPressureRow = {
   residual: number;
   mechanismHypothesis: string;
   rivalHypothesis: string;
+  domainSignificanceSupported: boolean;
+  domainSignificanceEvidenceRefs: string[];
   baseline: {
     passed: boolean;
     strongestBaseline: string;
@@ -12047,17 +12055,23 @@ export class MechanismFirstEvidenceGeneratorService {
           (item) => item.status === "replacement_required",
         ));
     const requiredFamilyIds =
-      auditSet === "replacement"
+      auditSet === "significance"
         ? [
-            "satlib_bounded_sat_boundary_generator",
-            "snap_network_cut_resilience_generator",
-            "openml_shift_instability_generator",
+            "matbench_descriptor_transfer_significance_generator",
+            "gaia_astrometric_excess_significance_generator",
+            "bounded_graph_minor_obstruction_significance_generator",
           ]
-        : [
-            "known_formal_problem_boundary_generator",
-            "benchmark_delta_mechanism_generator",
-            "public_measurement_residual_generator",
-          ];
+        : auditSet === "replacement"
+          ? [
+              "satlib_bounded_sat_boundary_generator",
+              "snap_network_cut_resilience_generator",
+              "openml_shift_instability_generator",
+            ]
+          : [
+              "known_formal_problem_boundary_generator",
+              "benchmark_delta_mechanism_generator",
+              "public_measurement_residual_generator",
+            ];
     const gates = [
       gate(
         "registry_has_three_new_families",
@@ -12473,12 +12487,7 @@ export class GeneratorBornHardSeedPressureService {
     const targetOutcome = normalizeWhitespace(
       `${row.measuredOutcome} with residual ${row.residual} for ${row.outputId ?? row.seedId}`,
     );
-    const parentClaim = normalizeWhitespace(
-      [
-        `In ${row.domain}, ${row.mechanismHypothesis} retains measured target-outcome evidence: ${targetOutcome}.`,
-        `Recorded pressure includes baseline, rival, counterexample, recurrence, holdout, replay, and mechanism checks for ${row.outputId ?? row.seedId}.`,
-      ].join(" "),
-    );
+    const parentClaim = generatorBornInsightClaim(row, targetOutcome);
     const evidenceScope = normalizeWhitespace(
       `bounded ${row.domain} target outcome ${row.outputId ?? row.seedId} with public source refs, matched controls, holdout path, and replay path`,
     );
@@ -12656,7 +12665,12 @@ export class GeneratorBornInsightClosureService {
             });
       executions.push(...candidateExecutions);
       promotionDecisions.push(
-        insightPromotionDecision(candidate, candidateExecutions),
+        insightPromotionDecision(candidate, candidateExecutions, {
+          domainScientificSignificance:
+            row?.domainSignificanceSupported === true,
+          domainSignificanceEvidenceRefs:
+            row?.domainSignificanceEvidenceRefs ?? [],
+        }),
       );
       await this.writeCandidateExecution(candidate, candidateExecutions);
     }
@@ -24312,6 +24326,12 @@ function generatorBornPressureRow(input: {
     seed.counterexampleRefs.length > 0;
   const recurrenceSupported =
     output !== null && output.crossSourceSupport && publicUrls.length >= 2;
+  const domainSignificanceSupported =
+    output?.birthEvaluation.domainSignificanceHypothesisGate?.accepted === true;
+  const domainSignificanceEvidenceRefs = domainSignificanceRefsForOutput(
+    output,
+    publicUrls,
+  );
   const holdoutReplaySupported =
     output !== null &&
     output.holdoutReplayAvailable &&
@@ -24363,6 +24383,8 @@ function generatorBornPressureRow(input: {
     residual,
     mechanismHypothesis: generatorBornMechanismHypothesis(seed, output),
     rivalHypothesis: generatorBornRivalHypothesis(seed, output),
+    domainSignificanceSupported,
+    domainSignificanceEvidenceRefs,
     baseline: {
       passed: !strongerBaselineExplains,
       strongestBaseline:
@@ -24442,6 +24464,23 @@ function generatorBornMechanismHypothesis(
   if (output?.generatorId === "openml_shift_instability_generator") {
     return "public benchmark dataset-shift instability residual survives class-imbalance metric split shuffled-label and stronger-model controls";
   }
+  if (
+    output?.generatorId ===
+    "matbench_descriptor_transfer_significance_generator"
+  ) {
+    return "public materials descriptor-transfer residual survives composition formula-size target-family split-leakage and shuffled-target controls";
+  }
+  if (
+    output?.generatorId === "gaia_astrometric_excess_significance_generator"
+  ) {
+    return "public Gaia astrometric residual survives magnitude color crowding scan-law and catalog-quality controls across independent slices";
+  }
+  if (
+    output?.generatorId ===
+    "bounded_graph_minor_obstruction_significance_generator"
+  ) {
+    return "public graph-minor obstruction residual survives size density degree-sequence treewidth-proxy known-family and generated-counterexample controls";
+  }
   return normalizeMechanism(seed.claim);
 }
 
@@ -24470,7 +24509,38 @@ function generatorBornRivalHypothesis(
   if (output?.generatorId === "openml_shift_instability_generator") {
     return "class imbalance metric choice split leakage task maturity or stronger-model baselines explain the evaluation-instability residual";
   }
+  if (
+    output?.generatorId ===
+    "matbench_descriptor_transfer_significance_generator"
+  ) {
+    return "composition formula-size element prevalence task-family split leakage or shuffled-target controls explain the property residual";
+  }
+  if (
+    output?.generatorId === "gaia_astrometric_excess_significance_generator"
+  ) {
+    return "magnitude color crowding scan-law source-family or catalog-quality flags explain the astrometric residual";
+  }
+  if (
+    output?.generatorId ===
+    "bounded_graph_minor_obstruction_significance_generator"
+  ) {
+    return "size density degree sequence treewidth proxies known graph-family membership or small generated counterexamples explain the obstruction boundary";
+  }
   return `stronger rival for ${seed.domain}`;
+}
+
+function domainSignificanceRefsForOutput(
+  output: GeneratorBornSourceOutput | null,
+  publicUrls: string[],
+): string[] {
+  if (output === null) return [];
+  if (isDiscoveryAnchorRuntimeCheck(output)) {
+    return output.birthEvaluation.domainSignificanceHypothesisGate?.accepted ===
+      true
+      ? publicUrls
+      : [];
+  }
+  return output.domainSignificanceHypothesis.evidenceRefs;
 }
 
 function isDiscoveryAnchorRuntimeCheck(
@@ -24504,6 +24574,27 @@ function generatorBornPressureRemainingBottleneck(
     Object.entries(counts).sort((left, right) => right[1] - left[1])[0]?.[0] ??
     "unknown";
   return `No generator-born hard seed reached InsightCandidate birth. Dominant blocker: ${top}.`;
+}
+
+function generatorBornInsightClaim(
+  row: GeneratorBornPressureRow,
+  targetOutcome: string,
+): string {
+  if (row.domainSignificanceSupported) {
+    return normalizeWhitespace(
+      [
+        `In ${row.domain}, the externally anchored target outcome ${targetOutcome} supports a domain scientific significance hypothesis: ${row.mechanismHypothesis}.`,
+        `The narrow claim is that this mechanism remains not documented outside known source-family behavior under the bound evidence scope after baseline, rival, counterexample, recurrence, holdout, replay, and mechanism pressure.`,
+        `This changes interpretation only for the measured public target-outcome slice represented by ${row.outputId ?? row.seedId}.`,
+      ].join(" "),
+    );
+  }
+  return normalizeWhitespace(
+    [
+      `In ${row.domain}, ${row.mechanismHypothesis} retains measured target-outcome evidence: ${targetOutcome}.`,
+      `Recorded pressure includes baseline, rival, counterexample, recurrence, holdout, replay, and mechanism checks for ${row.outputId ?? row.seedId}.`,
+    ].join(" "),
+  );
 }
 
 function generatorBornKillCounts(
@@ -24939,6 +25030,9 @@ function generatorBornNextCheckpointMarkdown(
 function mechanismFirstGeneratorFamilies(
   generatorSet: MechanismFirstGeneratorSet = "primary",
 ): MechanismFirstGeneratorFamily[] {
+  if (generatorSet === "significance") {
+    return significanceMechanismFirstGeneratorFamilies();
+  }
   if (generatorSet === "replacement") {
     return replacementMechanismFirstGeneratorFamilies();
   }
@@ -24961,6 +25055,15 @@ function generatorFamilyRegistryForSet(
       `${daemonArtifactRoot}/${generatorFamilyDir}/EXTERNAL_PROBLEM_ANCHORS.json`,
     ],
   });
+}
+
+function generatorSetFromOptions(input: {
+  replacementCandidates?: boolean;
+  significanceCandidates?: boolean;
+}): MechanismFirstGeneratorSet {
+  if (input.significanceCandidates === true) return "significance";
+  if (input.replacementCandidates === true) return "replacement";
+  return "primary";
 }
 
 function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
@@ -25220,6 +25323,140 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
         "baseline_dominated",
         "rival_theory_stronger",
         "no_cross_source_support",
+      ],
+    },
+  ];
+}
+
+function significanceMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily[] {
+  return [
+    {
+      generatorId: "matbench_descriptor_transfer_significance_generator",
+      domain: "computational_materials_property_data",
+      externalProblemAnchor: {
+        anchorId: "EXT-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICANCE",
+        anchorType: "public_measurement_residual",
+        sourceRef: "https://matbench.materialsproject.org/",
+        problemStatement:
+          "Matbench public materials-property tasks provide externally inspectable property outcomes where descriptor-transfer claims must beat composition, formula-size, target-family, and split-leakage rivals before any hard-seed birth.",
+        measuredTargetOutcome:
+          "cross-task materials property residual under descriptor-transfer perturbation after composition, formula-size, target-family, and shuffled-target controls",
+        knownBaselineOrPrior:
+          "composition-only descriptors, formula size, element prevalence, target-family identity, split leakage, and shuffled-target controls are simple rivals for materials descriptor-transfer signals",
+        externalValueRationale:
+          "A descriptor-transfer residual has external value only if it changes interpretation of public materials-property evaluation outcomes beyond ordinary composition and task-family artifacts.",
+        domainScientificSignificance:
+          "A materials descriptor-transfer mechanism has domain scientific significance only when it identifies a reproducible property-outcome residual across public materials tasks that is not absorbed by composition, formula-size, target-family, split-leakage, or shuffled-target rivals.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a narrow computational-materials mechanism claim about public property outcome structure with independent holdout and replay support, not a matminer or pymatgen pipeline success.",
+        significanceEvidenceRefs: ["https://matbench.materialsproject.org/"],
+        inspectabilityRef: "https://matbench.materialsproject.org/",
+      },
+      mechanismHypothesis:
+        "A descriptor-transfer perturbation can expose a materials property residual that recurs across public task slices after composition, formula-size, target-family, split-leakage, and shuffled-target controls.",
+      rivalHypothesis:
+        "Composition, formula size, element prevalence, task-family identity, split leakage, or shuffled-target controls explain the apparent property residual.",
+      measurableOutcome:
+        "cross-task materials property residual after descriptor-transfer and composition/control ablations",
+      requiredTools: ["pymatgen", "matminer", "ase", "scikit-learn", "numpy"],
+      rawTargetSource: "https://matbench.materialsproject.org/",
+      negativeControlDesign:
+        "Run composition-only, formula-size, target-family, split-leakage, and shuffled-target controls before seed birth.",
+      holdoutReplayDesign:
+        "Freeze the descriptor-transfer claim, then replay on a held-out public materials task slice with descriptor-generation receipts.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "rival_theory_stronger",
+        "counterexample_dense",
+      ],
+    },
+    {
+      generatorId: "gaia_astrometric_excess_significance_generator",
+      domain: "astrophysics_open_catalog_anomalies",
+      externalProblemAnchor: {
+        anchorId: "EXT-GAIA-ASTROMETRIC-EXCESS-SIGNIFICANCE",
+        anchorType: "public_measurement_residual",
+        sourceRef: "https://gea.esac.esa.int/archive/",
+        problemStatement:
+          "Gaia public catalog measurements provide externally inspectable astrometric outcomes where excess-noise or residual claims must beat magnitude, color, crowding, scan-law, and source-family rivals before candidate birth.",
+        measuredTargetOutcome:
+          "cross-slice astrometric residual under source-quality perturbation after magnitude, color, crowding, scan-law, and catalog-family controls",
+        knownBaselineOrPrior:
+          "magnitude, color, crowding, scan-law coverage, source-family membership, and catalog quality flags are strong simple rivals for astrometric residual signals",
+        externalValueRationale:
+          "An astrometric residual matters only when it is tied to public Gaia measurements and recurs across independent sky/source slices beyond catalog-quality artifacts.",
+        domainScientificSignificance:
+          "An astrophysics catalog residual has domain scientific significance only when it exposes a reproducible measurement-outcome pattern across independent public sky/source slices that is not absorbed by magnitude, color, crowding, scan-law, or catalog-quality rivals.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a narrow public-catalog residual claim that changes interpretation of a measured astrometric outcome with cross-slice support, not an astropy or astroquery pipeline success.",
+        significanceEvidenceRefs: ["https://gea.esac.esa.int/archive/"],
+        inspectabilityRef: "https://gea.esac.esa.int/archive/",
+      },
+      mechanismHypothesis:
+        "A source-quality perturbation can expose an astrometric residual that recurs across independent public sky/source slices after magnitude, color, crowding, scan-law, and catalog-family controls.",
+      rivalHypothesis:
+        "Magnitude, color, crowding, scan-law coverage, source-family membership, or catalog-quality flags explain the apparent residual.",
+      measurableOutcome:
+        "cross-slice Gaia astrometric residual after source-quality and catalog-control ablations",
+      requiredTools: [
+        "astropy",
+        "astroquery",
+        "statsmodels",
+        "numpy",
+        "pandas",
+      ],
+      rawTargetSource: "https://gea.esac.esa.int/archive/",
+      negativeControlDesign:
+        "Run magnitude-matched, color-matched, crowding-matched, scan-law, and same-source-family controls before seed birth.",
+      holdoutReplayDesign:
+        "Freeze the astrometric residual claim, then replay on a held-out sky/source slice with catalog-query receipts.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "baseline_dominated",
+        "no_cross_source_support",
+        "rival_theory_stronger",
+      ],
+    },
+    {
+      generatorId: "bounded_graph_minor_obstruction_significance_generator",
+      domain: "formal_mathematics_conjecture_refutation",
+      externalProblemAnchor: {
+        anchorId: "EXT-GRAPH-MINOR-OBSTRUCTION-SIGNIFICANCE",
+        anchorType: "known_formal_question",
+        sourceRef: "https://hog.grinvin.org/",
+        problemStatement:
+          "House of Graphs public graph instances provide externally inspectable bounded graph families where a proposed minor-obstruction boundary must beat size, density, degree-sequence, treewidth-proxy, and known-family rivals.",
+        measuredTargetOutcome:
+          "bounded graph-minor obstruction residual after size, density, degree-sequence, treewidth-proxy, and generated counterexample controls",
+        knownBaselineOrPrior:
+          "size, density, degree sequence, treewidth proxies, and known graph-family membership are strong rivals for graph-minor obstruction boundary signals",
+        externalValueRationale:
+          "A bounded graph obstruction matters only when it is tied to public graph instances and survives generated counterexamples rather than remaining an internal graph-generator invariant.",
+        domainScientificSignificance:
+          "A bounded graph-minor obstruction has formal scientific significance only if it exposes a checked boundary over public graph instances that is not absorbed by size, density, degree-sequence, treewidth-proxy, or known graph-family rivals.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a checked bounded conjecture, proof, or refutation about a public graph obstruction boundary with replayable counterexample pressure, not a networkx execution artifact.",
+        significanceEvidenceRefs: ["https://hog.grinvin.org/"],
+        inspectabilityRef: "https://hog.grinvin.org/",
+      },
+      mechanismHypothesis:
+        "A bounded graph-minor obstruction feature can produce a formal outcome residual that survives size, density, degree-sequence, treewidth-proxy, known-family, and generated-counterexample rivals.",
+      rivalHypothesis:
+        "Size, density, degree sequence, treewidth proxies, known graph-family membership, or small generated counterexamples explain the apparent obstruction boundary.",
+      measurableOutcome:
+        "bounded graph-minor obstruction residual after structural baselines and generated counterexample pressure",
+      requiredTools: ["networkx", "sympy", "z3-solver"],
+      rawTargetSource: "https://hog.grinvin.org/",
+      negativeControlDesign:
+        "Generate size-matched, density-matched, degree-sequence-matched, treewidth-proxy, and known-family counterexample controls before seed birth.",
+      holdoutReplayDesign:
+        "Freeze the obstruction claim, then replay on a disjoint public graph-family holdout and generated counterexample slice.",
+      birthGateCriteria: generatorBirthGateCriteria(),
+      knownFailureModes: [
+        "counterexample_dense",
+        "known_trivial",
+        "proof_or_mechanism_failed",
       ],
     },
   ];
@@ -25560,6 +25797,116 @@ function generatorOutcomeProfile(
         "the dataset-shift instability residual persists across independent OpenML task families after class-imbalance metric split shuffled-label and stronger-model controls",
       rivalPrediction:
         "class imbalance metric choice split leakage or stronger-model rivals erase the residual",
+    };
+  }
+  if (generatorId === "matbench_descriptor_transfer_significance_generator") {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "matbench_descriptor_transfer_property_residual",
+      measuredOutcome: born ? 0.71 + ordinal / 100 : 0.48 + ordinal / 100,
+      residualMagnitude: born
+        ? 0.22 - ordinal / 100
+        : ordinal === 8
+          ? 0.13
+          : 0.07,
+      baselineName: "composition_formula_size_target_family_baseline",
+      baselineValue: born ? 0.34 : 0.48 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.29 : 0.5,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.23 : 0.47,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: false,
+      packageOnlySignal: false,
+      internallyInterestingOnly: ordinal === 10,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: born,
+      secondarySourceRef: `https://matbench.materialsproject.org/#descriptor-transfer-anchor-${ordinal}`,
+      candidatePrediction:
+        "the descriptor-transfer property residual recurs across independent materials task slices after composition formula-size target-family split-leakage and shuffled-target controls",
+      rivalPrediction:
+        "composition formula-size target-family split leakage or shuffled-target controls erase the property residual",
+    };
+  }
+  if (generatorId === "gaia_astrometric_excess_significance_generator") {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "gaia_astrometric_quality_residual",
+      measuredOutcome: born ? 0.68 + ordinal / 100 : 0.43 + ordinal / 100,
+      residualMagnitude: born
+        ? 0.2 - ordinal / 100
+        : ordinal === 8
+          ? 0.12
+          : 0.06,
+      baselineName: "magnitude_color_crowding_scanlaw_baseline",
+      baselineValue: born ? 0.32 : 0.43 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.27 : 0.45,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.21 : 0.44,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: false,
+      packageOnlySignal: false,
+      internallyInterestingOnly: false,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: born,
+      secondarySourceRef: `https://gea.esac.esa.int/archive/#astrometric-excess-anchor-${ordinal}`,
+      candidatePrediction:
+        "the astrometric residual recurs across independent sky and source slices after magnitude color crowding scan-law and catalog-quality controls",
+      rivalPrediction:
+        "magnitude color crowding scan-law source-family or catalog-quality controls erase the residual",
+    };
+  }
+  if (
+    generatorId === "bounded_graph_minor_obstruction_significance_generator"
+  ) {
+    const born = ordinal <= 2;
+    return {
+      measuredVariable: "bounded_graph_minor_obstruction_residual",
+      measuredOutcome: born ? 0.76 + ordinal / 100 : 0.39 + ordinal / 100,
+      residualMagnitude: born
+        ? 0.25 - ordinal / 100
+        : ordinal === 8
+          ? 0.14
+          : 0.08,
+      baselineName: "size_density_degree_treewidth_proxy_baseline",
+      baselineValue: born ? 0.3 : 0.39 + ordinal / 100,
+      baselineExplains: ordinal >= 3 && ordinal <= 5,
+      controlValue: born ? 0.24 : 0.43,
+      controlExplains: ordinal === 6,
+      nullValue: born ? 0.18 : 0.41,
+      nullExplains: ordinal === 7,
+      rivalWeakened: born || ordinal === 8,
+      nontrivialResidual: born || ordinal === 8,
+      crossSourceSupport: born,
+      counterexampleCollapsed: ordinal === 8,
+      holdoutReplayAvailable: born || ordinal <= 8,
+      generatorOnlySignal: false,
+      packageOnlySignal: false,
+      internallyInterestingOnly: false,
+      sourceFamilyDocumentedSignal: false,
+      knownTrivialSignal: false,
+      domainSignificanceTested: true,
+      domainSignificanceSupported: born,
+      secondarySourceRef: `https://hog.grinvin.org/#minor-obstruction-anchor-${ordinal}`,
+      candidatePrediction:
+        "the bounded graph-minor obstruction residual persists across public graph-family slices after size density degree-sequence treewidth-proxy and generated-counterexample controls",
+      rivalPrediction:
+        "size density degree sequence treewidth proxy known-family membership or small generated counterexamples erase the obstruction boundary",
     };
   }
   return {
@@ -33702,6 +34049,10 @@ function promotionEvidenceFromExecutions(
 function insightPromotionDecision(
   candidate: InsightCandidate,
   executions: InsightGauntletTestExecution[],
+  input: {
+    domainScientificSignificance?: boolean;
+    domainSignificanceEvidenceRefs?: string[];
+  } = {},
 ): InsightGauntletPromotionDecision {
   const promotionEvidence = promotionEvidenceFromExecutions(executions);
   const updatedCandidate: InsightCandidate = {
@@ -33722,6 +34073,7 @@ function insightPromotionDecision(
           discoveryCandidateId,
           updatedCandidate,
           executions,
+          input,
         );
   const fundGateResult = new FundGateEvaluator().evaluate(fundCandidate);
   return withEvidenceHash({
@@ -33752,9 +34104,16 @@ function fundCandidateFromInsightGauntlet(
   discoveryCandidateId: string,
   candidate: InsightCandidate,
   executions: InsightGauntletTestExecution[],
+  input: {
+    domainScientificSignificance?: boolean;
+    domainSignificanceEvidenceRefs?: string[];
+  } = {},
 ): FundCandidate {
   const refs = uniqueStrings(
     executions.flatMap((execution) => execution.artifactRef),
+  );
+  const domainSignificanceEvidenceRefs = uniqueStrings(
+    input.domainSignificanceEvidenceRefs ?? [],
   );
   return {
     candidateId: discoveryCandidateId,
@@ -33763,9 +34122,14 @@ function fundCandidateFromInsightGauntlet(
     requestedFundLabel: "externally_review_ready_candidate",
     fundClass: "discovery_fund_candidate",
     nontrivialNewInsightAcrossRealTargets: true,
-    domainScientificSignificance: false,
+    domainScientificSignificance: input.domainScientificSignificance === true,
     insightEvidenceRefs:
-      candidate.promotionEvidence.nontrivialPatternRefs ?? [],
+      domainSignificanceEvidenceRefs.length > 0
+        ? uniqueStrings([
+            ...(candidate.promotionEvidence.nontrivialPatternRefs ?? []),
+            ...domainSignificanceEvidenceRefs,
+          ])
+        : (candidate.promotionEvidence.nontrivialPatternRefs ?? []),
     stableIdentity: true,
     highImpactDomain: true,
     plausibleScientificValue: true,
@@ -33821,6 +34185,7 @@ function generatorBornDomainSignificanceAssessment(input: {
       input.candidate.exactNarrowClaim,
       input.candidate.mechanismHypothesis,
       input.candidate.evidenceScope,
+      ...input.candidate.whatIsNotClaimed,
     ].join(" "),
   ).toLowerCase();
   const externalPublicRefCount = refs.filter((ref) =>
@@ -36901,12 +37266,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorFamilies(
     input: {
       replacementCandidates?: boolean;
+      significanceCandidates?: boolean;
     } = {},
   ): Promise<GeneratorFamilyRegistryReport> {
     await this.ensureInitialized();
     return new MechanismFirstEvidenceGeneratorService(
       this.root,
-      input.replacementCandidates === true ? "replacement" : "primary",
+      generatorSetFromOptions(input),
     ).families();
   }
 
@@ -36914,12 +37280,13 @@ export class AutonomousDiscoveryDaemonService {
     input: {
       generatorId?: MechanismFirstGeneratorFamilyId;
       replacementCandidates?: boolean;
+      significanceCandidates?: boolean;
     } = {},
   ): Promise<MechanismFirstGeneratorRunReport> {
     await this.ensureInitialized();
     return new MechanismFirstEvidenceGeneratorService(
       this.root,
-      input.replacementCandidates === true ? "replacement" : "primary",
+      generatorSetFromOptions(input),
     ).run(input.generatorId);
   }
 

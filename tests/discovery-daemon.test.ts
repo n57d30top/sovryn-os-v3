@@ -3714,6 +3714,40 @@ test("mechanism-first replacement generator registry loads non-variant external 
   );
 });
 
+test("mechanism-first significance generator registry loads domain-significance-supported anchors", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorFamilies({
+    significanceCandidates: true,
+  });
+
+  assert.equal(report.kind, "mechanism_first_generator_family_registry");
+  assert.equal(report.generatorSet, "significance");
+  assert.equal(report.familyCount, 3);
+  assert.deepEqual(report.families.map((family) => family.generatorId).sort(), [
+    "bounded_graph_minor_obstruction_significance_generator",
+    "gaia_astrometric_excess_significance_generator",
+    "matbench_descriptor_transfer_significance_generator",
+  ]);
+  assert.equal(
+    report.families.every(
+      (family) =>
+        family.externalProblemAnchor.sourceRef.startsWith("https://") &&
+        family.externalProblemAnchor.domainScientificSignificance.length > 80 &&
+        family.externalProblemAnchor.discoveryScoredOutcome.length > 80 &&
+        family.externalProblemAnchor.significanceEvidenceRefs.length > 0 &&
+        family.mechanismHypothesis.length > 0 &&
+        family.rivalHypothesis.length > 0 &&
+        family.birthGateCriteria.includes(
+          "external problem anchor states domain scientific significance beyond pipeline/tool/package capability",
+        ),
+    ),
+    true,
+  );
+});
+
 test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   const baseInput = {
     generatorId: "test_generator",
@@ -4166,6 +4200,263 @@ test("replacement generator run blocks domain-significance-unsupported outputs b
   assert.equal(audit.pressureYield.pressureRunFound, false);
   assert.equal(audit.pressureYield.insightCandidatesCreated, 0);
   assert.deepEqual(audit.failedGates, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("significance generator run can birth hard seeds from supported domain-significance evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorRun({
+    significanceCandidates: true,
+  });
+
+  assert.equal(report.kind, "mechanism_first_generator_run");
+  assert.equal(report.generatorSet, "significance");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.externalProblemAnchorsLoaded, 3);
+  assert.equal(report.targetsMeasured, 30);
+  assert.equal(report.familiesRun, 3);
+  assert.equal(report.runtimeChecks, 30);
+  assert.equal(report.hardSeedBirthAttempts, 30);
+  assert.equal(report.hardSeedsBorn, 6);
+  assert.equal(report.replacementRequired, false);
+  assert.equal(
+    report.replacementRequirements.every(
+      (item) =>
+        item.status === "productive_or_not_run" &&
+        item.runtimeChecks === 10 &&
+        item.hardSeedsBorn === 2 &&
+        item.blockedOutputs === 8,
+    ),
+    true,
+  );
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+
+  const seedPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeeds: Array<{
+      kind: string;
+      sourceSeed: {
+        generatorId: string;
+        domainSignificanceHypothesis: { tested: boolean; supported: boolean };
+      };
+      evidenceRefs: string[];
+    }>;
+    validations: Array<{ accepted: boolean }>;
+  };
+  assert.equal(seedPayload.hardSeeds.length, 6);
+  assert.equal(
+    seedPayload.hardSeeds.every(
+      (seed) =>
+        seed.kind === "hard_seed" &&
+        seed.evidenceRefs.some((ref) => ref.startsWith("https://")) &&
+        seed.sourceSeed.domainSignificanceHypothesis.tested === true &&
+        seed.sourceSeed.domainSignificanceHypothesis.supported === true &&
+        [
+          "matbench_descriptor_transfer_significance_generator",
+          "gaia_astrometric_excess_significance_generator",
+          "bounded_graph_minor_obstruction_significance_generator",
+        ].includes(seed.sourceSeed.generatorId),
+    ),
+    true,
+  );
+  assert.equal(
+    seedPayload.validations.every((validation) => validation.accepted),
+    true,
+  );
+
+  const outputPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      hardSeed: unknown | null;
+      birthEvaluation: {
+        accepted: boolean;
+        domainSignificanceHypothesisGate: {
+          accepted: boolean;
+          failedGates: string[];
+        };
+      };
+      domainSignificanceHypothesis: { tested: boolean; supported: boolean };
+    }>;
+  };
+  const bornOutputs = outputPayload.outputs.filter(
+    (output) => output.hardSeed !== null,
+  );
+  assert.equal(bornOutputs.length, 6);
+  assert.equal(
+    bornOutputs.every(
+      (output) =>
+        output.birthEvaluation.accepted === true &&
+        output.domainSignificanceHypothesis.tested === true &&
+        output.domainSignificanceHypothesis.supported === true &&
+        output.birthEvaluation.domainSignificanceHypothesisGate.accepted ===
+          true &&
+        output.birthEvaluation.domainSignificanceHypothesisGate.failedGates
+          .length === 0,
+    ),
+    true,
+  );
+
+  const audit = await service.generatorAudit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.generatorSet, "significance");
+  assert.equal(audit.replacementRequired, false);
+  assert.equal(audit.hardSeedsBorn, 6);
+  assert.deepEqual(audit.failedGates, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("significance generator-born hard seeds enter pressure as InsightCandidates without creating Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+
+  const pressure = await service.generatorPressure();
+
+  assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
+  assert.equal(pressure.status, "continue_searching_checkpointed");
+  assert.equal(pressure.seedsLoaded, 6);
+  assert.equal(pressure.testsRun, 42);
+  assert.equal(pressure.seedsKilledByBaseline, 0);
+  assert.equal(pressure.seedsKilledByRival, 0);
+  assert.equal(pressure.seedsKilledByCounterexample, 0);
+  assert.equal(pressure.seedsKilledByLackOfRecurrence, 0);
+  assert.equal(pressure.insightCandidatesCreated, 6);
+  assert.equal(pressure.discoveryCandidatesCreated, 0);
+  assert.equal(pressure.fundFound, false);
+  assert.deepEqual(pressure.fundGateResult.failedGates, ["candidate_present"]);
+
+  const rowsPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-pressure", "PRESSURE_ROWS.json"),
+      "utf8",
+    ),
+  ) as {
+    rows: Array<{
+      primaryKillReason: string;
+      insightCandidateCreated: boolean;
+      runtimeEvidenceRef: string | null;
+    }>;
+  };
+  assert.equal(rowsPayload.rows.length, 6);
+  assert.equal(
+    rowsPayload.rows.every(
+      (row) =>
+        row.primaryKillReason === "survived" &&
+        row.insightCandidateCreated === true &&
+        typeof row.runtimeEvidenceRef === "string",
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("significance generator-born InsightCandidates preserve domain significance into FundClass assessment", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+
+  const closure = await service.generatorInsightClosure();
+
+  assert.equal(closure.kind, "generator_born_insight_closure");
+  assert.equal(closure.status, "continue_searching_checkpointed");
+  assert.equal(closure.fundFound, false);
+  assert.equal(closure.promotionDecisions.length >= 6, true);
+  assert.equal(
+    closure.promotionDecisions.every(
+      (decision) =>
+        decision.fundGateResult.notificationAllowed === false &&
+        decision.fundGateResult.fundClassAssessment?.discoveryGate
+          .nontrivialNewInsightAcrossRealTargets === true &&
+        decision.fundGateResult.fundClassAssessment?.discoveryGate
+          .domainScientificSignificance === true &&
+        decision.fundGateResult.fundClassAssessment
+          .countsForEinsteinNobelDiscoveryScore === false,
+    ),
+    true,
+  );
+  assert.equal(
+    closure.promotionDecisions.every((decision) =>
+      decision.fundGateResult.failedGates.includes("external_review_package"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("significance generator-born fund closure remains silent until not-claimed discovery caveats are replaced by a new stable candidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+
+  const closure = await service.generatorFundClosure();
+
+  assert.equal(closure.kind, "generator_born_fund_closure");
+  assert.equal(closure.status, "continue_searching_checkpointed");
+  assert.equal(closure.closureCandidateCount, 6);
+  assert.equal(closure.discoveryScoredCandidates, 0);
+  assert.equal(closure.nonDiscoveryClassifiedCandidates, 6);
+  assert.deepEqual(closure.fundClassDistribution, {
+    pipeline_fund_candidate: 6,
+  });
+  assert.equal(closure.fundGateResult.notificationAllowed, false);
+  assert.equal(
+    closure.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    false,
+  );
+  assert.equal(closure.fundFound, false);
+  assert.equal(
+    closure.closureCandidateResults.every(
+      (result) =>
+        result.domainSignificancePassed === false &&
+        result.domainSignificanceFailedGates.includes(
+          "no_anti_discovery_claim_text",
+        ) &&
+        result.countsForEinsteinNobelDiscoveryScore === false &&
+        result.notificationAllowed === false,
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -7773,6 +8064,16 @@ const cliScenarios: {
       "discover-daemon",
       "generator-run",
       "--replacement-candidates",
+      "--json",
+    ],
+    expectedKind: "mechanism_first_generator_run",
+  },
+  {
+    name: "generator-run-significance",
+    args: [
+      "discover-daemon",
+      "generator-run",
+      "--significance-candidates",
       "--json",
     ],
     expectedKind: "mechanism_first_generator_run",

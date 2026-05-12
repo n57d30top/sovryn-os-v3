@@ -197,8 +197,8 @@ Commands:
   sovryn discover-daemon generative-experiments [--json]
   sovryn discover-daemon tool-expansion [--json]
   sovryn discover-daemon mechanism-first-pressure [--json]
-  sovryn discover-daemon generator-families [--replacement-candidates] [--json]
-  sovryn discover-daemon generator-run --generator <id> [--replacement-candidates] [--json]
+  sovryn discover-daemon generator-families [--replacement-candidates] [--significance-candidates] [--json]
+  sovryn discover-daemon generator-run --generator <id> [--replacement-candidates] [--significance-candidates] [--json]
   sovryn discover-daemon generator-audit [--json]
   sovryn discover-daemon generator-pressure [--json]
   sovryn discover-daemon generator-insight-closure [--json]
@@ -1707,7 +1707,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates with generator-families or generator-run to select replacement generator families after replacement_required audits.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates or --significance-candidates with generator-families or generator-run to select the generator family set.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1833,6 +1833,10 @@ async function discoverDaemonCommand(
           parsed.flags,
           "--replacement-candidates",
         ),
+        significanceCandidates: flagBool(
+          parsed.flags,
+          "--significance-candidates",
+        ),
       });
     case "generator-run":
       return service.generatorRun({
@@ -1843,10 +1847,17 @@ async function discoverDaemonCommand(
           | "public_measurement_residual_generator"
           | "satlib_bounded_sat_boundary_generator"
           | "snap_network_cut_resilience_generator"
-          | "openml_shift_instability_generator",
+          | "openml_shift_instability_generator"
+          | "matbench_descriptor_transfer_significance_generator"
+          | "gaia_astrometric_excess_significance_generator"
+          | "bounded_graph_minor_obstruction_significance_generator",
         replacementCandidates: flagBool(
           parsed.flags,
           "--replacement-candidates",
+        ),
+        significanceCandidates: flagBool(
+          parsed.flags,
+          "--significance-candidates",
         ),
       });
     case "generator-audit":

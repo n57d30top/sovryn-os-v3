@@ -14491,15 +14491,35 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
       (isRecord(bindings?.fundCandidate)
         ? (bindings.fundCandidate as FundCandidate)
         : null);
+    const publicFundReconciliation = await new DiscoveryFrictionHealthService(
+      this.root,
+    ).publicFundReconciliationForCandidate(
+      candidate?.candidateId ?? proposal.targetDiscoveryCandidateId,
+    );
     const packageFilesPresent = (
       await Promise.all(
         requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
       )
     ).every(Boolean);
-    const evaluation =
+    const packageEvaluation =
       candidate === null
         ? new FundGateEvaluator().evaluate(null)
         : await evaluateFundCandidateWithPackageForRoot(this.root, candidate);
+    const evaluation = publicFundReconciliation.blocksDiscoveryScore
+      ? {
+          ...packageEvaluation,
+          passed: false,
+          status: "continue_searching" as const,
+          failedGates: Array.from(
+            new Set([
+              ...packageEvaluation.failedGates,
+              "public_corpus_downgrade",
+            ]),
+          ),
+          countsForEinsteinNobelDiscoveryScore: false,
+          notificationAllowed: false,
+        }
+      : packageEvaluation;
     const signalEvidenceRefs = generatorBornClaimLiftSignalEvidenceRefs({
       candidate,
       bindings,
@@ -14531,8 +14551,13 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
       ),
       gate(
         "structural_fund_gate_passed",
-        evaluation.passed,
+        packageEvaluation.passed,
         "The unchanged package-aware Fund Gate must pass before discovery-signal pressure can matter.",
+      ),
+      gate(
+        "public_corpus_discovery_score_reconciliation",
+        publicFundReconciliation.blocksDiscoveryScore !== true,
+        "Discovery-signal pressure must stop when a matching public corpus package already downgraded the candidate from discovery scoring.",
       ),
       gate(
         "nontrivial_new_insight_evidence_bound",
@@ -14977,6 +15002,17 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
         "unresolved_insight_evidence_refs",
       );
     }
+    const publicFundReconciliation = await new DiscoveryFrictionHealthService(
+      this.root,
+    ).publicFundReconciliationForCandidate(
+      candidatePayload.candidate.candidateId,
+    );
+    if (publicFundReconciliation.blocksDiscoveryScore) {
+      return this.skippedDecision(
+        experimentDecision,
+        "public_corpus_downgrade",
+      );
+    }
     const before = await evaluateFundCandidateWithPackageForRoot(
       this.root,
       candidatePayload.candidate,
@@ -15141,10 +15177,9 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         : null;
     const fundGateResult =
       cycleFundGate ??
-      selected?.fundGateResult ??
-      eligible[0]?.fundGateResult ??
-      evaluations[0]?.fundGateResult ??
-      new FundGateEvaluator().evaluate(null);
+      (selected !== null
+        ? selected.fundGateResult
+        : new FundGateEvaluator().evaluate(null));
     const fundFound =
       fundGateResult.notificationAllowed === true &&
       cycle?.nextStatus === "FUND_FOUND";
@@ -15219,6 +15254,12 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
           fundFound,
         }),
       });
+    if (!fundFound) {
+      await this.reconcileBlockedRootFundState(
+        evaluations.map((evaluation) => evaluation.rebindDecision.candidateId),
+        fundGateResult,
+      );
+    }
     await this.writeArtifacts(report);
     return report;
   }
@@ -15307,6 +15348,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         "Root intake requires the package-bound FundCandidate payload.",
       ),
       gate(
+        "public_corpus_package_present",
+        publicFundReconciliation.matched === true,
+        "Root intake for generator-born claim-lift packages requires a matching public corpus package before root Fund state can be written.",
+      ),
+      gate(
         "rebind_discovery_scored",
         rebindDecision.countsForEinsteinNobelDiscoveryScoreAfter === true,
         "Rebind must classify the package as discovery-scored.",
@@ -15382,6 +15428,93 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
       }),
     );
     return intakeRef;
+  }
+
+  private async reconcileBlockedRootFundState(
+    candidateIds: string[],
+    fundGateResult: FundGateResult,
+  ): Promise<void> {
+    const statePath = join(this.root, daemonArtifactRoot, "state.json");
+    const state = await readOptionalJson<DiscoveryDaemonState>(statePath);
+    if (state === null) return;
+    if (typeof state.lastCandidateId !== "string") return;
+    if (!candidateIds.includes(state.lastCandidateId)) return;
+    const staleCyclePath = join(
+      this.root,
+      daemonArtifactRoot,
+      "search-cycles",
+      `${state.lastCycleId}.json`,
+    );
+    const staleCycle =
+      await readOptionalJson<Record<string, unknown>>(staleCyclePath);
+    const staleCycleFundGate = isRecord(staleCycle?.fundGateEvaluation)
+      ? staleCycle.fundGateEvaluation
+      : null;
+    const staleFundState =
+      state.fundFound === true || state.status === "FUND_FOUND";
+    const staleFundCycle =
+      stringField(staleCycle, "status") === "FUND_FOUND" ||
+      stringField(staleCycle, "nextStatus") === "FUND_FOUND" ||
+      staleCycle?.discoveryFundNotificationAllowed === true ||
+      staleCycleFundGate?.notificationAllowed === true;
+    if (!staleFundState && !staleFundCycle) return;
+    await removeIfExists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"));
+    await removeIfExists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
+      fundGateResult,
+    );
+    const previousCycle = staleFundCycle
+      ? await this.previousSearchCycleBefore(state.lastCycleId ?? null)
+      : null;
+    if (isRecord(staleCycle) && staleFundCycle) {
+      await removeIfExists(staleCyclePath);
+      await removeIfExists(
+        join(
+          this.root,
+          daemonArtifactRoot,
+          "checkpoints",
+          `${state.lastCycleId}.json`,
+        ),
+      );
+    }
+    await writeJson(
+      statePath,
+      withEvidenceHash({
+        ...state,
+        status: "continue_searching" as const,
+        fundFound: false,
+        cycleCount: previousCycle?.cycleNumber ?? state.cycleCount,
+        lastCycleId: previousCycle?.cycleId ?? state.lastCycleId,
+        updatedAt: nowIso(),
+      }),
+    );
+  }
+
+  private async previousSearchCycleBefore(
+    cycleId: string | null,
+  ): Promise<{ cycleId: string; cycleNumber: number } | null> {
+    const currentNumber = cycleNumberFromCycleId(cycleId);
+    if (currentNumber === null) return null;
+    let files: string[];
+    try {
+      files = await readdir(
+        join(this.root, daemonArtifactRoot, "search-cycles"),
+      );
+    } catch {
+      return null;
+    }
+    const previous = cycleFilesByNumber(files)
+      .filter((item) => item.cycleNumber < currentNumber)
+      .at(-1);
+    return previous
+      ? {
+          cycleId: previous.file.replace(/\.json$/, ""),
+          cycleNumber: previous.cycleNumber,
+        }
+      : null;
   }
 
   private async writeArtifacts(
@@ -26718,6 +26851,11 @@ function generatorBornClaimLiftSignalPrimaryBlocker(input: {
   signalEvidenceRefs: string[];
 }): string {
   if (input.candidate === null) return "missing_fund_candidate_package";
+  if (
+    input.failedGates.includes("public_corpus_discovery_score_reconciliation")
+  ) {
+    return "public_corpus_downgrade";
+  }
   if (input.failedGates.includes("structural_fund_gate_passed")) {
     return "fund_gate_structural_blocker";
   }
@@ -26757,6 +26895,8 @@ function generatorBornClaimLiftSignalRequiredNextExperiment(
       return "Repair the package or draft contract without changing Fund Gate semantics, then rerun signal pressure.";
     case "missing_fund_candidate_package":
       return "Create the forward-only package-bound FundCandidate artifact from a valid FundCandidateDraft before signal pressure.";
+    case "public_corpus_downgrade":
+      return "Do not re-score this package internally while the public corpus has downgraded the matching candidate from discovery scoring; create a new raw-reproducible package or repair the public package first.";
     default:
       return "Continue searching with exact blocker carried into the candidate graveyard.";
   }
@@ -27197,6 +27337,9 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBlocker(
     failedGates.includes("package_fund_candidate_present")
   ) {
     return "missing_package_candidate";
+  }
+  if (failedGates.includes("public_corpus_package_present")) {
+    return "public_corpus_package_missing";
   }
   if (failedGates.includes("public_corpus_discovery_score_reconciliation")) {
     return "public_corpus_downgrade";
@@ -40088,19 +40231,25 @@ function searchCyclePackageRejectionCauseConsistent(
 function corpusSeedCandidateBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
-  const context = cycle.corpusContext as Record<string, unknown> | null;
-  const snapshot = context?.corpusSnapshot as Record<string, unknown> | null;
+  const context = isRecord(cycle.corpusContext) ? cycle.corpusContext : null;
+  const snapshot = isRecord(context?.corpusSnapshot)
+    ? context.corpusSnapshot
+    : null;
   const sampledSeeds = Array.isArray(snapshot?.sampledSeeds)
     ? snapshot.sampledSeeds
     : [];
   if (sampledSeeds.length === 0) return true;
-  const corpusSeed = cycle.corpusSeed as Record<string, unknown> | null;
+  const corpusSeed = isRecord(cycle.corpusSeed) ? cycle.corpusSeed : null;
   const candidateIdeas = Array.isArray(cycle.candidateIdeas)
     ? (cycle.candidateIdeas as Array<Record<string, unknown>>)
     : [];
   const firstIdea = candidateIdeas[0];
-  const sourceSeed = firstIdea?.sourceSeed as Record<string, unknown> | null;
-  const selection = cycle.corpusSeedSelection as Record<string, unknown> | null;
+  const sourceSeed = isRecord(firstIdea?.sourceSeed)
+    ? firstIdea.sourceSeed
+    : null;
+  const selection = isRecord(cycle.corpusSeedSelection)
+    ? cycle.corpusSeedSelection
+    : null;
   if (selection?.mode === "exhausted") {
     return (
       corpusSeed === null &&
@@ -40121,24 +40270,23 @@ function corpusSeedCandidateBindingValid(
 function freshExternalSeedBindingValid(
   cycle: Record<string, unknown>,
 ): boolean {
-  const selection = cycle.freshExternalSeedSelection as Record<
-    string,
-    unknown
-  > | null;
+  const selection = isRecord(cycle.freshExternalSeedSelection)
+    ? cycle.freshExternalSeedSelection
+    : null;
   if (selection === null) return false;
-  const freshSeed = cycle.freshExternalSeed as Record<string, unknown> | null;
-  const identity = cycle.identityLedgerDecision as Record<
-    string,
-    unknown
-  > | null;
+  const freshSeed = isRecord(cycle.freshExternalSeed)
+    ? cycle.freshExternalSeed
+    : null;
+  const identity = isRecord(cycle.identityLedgerDecision)
+    ? cycle.identityLedgerDecision
+    : null;
   const isIdentityDriftProbe = identity?.cause === "identity_drift";
   const candidateIdeas = Array.isArray(cycle.candidateIdeas)
     ? (cycle.candidateIdeas as Array<Record<string, unknown>>)
     : [];
-  const sourceSeed = candidateIdeas[0]?.sourceSeed as Record<
-    string,
-    unknown
-  > | null;
+  const sourceSeed = isRecord(candidateIdeas[0]?.sourceSeed)
+    ? candidateIdeas[0].sourceSeed
+    : null;
   if (selection.mode === "not_needed_corpus_seed_available") {
     return freshSeed === null;
   }
@@ -40172,7 +40320,9 @@ function freshSourceSeedKind(sourceSeed: Record<string, unknown>): boolean {
 function corpusSeedGraveyardReuseBlocked(
   cycle: Record<string, unknown>,
 ): boolean {
-  const selection = cycle.corpusSeedSelection as Record<string, unknown> | null;
+  const selection = isRecord(cycle.corpusSeedSelection)
+    ? cycle.corpusSeedSelection
+    : null;
   if (selection === null) return false;
   if (selection.reuseAllowedForCoverage === true) return true;
   return selection.selectedSeedWasInPriorGraveyard !== true;

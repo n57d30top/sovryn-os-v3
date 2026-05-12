@@ -1,507 +1,72 @@
 {
   "kind": "nobel_readiness_external_review_handoff",
-  "generatedAt": "2026-05-12T11:13:51.071Z",
-  "status": "ready_for_external_human_review",
-  "passed": true,
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
-  "fundClass": "externally_review_ready_discovery_candidate",
-  "readinessLabel": "externally_review_ready_candidate",
-  "readinessScore": 72,
-  "externalReviewReadinessScore": 78,
+  "generatedAt": "2026-05-12T22:01:54.935Z",
+  "status": "blocked",
+  "passed": false,
+  "candidateId": null,
+  "fundClass": null,
+  "readinessLabel": "promising_with_strong_caveats",
+  "readinessScore": 46,
+  "externalReviewReadinessScore": 44,
   "externalExpertValidationClaimed": false,
-  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+  "packagePath": null,
   "requiredArtifacts": [
     {
       "artifact": "PAPER.md",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "METHOD.md",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "CLAIM_EVIDENCE_BINDINGS.json",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "REPRODUCE.md",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "LIMITATIONS.md",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "FUND_CANDIDATE.json",
-      "exists": true,
+      "exists": false,
       "forbiddenClaimFindings": []
     }
   ],
   "refResolution": {
-    "totalRefs": 62,
-    "resolvedRefs": 62,
+    "totalRefs": 0,
+    "resolvedRefs": 0,
     "unresolvedRefs": [],
-    "refs": [
-      {
-        "ref": ".sovryn/discovery-daemon/candidate-identity-ledger.json#DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/discovery-anchor-run/source-cache/DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#baseline",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#killWeek",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#predictionLedger",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#rival",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/METHOD.md#mechanism-pressure",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/REPRODUCE.md#replay",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-families/runtime-evidence/matbench_descriptor_transfer_significance_generator-output-01.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-01",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-02",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-03",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-04",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-05",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-06",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-07",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-08",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-09",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-10",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-11",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-12",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#predictions",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/KILL_WEEK_RESULTS.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/KILL_WEEK_RESULTS.json#killWeek",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#baseline_resistance_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#counterexample_search",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#holdout_feasibility_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#nontrivial_pattern_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#proof_or_mechanism_pressure_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#replay_feasibility_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#rival_discrimination_test",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-pressure/PRESSURE_ROWS.json#HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICANCE-GENERATOR-OUTPUT-01",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#killWeekRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#predictionRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#replayRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "CLAIM_EVIDENCE_BINDINGS.json#sourceEvidenceRefs",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "LIMITATIONS.md",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": "LIMITATIONS.md#limitations",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "METHOD.md",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": "METHOD.md#method",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "PAPER.md#evidence-summary",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "REPRODUCE.md",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": "REPRODUCE.md#replay",
-        "kind": "markdown_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/os-v1-stage09-release-candidate-package",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json#matbench-expt-gap-runtime-source",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#baseline",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#counterexample",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#descriptor-transfer-anchor-1",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#holdout",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#matbench-expt-gap",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#replay",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#rival-theory",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      }
-    ]
+    "refs": []
   },
   "gates": [
     {
       "code": "discovery_scored_fund_state",
-      "passed": true,
+      "passed": false,
       "message": "Root Fund state must be a discovery-scored Fund notification state."
     },
     {
       "code": "readiness_score_reconciled",
-      "passed": true,
+      "passed": false,
       "message": "Nobel-readiness score must reconcile the discovery-scored FundClass."
     },
     {
       "code": "required_package_artifacts_present",
-      "passed": true,
+      "passed": false,
       "message": "External handoff requires PAPER, METHOD, bindings, reproduce, limitations, and candidate JSON artifacts."
     },
     {
       "code": "claim_bindings_match_candidate",
-      "passed": true,
+      "passed": false,
       "message": "CLAIM_EVIDENCE_BINDINGS.json must bind to the active Fund candidate identity."
     },
     {
@@ -525,5 +90,5 @@
     ".sovryn/nobel-readiness/external-review-handoff.json",
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md"
   ],
-  "evidenceHash": "b1e7cb8d66bbbae094a38249c68e88fe9d1f4100fef0d347a100e072985bc81d"
+  "evidenceHash": "049c1f6bc946694443381eb0525bc138e1f9565561ab0de951f19af3e1099976"
 }

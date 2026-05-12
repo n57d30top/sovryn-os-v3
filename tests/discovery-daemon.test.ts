@@ -878,6 +878,44 @@ async function writePublicCorpusDowngrade(
   );
 }
 
+async function writePublicCorpusDiscoveryClearance(
+  root: string,
+  candidateId: string,
+): Promise<void> {
+  const packageRoot = join(
+    root,
+    "..",
+    "sovryn-open-inventions",
+    "results",
+    `cleared-public-fund-${candidateId
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .slice(0, 80)}`,
+  );
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(
+    join(packageRoot, "SUMMARY.json"),
+    JSON.stringify({
+      kind: "public_result_summary",
+      candidateId,
+      publicReviewStatus: "external_review_ready_with_major_caveats",
+      fundClass: "externally_review_ready_discovery_candidate",
+      countsForEinsteinNobelDiscoveryScore: true,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "FUND_CANDIDATE.json"),
+    JSON.stringify({
+      kind: "fund_candidate",
+      candidate: { candidateId },
+      fundClass: "externally_review_ready_discovery_candidate",
+      countsForEinsteinNobelDiscoveryScore: true,
+    }),
+    "utf8",
+  );
+}
+
 for (const command of commands) {
   test(`CLI help lists discover-daemon ${command}`, async () => {
     const response = await executeCli(["help", "--json"]);
@@ -5060,6 +5098,93 @@ test("generator-born claim lift signal pressure recognizes explicit discovery in
   );
 });
 
+test("generator-born claim lift signal pressure blocks public-downgraded packages before discovery readiness", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  const lift = await service.generatorClaimLift();
+  const targetId = lift.fundGateEvaluations[0]?.candidateId;
+  assert.ok(targetId);
+  const normalizedTargetId = targetId
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  const packageRef = `${daemonRoot}/evidence-packages/${normalizedTargetId}`;
+  const insightRefs = [
+    `${daemonRoot}/runtime-evidence/${targetId}-insight-a.json`,
+    `${daemonRoot}/runtime-evidence/${targetId}-insight-b.json`,
+  ];
+  for (const ref of insightRefs) {
+    await mkdir(dirname(join(root, ref)), { recursive: true });
+    await writeFile(
+      join(root, ref),
+      JSON.stringify(
+        {
+          kind: "nontrivial_insight_fixture",
+          targetId,
+          ref,
+          claim:
+            "Nontrivial new insight across real targets survived matched baseline and counterexample pressure.",
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+  }
+  const candidatePath = join(root, packageRef, "FUND_CANDIDATE.json");
+  const candidatePayload = JSON.parse(
+    await readFile(candidatePath, "utf8"),
+  ) as { candidate: Record<string, unknown> };
+  candidatePayload.candidate.nontrivialNewInsightAcrossRealTargets = true;
+  candidatePayload.candidate.domainScientificSignificance = true;
+  candidatePayload.candidate.insightEvidenceRefs = insightRefs;
+  await writeFile(
+    candidatePath,
+    JSON.stringify(candidatePayload, null, 2),
+    "utf8",
+  );
+  const bindingsPath = join(root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json");
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.insightEvidenceRefs = insightRefs;
+  bindings.nontrivialInsightEvidenceRefs = insightRefs;
+  bindings.fundCandidate = candidatePayload.candidate;
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+  await writePublicCorpusDowngrade(root, targetId);
+
+  const pressure = await service.generatorClaimLiftPressure();
+  const decision = pressure.decisions.find(
+    (item) => item.candidateId === targetId,
+  );
+
+  assert.equal(pressure.discoverySignalReady, 0);
+  assert.equal(decision?.signalStatus, "blocked");
+  assert.equal(decision?.primaryBlocker, "public_corpus_downgrade");
+  assert.equal(
+    decision?.failedGates.includes(
+      "public_corpus_discovery_score_reconciliation",
+    ),
+    true,
+  );
+  assert.equal(decision?.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(decision?.notificationAllowed, false);
+  assert.equal(pressure.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift signal experiment identifies bindable external-source insight refs without Fund state", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -5244,6 +5369,73 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
   );
 });
 
+test("generator-born claim lift rebind skips public-downgraded ready package", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const experiment = await service.generatorClaimLiftExperiment();
+  const downgraded = experiment.decisions.find(
+    (decision) => decision.experimentStatus === "insight_evidence_ready",
+  );
+  assert.ok(downgraded);
+  await writePublicCorpusDowngrade(root, downgraded.candidateId);
+
+  const rebind = await service.generatorClaimLiftRebind();
+  const decision = rebind.decisions.find(
+    (item) => item.candidateId === downgraded.candidateId,
+  );
+
+  assert.equal(decision?.rebindStatus, "skipped");
+  assert.equal(decision?.primaryBlocker, "public_corpus_downgrade");
+  assert.equal(decision?.packageMutated, false);
+  assert.equal(decision?.countsForEinsteinNobelDiscoveryScoreAfter, false);
+  assert.equal(rebind.packagesRebound, 3);
+  assert.equal(rebind.packagesSkipped, 3);
+  assert.equal(rebind.discoveryScoredPackages, 3);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift intake consumes rebound discovery package through package-backed cycle", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -5286,7 +5478,83 @@ test("generator-born claim lift intake consumes rebound discovery package throug
     globalThis.fetch = originalFetch;
   }
   await service.generatorClaimLiftExperiment();
-  await service.generatorClaimLiftRebind();
+  const rebind = await service.generatorClaimLiftRebind();
+  const staleCandidateId = rebind.decisions.find(
+    (decision) => decision.rebindStatus === "rebound",
+  )?.candidateId;
+  assert.ok(staleCandidateId);
+  await writeFile(
+    join(root, daemonRoot, "state.json"),
+    JSON.stringify({
+      kind: "discovery_daemon_state",
+      status: "FUND_FOUND",
+      fundFound: true,
+      cycleCount: 0,
+      lastCycleId: "cycle-0000",
+      lastCandidateId: staleCandidateId,
+      currentDomain: "computational_materials_property_data",
+      silentMode: true,
+      notifyOnlyOnFund: true,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      artifactRoot: daemonRoot,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(root, daemonRoot, "search-cycles", "cycle-0000.json"),
+    JSON.stringify({
+      kind: "package_backed_candidate_intake_cycle",
+      cycleId: "cycle-0000",
+      candidateId: staleCandidateId,
+      status: "FUND_FOUND",
+      nextStatus: "FUND_FOUND",
+      discoveryFundNotificationAllowed: true,
+      fundGateEvaluation: {
+        kind: "fund_gate_result",
+        candidateId: staleCandidateId,
+        passed: true,
+        status: "FUND_FOUND",
+        notificationAllowed: true,
+      },
+    }),
+    "utf8",
+  );
+
+  const noPublicIntake = await service.generatorClaimLiftIntake();
+
+  assert.equal(
+    noPublicIntake.kind,
+    "generator_born_discovery_claim_lift_signal_intake",
+  );
+  assert.equal(noPublicIntake.status, "continue_searching_checkpointed");
+  assert.equal(noPublicIntake.eligiblePackages, 0);
+  assert.equal(noPublicIntake.packagesStaged, 0);
+  assert.equal(noPublicIntake.acceptedPackages, 0);
+  assert.equal(noPublicIntake.fundFound, false);
+  assert.equal(
+    noPublicIntake.blockerDistribution.public_corpus_package_missing > 0,
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  const reconciledState = JSON.parse(
+    await readFile(join(root, daemonRoot, "state.json"), "utf8"),
+  ) as { status?: string; fundFound?: boolean };
+  assert.equal(reconciledState.status, "continue_searching");
+  assert.equal(reconciledState.fundFound, false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "search-cycles", "cycle-0000.json")),
+    false,
+  );
+
+  for (const decision of rebind.decisions.filter(
+    (item) => item.rebindStatus === "rebound",
+  )) {
+    await writePublicCorpusDiscoveryClearance(root, decision.candidateId);
+  }
 
   const intake = await service.generatorClaimLiftIntake();
 

@@ -93,6 +93,7 @@ const commands = [
   "generator-pressure",
   "generator-insight-closure",
   "generator-fund-closure",
+  "generator-claim-lift",
   "dimacs-boundary-closure",
   "formal-anchor-select",
   "formal-anchor-pilot",
@@ -4502,6 +4503,153 @@ test("significance generator-born fund closure remains silent until not-claimed 
   );
 });
 
+test("generator-born discovery claim lift blocks text-only closure candidates before DiscoveryCandidate creation", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+
+  const lift = await service.generatorClaimLift();
+
+  assert.equal(lift.kind, "generator_born_discovery_claim_lift");
+  assert.equal(lift.status, "continue_searching_checkpointed");
+  assert.equal(lift.requirementsLoaded, 6);
+  assert.equal(lift.proposalsLoaded, 0);
+  assert.equal(lift.acceptedClaimLifts, 0);
+  assert.equal(lift.blockedClaimLifts, 6);
+  assert.equal(lift.discoveryCandidatesCreated, 0);
+  assert.equal(lift.fundCandidateDraftsCreated, 0);
+  assert.equal(lift.fundFound, false);
+  assert.equal(
+    lift.decisions.every(
+      (decision) =>
+        decision.status === "blocked" &&
+        decision.failedGates.includes("claim_lift_proposal_present") &&
+        decision.failedGates.includes("no_text_only_lift"),
+    ),
+    true,
+  );
+  assert.match(lift.remainingBottleneck, /text-only rewrite/);
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_DECISIONS.json",
+      ),
+    ),
+    true,
+  );
+  const templateMarkdown = await readFile(
+    join(
+      root,
+      daemonRoot,
+      "generator-claim-lift",
+      "CLAIM_LIFT_PROPOSAL_TEMPLATE.md",
+    ),
+    "utf8",
+  );
+  assert.match(templateMarkdown, /forward-only contract/);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  const closure = await service.generatorFundClosure();
+  const requirement = closure.claimLiftRequirements[0]!;
+  await mkdir(join(root, daemonRoot, "generator-claim-lift"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-claim-lift", "CLAIM_LIFT_PROPOSALS.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_discovery_claim_lift_proposals",
+        proposals: [
+          {
+            kind: "generator_born_discovery_claim_lift_proposal",
+            parentCandidateId: requirement.candidateId,
+            targetDiscoveryCandidateId: "DISCOVERY-LIFT-TEST-001",
+            exactTargetOutcomeClaim:
+              "The measured public materials target-outcome residual shows scientific significance by changing interpretation of descriptor transfer stability: a previously unknown mechanism across real targets remains after baseline, rival, holdout, replay, counterexample, and mechanism pressure.",
+            mechanismHypothesis:
+              "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
+            externalSignificanceEvidenceRefs: [
+              "https://example.org/materials-significance-a",
+              "https://example.org/materials-significance-b",
+            ],
+            sourceEvidenceRefs: [
+              ".sovryn/discovery-daemon/source-cache/materials-a.json",
+              ".sovryn/discovery-daemon/source-cache/materials-b.json",
+              ".sovryn/discovery-daemon/runtime-evidence/materials-c.json",
+            ],
+            baselineRefs: [
+              ".sovryn/discovery-daemon/source-cache/baseline-a.json",
+            ],
+            rivalRefs: [".sovryn/discovery-daemon/source-cache/rival-a.json"],
+            holdoutRefs: [
+              ".sovryn/discovery-daemon/source-cache/holdout-a.json",
+            ],
+            replayRefs: [".sovryn/discovery-daemon/source-cache/replay-a.json"],
+            counterexampleRefs: [
+              ".sovryn/discovery-daemon/source-cache/counterexample-a.json",
+            ],
+            mechanismPressureRefs: [
+              ".sovryn/discovery-daemon/source-cache/mechanism-a.json",
+            ],
+            createdFromRuntimeEvidence: true,
+            noOverclaim: true,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const lift = await service.generatorClaimLift();
+
+  assert.equal(lift.requirementsLoaded, 6);
+  assert.equal(lift.proposalsLoaded, 1);
+  assert.equal(lift.acceptedClaimLifts, 1);
+  assert.equal(lift.blockedClaimLifts, 5);
+  assert.equal(lift.discoveryCandidatesCreated, 0);
+  assert.equal(lift.fundCandidateDraftsCreated, 0);
+  assert.equal(lift.fundFound, false);
+  assert.equal(
+    lift.decisions.some(
+      (decision) =>
+        decision.candidateId === requirement.candidateId &&
+        decision.status === "ready_for_discovery_candidate" &&
+        decision.failedGates.length === 0,
+    ),
+    true,
+  );
+  assert.match(
+    lift.remainingBottleneck,
+    /ready for the next DiscoveryCandidate/,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("mechanism-first generator audit verifies birth gate artifacts", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -6697,6 +6845,16 @@ test("discover-daemon generator CLIs are bounded and non-funding", async () => {
     "generator_born_fund_closure",
   );
   assert.equal((fundClosure.data as Record<string, unknown>).fundFound, false);
+  const claimLift = await executeCli(
+    ["discover-daemon", "generator-claim-lift", "--json"],
+    root,
+  );
+  assert.equal(claimLift.ok, true, JSON.stringify(claimLift.errors));
+  assert.equal(
+    (claimLift.data as Record<string, unknown>).kind,
+    "generator_born_discovery_claim_lift",
+  );
+  assert.equal((claimLift.data as Record<string, unknown>).fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
@@ -8162,6 +8320,11 @@ const cliScenarios: {
     name: "generator-fund-closure",
     args: ["discover-daemon", "generator-fund-closure", "--json"],
     expectedKind: "generator_born_fund_closure",
+  },
+  {
+    name: "generator-claim-lift",
+    args: ["discover-daemon", "generator-claim-lift", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift",
   },
   {
     name: "formal-anchor-select",

@@ -1554,6 +1554,57 @@ export type GeneratorBornDiscoveryClaimLiftRequirement = {
   requiredChange: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftProposal = {
+  kind: "generator_born_discovery_claim_lift_proposal";
+  parentCandidateId: string;
+  targetDiscoveryCandidateId: string;
+  exactTargetOutcomeClaim: string;
+  mechanismHypothesis: string;
+  externalSignificanceEvidenceRefs: string[];
+  sourceEvidenceRefs: string[];
+  baselineRefs: string[];
+  rivalRefs: string[];
+  holdoutRefs: string[];
+  replayRefs: string[];
+  counterexampleRefs: string[];
+  mechanismPressureRefs: string[];
+  createdFromRuntimeEvidence: boolean;
+  noOverclaim: boolean;
+};
+
+export type GeneratorBornDiscoveryClaimLiftDecision = {
+  kind: "generator_born_discovery_claim_lift_decision";
+  candidateId: string;
+  priorDiscoveryCandidateId: string;
+  targetDiscoveryCandidateId: string | null;
+  accepted: boolean;
+  status: "ready_for_discovery_candidate" | "blocked";
+  gates: FundGate[];
+  failedGates: string[];
+  requiredChange: string;
+  proposalRef: string | null;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftReport = {
+  kind: "generator_born_discovery_claim_lift";
+  status: "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  requirementsLoaded: number;
+  proposalsLoaded: number;
+  decisions: GeneratorBornDiscoveryClaimLiftDecision[];
+  acceptedClaimLifts: number;
+  blockedClaimLifts: number;
+  discoveryCandidatesCreated: number;
+  fundCandidateDraftsCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornFundClosureCandidateResult = {
   kind: "generator_born_fund_closure_candidate_result";
   candidateId: string;
@@ -2521,6 +2572,7 @@ const domainPortfolioAuditFile = "domain-portfolio-audit.json" as const;
 const domainRotationFile = "domain-rotation.json" as const;
 const mechanismExecutionDir = "mechanism-executions" as const;
 const generatorFundClosureDir = "generator-fund-closure" as const;
+const generatorClaimLiftDir = "generator-claim-lift" as const;
 const requiredFundPackageFiles = [
   "PAPER.md",
   "METHOD.md",
@@ -13573,6 +13625,148 @@ export class GeneratorBornFundClosureService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    await new GeneratorBornFundClosureService(this.root).run();
+    const closure = await this.readFundClosure();
+    const requirements = closure.claimLiftRequirements;
+    const proposals = await this.readProposals();
+    const decisions = requirements.map((requirement) =>
+      generatorBornDiscoveryClaimLiftDecision({
+        requirement,
+        proposal:
+          proposals.find(
+            (proposal) =>
+              proposal.parentCandidateId === requirement.candidateId,
+          ) ?? null,
+        proposalRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_PROPOSALS.json#${requirement.candidateId}`,
+      }),
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftReport = withEvidenceHash({
+      kind: "generator_born_discovery_claim_lift" as const,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed: closure.nextCheckpointRef,
+      nextCheckpointRef,
+      requirementsLoaded: requirements.length,
+      proposalsLoaded: proposals.length,
+      decisions,
+      acceptedClaimLifts: decisions.filter((decision) => decision.accepted)
+        .length,
+      blockedClaimLifts: decisions.filter((decision) => !decision.accepted)
+        .length,
+      discoveryCandidatesCreated: 0,
+      fundCandidateDraftsCreated: 0,
+      fundGateResult,
+      fundFound: false as const,
+      remainingBottleneck: generatorBornDiscoveryClaimLiftBottleneck(decisions),
+      artifactRefs:
+        generatorBornDiscoveryClaimLiftArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({ report, requirements, proposals });
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readFundClosure(): Promise<GeneratorBornFundClosureReport> {
+    const report = await readOptionalJson<GeneratorBornFundClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFundClosureDir,
+        "latest.json",
+      ),
+    );
+    if (report === null) {
+      throw new Error(
+        "Generator claim lift requires generator-fund-closure report.",
+      );
+    }
+    return report;
+  }
+
+  private async readProposals(): Promise<
+    GeneratorBornDiscoveryClaimLiftProposal[]
+  > {
+    const payload = await readOptionalJson<{
+      proposals?: GeneratorBornDiscoveryClaimLiftProposal[];
+    }>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorClaimLiftDir,
+        "CLAIM_LIFT_PROPOSALS.json",
+      ),
+    );
+    return (payload?.proposals ?? []).filter(
+      (proposal) =>
+        proposal.kind === "generator_born_discovery_claim_lift_proposal" &&
+        typeof proposal.parentCandidateId === "string",
+    );
+  }
+
+  private async writeArtifacts(input: {
+    report: GeneratorBornDiscoveryClaimLiftReport;
+    requirements: GeneratorBornDiscoveryClaimLiftRequirement[];
+    proposals: GeneratorBornDiscoveryClaimLiftProposal[];
+  }): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "CLAIM_LIFT_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_decisions",
+      decisions: input.report.decisions,
+      acceptedClaimLifts: input.report.acceptedClaimLifts,
+      blockedClaimLifts: input.report.blockedClaimLifts,
+      evidenceHash: hashEvidence(input.report.decisions),
+    });
+    await writeJson(join(root, "CLAIM_LIFT_PROPOSAL_TEMPLATE.json"), {
+      kind: "generator_born_discovery_claim_lift_proposal_template",
+      proposals: input.requirements.map(
+        generatorBornDiscoveryClaimLiftProposalTemplate,
+      ),
+      evidenceHash: hashEvidence(input.requirements),
+    });
+    await writeJson(
+      join(root, "FUND_GATE_RESULTS.json"),
+      input.report.fundGateResult,
+    );
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_checkpoint",
+      status: input.report.status,
+      fundFound: input.report.fundFound,
+      requirementsLoaded: input.report.requirementsLoaded,
+      proposalsLoaded: input.report.proposalsLoaded,
+      acceptedClaimLifts: input.report.acceptedClaimLifts,
+      blockedClaimLifts: input.report.blockedClaimLifts,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "CLAIM_LIFT_DECISIONS.md"),
+      generatorBornDiscoveryClaimLiftDecisionMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "CLAIM_LIFT_PROPOSAL_TEMPLATE.md"),
+      generatorBornDiscoveryClaimLiftTemplateMarkdown(input.requirements),
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      generatorBornDiscoveryClaimLiftFundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
 const dimacsBoundaryClosureDir = "dimacs-boundary-closure" as const;
 const dimacsSourceAnchor = "https://mat.tepper.cmu.edu/COLOR/instances.html";
 
@@ -24306,6 +24500,277 @@ function generatorBornFundClosureGateMarkdown(
 
 function generatorBornFundClosureNextCheckpointMarkdown(
   report: GeneratorBornFundClosureReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftDecision(input: {
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
+  proposalRef: string;
+}): GeneratorBornDiscoveryClaimLiftDecision {
+  const proposal = input.proposal;
+  const claim = normalizeWhitespace(proposal?.exactTargetOutcomeClaim ?? "");
+  const claimLower = claim.toLowerCase();
+  const allEvidenceRefs = proposal
+    ? uniqueStrings([
+        ...proposal.externalSignificanceEvidenceRefs,
+        ...proposal.sourceEvidenceRefs,
+        ...proposal.baselineRefs,
+        ...proposal.rivalRefs,
+        ...proposal.holdoutRefs,
+        ...proposal.replayRefs,
+        ...proposal.counterexampleRefs,
+        ...proposal.mechanismPressureRefs,
+      ])
+    : [];
+  const antiDiscoveryText =
+    /\bnot (a )?discovery fund\b|\bnot fund_found\b|\bnot einstein\b|\bnot nobel\b|\bthis remains an insightcandidate only\b|\bdeserves downstream\b/.test(
+      claimLower,
+    );
+  const pipelineScopeOnly =
+    /\bgenerator-born\b|\bruntime evidence\b|\bpipeline success\b|\bpipeline evidence\b/.test(
+      claimLower,
+    );
+  const overclaimText =
+    /\bnobel\b|\beinstein\b|\bbreakthrough\b|\bexternal validation\b|\bexternal adoption\b|\bagi\b|\bhuman-level science\b|\buniversal truth\b/.test(
+      claimLower,
+    );
+  const explicitDomainSignificance =
+    /\bdomain scientific significance\b|\bscientific significance\b|\bchanges? interpretation\b|\bpreviously unknown\b|\bnovel scientific\b|\bnew mechanism across real targets\b|\bvalidated conjecture\b|\bchecked proof\b|\bchecked refutation\b/.test(
+      claimLower,
+    );
+  const externalRefs = proposal?.externalSignificanceEvidenceRefs ?? [];
+  const gates = [
+    gate(
+      "claim_lift_proposal_present",
+      proposal !== null,
+      "A claim lift requires an explicit proposal artifact; generated closure rows alone cannot create a DiscoveryCandidate.",
+    ),
+    gate(
+      "new_stable_discovery_candidate_id",
+      proposal !== null &&
+        proposal.targetDiscoveryCandidateId.startsWith("DISCOVERY-LIFT-") &&
+        proposal.targetDiscoveryCandidateId !== input.requirement.candidateId &&
+        proposal.targetDiscoveryCandidateId !==
+          input.requirement.discoveryCandidateId,
+      "Semantic claim lift must create a new stable DiscoveryCandidate ID, not reuse the InsightCandidate or prior closure candidate ID.",
+    ),
+    gate(
+      "exact_target_outcome_claim",
+      claim.length >= 120 &&
+        !antiDiscoveryText &&
+        !pipelineScopeOnly &&
+        explicitDomainSignificance,
+      "The lifted claim must be a precise target-outcome claim with explicit domain significance and no anti-discovery or pipeline-scope caveat.",
+    ),
+    gate(
+      "external_significance_evidence_refs",
+      externalRefs.filter((ref) => ref.startsWith("https://")).length >= 2,
+      "Claim lift requires at least two external public significance refs, not only local generator closure artifacts.",
+    ),
+    gate(
+      "runtime_and_source_evidence_refs",
+      proposal !== null &&
+        proposal.createdFromRuntimeEvidence === true &&
+        proposal.sourceEvidenceRefs.length >= 3 &&
+        allEvidenceRefs.every(publicSafeRef),
+      "Claim lift must bind runtime/source evidence refs that are public-safe and were created from real runtime evidence.",
+    ),
+    gate(
+      "baseline_rival_holdout_replay_counterexample_mechanism_refs",
+      proposal !== null &&
+        proposal.baselineRefs.length > 0 &&
+        proposal.rivalRefs.length > 0 &&
+        proposal.holdoutRefs.length > 0 &&
+        proposal.replayRefs.length > 0 &&
+        proposal.counterexampleRefs.length > 0 &&
+        proposal.mechanismPressureRefs.length > 0,
+      "Claim lift must bind baseline, rival, holdout, replay, counterexample, and mechanism-pressure refs before DiscoveryCandidate creation.",
+    ),
+    gate(
+      "no_text_only_lift",
+      allEvidenceRefs.filter(
+        (ref) => !ref.includes(`/${generatorFundClosureDir}/`),
+      ).length >= 6,
+      "A text rewrite of the generator closure package is not enough; the lift needs independent evidence refs outside the closure ledger.",
+    ),
+    gate(
+      "no_overclaim",
+      proposal !== null && proposal.noOverclaim === true && !overclaimText,
+      "The lifted claim must avoid Nobel, Einstein, breakthrough, external-validation, AGI, and universal-truth language.",
+    ),
+  ];
+  const failedGates = gates
+    .filter((item) => !item.passed)
+    .map((item) => item.code);
+  const decision = {
+    kind: "generator_born_discovery_claim_lift_decision" as const,
+    candidateId: input.requirement.candidateId,
+    priorDiscoveryCandidateId: input.requirement.discoveryCandidateId,
+    targetDiscoveryCandidateId: proposal?.targetDiscoveryCandidateId ?? null,
+    accepted: failedGates.length === 0,
+    status:
+      failedGates.length === 0
+        ? ("ready_for_discovery_candidate" as const)
+        : ("blocked" as const),
+    gates,
+    failedGates,
+    requiredChange:
+      failedGates.length === 0
+        ? "Claim lift is ready for the next DiscoveryCandidate/FundCandidateDraft construction step; Fund Gate remains unchanged and has not been notified."
+        : input.requirement.requiredChange,
+    proposalRef: proposal === null ? null : input.proposalRef,
+    evidenceHash: "",
+  };
+  return { ...decision, evidenceHash: hashEvidence(decision) };
+}
+
+function generatorBornDiscoveryClaimLiftProposalTemplate(
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement,
+): GeneratorBornDiscoveryClaimLiftProposal {
+  return {
+    kind: "generator_born_discovery_claim_lift_proposal",
+    parentCandidateId: requirement.candidateId,
+    targetDiscoveryCandidateId: `DISCOVERY-LIFT-${normalizeCandidateIdPart(
+      requirement.candidateId,
+    ).slice(0, 72)}`,
+    exactTargetOutcomeClaim:
+      "Replace this with a new exact target-outcome claim that states the externally significant scientific interpretation being tested; do not reuse anti-discovery, generator-only, runtime-only, pipeline-only, Nobel, Einstein, breakthrough, or external-validation language.",
+    mechanismHypothesis:
+      "Bind the candidate mechanism hypothesis that predicts the measured target outcome better than named rivals.",
+    externalSignificanceEvidenceRefs: [],
+    sourceEvidenceRefs: [],
+    baselineRefs: [],
+    rivalRefs: [],
+    holdoutRefs: [],
+    replayRefs: [],
+    counterexampleRefs: [],
+    mechanismPressureRefs: [],
+    createdFromRuntimeEvidence: false,
+    noOverclaim: true,
+  };
+}
+
+function generatorBornDiscoveryClaimLiftBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No generator-born claim-lift requirements are present; continue searching for externally significant nontrivial scientific signal.";
+  }
+  const accepted = decisions.filter((decision) => decision.accepted).length;
+  if (accepted > 0) {
+    return `${accepted} claim lift proposal(s) are ready for the next DiscoveryCandidate construction step; no Fund state has been created.`;
+  }
+  const failedGateCounts = countBy(
+    decisions
+      .flatMap((decision) => decision.failedGates)
+      .map((gateId) => ({
+        gateId,
+      })),
+    "gateId",
+  );
+  return `All ${decisions.length} generator-born claim lift(s) remain blocked. Dominant blockers: ${Object.entries(
+    failedGateCounts,
+  )
+    .map(([gateId, count]) => `${gateId}=${count}`)
+    .join(
+      ", ",
+    )}. Continue only with a new stable DiscoveryCandidate claim backed by external significance evidence, not a text-only rewrite.`;
+}
+
+function generatorBornDiscoveryClaimLiftArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/CLAIM_LIFT_DECISIONS.md`,
+    `${root}/CLAIM_LIFT_DECISIONS.json`,
+    `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.md`,
+    `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.json`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/FUND_GATE_RESULTS.json`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftDecisionMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftReport,
+): string {
+  return [
+    "# Discovery Claim Lift Decisions",
+    "",
+    `Requirements loaded: ${report.requirementsLoaded}.`,
+    `Proposals loaded: ${report.proposalsLoaded}.`,
+    `Accepted claim lifts: ${report.acceptedClaimLifts}.`,
+    `Blocked claim lifts: ${report.blockedClaimLifts}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Candidate | Target DiscoveryCandidate | Status | Failed gates |",
+    "| --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${decision.status} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | none | blocked | none |"]
+      : []),
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftTemplateMarkdown(
+  requirements: GeneratorBornDiscoveryClaimLiftRequirement[],
+): string {
+  return [
+    "# Discovery Claim Lift Proposal Template",
+    "",
+    "A claim lift is a forward-only contract. It cannot reuse the InsightCandidate ID, cannot reuse the closure candidate ID, and cannot be satisfied by rewriting text in the same package.",
+    "",
+    "Required proposal fields: parentCandidateId, targetDiscoveryCandidateId, exactTargetOutcomeClaim, mechanismHypothesis, externalSignificanceEvidenceRefs, sourceEvidenceRefs, baselineRefs, rivalRefs, holdoutRefs, replayRefs, counterexampleRefs, mechanismPressureRefs, createdFromRuntimeEvidence, noOverclaim.",
+    "",
+    "| Parent candidate | Suggested target ID | Failed source gates |",
+    "| --- | --- | --- |",
+    ...requirements.map((requirement) => {
+      const template =
+        generatorBornDiscoveryClaimLiftProposalTemplate(requirement);
+      return `| ${requirement.candidateId} | ${template.targetDiscoveryCandidateId} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} |`;
+    }),
+    ...(requirements.length === 0 ? ["| none | none | none |"] : []),
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftFundGateMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Fund Gate remains fail-closed because claim lift did not create a discovery-scored candidate.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftReport,
 ): string {
   return [
     "# Next Checkpoint",
@@ -37416,6 +37881,11 @@ export class AutonomousDiscoveryDaemonService {
   async generatorFundClosure(): Promise<GeneratorBornFundClosureReport> {
     await this.ensureInitialized();
     return new GeneratorBornFundClosureService(this.root).run();
+  }
+
+  async generatorClaimLift(): Promise<GeneratorBornDiscoveryClaimLiftReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftService(this.root).run();
   }
 
   async dimacsBoundaryClosure(): Promise<DimacsBoundaryClosureReport> {

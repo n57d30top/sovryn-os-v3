@@ -4439,6 +4439,22 @@ test("significance generator-born fund closure remains silent until not-claimed 
   assert.deepEqual(closure.fundClassDistribution, {
     pipeline_fund_candidate: 6,
   });
+  assert.equal(closure.claimLiftRequired, true);
+  assert.equal(closure.claimLiftRequirements.length, 6);
+  assert.equal(
+    closure.claimLiftRequirements.every(
+      (requirement) =>
+        requirement.status === "claim_lift_required" &&
+        requirement.failedDomainSignificanceGates.includes(
+          "no_anti_discovery_claim_text",
+        ),
+    ),
+    true,
+  );
+  assert.match(
+    closure.remainingBottleneck,
+    /stable DiscoveryCandidate claim-lift/,
+  );
   assert.equal(closure.fundGateResult.notificationAllowed, false);
   assert.equal(
     closure.fundGateResult.countsForEinsteinNobelDiscoveryScore,
@@ -4457,6 +4473,28 @@ test("significance generator-born fund closure remains silent until not-claimed 
     ),
     true,
   );
+  assert.equal(
+    await exists(
+      join(
+        root,
+        daemonRoot,
+        "generator-fund-closure",
+        "DISCOVERY_CLAIM_LIFT_REQUIREMENTS.json",
+      ),
+    ),
+    true,
+  );
+  const claimLiftMarkdown = await readFile(
+    join(
+      root,
+      daemonRoot,
+      "generator-fund-closure",
+      "DISCOVERY_CLAIM_LIFT_REQUIREMENTS.md",
+    ),
+    "utf8",
+  );
+  assert.match(claimLiftMarkdown, /Claim lift required: true/);
+  assert.match(claimLiftMarkdown, /new stable DiscoveryCandidate identity/);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

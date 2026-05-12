@@ -1462,6 +1462,7 @@ export type GeneratorClosureYieldSignal = {
   nonDiscoveryClassifiedCandidates: number;
   fundClassDistribution: Record<string, number>;
   allClosedAsNonDiscovery: boolean;
+  claimLiftRequired: boolean;
   dominantFundClass: string | null;
   recommendedAction: string;
   closureRef: string | null;
@@ -1534,11 +1535,23 @@ export type GeneratorBornFundClosureReport = {
   externalReviewPackagePath: string | null;
   fundCandidateDraftRef: string | null;
   packageArtifactGatesPassed: boolean;
+  claimLiftRequired: boolean;
+  claimLiftRequirements: GeneratorBornDiscoveryClaimLiftRequirement[];
   fundGateResult: FundGateResult;
   fundFound: boolean;
   remainingBottleneck: string;
   artifactRefs: string[];
   evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftRequirement = {
+  kind: "generator_born_discovery_claim_lift_requirement";
+  candidateId: string;
+  discoveryCandidateId: string;
+  exactClaim: string;
+  status: "claim_lift_required";
+  failedDomainSignificanceGates: string[];
+  requiredChange: string;
 };
 
 export type GeneratorBornFundClosureCandidateResult = {
@@ -13038,9 +13051,13 @@ export class GeneratorBornFundClosureService {
       item.code.startsWith("external_review_package_"),
     );
     const closureCandidateResults = attempts.map((attempt) => attempt.result);
+    const claimLiftRequirements = generatorBornDiscoveryClaimLiftRequirements(
+      closureCandidateResults,
+    );
     const remainingBottleneck = generatorBornFundClosureBottleneck(
       fundGateResult,
       closureCandidateResults,
+      claimLiftRequirements,
     );
     const report: GeneratorBornFundClosureReport = withEvidenceHash({
       kind: "generator_born_fund_closure" as const,
@@ -13084,6 +13101,8 @@ export class GeneratorBornFundClosureService {
           : `${daemonArtifactRoot}/${fundCandidateDraftDir}/${normalizeCandidateIdPart(selectedAttempt.packagedCandidate.candidateId)}.json`,
       packageArtifactGatesPassed:
         packageGates.length > 0 && packageGates.every((item) => item.passed),
+      claimLiftRequired: claimLiftRequirements.length > 0,
+      claimLiftRequirements,
       fundGateResult,
       fundFound: fundGateResult.notificationAllowed,
       remainingBottleneck,
@@ -13477,6 +13496,12 @@ export class GeneratorBornFundClosureService {
         input.report.nonDiscoveryClassifiedCandidates,
       evidenceHash: hashEvidence(input.report.closureCandidateResults),
     });
+    await writeJson(join(root, "DISCOVERY_CLAIM_LIFT_REQUIREMENTS.json"), {
+      kind: "generator_born_discovery_claim_lift_requirements",
+      claimLiftRequired: input.report.claimLiftRequired,
+      requirements: input.report.claimLiftRequirements,
+      evidenceHash: hashEvidence(input.report.claimLiftRequirements),
+    });
     await writeJson(join(this.root, input.report.nextCheckpointRef), {
       kind: "generator_born_fund_closure_checkpoint",
       status: input.report.status,
@@ -13487,6 +13512,8 @@ export class GeneratorBornFundClosureService {
       discoveryScoredCandidates: input.report.discoveryScoredCandidates,
       nonDiscoveryClassifiedCandidates:
         input.report.nonDiscoveryClassifiedCandidates,
+      claimLiftRequired: input.report.claimLiftRequired,
+      claimLiftRequirements: input.report.claimLiftRequirements,
       fundClassDistribution: input.report.fundClassDistribution,
       fundGateFailedGates: input.report.fundGateResult.failedGates,
       reportRef: `${daemonArtifactRoot}/${generatorFundClosureDir}/latest.json`,
@@ -13510,6 +13537,10 @@ export class GeneratorBornFundClosureService {
     await writeText(
       join(root, "CANDIDATE_CLOSURE_RESULTS.md"),
       generatorBornFundClosureCandidateResultsMarkdown(input.report),
+    );
+    await writeText(
+      join(root, "DISCOVERY_CLAIM_LIFT_REQUIREMENTS.md"),
+      generatorBornDiscoveryClaimLiftRequirementsMarkdown(input.report),
     );
     await writeText(
       join(root, "FUND_GATE_RESULTS.md"),
@@ -24060,8 +24091,12 @@ function generatorBornKillWeek(
 function generatorBornFundClosureBottleneck(
   result: FundGateResult,
   candidateResults: GeneratorBornFundClosureCandidateResult[] = [],
+  claimLiftRequirements: GeneratorBornDiscoveryClaimLiftRequirement[] = [],
 ): string {
   if (result.notificationAllowed) return "none";
+  if (claimLiftRequirements.length > 0) {
+    return `${claimLiftRequirements.length} generator-born candidate(s) closed downstream package pressure but still require a new stable DiscoveryCandidate claim-lift before discovery scoring. The current frozen InsightCandidate claims retain anti-discovery or pipeline-scope caveats, so they must not be counted as Einstein/Nobel evidence.`;
+  }
   if (
     candidateResults.length > 0 &&
     candidateResults.every(
@@ -24088,6 +24123,34 @@ function generatorBornFundClosureBottleneck(
   return `Generator-born candidate still fails Fund Gate blockers: ${result.failedGates.join(", ") || "unknown"}.`;
 }
 
+function generatorBornDiscoveryClaimLiftRequirements(
+  candidateResults: GeneratorBornFundClosureCandidateResult[],
+): GeneratorBornDiscoveryClaimLiftRequirement[] {
+  return candidateResults
+    .filter(
+      (candidate) =>
+        !candidate.countsForEinsteinNobelDiscoveryScore &&
+        candidate.domainSignificanceFailedGates.some((gateId) =>
+          [
+            "no_anti_discovery_claim_text",
+            "not_pipeline_or_generator_scope_only",
+            "explicit_domain_significance_claim",
+            "not_ordinary_known_mechanism",
+          ].includes(gateId),
+        ),
+    )
+    .map((candidate) => ({
+      kind: "generator_born_discovery_claim_lift_requirement" as const,
+      candidateId: candidate.candidateId,
+      discoveryCandidateId: candidate.discoveryCandidateId,
+      exactClaim: candidate.exactClaim,
+      status: "claim_lift_required" as const,
+      failedDomainSignificanceGates: candidate.domainSignificanceFailedGates,
+      requiredChange:
+        "Create a new stable DiscoveryCandidate identity with an exact target-outcome claim that removes anti-discovery/not-claimed caveats, is not merely generator/runtime/pipeline scoped, binds explicit external domain-significance evidence, and survives replay, holdout, counterexample, rival, and mechanism pressure before any Fund Gate notification path is allowed.",
+    }));
+}
+
 function generatorBornFundClosureArtifactRefs(
   nextCheckpointRef: string,
 ): string[] {
@@ -24100,6 +24163,8 @@ function generatorBornFundClosureArtifactRefs(
     `${root}/EXTERNAL_REVIEW_PACKAGE_STATUS.md`,
     `${root}/CANDIDATE_CLOSURE_RESULTS.md`,
     `${root}/CANDIDATE_CLOSURE_RESULTS.json`,
+    `${root}/DISCOVERY_CLAIM_LIFT_REQUIREMENTS.md`,
+    `${root}/DISCOVERY_CLAIM_LIFT_REQUIREMENTS.json`,
     `${root}/FUND_GATE_RESULTS.md`,
     `${root}/FUND_GATE_RESULTS.json`,
     `${root}/NEXT_CHECKPOINT.md`,
@@ -24196,6 +24261,29 @@ function generatorBornFundClosureCandidateResultsMarkdown(
           "| none | none | none | false | false | false | false | false | none |",
         ]
       : []),
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftRequirementsMarkdown(
+  report: GeneratorBornFundClosureReport,
+): string {
+  return [
+    "# Discovery Claim Lift Requirements",
+    "",
+    `Claim lift required: ${String(report.claimLiftRequired)}.`,
+    `Requirements: ${report.claimLiftRequirements.length}.`,
+    "",
+    "| Candidate | Discovery candidate | Status | Failed domain-significance gates | Required change |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.claimLiftRequirements.map(
+      (requirement) =>
+        `| ${requirement.candidateId} | ${requirement.discoveryCandidateId} | ${requirement.status} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} | ${requirement.requiredChange} |`,
+    ),
+    ...(report.claimLiftRequirements.length === 0
+      ? ["| none | none | none | none | none |"]
+      : []),
+    "",
+    "A claim lift is not a Fund. It is the required forward-only step from an InsightCandidate with anti-discovery caveats to a new stable DiscoveryCandidate identity with an exact externally significant target-outcome claim.",
   ].join("\n");
 }
 
@@ -26111,8 +26199,9 @@ function generatorClosureReplacementRequirements(
       blockedOutputs: current?.blockedOutputs ?? 0,
       dominantBlocker,
       blockerCounts,
-      requiredChange:
-        "Closure classified every generator-born candidate as a non-discovery FundClass; redesign the external problem anchor, measurable outcome, and mechanism-vs-rival test so born seeds can plausibly produce discovery-scored evidence before another long run.",
+      requiredChange: closureYield.claimLiftRequired
+        ? "Closure classified every generator-born candidate as a non-discovery FundClass because the frozen InsightCandidate scope still carries anti-discovery or pipeline-scope caveats; create a new stable DiscoveryCandidate claim-lift contract with explicit external scientific significance before another long run."
+        : "Closure classified every generator-born candidate as a non-discovery FundClass; redesign the external problem anchor, measurable outcome, and mechanism-vs-rival test so born seeds can plausibly produce discovery-scored evidence before another long run.",
     };
   });
 }
@@ -26451,6 +26540,7 @@ function generatorClosureYieldSignal(
       nonDiscoveryClassifiedCandidates: 0,
       fundClassDistribution: {},
       allClosedAsNonDiscovery: false,
+      claimLiftRequired: false,
       dominantFundClass: null,
       recommendedAction:
         "run discover-daemon generator-fund-closure after generator-insight-closure before treating closure candidates as discovery candidates",
@@ -26465,6 +26555,7 @@ function generatorClosureYieldSignal(
     closure.closureCandidateCount > 0 &&
     closure.discoveryScoredCandidates === 0 &&
     closure.nonDiscoveryClassifiedCandidates === closure.closureCandidateCount;
+  const claimLiftRequired = closure.claimLiftRequired === true;
   return {
     closureRunFound: true,
     closureCandidateCount: closure.closureCandidateCount,
@@ -26472,9 +26563,12 @@ function generatorClosureYieldSignal(
     nonDiscoveryClassifiedCandidates: closure.nonDiscoveryClassifiedCandidates,
     fundClassDistribution: closure.fundClassDistribution,
     allClosedAsNonDiscovery,
+    claimLiftRequired,
     dominantFundClass,
     recommendedAction: allClosedAsNonDiscovery
-      ? `replace or redesign generator families around external scientific significance before long runs; current closure candidates classify as ${dominantFundClass ?? "non-discovery"}`
+      ? claimLiftRequired
+        ? `create a new stable DiscoveryCandidate claim lift with external scientific significance before rerunning long searches; current closure candidates classify as ${dominantFundClass ?? "non-discovery"} because the frozen InsightCandidate scope still carries anti-discovery or pipeline-scope caveats`
+        : `replace or redesign generator families around external scientific significance before long runs; current closure candidates classify as ${dominantFundClass ?? "non-discovery"}`
       : closure.discoveryScoredCandidates > 0
         ? "run the full discovery-scored Fund notification path only for discovery-scored closure candidates"
         : "continue generator-born InsightCandidate closure only after closure candidates exist",

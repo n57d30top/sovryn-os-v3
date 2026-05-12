@@ -4495,6 +4495,23 @@ test("significance generator-born fund closure remains silent until not-claimed 
     ),
     true,
   );
+  for (const result of closure.closureCandidateResults) {
+    const packagePath = result.externalReviewPackagePath;
+    assert.ok(packagePath);
+    const bindings = JSON.parse(
+      await readFile(
+        join(root, packagePath, "CLAIM_EVIDENCE_BINDINGS.json"),
+        "utf8",
+      ),
+    ) as {
+      fundClass?: string;
+      countsForEinsteinNobelDiscoveryScore?: boolean;
+      fundCandidate?: { fundClass?: string };
+    };
+    assert.equal(bindings.fundClass, result.fundClass);
+    assert.equal(bindings.fundCandidate?.fundClass, result.fundClass);
+    assert.equal(bindings.countsForEinsteinNobelDiscoveryScore, false);
+  }
   assert.equal(
     await exists(
       join(
@@ -4597,7 +4614,13 @@ test("generator-born discovery claim lift blocks text-only closure candidates be
   };
   const scaffold = templateJson.proposals?.[0];
   assert.match(scaffold?.exactTargetOutcomeClaim ?? "", /Replace this/);
-  assert.deepEqual(scaffold?.externalSignificanceEvidenceRefs, []);
+  assert.ok((scaffold?.externalSignificanceEvidenceRefs ?? []).length >= 2);
+  assert.equal(
+    (scaffold?.externalSignificanceEvidenceRefs ?? []).every((ref) =>
+      ref.startsWith("https://"),
+    ),
+    true,
+  );
   assert.equal(scaffold?.createdFromRuntimeEvidence, true);
   assert.match(scaffold?.packageRef ?? "", /evidence-packages/);
   assert.ok((scaffold?.sourceEvidenceRefs ?? []).length >= 3);

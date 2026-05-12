@@ -13056,7 +13056,7 @@ export class GeneratorBornFundClosureService {
         killWeek,
         executions,
       });
-      const packagedCandidate = await this.packageCandidate({
+      let packagedCandidate = await this.packageCandidate({
         candidate,
         baseFundCandidate,
         executions,
@@ -13069,6 +13069,10 @@ export class GeneratorBornFundClosureService {
         this.root,
         packagedCandidate,
       );
+      packagedCandidate = await this.syncPackagedCandidateFundClass({
+        candidate: packagedCandidate,
+        fundGateResult,
+      });
       const packageGates = fundGateResult.gates.filter((item) =>
         item.code.startsWith("external_review_package_"),
       );
@@ -13359,8 +13363,16 @@ export class GeneratorBornFundClosureService {
       nextExternalReviewStep:
         "A formal-methods reviewer should inspect the bounded object families, prediction ledger, counterexample pressure, and replay path before any stronger interpretation.",
     };
+    const fundClassAssessment = classifyFundCandidateForGate(
+      packagedCandidate,
+      true,
+    );
+    const classifiedPackagedCandidate: FundCandidate = {
+      ...packagedCandidate,
+      fundClass: fundClassAssessment.fundClass,
+    };
     const draftRef = await this.writeFundCandidateDraft({
-      candidate: packagedCandidate,
+      candidate: classifiedPackagedCandidate,
       insightCandidate: input.candidate,
       sourceEvidenceRefs,
       hardSeedRefs,
@@ -13369,14 +13381,10 @@ export class GeneratorBornFundClosureService {
       predictionRef: input.predictionRef,
       killWeekRef: input.killWeekRef,
     });
-    const fundClassAssessment = classifyFundCandidateForGate(
-      packagedCandidate,
-      true,
-    );
     await writeText(
       join(packageRoot, "PAPER.md"),
       renderGeneratorBornPackagePaper({
-        candidate: packagedCandidate,
+        candidate: classifiedPackagedCandidate,
         sourceEvidenceRefs,
         hardSeedRefs,
         identityLedgerRefs,
@@ -13384,14 +13392,14 @@ export class GeneratorBornFundClosureService {
     );
     await writeText(
       join(packageRoot, "METHOD.md"),
-      renderGeneratorBornPackageMethod(packagedCandidate),
+      renderGeneratorBornPackageMethod(classifiedPackagedCandidate),
     );
     await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
       kind: "claim_evidence_bindings",
       fundPackageContractVersion: 2,
-      candidateId: packagedCandidate.candidateId,
-      claim: packagedCandidate.claim,
-      domain: packagedCandidate.domain,
+      candidateId: classifiedPackagedCandidate.candidateId,
+      claim: classifiedPackagedCandidate.claim,
+      domain: classifiedPackagedCandidate.domain,
       fundCandidateDraftRefs: [draftRef],
       sourceEvidenceRefs,
       identityLedgerRefs,
@@ -13399,10 +13407,10 @@ export class GeneratorBornFundClosureService {
       predictionLedger: input.predictionLedger,
       killWeek: input.killWeek,
       domainSignificanceAssessment,
-      holdoutEvidenceRefs: packagedCandidate.holdoutOutcomes ?? [],
+      holdoutEvidenceRefs: classifiedPackagedCandidate.holdoutOutcomes ?? [],
       counterexampleEvidenceRefs:
-        packagedCandidate.counterexampleOutcomes ?? [],
-      replayEvidenceRefs: packagedCandidate.replayOutcomes ?? [],
+        classifiedPackagedCandidate.counterexampleOutcomes ?? [],
+      replayEvidenceRefs: classifiedPackagedCandidate.replayOutcomes ?? [],
       ...bindingRefs,
       methodRef: "METHOD.md",
       reproduceRef: "REPRODUCE.md",
@@ -13412,19 +13420,19 @@ export class GeneratorBornFundClosureService {
       countsForEinsteinNobelDiscoveryScore:
         fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
       fundClassAssessment,
-      fundCandidate: packagedCandidate,
+      fundCandidate: classifiedPackagedCandidate,
     });
     await writeText(
       join(packageRoot, "REPRODUCE.md"),
-      renderGeneratorBornPackageReproduce(packagedCandidate),
+      renderGeneratorBornPackageReproduce(classifiedPackagedCandidate),
     );
     await writeText(
       join(packageRoot, "LIMITATIONS.md"),
-      renderCyclePackageLimitations(packagedCandidate),
+      renderCyclePackageLimitations(classifiedPackagedCandidate),
     );
     await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
       kind: "fund_candidate",
-      candidate: packagedCandidate,
+      candidate: classifiedPackagedCandidate,
       fundClass: fundClassAssessment.fundClass,
       countsForEinsteinNobelDiscoveryScore:
         fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
@@ -13434,7 +13442,73 @@ export class GeneratorBornFundClosureService {
       hardSeedRefs,
       identityLedgerRefs,
     });
-    return packagedCandidate;
+    return classifiedPackagedCandidate;
+  }
+
+  private async syncPackagedCandidateFundClass(input: {
+    candidate: FundCandidate;
+    fundGateResult: FundGateResult;
+  }): Promise<FundCandidate> {
+    const fundClass = input.fundGateResult.fundClass;
+    if (fundClass === null) return input.candidate;
+    const fundClassAssessment =
+      input.fundGateResult.fundClassAssessment ??
+      classifyFundCandidateForGate(
+        input.candidate,
+        input.fundGateResult.passed,
+      );
+    const classifiedCandidate: FundCandidate = {
+      ...input.candidate,
+      fundClass,
+    };
+    const packageRef = input.candidate.publicPackagePath ?? "";
+    if (
+      packageRef.length === 0 ||
+      packageRef.startsWith("/") ||
+      !publicSafeRef(packageRef)
+    ) {
+      return classifiedCandidate;
+    }
+    const packageRoot = join(this.root, packageRef);
+    const bindingPath = join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json");
+    const bindings =
+      await readOptionalJson<Record<string, unknown>>(bindingPath);
+    if (bindings !== null) {
+      const nestedCandidate = isRecord(bindings.fundCandidate)
+        ? bindings.fundCandidate
+        : {};
+      await writeJson(bindingPath, {
+        ...bindings,
+        fundClass,
+        countsForEinsteinNobelDiscoveryScore:
+          input.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+        fundClassAssessment,
+        fundCandidate: {
+          ...nestedCandidate,
+          fundClass,
+        },
+      });
+    }
+    const candidatePath = join(packageRoot, "FUND_CANDIDATE.json");
+    const candidateRecord =
+      await readOptionalJson<Record<string, unknown>>(candidatePath);
+    if (candidateRecord !== null) {
+      const nestedCandidate = isRecord(candidateRecord.candidate)
+        ? candidateRecord.candidate
+        : {};
+      await writeJson(candidatePath, {
+        ...candidateRecord,
+        candidate: {
+          ...nestedCandidate,
+          fundClass,
+        },
+        fundClass,
+        countsForEinsteinNobelDiscoveryScore:
+          input.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+        fundClassAssessment,
+      });
+    }
+    return classifiedCandidate;
   }
 
   private async writeCandidateClosureArtifacts(input: {
@@ -24940,6 +25014,7 @@ async function claimLiftPackageRefResolvable(
 
 type GeneratorBornDiscoveryClaimLiftProposalScaffold = {
   domain?: DiscoveryDomain;
+  externalSignificanceEvidenceRefs: string[];
   sourceEvidenceRefs: string[];
   baselineRefs: string[];
   rivalRefs: string[];
@@ -24973,7 +25048,7 @@ async function generatorBornDiscoveryClaimLiftProposalTemplate(
       "Replace this with a new exact target-outcome claim that states the externally significant scientific interpretation being tested; do not reuse anti-discovery, generator-only, runtime-only, pipeline-only, Nobel, Einstein, breakthrough, or external-validation language.",
     mechanismHypothesis:
       "Bind the candidate mechanism hypothesis that predicts the measured target outcome better than named rivals.",
-    externalSignificanceEvidenceRefs: [],
+    externalSignificanceEvidenceRefs: scaffold.externalSignificanceEvidenceRefs,
     sourceEvidenceRefs: scaffold.sourceEvidenceRefs,
     baselineRefs: scaffold.baselineRefs,
     rivalRefs: scaffold.rivalRefs,
@@ -25006,6 +25081,7 @@ async function generatorBornDiscoveryClaimLiftProposalScaffold(
 ): Promise<GeneratorBornDiscoveryClaimLiftProposalScaffold> {
   const empty: GeneratorBornDiscoveryClaimLiftProposalScaffold = {
     domain: requirement.domain ?? undefined,
+    externalSignificanceEvidenceRefs: [],
     sourceEvidenceRefs: [],
     baselineRefs: [],
     rivalRefs: [],
@@ -25099,6 +25175,14 @@ async function generatorBornDiscoveryClaimLiftProposalScaffold(
     ]);
     return {
       domain,
+      externalSignificanceEvidenceRefs: uniqueStrings([
+        ...stringArray(bindings.externalSignificanceEvidenceRefs),
+        ...stringArray(fundCandidate.insightEvidenceRefs),
+        ...sourceEvidenceRefs,
+        ...evidenceRefs,
+      ])
+        .filter((ref) => ref.startsWith("https://") && publicSafeRef(ref))
+        .slice(0, 8),
       sourceEvidenceRefs,
       baselineRefs,
       rivalRefs,

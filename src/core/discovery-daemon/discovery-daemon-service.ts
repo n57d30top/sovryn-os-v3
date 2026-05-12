@@ -1549,6 +1549,9 @@ export type GeneratorBornDiscoveryClaimLiftRequirement = {
   candidateId: string;
   discoveryCandidateId: string;
   exactClaim: string;
+  domain: DiscoveryDomain | null;
+  externalReviewPackagePath: string | null;
+  fundCandidateDraftRef: string | null;
   status: "claim_lift_required";
   failedDomainSignificanceGates: string[];
   requiredChange: string;
@@ -1632,6 +1635,7 @@ export type GeneratorBornFundClosureCandidateResult = {
   candidateId: string;
   discoveryCandidateId: string;
   exactClaim: string;
+  domain: DiscoveryDomain;
   predictionsFrozen: number;
   predictionsExecuted: number;
   nonObviousPredictions: number;
@@ -13074,6 +13078,7 @@ export class GeneratorBornFundClosureService {
         candidateId: candidate.candidateId,
         discoveryCandidateId,
         exactClaim: candidate.exactNarrowClaim,
+        domain: packagedCandidate.domain,
         predictionsFrozen: predictionLedger.length,
         predictionsExecuted: predictionLedger.filter((row) => row.executed)
           .length,
@@ -13887,8 +13892,13 @@ export class GeneratorBornDiscoveryClaimLiftService {
     });
     await writeJson(join(root, "CLAIM_LIFT_PROPOSAL_TEMPLATE.json"), {
       kind: "generator_born_discovery_claim_lift_proposal_template",
-      proposals: input.requirements.map(
-        generatorBornDiscoveryClaimLiftProposalTemplate,
+      proposals: await Promise.all(
+        input.requirements.map((requirement) =>
+          generatorBornDiscoveryClaimLiftProposalTemplate(
+            this.root,
+            requirement,
+          ),
+        ),
       ),
       evidenceHash: hashEvidence(input.requirements),
     });
@@ -24512,6 +24522,9 @@ function generatorBornDiscoveryClaimLiftRequirements(
       candidateId: candidate.candidateId,
       discoveryCandidateId: candidate.discoveryCandidateId,
       exactClaim: candidate.exactClaim,
+      domain: candidate.domain,
+      externalReviewPackagePath: candidate.externalReviewPackagePath,
+      fundCandidateDraftRef: candidate.fundCandidateDraftRef,
       status: "claim_lift_required" as const,
       failedDomainSignificanceGates: candidate.domainSignificanceFailedGates,
       requiredChange:
@@ -24641,14 +24654,14 @@ function generatorBornDiscoveryClaimLiftRequirementsMarkdown(
     `Claim lift required: ${String(report.claimLiftRequired)}.`,
     `Requirements: ${report.claimLiftRequirements.length}.`,
     "",
-    "| Candidate | Discovery candidate | Status | Failed domain-significance gates | Required change |",
-    "| --- | --- | --- | --- | --- |",
+    "| Candidate | Discovery candidate | Domain | Package | Draft | Status | Failed domain-significance gates | Required change |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...report.claimLiftRequirements.map(
       (requirement) =>
-        `| ${requirement.candidateId} | ${requirement.discoveryCandidateId} | ${requirement.status} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} | ${requirement.requiredChange} |`,
+        `| ${requirement.candidateId} | ${requirement.discoveryCandidateId} | ${requirement.domain ?? "none"} | ${requirement.externalReviewPackagePath ?? "none"} | ${requirement.fundCandidateDraftRef ?? "none"} | ${requirement.status} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} | ${requirement.requiredChange} |`,
     ),
     ...(report.claimLiftRequirements.length === 0
-      ? ["| none | none | none | none | none |"]
+      ? ["| none | none | none | none | none | none | none | none |"]
       : []),
     "",
     "A claim lift is not a Fund. It is the required forward-only step from an InsightCandidate with anti-discovery caveats to a new stable DiscoveryCandidate identity with an exact externally significant target-outcome claim.",
@@ -24929,21 +24942,74 @@ async function claimLiftPackageRefResolvable(
   return true;
 }
 
-function generatorBornDiscoveryClaimLiftProposalTemplate(
+type GeneratorBornDiscoveryClaimLiftProposalScaffold = {
+  domain?: DiscoveryDomain;
+  sourceEvidenceRefs: string[];
+  baselineRefs: string[];
+  rivalRefs: string[];
+  holdoutRefs: string[];
+  replayRefs: string[];
+  counterexampleRefs: string[];
+  mechanismPressureRefs: string[];
+  identityLedgerRefs: string[];
+  hardSeedRefs: string[];
+  packageRef: string;
+  predictionRefs: string[];
+  killWeekRefs: string[];
+  limitations: string[];
+};
+
+async function generatorBornDiscoveryClaimLiftProposalTemplate(
+  root: string,
   requirement: GeneratorBornDiscoveryClaimLiftRequirement,
-): GeneratorBornDiscoveryClaimLiftProposal {
+): Promise<GeneratorBornDiscoveryClaimLiftProposal> {
+  const scaffold = await generatorBornDiscoveryClaimLiftProposalScaffold(
+    root,
+    requirement,
+  );
   return {
     kind: "generator_born_discovery_claim_lift_proposal",
     parentCandidateId: requirement.candidateId,
-    targetDiscoveryCandidateId: `DISCOVERY-LIFT-${normalizeCandidateIdPart(
-      requirement.candidateId,
-    ).slice(0, 72)}`,
-    domain: undefined,
+    targetDiscoveryCandidateId:
+      generatorBornDiscoveryClaimLiftTargetId(requirement),
+    domain: scaffold.domain,
     exactTargetOutcomeClaim:
       "Replace this with a new exact target-outcome claim that states the externally significant scientific interpretation being tested; do not reuse anti-discovery, generator-only, runtime-only, pipeline-only, Nobel, Einstein, breakthrough, or external-validation language.",
     mechanismHypothesis:
       "Bind the candidate mechanism hypothesis that predicts the measured target outcome better than named rivals.",
     externalSignificanceEvidenceRefs: [],
+    sourceEvidenceRefs: scaffold.sourceEvidenceRefs,
+    baselineRefs: scaffold.baselineRefs,
+    rivalRefs: scaffold.rivalRefs,
+    holdoutRefs: scaffold.holdoutRefs,
+    replayRefs: scaffold.replayRefs,
+    counterexampleRefs: scaffold.counterexampleRefs,
+    mechanismPressureRefs: scaffold.mechanismPressureRefs,
+    identityLedgerRefs: scaffold.identityLedgerRefs,
+    hardSeedRefs: scaffold.hardSeedRefs,
+    packageRef: scaffold.packageRef,
+    predictionRefs: scaffold.predictionRefs,
+    killWeekRefs: scaffold.killWeekRefs,
+    limitations: scaffold.limitations,
+    createdFromRuntimeEvidence: scaffold.sourceEvidenceRefs.length > 0,
+    noOverclaim: true,
+  };
+}
+
+function generatorBornDiscoveryClaimLiftTargetId(
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement,
+): string {
+  return `DISCOVERY-LIFT-${normalizeCandidateIdPart(
+    requirement.candidateId,
+  ).slice(0, 72)}`;
+}
+
+async function generatorBornDiscoveryClaimLiftProposalScaffold(
+  root: string,
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement,
+): Promise<GeneratorBornDiscoveryClaimLiftProposalScaffold> {
+  const empty: GeneratorBornDiscoveryClaimLiftProposalScaffold = {
+    domain: requirement.domain ?? undefined,
     sourceEvidenceRefs: [],
     baselineRefs: [],
     rivalRefs: [],
@@ -24953,13 +25019,112 @@ function generatorBornDiscoveryClaimLiftProposalTemplate(
     mechanismPressureRefs: [],
     identityLedgerRefs: [],
     hardSeedRefs: [],
-    packageRef: "",
+    packageRef: requirement.externalReviewPackagePath ?? "",
     predictionRefs: [],
     killWeekRefs: [],
     limitations: [],
-    createdFromRuntimeEvidence: false,
-    noOverclaim: true,
   };
+  const packageRef = requirement.externalReviewPackagePath ?? "";
+  if (
+    packageRef.length === 0 ||
+    !publicSafeRef(packageRef) ||
+    packageRef.startsWith("/")
+  ) {
+    return empty;
+  }
+  const bindingsPath = join(root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json");
+  if (!(await exists(bindingsPath))) return empty;
+  try {
+    const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const sourceEvidenceRefs = uniqueStrings(
+      stringArray(bindings.sourceEvidenceRefs),
+    );
+    const evidenceRefs = uniqueStrings([
+      ...sourceEvidenceRefs,
+      ...stringArray(bindings.evidenceRefs),
+    ]);
+    const scoped = (ref: string): string =>
+      ref.startsWith("http://") ||
+      ref.startsWith("https://") ||
+      ref.startsWith(".")
+        ? ref
+        : `${packageRef}/${ref}`;
+    const packageBindingRef = `${packageRef}/CLAIM_EVIDENCE_BINDINGS.json`;
+    const fundCandidate = (bindings.fundCandidate ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const domain =
+      typeof bindings.domain === "string" &&
+      discoveryDaemonDomains().includes(bindings.domain as DiscoveryDomain)
+        ? (bindings.domain as DiscoveryDomain)
+        : (requirement.domain ?? undefined);
+    const baselineRefs = uniqueStrings([
+      ...stringArray(bindings.baselineRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\bbaseline\b/i.test(ref)),
+    ]);
+    const rivalRefs = uniqueStrings([
+      ...stringArray(bindings.rivalRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\brival\b/i.test(ref)),
+    ]);
+    const holdoutRefs = uniqueStrings([
+      ...stringArray(bindings.holdoutEvidenceRefs),
+      ...stringArray(bindings.holdoutRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\bholdout\b/i.test(ref)),
+    ]);
+    const replayRefs = uniqueStrings([
+      ...stringArray(bindings.replayEvidenceRefs),
+      ...stringArray(bindings.replayRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\breplay\b/i.test(ref)),
+    ]);
+    const counterexampleRefs = uniqueStrings([
+      ...stringArray(bindings.counterexampleEvidenceRefs),
+      ...stringArray(bindings.counterexampleRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\bcounterexample\b/i.test(ref)),
+    ]);
+    const mechanismPressureRefs = uniqueStrings([
+      ...stringArray(bindings.mechanismPressureRefs).map(scoped),
+      ...stringArray(fundCandidate.mechanismPressureRefs).map(scoped),
+      ...evidenceRefs.filter((ref) => /\bmechanism\b|\bproof\b/i.test(ref)),
+      `${packageRef}/METHOD.md#mechanism-pressure`,
+    ]);
+    const predictionRefs = uniqueStrings([
+      ...stringArray(bindings.predictionRefs).map(scoped),
+      ...stringArray(fundCandidate.predictionOutcomes),
+      `${packageBindingRef}#predictionLedger`,
+    ]);
+    const killWeekRefs = uniqueStrings([
+      ...stringArray(bindings.killWeekRefs).map(scoped),
+      ...stringArray(fundCandidate.killWeekResult),
+      `${packageBindingRef}#killWeek`,
+    ]);
+    return {
+      domain,
+      sourceEvidenceRefs,
+      baselineRefs,
+      rivalRefs,
+      holdoutRefs,
+      replayRefs,
+      counterexampleRefs,
+      mechanismPressureRefs,
+      identityLedgerRefs: uniqueStrings(
+        stringArray(bindings.identityLedgerRefs),
+      ),
+      hardSeedRefs: uniqueStrings(stringArray(bindings.hardSeedRefs)),
+      packageRef,
+      predictionRefs,
+      killWeekRefs,
+      limitations: uniqueStrings([
+        ...stringArray(fundCandidate.remainingLimitations),
+        ...stringArray(bindings.limitations),
+      ]),
+    };
+  } catch {
+    return empty;
+  }
 }
 
 function generatorBornDiscoveryClaimLiftBottleneck(
@@ -25077,11 +25242,10 @@ function generatorBornDiscoveryClaimLiftTemplateMarkdown(
     "",
     "| Parent candidate | Suggested target ID | Failed source gates |",
     "| --- | --- | --- |",
-    ...requirements.map((requirement) => {
-      const template =
-        generatorBornDiscoveryClaimLiftProposalTemplate(requirement);
-      return `| ${requirement.candidateId} | ${template.targetDiscoveryCandidateId} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} |`;
-    }),
+    ...requirements.map(
+      (requirement) =>
+        `| ${requirement.candidateId} | ${generatorBornDiscoveryClaimLiftTargetId(requirement)} | ${requirement.failedDomainSignificanceGates.join(", ") || "none"} |`,
+    ),
     ...(requirements.length === 0 ? ["| none | none | none |"] : []),
   ].join("\n");
 }

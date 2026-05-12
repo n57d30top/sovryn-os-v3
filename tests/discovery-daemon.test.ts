@@ -4544,6 +4544,53 @@ test("generator-born discovery claim lift blocks text-only closure candidates be
     ),
     true,
   );
+  const templateJson = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_PROPOSAL_TEMPLATE.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    proposals?: Array<{
+      exactTargetOutcomeClaim?: string;
+      externalSignificanceEvidenceRefs?: string[];
+      sourceEvidenceRefs?: string[];
+      baselineRefs?: string[];
+      rivalRefs?: string[];
+      holdoutRefs?: string[];
+      replayRefs?: string[];
+      counterexampleRefs?: string[];
+      mechanismPressureRefs?: string[];
+      identityLedgerRefs?: string[];
+      hardSeedRefs?: string[];
+      packageRef?: string;
+      predictionRefs?: string[];
+      killWeekRefs?: string[];
+      limitations?: string[];
+      createdFromRuntimeEvidence?: boolean;
+    }>;
+  };
+  const scaffold = templateJson.proposals?.[0];
+  assert.match(scaffold?.exactTargetOutcomeClaim ?? "", /Replace this/);
+  assert.deepEqual(scaffold?.externalSignificanceEvidenceRefs, []);
+  assert.equal(scaffold?.createdFromRuntimeEvidence, true);
+  assert.match(scaffold?.packageRef ?? "", /evidence-packages/);
+  assert.ok((scaffold?.sourceEvidenceRefs ?? []).length >= 3);
+  assert.ok((scaffold?.baselineRefs ?? []).length >= 1);
+  assert.ok((scaffold?.rivalRefs ?? []).length >= 1);
+  assert.ok((scaffold?.holdoutRefs ?? []).length >= 1);
+  assert.ok((scaffold?.replayRefs ?? []).length >= 1);
+  assert.ok((scaffold?.counterexampleRefs ?? []).length >= 1);
+  assert.ok((scaffold?.mechanismPressureRefs ?? []).length >= 1);
+  assert.ok((scaffold?.identityLedgerRefs ?? []).length >= 1);
+  assert.ok((scaffold?.hardSeedRefs ?? []).length >= 1);
+  assert.ok((scaffold?.predictionRefs ?? []).length >= 1);
+  assert.ok((scaffold?.killWeekRefs ?? []).length >= 1);
+  assert.ok((scaffold?.limitations ?? []).length >= 2);
   const templateMarkdown = await readFile(
     join(
       root,

@@ -4628,6 +4628,33 @@ test("mechanism-first generator audit exposes closure fake-green when all closur
     audit.closureYield.recommendedAction,
     /external scientific significance/,
   );
+  const replacementRequirements = JSON.parse(
+    await readFile(
+      join(generatorRoot, "GENERATOR_REPLACEMENT_REQUIREMENTS.json"),
+      "utf8",
+    ),
+  ) as {
+    replacementRequired: boolean;
+    source?: string;
+    requirements: Array<{ dominantBlocker: string; status: string }>;
+  };
+  assert.equal(replacementRequirements.replacementRequired, true);
+  assert.equal(replacementRequirements.source, "generator_audit");
+  assert.equal(
+    replacementRequirements.requirements.every(
+      (item) =>
+        item.status === "replacement_required" &&
+        item.dominantBlocker ===
+          "post_closure_non_discovery:pipeline_fund_candidate",
+    ),
+    true,
+  );
+  const replacementMarkdown = await readFile(
+    join(generatorRoot, "GENERATOR_REPLACEMENT_REQUIREMENTS.md"),
+    "utf8",
+  );
+  assert.match(replacementMarkdown, /Replacement required: true/);
+  assert.match(replacementMarkdown, /non-discovery FundClass/);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

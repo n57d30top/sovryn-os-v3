@@ -12198,6 +12198,20 @@ export class MechanismFirstEvidenceGeneratorService {
       join(this.generatorRoot(), "GENERATOR_AUDIT.md"),
       generatorAuditMarkdown(report),
     );
+    await writeJson(
+      join(this.generatorRoot(), "GENERATOR_REPLACEMENT_REQUIREMENTS.json"),
+      {
+        kind: "generator_replacement_requirements",
+        replacementRequired: report.replacementRequired,
+        requirements: report.replacementRequirements,
+        source: "generator_audit",
+        evidenceHash: hashEvidence(report.replacementRequirements),
+      },
+    );
+    await writeText(
+      join(this.generatorRoot(), "GENERATOR_REPLACEMENT_REQUIREMENTS.md"),
+      generatorReplacementRequirementsMarkdown(report.replacementRequirements),
+    );
     return report;
   }
 
@@ -26265,7 +26279,7 @@ function generatorReplacementRequirementsMarkdown(
         `| ${item.generatorId} | ${item.status} | ${item.runtimeChecks} | ${item.hardSeedsBorn} | ${item.blockedOutputs} | ${item.dominantBlocker ?? "none"} | ${item.requiredChange} |`,
     ),
     "",
-    "These requirements are not discovery claims. They only prevent repeated long searches on generator families that already produced runtime evidence but no birth-eligible HardSeed.",
+    "These requirements are not discovery claims. They prevent repeated long searches on generator families that either produced no birth-eligible HardSeed or closed every downstream candidate as a non-discovery FundClass.",
   ].join("\n");
 }
 

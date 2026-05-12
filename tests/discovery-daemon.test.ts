@@ -881,6 +881,7 @@ async function writePublicCorpusDowngrade(
 async function writePublicCorpusDiscoveryClearance(
   root: string,
   candidateId: string,
+  publicReviewStatus = "raw_scientific_reproduction_succeeded",
 ): Promise<void> {
   const packageRoot = join(
     root,
@@ -898,7 +899,7 @@ async function writePublicCorpusDiscoveryClearance(
     JSON.stringify({
       kind: "public_result_summary",
       candidateId,
-      publicReviewStatus: "external_review_ready_with_major_caveats",
+      publicReviewStatus,
       fundClass: "externally_review_ready_discovery_candidate",
       countsForEinsteinNobelDiscoveryScore: true,
     }),
@@ -5547,6 +5548,31 @@ test("generator-born claim lift intake consumes rebound discovery package throug
   assert.equal(reconciledState.fundFound, false);
   assert.equal(
     await exists(join(root, daemonRoot, "search-cycles", "cycle-0000.json")),
+    false,
+  );
+
+  for (const decision of rebind.decisions.filter(
+    (item) => item.rebindStatus === "rebound",
+  )) {
+    await writePublicCorpusDiscoveryClearance(
+      root,
+      decision.candidateId,
+      "external_review_ready_with_major_caveats",
+    );
+  }
+
+  const caveatedPublicIntake = await service.generatorClaimLiftIntake();
+
+  assert.equal(caveatedPublicIntake.status, "continue_searching_checkpointed");
+  assert.equal(caveatedPublicIntake.eligiblePackages, 0);
+  assert.equal(caveatedPublicIntake.fundFound, false);
+  assert.equal(
+    caveatedPublicIntake.blockerDistribution.public_corpus_downgrade > 0,
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
 

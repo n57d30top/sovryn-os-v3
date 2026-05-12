@@ -351,6 +351,62 @@ test("health friction blocks internal Fund when public corpus downgrades discove
   assert.match(data.remainingBottleneck, /public corpus reconciliation/);
 });
 
+test("health friction blocks caveated public package without raw scientific reproduction readiness", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus: "external_review_ready_with_major_caveats",
+    fundClass: "externally_review_ready_discovery_candidate",
+    countsForEinsteinNobelDiscoveryScore: true,
+  });
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, false);
+  assert.equal(data.fundGateResult.status, "continue_searching");
+  assert.equal(data.publicFundReconciliation.matched, true);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, true);
+  assert.equal(
+    data.publicFundReconciliation.publicRawScientificReproductionReady,
+    false,
+  );
+});
+
+test("health friction allows public package with raw scientific reproduction readiness", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus: "raw_scientific_reproduction_succeeded",
+    fundClass: "externally_review_ready_discovery_candidate",
+    countsForEinsteinNobelDiscoveryScore: true,
+  });
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, true);
+  assert.equal(data.fundGateResult.status, "FUND_FOUND");
+  assert.equal(data.publicFundReconciliation.matched, true);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, false);
+  assert.equal(
+    data.publicFundReconciliation.publicRawScientificReproductionReady,
+    true,
+  );
+});
+
 test("health friction clears readiness reconciliation blocker when Nobel-readiness score consumed FundClass", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);
@@ -692,6 +748,23 @@ async function writePublicCorpusDowngrade(
   root: string,
   candidateId: string,
 ): Promise<void> {
+  await writePublicCorpusDiscoveryPackage(root, candidateId, {
+    publicReviewStatus:
+      "not_external_review_ready_raw_scientific_reproduction_failed",
+    fundClass: "not_discovery_scored_raw_reproduction_failed",
+    countsForEinsteinNobelDiscoveryScore: false,
+  });
+}
+
+async function writePublicCorpusDiscoveryPackage(
+  root: string,
+  candidateId: string,
+  input: {
+    publicReviewStatus: string;
+    fundClass: string;
+    countsForEinsteinNobelDiscoveryScore: boolean;
+  },
+): Promise<void> {
   const corpusResultRoot = join(
     root,
     "..",
@@ -705,10 +778,10 @@ async function writePublicCorpusDowngrade(
     JSON.stringify({
       kind: "public_result_summary",
       candidateId,
-      publicReviewStatus:
-        "not_external_review_ready_raw_scientific_reproduction_failed",
-      fundClass: "not_discovery_scored_raw_reproduction_failed",
-      countsForEinsteinNobelDiscoveryScore: false,
+      publicReviewStatus: input.publicReviewStatus,
+      fundClass: input.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        input.countsForEinsteinNobelDiscoveryScore,
     }),
   );
   await writeFile(
@@ -716,8 +789,9 @@ async function writePublicCorpusDowngrade(
     JSON.stringify({
       kind: "fund_candidate",
       candidate: { candidateId },
-      fundClass: "not_discovery_scored_raw_reproduction_failed",
-      countsForEinsteinNobelDiscoveryScore: false,
+      fundClass: input.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        input.countsForEinsteinNobelDiscoveryScore,
     }),
   );
 }

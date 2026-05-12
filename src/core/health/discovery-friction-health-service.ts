@@ -304,6 +304,7 @@ export type PublicFundReconciliation = {
   publicReviewStatus: string | null;
   publicFundClass: string | null;
   countsForEinsteinNobelDiscoveryScore: boolean | null;
+  publicRawScientificReproductionReady: boolean | null;
   reason: string | null;
 };
 
@@ -1135,6 +1136,7 @@ export class DiscoveryFrictionHealthService {
       publicReviewStatus: null,
       publicFundClass: null,
       countsForEinsteinNobelDiscoveryScore: null,
+      publicRawScientificReproductionReady: null,
       reason: null,
     };
     if (!candidateId) return empty;
@@ -1174,11 +1176,12 @@ export class DiscoveryFrictionHealthService {
         booleanField(summary, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(fundCandidate, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(nestedCandidate, "countsForEinsteinNobelDiscoveryScore");
+      const publicRawScientificReproductionReady =
+        publicReviewStatusAllowsDiscoveryScoring(publicReviewStatus);
       const blocksDiscoveryScore =
         countsForEinsteinNobelDiscoveryScore === false ||
         publicFundClass?.startsWith("not_discovery_scored") === true ||
-        publicReviewStatus?.includes("raw_scientific_reproduction_failed") ===
-          true;
+        publicRawScientificReproductionReady !== true;
       return {
         matched: true,
         blocksDiscoveryScore,
@@ -1187,9 +1190,10 @@ export class DiscoveryFrictionHealthService {
         publicFundClass: publicFundClass ?? null,
         countsForEinsteinNobelDiscoveryScore:
           countsForEinsteinNobelDiscoveryScore ?? null,
+        publicRawScientificReproductionReady,
         reason: blocksDiscoveryScore
-          ? "public corpus package marks this candidate as not discovery-scored or raw-scientific-reproduction failed"
-          : "public corpus package does not block discovery scoring",
+          ? "public corpus package is missing public raw-scientific reproduction readiness or marks this candidate as not discovery-scored"
+          : "public corpus package has public raw-scientific reproduction readiness and does not block discovery scoring",
       };
     }
     return empty;
@@ -2824,6 +2828,27 @@ function booleanField(
 ): boolean | null {
   const value = object?.[field];
   return typeof value === "boolean" ? value : null;
+}
+
+function publicReviewStatusAllowsDiscoveryScoring(
+  status: string | null,
+): boolean {
+  if (status === null) return false;
+  const normalized = status.toLowerCase();
+  if (
+    normalized.includes("raw_scientific_reproduction_failed") ||
+    normalized.includes("not_external_review_ready") ||
+    normalized.includes("package_repair_required") ||
+    normalized.includes("needs_package_repair") ||
+    normalized.includes("with_major_caveats")
+  ) {
+    return false;
+  }
+  return (
+    normalized.includes("raw_scientific_reproduction_succeeded") ||
+    normalized.includes("standalone_raw_reproduction_succeeded") ||
+    normalized.includes("external_review_ready_raw_reproduction_succeeded")
+  );
 }
 
 function objectField(

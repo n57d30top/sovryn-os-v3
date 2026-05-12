@@ -93,6 +93,7 @@ const commands = [
   "generator-pressure",
   "generator-insight-closure",
   "generator-fund-closure",
+  "generator-claim-lift-propose",
   "generator-claim-lift",
   "dimacs-boundary-closure",
   "formal-anchor-select",
@@ -4678,6 +4679,137 @@ test("generator-born discovery claim lift blocks text-only closure candidates be
   );
 });
 
+test("generator-born claim lift proposal builder blocks packages without explicit claimLiftProposalCandidate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+
+  const build = await service.generatorClaimLiftPropose();
+
+  assert.equal(
+    build.kind,
+    "generator_born_discovery_claim_lift_proposal_builder",
+  );
+  assert.equal(build.status, "continue_searching_checkpointed");
+  assert.equal(build.requirementsLoaded, 6);
+  assert.equal(build.proposalCandidatesEvaluated, 6);
+  assert.equal(build.proposalsReady, 0);
+  assert.equal(build.proposalsBlocked, 6);
+  assert.equal(build.proposalsWritten, 0);
+  assert.equal(build.fundFound, false);
+  assert.equal(
+    build.decisions.every((decision) =>
+      decision.failedGates.includes(
+        "explicit_package_claim_lift_candidate_present",
+      ),
+    ),
+    true,
+  );
+  assert.match(build.remainingBottleneck, /claimLiftProposalCandidate/);
+  const proposalsPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_PROPOSALS.json",
+      ),
+      "utf8",
+    ),
+  ) as { proposals?: unknown[]; generatedBy?: string };
+  assert.equal(
+    proposalsPayload.generatedBy,
+    "generator_born_discovery_claim_lift_proposal_builder",
+  );
+  assert.deepEqual(proposalsPayload.proposals, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift proposal builder writes only package-backed evidence proposals", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  const closure = await service.generatorFundClosure();
+  const requirement = closure.claimLiftRequirements[0]!;
+  const packagePath = requirement.externalReviewPackagePath!;
+  const bindingsPath = join(root, packagePath, "CLAIM_EVIDENCE_BINDINGS.json");
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.claimLiftProposalCandidate = {
+    targetDiscoveryCandidateId: "DISCOVERY-LIFT-BUILDER-TEST-001",
+    exactTargetOutcomeClaim:
+      "The measured public materials target-outcome residual has scientific significance because descriptor-transfer stability changes interpretation of composition-conditioned property prediction across real targets; a previously unknown mechanism remains after formula-size, source-family, shuffled-target, holdout, replay, counterexample, and mechanism pressure checks.",
+    mechanismHypothesis:
+      "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
+    externalSignificanceEvidenceRefs: [
+      "https://matbench.materialsproject.org/",
+      "https://materialsproject.org/",
+    ],
+    createdFromRuntimeEvidence: true,
+    noOverclaim: true,
+  };
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+
+  const build = await service.generatorClaimLiftPropose();
+
+  assert.equal(build.requirementsLoaded, 6);
+  assert.equal(build.proposalCandidatesEvaluated, 6);
+  assert.equal(build.proposalsReady, 1);
+  assert.equal(build.proposalsBlocked, 5);
+  assert.equal(build.proposalsWritten, 1);
+  assert.equal(build.fundFound, false);
+  assert.equal(
+    build.decisions.some(
+      (decision) =>
+        decision.candidateId === requirement.candidateId &&
+        decision.proposalReady &&
+        decision.targetDiscoveryCandidateId ===
+          "DISCOVERY-LIFT-BUILDER-TEST-001" &&
+        decision.failedGates.length === 0,
+    ),
+    true,
+  );
+  const proposalsPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_PROPOSALS.json",
+      ),
+      "utf8",
+    ),
+  ) as { proposals?: Array<Record<string, unknown>> };
+  assert.equal(proposalsPayload.proposals?.length, 1);
+  assert.equal(
+    proposalsPayload.proposals?.[0]?.targetDiscoveryCandidateId,
+    "DISCOVERY-LIFT-BUILDER-TEST-001",
+  );
+
+  const lift = await service.generatorClaimLift();
+  assert.equal(lift.acceptedClaimLifts, 1);
+  assert.equal(lift.discoveryCandidatesCreated, 1);
+  assert.equal(lift.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -7228,6 +7360,23 @@ test("discover-daemon generator CLIs are bounded and non-funding", async () => {
     "generator_born_fund_closure",
   );
   assert.equal((fundClosure.data as Record<string, unknown>).fundFound, false);
+  const claimLiftPropose = await executeCli(
+    ["discover-daemon", "generator-claim-lift-propose", "--json"],
+    root,
+  );
+  assert.equal(
+    claimLiftPropose.ok,
+    true,
+    JSON.stringify(claimLiftPropose.errors),
+  );
+  assert.equal(
+    (claimLiftPropose.data as Record<string, unknown>).kind,
+    "generator_born_discovery_claim_lift_proposal_builder",
+  );
+  assert.equal(
+    (claimLiftPropose.data as Record<string, unknown>).fundFound,
+    false,
+  );
   const claimLift = await executeCli(
     ["discover-daemon", "generator-claim-lift", "--json"],
     root,
@@ -8703,6 +8852,11 @@ const cliScenarios: {
     name: "generator-fund-closure",
     args: ["discover-daemon", "generator-fund-closure", "--json"],
     expectedKind: "generator_born_fund_closure",
+  },
+  {
+    name: "generator-claim-lift-propose",
+    args: ["discover-daemon", "generator-claim-lift-propose", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_proposal_builder",
   },
   {
     name: "generator-claim-lift",

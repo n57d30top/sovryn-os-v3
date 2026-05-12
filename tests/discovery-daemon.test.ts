@@ -5705,6 +5705,10 @@ test("generator-born claim lift intake consumes rebound discovery package throug
     rawMismatchIntake.blockerDistribution.raw_source_reproduction_mismatch > 0,
     true,
   );
+  assert.match(
+    rawMismatchIntake.remainingBottleneck,
+    /Raw-source reproduction mismatch/,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

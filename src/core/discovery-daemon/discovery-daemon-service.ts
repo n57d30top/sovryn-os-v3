@@ -27520,11 +27520,18 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBottleneck(input: {
     return "No signal-rebind decisions are available for root package intake.";
   }
   const distribution = countBy(input.decisions, "primaryBlocker");
-  return `No rebound package is eligible for root Fund intake. Blockers: ${Object.entries(
-    distribution,
-  )
+  const blockerSummary = Object.entries(distribution)
     .map(([blocker, count]) => `${blocker}=${count}`)
-    .join(", ")}.`;
+    .join(", ");
+  const rawMetricMismatches = input.decisions.filter(
+    (decision) =>
+      decision.rawSourceReproductionConsistency.reason ===
+      "raw_source_metrics_do_not_match_generator_runtime_evidence",
+  ).length;
+  if (rawMetricMismatches > 0) {
+    return `No rebound package is eligible for root Fund intake. Blockers: ${blockerSummary}. Raw-source reproduction mismatch is already visible for ${rawMetricMismatches} package(s); public-package work cannot promote these until source-cache metrics match the bound generator runtime evidence.`;
+  }
+  return `No rebound package is eligible for root Fund intake. Blockers: ${blockerSummary}.`;
 }
 
 function generatorBornDiscoveryClaimLiftSignalIntakeArtifactRefs(input: {
@@ -27571,6 +27578,31 @@ function generatorBornDiscoveryClaimLiftSignalIntakeMarkdown(
       ([blocker, count]) => `- ${blocker}: ${count}`,
     ),
     ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Raw Source Reproduction Consistency",
+    "",
+    "| Candidate | Passed | Source outcome | Runtime outcome | Source residual | Runtime residual | Reason |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map((decision) => {
+      const raw = decision.rawSourceReproductionConsistency;
+      return [
+        decision.candidateId,
+        String(raw.passed),
+        raw.sourceMeasuredOutcome === null
+          ? "n/a"
+          : String(raw.sourceMeasuredOutcome),
+        raw.runtimeMeasuredOutcome === null
+          ? "n/a"
+          : String(raw.runtimeMeasuredOutcome),
+        raw.sourceResidualMagnitude === null
+          ? "n/a"
+          : String(raw.sourceResidualMagnitude),
+        raw.runtimeResidualMagnitude === null
+          ? "n/a"
+          : String(raw.runtimeResidualMagnitude),
+        raw.reason,
+      ].join(" | ");
+    }),
     "",
     "## Decisions",
     "",

@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import {
@@ -4570,6 +4570,39 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
   await service.generatorInsightClosure();
   const closure = await service.generatorFundClosure();
   const requirement = closure.claimLiftRequirements[0]!;
+  const sourceEvidenceRefs = [
+    ".sovryn/discovery-daemon/source-cache/materials-a.json",
+    ".sovryn/discovery-daemon/source-cache/materials-b.json",
+    ".sovryn/discovery-daemon/runtime-evidence/materials-c.json",
+  ];
+  const baselineRefs = [
+    ".sovryn/discovery-daemon/source-cache/baseline-a.json",
+  ];
+  const rivalRefs = [".sovryn/discovery-daemon/source-cache/rival-a.json"];
+  const holdoutRefs = [".sovryn/discovery-daemon/source-cache/holdout-a.json"];
+  const replayRefs = [".sovryn/discovery-daemon/source-cache/replay-a.json"];
+  const counterexampleRefs = [
+    ".sovryn/discovery-daemon/source-cache/counterexample-a.json",
+  ];
+  const mechanismPressureRefs = [
+    ".sovryn/discovery-daemon/source-cache/mechanism-a.json",
+  ];
+  for (const ref of [
+    ...sourceEvidenceRefs,
+    ...baselineRefs,
+    ...rivalRefs,
+    ...holdoutRefs,
+    ...replayRefs,
+    ...counterexampleRefs,
+    ...mechanismPressureRefs,
+  ]) {
+    await mkdir(dirname(join(root, ref)), { recursive: true });
+    await writeFile(
+      join(root, ref),
+      JSON.stringify({ kind: "claim_lift_test_evidence", ref }, null, 2),
+      "utf8",
+    );
+  }
   await mkdir(join(root, daemonRoot, "generator-claim-lift"), {
     recursive: true,
   });
@@ -4591,25 +4624,13 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
               "https://example.org/materials-significance-a",
               "https://example.org/materials-significance-b",
             ],
-            sourceEvidenceRefs: [
-              ".sovryn/discovery-daemon/source-cache/materials-a.json",
-              ".sovryn/discovery-daemon/source-cache/materials-b.json",
-              ".sovryn/discovery-daemon/runtime-evidence/materials-c.json",
-            ],
-            baselineRefs: [
-              ".sovryn/discovery-daemon/source-cache/baseline-a.json",
-            ],
-            rivalRefs: [".sovryn/discovery-daemon/source-cache/rival-a.json"],
-            holdoutRefs: [
-              ".sovryn/discovery-daemon/source-cache/holdout-a.json",
-            ],
-            replayRefs: [".sovryn/discovery-daemon/source-cache/replay-a.json"],
-            counterexampleRefs: [
-              ".sovryn/discovery-daemon/source-cache/counterexample-a.json",
-            ],
-            mechanismPressureRefs: [
-              ".sovryn/discovery-daemon/source-cache/mechanism-a.json",
-            ],
+            sourceEvidenceRefs,
+            baselineRefs,
+            rivalRefs,
+            holdoutRefs,
+            replayRefs,
+            counterexampleRefs,
+            mechanismPressureRefs,
             createdFromRuntimeEvidence: true,
             noOverclaim: true,
           },
@@ -4643,6 +4664,82 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
     lift.remainingBottleneck,
     /ready for the next DiscoveryCandidate/,
   );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born discovery claim lift rejects unresolved local evidence refs", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  const closure = await service.generatorFundClosure();
+  const requirement = closure.claimLiftRequirements[0]!;
+  await mkdir(join(root, daemonRoot, "generator-claim-lift"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-claim-lift", "CLAIM_LIFT_PROPOSALS.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_discovery_claim_lift_proposals",
+        proposals: [
+          {
+            kind: "generator_born_discovery_claim_lift_proposal",
+            parentCandidateId: requirement.candidateId,
+            targetDiscoveryCandidateId: "DISCOVERY-LIFT-TEST-UNRESOLVED",
+            exactTargetOutcomeClaim:
+              "The measured public materials target-outcome residual shows scientific significance by changing interpretation of descriptor transfer stability: a previously unknown mechanism across real targets remains after baseline, rival, holdout, replay, counterexample, and mechanism pressure.",
+            mechanismHypothesis:
+              "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
+            externalSignificanceEvidenceRefs: [
+              "https://example.org/materials-significance-a",
+              "https://example.org/materials-significance-b",
+            ],
+            sourceEvidenceRefs: [
+              ".sovryn/discovery-daemon/missing/materials-a.json",
+              ".sovryn/discovery-daemon/missing/materials-b.json",
+              ".sovryn/discovery-daemon/missing/materials-c.json",
+            ],
+            baselineRefs: [".sovryn/discovery-daemon/missing/baseline-a.json"],
+            rivalRefs: [".sovryn/discovery-daemon/missing/rival-a.json"],
+            holdoutRefs: [".sovryn/discovery-daemon/missing/holdout-a.json"],
+            replayRefs: [".sovryn/discovery-daemon/missing/replay-a.json"],
+            counterexampleRefs: [
+              ".sovryn/discovery-daemon/missing/counterexample-a.json",
+            ],
+            mechanismPressureRefs: [
+              ".sovryn/discovery-daemon/missing/mechanism-a.json",
+            ],
+            createdFromRuntimeEvidence: true,
+            noOverclaim: true,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const lift = await service.generatorClaimLift();
+  const decision = lift.decisions.find(
+    (item) => item.candidateId === requirement.candidateId,
+  );
+
+  assert.equal(lift.acceptedClaimLifts, 0);
+  assert.equal(decision?.status, "blocked");
+  assert.equal(
+    decision?.failedGates.includes("claim_lift_evidence_refs_resolve"),
+    true,
+  );
+  assert.equal(lift.discoveryCandidatesCreated, 0);
+  assert.equal(lift.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

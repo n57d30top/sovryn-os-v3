@@ -13634,16 +13634,19 @@ export class GeneratorBornDiscoveryClaimLiftService {
     const closure = await this.readFundClosure();
     const requirements = closure.claimLiftRequirements;
     const proposals = await this.readProposals();
-    const decisions = requirements.map((requirement) =>
-      generatorBornDiscoveryClaimLiftDecision({
-        requirement,
-        proposal:
-          proposals.find(
-            (proposal) =>
-              proposal.parentCandidateId === requirement.candidateId,
-          ) ?? null,
-        proposalRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_PROPOSALS.json#${requirement.candidateId}`,
-      }),
+    const decisions = await Promise.all(
+      requirements.map((requirement) =>
+        generatorBornDiscoveryClaimLiftDecision({
+          root: this.root,
+          requirement,
+          proposal:
+            proposals.find(
+              (proposal) =>
+                proposal.parentCandidateId === requirement.candidateId,
+            ) ?? null,
+          proposalRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_PROPOSALS.json#${requirement.candidateId}`,
+        }),
+      ),
     );
     const fundGateResult = new FundGateEvaluator().evaluate(null);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-continue-searching.json`;
@@ -24513,11 +24516,12 @@ function generatorBornFundClosureNextCheckpointMarkdown(
   ].join("\n");
 }
 
-function generatorBornDiscoveryClaimLiftDecision(input: {
+async function generatorBornDiscoveryClaimLiftDecision(input: {
+  root: string;
   requirement: GeneratorBornDiscoveryClaimLiftRequirement;
   proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
   proposalRef: string;
-}): GeneratorBornDiscoveryClaimLiftDecision {
+}): Promise<GeneratorBornDiscoveryClaimLiftDecision> {
   const proposal = input.proposal;
   const claim = normalizeWhitespace(proposal?.exactTargetOutcomeClaim ?? "");
   const claimLower = claim.toLowerCase();
@@ -24587,6 +24591,12 @@ function generatorBornDiscoveryClaimLiftDecision(input: {
       "Claim lift must bind runtime/source evidence refs that are public-safe and were created from real runtime evidence.",
     ),
     gate(
+      "claim_lift_evidence_refs_resolve",
+      proposal !== null &&
+        (await claimLiftEvidenceRefsResolvable(input.root, allEvidenceRefs)),
+      "All non-URL claim-lift evidence refs must resolve to local artifacts before DiscoveryCandidate creation.",
+    ),
+    gate(
       "baseline_rival_holdout_replay_counterexample_mechanism_refs",
       proposal !== null &&
         proposal.baselineRefs.length > 0 &&
@@ -24633,6 +24643,21 @@ function generatorBornDiscoveryClaimLiftDecision(input: {
     evidenceHash: "",
   };
   return { ...decision, evidenceHash: hashEvidence(decision) };
+}
+
+async function claimLiftEvidenceRefsResolvable(
+  root: string,
+  refs: string[],
+): Promise<boolean> {
+  if (refs.length === 0) return false;
+  for (const ref of refs) {
+    if (!publicSafeRef(ref)) return false;
+    if (ref.startsWith("https://")) continue;
+    const pathPart = ref.split("#")[0]?.trim() ?? "";
+    if (pathPart.length === 0 || pathPart.startsWith("/")) return false;
+    if (!(await exists(join(root, pathPart)))) return false;
+  }
+  return true;
 }
 
 function generatorBornDiscoveryClaimLiftProposalTemplate(
@@ -24741,7 +24766,7 @@ function generatorBornDiscoveryClaimLiftTemplateMarkdown(
     "",
     "A claim lift is a forward-only contract. It cannot reuse the InsightCandidate ID, cannot reuse the closure candidate ID, and cannot be satisfied by rewriting text in the same package.",
     "",
-    "Required proposal fields: parentCandidateId, targetDiscoveryCandidateId, exactTargetOutcomeClaim, mechanismHypothesis, externalSignificanceEvidenceRefs, sourceEvidenceRefs, baselineRefs, rivalRefs, holdoutRefs, replayRefs, counterexampleRefs, mechanismPressureRefs, createdFromRuntimeEvidence, noOverclaim.",
+    "Required proposal fields: parentCandidateId, targetDiscoveryCandidateId, exactTargetOutcomeClaim, mechanismHypothesis, externalSignificanceEvidenceRefs, sourceEvidenceRefs, baselineRefs, rivalRefs, holdoutRefs, replayRefs, counterexampleRefs, mechanismPressureRefs, createdFromRuntimeEvidence, noOverclaim. Every non-URL evidence ref must resolve to a local artifact before DiscoveryCandidate creation.",
     "",
     "| Parent candidate | Suggested target ID | Failed source gates |",
     "| --- | --- | --- |",

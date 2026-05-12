@@ -12316,7 +12316,7 @@ export class MechanismFirstEvidenceGeneratorService {
           "SIGNAL_INTAKE.json",
         ),
       );
-    const claimLiftIntakeFundFound =
+    const rawClaimLiftIntakeFundFound =
       claimLiftIntake?.status === "FUND_FOUND" &&
       claimLiftIntake.fundFound === true &&
       claimLiftIntake.fundGateResult.notificationAllowed === true &&
@@ -12325,10 +12325,13 @@ export class MechanismFirstEvidenceGeneratorService {
     const rootFundArtifactsPresent =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
       (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
-    const rootFundAllowedByClaimLiftIntake =
-      claimLiftIntakeFundFound &&
+    const rootFundArtifactsComplete =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) &&
       (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
+    const claimLiftIntakeFundFound =
+      rawClaimLiftIntakeFundFound && rootFundArtifactsComplete;
+    const rootFundAllowedByClaimLiftIntake =
+      claimLiftIntakeFundFound && rootFundArtifactsComplete;
     const outputs = outputPayload?.outputs ?? [];
     const pressureYield = generatorPressureYieldSignal(pressure);
     const closureYield = generatorClosureYieldSignal(closure);

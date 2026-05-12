@@ -6077,6 +6077,95 @@ test("mechanism-first generator audit accepts root Fund owned by later discovery
   );
 });
 
+test("mechanism-first generator audit rejects stale claim-lift intake without root Fund artifacts", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  const claimLiftRoot = join(root, daemonRoot, "generator-claim-lift");
+  await mkdir(claimLiftRoot, { recursive: true });
+  await writeFile(
+    join(claimLiftRoot, "SIGNAL_INTAKE.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_discovery_claim_lift_signal_intake",
+        status: "FUND_FOUND",
+        fundFound: true,
+        fundGateResult: {
+          kind: "fund_gate_result",
+          candidateId: "DISCOVERY-LIFT-STALE",
+          passed: true,
+          status: "FUND_FOUND",
+          fundClass: "externally_review_ready_discovery_candidate",
+          countsForEinsteinNobelDiscoveryScore: true,
+          notificationAllowed: true,
+          failedGates: [],
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await mkdir(join(root, daemonRoot, "generator-fund-closure"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "generator-fund-closure", "latest.json"),
+    JSON.stringify(
+      {
+        kind: "generator_born_fund_closure",
+        status: "continue_searching_checkpointed",
+        checkpointUsed: null,
+        nextCheckpointRef:
+          ".sovryn/discovery-daemon/checkpoints/test-generator-fund-closure.json",
+        closureCandidateCount: 2,
+        closureCandidateResults: [],
+        discoveryScoredCandidates: 0,
+        nonDiscoveryClassifiedCandidates: 2,
+        fundClassDistribution: {
+          pipeline_fund_candidate: 2,
+        },
+        candidateId: null,
+        discoveryCandidateId: null,
+        exactClaim: null,
+        predictionsFrozen: 0,
+        predictionsExecuted: 0,
+        nonObviousPredictions: 0,
+        killWeekComplete: false,
+        fatalUnresolvedAttack: false,
+        externalReviewPackagePath: null,
+        fundCandidateDraftRef: null,
+        packageArtifactGatesPassed: false,
+        fundGateResult: {
+          passed: false,
+          gates: [],
+          failedGates: ["candidate_present"],
+        },
+        fundFound: false,
+        remainingBottleneck: "all closure candidates are non-discovery",
+        artifactRefs: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const audit = await service.generatorAudit();
+
+  assert.equal(audit.kind, "mechanism_first_generator_audit");
+  assert.equal(audit.passed, false);
+  assert.equal(audit.replacementRequired, true);
+  assert.equal(
+    audit.failedGates.includes("post_closure_discovery_yield_not_fake_green"),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("mechanism-first generator audit treats old closure yield as stale after strict no-birth run", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

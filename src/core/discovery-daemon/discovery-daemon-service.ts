@@ -1232,6 +1232,8 @@ export type MechanismFirstGeneratorSet =
   | "replacement"
   | "significance";
 
+const minimumExternalSignificanceEvidenceRefs = 2;
+
 export type ExternalProblemAnchor = {
   anchorId: string;
   anchorType:
@@ -11524,13 +11526,11 @@ export class ExternalValueGate {
       ),
       gate(
         "external_anchor_significance_refs",
-        Array.isArray(anchor?.significanceEvidenceRefs) &&
-          anchor.significanceEvidenceRefs.length > 0 &&
-          anchor.significanceEvidenceRefs.every(
-            (ref) => ref.startsWith("https://") && publicSafeRef(ref),
-          ) &&
-          anchor.significanceEvidenceRefs.every((ref) => allRefs.includes(ref)),
-        "External problem anchor must bind public-safe significance evidence refs into the evidence set.",
+        externalSignificanceRefsBound(
+          anchor?.significanceEvidenceRefs ?? [],
+          allRefs,
+        ),
+        "External problem anchor must bind at least two public-safe significance evidence refs into the evidence set.",
       ),
       gate(
         "external_anchor_inspectable",
@@ -11761,11 +11761,8 @@ export class DomainSignificanceHypothesisGate {
       ),
       gate(
         "domain_significance_refs_bound",
-        hypothesisRefs.length > 0 &&
-          hypothesisRefs.every((ref) => ref.startsWith("https://")) &&
-          hypothesisRefs.every((ref) => allRefs.includes(ref)) &&
-          hypothesisRefs.every(publicSafeRef),
-        "The domain-significance hypothesis must bind public-safe external evidence refs already present in the runtime evidence set.",
+        externalSignificanceRefsBound(hypothesisRefs, allRefs),
+        "The domain-significance hypothesis must bind at least two public-safe external evidence refs already present in the runtime evidence set.",
       ),
       gate(
         "domain_significance_tested",
@@ -12184,9 +12181,11 @@ export class MechanismFirstEvidenceGeneratorService {
             externalAnchorHasDomainScientificSignificance(
               family.externalProblemAnchor,
             ) &&
-            family.externalProblemAnchor.significanceEvidenceRefs.length > 0,
+            externalSignificanceRefsMeetMinimum(
+              family.externalProblemAnchor.significanceEvidenceRefs,
+            ),
         ),
-        "Every generator family must start from a public external problem anchor with explicit domain scientific significance.",
+        "Every generator family must start from a public external problem anchor with explicit domain scientific significance and at least two public significance refs.",
       ),
       gate(
         "latest_run_present",
@@ -14916,11 +14915,8 @@ export class DiscoveryGradeAnchorSelector {
       ),
       gate(
         "significance_evidence_refs_present",
-        anchor.significanceEvidenceRefs.length > 0 &&
-          anchor.significanceEvidenceRefs.every((ref) =>
-            ref.startsWith("https://"),
-          ),
-        "Discovery anchors must cite public significance evidence refs.",
+        externalSignificanceRefsMeetMinimum(anchor.significanceEvidenceRefs),
+        "Discovery anchors must cite at least two public significance evidence refs.",
       ),
       gate(
         "measured_target_outcome_present",
@@ -24763,7 +24759,7 @@ async function generatorBornDiscoveryClaimLiftDecision(input: {
     ),
     gate(
       "external_significance_evidence_refs",
-      externalRefs.filter((ref) => ref.startsWith("https://")).length >= 2,
+      externalSignificanceRefsMeetMinimum(externalRefs),
       "Claim lift requires at least two external public significance refs, not only local generator closure artifacts.",
     ),
     gate(
@@ -26152,6 +26148,7 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "Discovery-scored evidence would be a checked bounded proof, refutation, or validated conjecture for the public coloring anchor, not a generator replay or pipeline-success artifact.",
         significanceEvidenceRefs: [
           "https://mat.tepper.cmu.edu/COLOR/instances.html",
+          "https://dimacs.rutgers.edu/programs/challenge/",
         ],
         inspectabilityRef: "https://mat.tepper.cmu.edu/COLOR/instances.html",
       },
@@ -26193,7 +26190,10 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "A benchmark protocol mechanism has scientific significance only if it reveals a reproducible evaluation-methodology failure mode across public tasks that is not explained by class balance, leakage, maturity, or stronger-model rivals.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a public benchmark-methodology claim that changes how evaluation outcomes should be interpreted across independent tasks, not a successful pipeline or package reproduction.",
-        significanceEvidenceRefs: ["https://www.openml.org/t/31"],
+        significanceEvidenceRefs: [
+          "https://www.openml.org/t/31",
+          "https://docs.openml.org/",
+        ],
         inspectabilityRef: "https://www.openml.org/t/31",
       },
       mechanismHypothesis:
@@ -26236,6 +26236,7 @@ function primaryMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFamily
           "Discovery-scored evidence would be a narrow public measurement residual claim with cross-source recurrence and mechanism pressure, not metadata completeness or pipeline success.",
         significanceEvidenceRefs: [
           "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
+          "https://www.nrel.gov/grid/solar-power-data.html",
         ],
         inspectabilityRef: "https://developer.nrel.gov/docs/solar/pvdaq-v3/",
       },
@@ -26284,6 +26285,7 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "Discovery-scored evidence would be a checked bounded conjecture, proof, or refutation about public SAT outcome structure with counterexample-resistant replay, not generator or solver pipeline success.",
         significanceEvidenceRefs: [
           "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+          "https://www.cs.ubc.ca/~hoos/SATLIB/index-ubc.html",
         ],
         inspectabilityRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
       },
@@ -26325,7 +26327,10 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "A network resilience residual has scientific significance only if it reveals a mechanism about public graph structure that survives degree sequence, density, component-size, random-rewire, and source-family rivals across independent graph families.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a cross-family public graph-mechanism claim about cut resilience with independent recurrence and counterexample pressure, not a networkx pipeline success.",
-        significanceEvidenceRefs: ["https://snap.stanford.edu/data/"],
+        significanceEvidenceRefs: [
+          "https://snap.stanford.edu/data/",
+          "https://snap.stanford.edu/snap/",
+        ],
         inspectabilityRef: "https://snap.stanford.edu/data/",
       },
       mechanismHypothesis:
@@ -26366,7 +26371,10 @@ function replacementMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorFa
           "A cross-domain evaluation fragility residual has scientific significance only if it reveals a mechanism of model-evaluation instability across independent public tasks beyond class imbalance, metric choice, split leakage, task maturity, and stronger-model rivals.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a narrow benchmark-methodology mechanism claim that changes interpretation of public evaluation outcomes across independent tasks, not tool capability or benchmark pipeline completion.",
-        significanceEvidenceRefs: ["https://www.openml.org/search?type=task"],
+        significanceEvidenceRefs: [
+          "https://www.openml.org/search?type=task",
+          "https://docs.openml.org/",
+        ],
         inspectabilityRef: "https://www.openml.org/search?type=task",
       },
       mechanismHypothesis:
@@ -26412,7 +26420,10 @@ function significanceMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorF
           "A materials descriptor-transfer mechanism has domain scientific significance only when it identifies a reproducible property-outcome residual across public materials tasks that is not absorbed by composition, formula-size, target-family, split-leakage, or shuffled-target rivals.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a narrow computational-materials mechanism claim about public property outcome structure with independent holdout and replay support, not a matminer or pymatgen pipeline success.",
-        significanceEvidenceRefs: ["https://matbench.materialsproject.org/"],
+        significanceEvidenceRefs: [
+          "https://matbench.materialsproject.org/",
+          "https://materialsproject.org/",
+        ],
         inspectabilityRef: "https://matbench.materialsproject.org/",
       },
       mechanismHypothesis:
@@ -26453,7 +26464,10 @@ function significanceMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorF
           "An astrophysics catalog residual has domain scientific significance only when it exposes a reproducible measurement-outcome pattern across independent public sky/source slices that is not absorbed by magnitude, color, crowding, scan-law, or catalog-quality rivals.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a narrow public-catalog residual claim that changes interpretation of a measured astrometric outcome with cross-slice support, not an astropy or astroquery pipeline success.",
-        significanceEvidenceRefs: ["https://gea.esac.esa.int/archive/"],
+        significanceEvidenceRefs: [
+          "https://gea.esac.esa.int/archive/",
+          "https://www.cosmos.esa.int/web/gaia/earlydr3",
+        ],
         inspectabilityRef: "https://gea.esac.esa.int/archive/",
       },
       mechanismHypothesis:
@@ -26500,7 +26514,10 @@ function significanceMechanismFirstGeneratorFamilies(): MechanismFirstGeneratorF
           "A bounded graph-minor obstruction has formal scientific significance only if it exposes a checked boundary over public graph instances that is not absorbed by size, density, degree-sequence, treewidth-proxy, or known graph-family rivals.",
         discoveryScoredOutcome:
           "Discovery-scored evidence would be a checked bounded conjecture, proof, or refutation about a public graph obstruction boundary with replayable counterexample pressure, not a networkx execution artifact.",
-        significanceEvidenceRefs: ["https://hog.grinvin.org/"],
+        significanceEvidenceRefs: [
+          "https://hog.grinvin.org/",
+          "https://www.graphclasses.org/",
+        ],
         inspectabilityRef: "https://hog.grinvin.org/",
       },
       mechanismHypothesis:
@@ -41133,6 +41150,23 @@ function publicSafeRef(ref: string): boolean {
     !value.toLowerCase().includes("raw log") &&
     !value.toLowerCase().includes("stdout") &&
     !value.toLowerCase().includes("stderr")
+  );
+}
+
+function externalSignificanceRefsMeetMinimum(refs: string[]): boolean {
+  const uniqueRefs = uniqueStrings(refs);
+  return (
+    uniqueRefs.length >= minimumExternalSignificanceEvidenceRefs &&
+    uniqueRefs.every((ref) => ref.startsWith("https://") && publicSafeRef(ref))
+  );
+}
+
+function externalSignificanceRefsBound(refs: string[], allRefs: string[]) {
+  return (
+    externalSignificanceRefsMeetMinimum(refs) &&
+    refs.every((ref) => ref.startsWith("https://")) &&
+    refs.every(publicSafeRef) &&
+    refs.every((ref) => allRefs.includes(ref))
   );
 }
 

@@ -3738,7 +3738,7 @@ test("mechanism-first significance generator registry loads domain-significance-
         family.externalProblemAnchor.sourceRef.startsWith("https://") &&
         family.externalProblemAnchor.domainScientificSignificance.length > 80 &&
         family.externalProblemAnchor.discoveryScoredOutcome.length > 80 &&
-        family.externalProblemAnchor.significanceEvidenceRefs.length > 0 &&
+        family.externalProblemAnchor.significanceEvidenceRefs.length >= 2 &&
         family.mechanismHypothesis.length > 0 &&
         family.rivalHypothesis.length > 0 &&
         family.birthGateCriteria.includes(
@@ -3767,7 +3767,10 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
         "A bounded formal mechanism boundary has domain scientific significance when it changes the checked public formal problem state beyond trivial baselines.",
       discoveryScoredOutcome:
         "A discovery-scored outcome would be a checked proof refutation or bounded validated conjecture with public formal significance.",
-      significanceEvidenceRefs: ["https://example.org/public-target"],
+      significanceEvidenceRefs: [
+        "https://example.org/public-target",
+        "https://example.org/public-target-significance",
+      ],
       inspectabilityRef: "https://example.org/public-target",
     },
     domainSignificanceHypothesis: {
@@ -3779,7 +3782,10 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
         "The signal must be not documented outside known source-family behavior and must expose a new boundary beyond the trivial prior.",
       falsifier:
         "The hypothesis is falsified when a simple baseline, known-prior rival, or bounded counterexample explains the measured formal outcome.",
-      evidenceRefs: ["https://example.org/public-target"],
+      evidenceRefs: [
+        "https://example.org/public-target",
+        "https://example.org/public-target-significance",
+      ],
       tested: true,
       supported: true,
     },
@@ -3787,6 +3793,7 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     sourceRefs: ["formal-generator://bounded-property/test-family"],
     evidenceRefs: [
       "https://example.org/public-target",
+      "https://example.org/public-target-significance",
       ".sovryn/discovery-daemon/generator-families/GENERATOR_RUN_RESULTS.md#target-001",
     ],
     residualMagnitude: 0.2,
@@ -3804,6 +3811,20 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   const evaluator = new HardSeedBirthEvaluator();
 
   assert.equal(evaluator.evaluate(baseInput).accepted, true);
+  assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      externalProblemAnchor: {
+        ...baseInput.externalProblemAnchor,
+        significanceEvidenceRefs: ["https://example.org/public-target"],
+      },
+      domainSignificanceHypothesis: {
+        ...baseInput.domainSignificanceHypothesis,
+        evidenceRefs: ["https://example.org/public-target"],
+      },
+    }).primaryBlocker,
+    "missing_significance_evidence_refs",
+  );
   assert.equal(
     evaluator.evaluate({ ...baseInput, domainSignificanceHypothesis: null })
       .primaryBlocker,

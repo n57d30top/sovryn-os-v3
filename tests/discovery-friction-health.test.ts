@@ -314,6 +314,43 @@ test("health friction reports active discovery Fund state only when root Fund ar
   assert.match(data.nextCheckpointRef, /fund-found/);
 });
 
+test("health friction blocks internal Fund when public corpus downgrades discovery score", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDowngrade(root, "DISCOVERY-LIFT-DEMO");
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    terminalStatus: string;
+    fundFound: boolean;
+    fundGateResult: Record<string, unknown>;
+    publicFundReconciliation: Record<string, unknown>;
+    promotionReadinessBlockers: string[];
+    remainingBottleneck: string;
+  };
+  assert.notEqual(data.terminalStatus, "discovery_fund_found");
+  assert.equal(data.fundFound, false);
+  assert.equal(data.fundGateResult.status, "continue_searching");
+  assert.deepEqual(data.fundGateResult.failedGates, [
+    "public_corpus_downgrade",
+  ]);
+  assert.equal(data.fundGateResult.notificationAllowed, false);
+  assert.equal(data.fundGateResult.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(data.publicFundReconciliation.matched, true);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, true);
+  assert.equal(
+    data.publicFundReconciliation.publicFundClass,
+    "not_discovery_scored_raw_reproduction_failed",
+  );
+  assert.ok(
+    data.promotionReadinessBlockers.includes("public_corpus_downgrade"),
+  );
+  assert.match(data.remainingBottleneck, /public corpus reconciliation/);
+});
+
 test("health friction clears readiness reconciliation blocker when Nobel-readiness score consumed FundClass", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);
@@ -651,6 +688,40 @@ async function writeReconciledNobelReadinessScore(root: string): Promise<void> {
   );
 }
 
+async function writePublicCorpusDowngrade(
+  root: string,
+  candidateId: string,
+): Promise<void> {
+  const corpusResultRoot = join(
+    root,
+    "..",
+    "sovryn-open-inventions",
+    "results",
+    "first-discovery-fund-matbench-descriptor-transfer",
+  );
+  await mkdir(corpusResultRoot, { recursive: true });
+  await writeFile(
+    join(corpusResultRoot, "SUMMARY.json"),
+    JSON.stringify({
+      kind: "public_result_summary",
+      candidateId,
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+    }),
+  );
+  await writeFile(
+    join(corpusResultRoot, "FUND_CANDIDATE.json"),
+    JSON.stringify({
+      kind: "fund_candidate",
+      candidate: { candidateId },
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+    }),
+  );
+}
+
 async function writeFrictionFixture(root: string): Promise<void> {
   const marathonRoot = join(root, ".sovryn/discovery-daemon/marathon");
   const depthRoot = join(marathonRoot, "depth-gauntlet");
@@ -744,7 +815,10 @@ function seed(
 }
 
 async function tempRoot(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "sovryn-discovery-friction-"));
+  const parent = await mkdtemp(join(tmpdir(), "sovryn-discovery-friction-"));
+  const root = join(parent, "sovryn-os-v3");
+  await mkdir(root, { recursive: true });
+  return root;
 }
 
 async function exists(path: string): Promise<boolean> {

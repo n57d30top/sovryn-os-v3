@@ -273,6 +273,7 @@ export type DiscoveryFrictionHealthReport = {
   largestCodeHotspots: Array<{ file: string; lines: number; risk: string }>;
   discoveryCandidatesCreated: number;
   fundGateResult: DiscoveryFrictionFundGateSummary;
+  publicFundReconciliation: PublicFundReconciliation;
   nextCheckpointRef: string;
   remainingBottleneck: string;
   artifactRefs: string[];
@@ -293,6 +294,17 @@ type ActiveDiscoveryFundState = {
   active: boolean;
   fundGateResult: DiscoveryFrictionFundGateSummary;
   rootFundArtifactsPresent: boolean;
+  publicFundReconciliation: PublicFundReconciliation;
+};
+
+export type PublicFundReconciliation = {
+  matched: boolean;
+  blocksDiscoveryScore: boolean;
+  resultSlug: string | null;
+  publicReviewStatus: string | null;
+  publicFundClass: string | null;
+  countsForEinsteinNobelDiscoveryScore: boolean | null;
+  reason: string | null;
 };
 
 type NobelReadinessReconciliationState = {
@@ -887,6 +899,9 @@ export class DiscoveryFrictionHealthService {
       activeFundState.active,
       nobelReadinessState.reconciled,
     );
+    if (activeFundState.publicFundReconciliation.blocksDiscoveryScore) {
+      promotionReadinessBlockers.push("public_corpus_downgrade");
+    }
     const fakeGreenAuditRisks = fakeGreenRisks(
       evidence.summary,
       holdoutReport,
@@ -954,18 +969,21 @@ export class DiscoveryFrictionHealthService {
       largestCodeHotspots: codeHotspots,
       discoveryCandidatesCreated: adjustedYieldAfter.discoveryCandidatesCreated,
       fundGateResult: activeFundState.fundGateResult,
+      publicFundReconciliation: activeFundState.publicFundReconciliation,
       nextCheckpointRef,
       remainingBottleneck: activeFundState.active
         ? nobelReadinessState.reconciled
           ? "internal discovery-scored Fund state and Nobel-readiness reconciliation are present; remaining bottleneck is external expert validation, not candidate_present"
           : "internal discovery-scored Fund state is present; remaining bottleneck is external expert validation and readiness reconciliation, not candidate_present"
-        : remainingBottleneck(
-            evidence.summary,
-            holdoutReport,
-            yieldReport,
-            formalAnchorYield,
-            generatorFamilyYield,
-          ),
+        : activeFundState.publicFundReconciliation.blocksDiscoveryScore
+          ? "public corpus reconciliation downgraded the active internal Fund candidate; remaining bottleneck is raw-data or formal reproduction that restores discovery-scored public evidence"
+          : remainingBottleneck(
+              evidence.summary,
+              holdoutReport,
+              yieldReport,
+              formalAnchorYield,
+              generatorFamilyYield,
+            ),
       artifactRefs,
       evidenceHash: hashJson({
         evidenceSummary: evidence.summary,
@@ -999,6 +1017,7 @@ export class DiscoveryFrictionHealthService {
       holdoutIndependenceRate: report.holdoutIndependenceRate,
       discoveryCandidatesCreated: report.discoveryCandidatesCreated,
       fundGateResult: report.fundGateResult,
+      publicFundReconciliation: report.publicFundReconciliation,
       nobelReadinessReconciled: report.nobelReadinessReconciled,
       remainingBottleneck: report.remainingBottleneck,
       formalAnchorYield,
@@ -1051,7 +1070,11 @@ export class DiscoveryFrictionHealthService {
     const rootFundArtifactsPresent =
       (await pathExists(join(this.root, daemonRootRel, "FUND_FOUND.md"))) &&
       (await pathExists(join(this.root, daemonRootRel, "fund-candidate.json")));
-    const active =
+    const candidateId =
+      typeof gate?.candidateId === "string" ? gate.candidateId : null;
+    const publicFundReconciliation =
+      await this.loadPublicFundReconciliation(candidateId);
+    const structurallyActive =
       gate?.kind === "fund_gate_result" &&
       gate.passed === true &&
       gate.status === "FUND_FOUND" &&
@@ -1060,16 +1083,35 @@ export class DiscoveryFrictionHealthService {
       state?.status === "FUND_FOUND" &&
       state.fundFound === true &&
       rootFundArtifactsPresent;
+    const active =
+      structurallyActive &&
+      publicFundReconciliation.blocksDiscoveryScore !== true;
+    if (structurallyActive && publicFundReconciliation.blocksDiscoveryScore) {
+      return {
+        active: false,
+        rootFundArtifactsPresent,
+        publicFundReconciliation,
+        fundGateResult: {
+          passed: false,
+          failedGates: ["public_corpus_downgrade"],
+          status: "continue_searching",
+          candidateId,
+          fundClass: publicFundReconciliation.publicFundClass,
+          countsForEinsteinNobelDiscoveryScore: false,
+          notificationAllowed: false,
+        },
+      };
+    }
     return {
       active,
       rootFundArtifactsPresent,
+      publicFundReconciliation,
       fundGateResult: active
         ? {
             passed: true,
             failedGates: stringArray(gate?.failedGates),
             status: "FUND_FOUND",
-            candidateId:
-              typeof gate?.candidateId === "string" ? gate.candidateId : null,
+            candidateId,
             fundClass:
               typeof gate?.fundClass === "string" ? gate.fundClass : null,
             countsForEinsteinNobelDiscoveryScore: true,
@@ -1081,6 +1123,76 @@ export class DiscoveryFrictionHealthService {
             status: "continue_searching",
           },
     };
+  }
+
+  private async loadPublicFundReconciliation(
+    candidateId: string | null,
+  ): Promise<PublicFundReconciliation> {
+    const empty: PublicFundReconciliation = {
+      matched: false,
+      blocksDiscoveryScore: false,
+      resultSlug: null,
+      publicReviewStatus: null,
+      publicFundClass: null,
+      countsForEinsteinNobelDiscoveryScore: null,
+      reason: null,
+    };
+    if (!candidateId) return empty;
+    const resultsRoot = join(
+      dirname(this.root),
+      "sovryn-open-inventions",
+      "results",
+    );
+    if (!(await pathExists(resultsRoot))) return empty;
+    const entries = await readdir(resultsRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const resultRoot = join(resultsRoot, entry.name);
+      const summary = await readJsonIfExists<Record<string, unknown>>(
+        join(resultRoot, "SUMMARY.json"),
+      );
+      const fundCandidate = await readJsonIfExists<Record<string, unknown>>(
+        join(resultRoot, "FUND_CANDIDATE.json"),
+      );
+      const nestedCandidate = objectField(fundCandidate, "candidate");
+      const candidateIds = [
+        stringField(summary, "candidateId"),
+        stringField(summary, "sourceCandidateId"),
+        stringField(fundCandidate, "candidateId"),
+        stringField(nestedCandidate, "candidateId"),
+      ].filter((value): value is string => Boolean(value));
+      if (!candidateIds.includes(candidateId)) continue;
+      const publicFundClass =
+        stringField(summary, "fundClass") ??
+        stringField(fundCandidate, "fundClass") ??
+        stringField(nestedCandidate, "fundClass");
+      const publicReviewStatus =
+        stringField(summary, "publicReviewStatus") ??
+        stringField(fundCandidate, "publicReviewStatus") ??
+        stringField(nestedCandidate, "publicReviewStatus");
+      const countsForEinsteinNobelDiscoveryScore =
+        booleanField(summary, "countsForEinsteinNobelDiscoveryScore") ??
+        booleanField(fundCandidate, "countsForEinsteinNobelDiscoveryScore") ??
+        booleanField(nestedCandidate, "countsForEinsteinNobelDiscoveryScore");
+      const blocksDiscoveryScore =
+        countsForEinsteinNobelDiscoveryScore === false ||
+        publicFundClass?.startsWith("not_discovery_scored") === true ||
+        publicReviewStatus?.includes("raw_scientific_reproduction_failed") ===
+          true;
+      return {
+        matched: true,
+        blocksDiscoveryScore,
+        resultSlug: entry.name,
+        publicReviewStatus: publicReviewStatus ?? null,
+        publicFundClass: publicFundClass ?? null,
+        countsForEinsteinNobelDiscoveryScore:
+          countsForEinsteinNobelDiscoveryScore ?? null,
+        reason: blocksDiscoveryScore
+          ? "public corpus package marks this candidate as not discovery-scored or raw-scientific-reproduction failed"
+          : "public corpus package does not block discovery scoring",
+      };
+    }
+    return empty;
   }
 
   async evidenceRefsVerify(): Promise<Record<string, unknown>> {
@@ -2368,6 +2480,16 @@ ${markdownTable(
 
 ${bulletList(report.promotionReadinessBlockers)}
 
+## Public Fund Reconciliation
+
+- Matched public package: ${String(report.publicFundReconciliation.matched)}
+- Blocks discovery score: ${String(report.publicFundReconciliation.blocksDiscoveryScore)}
+- Result slug: ${report.publicFundReconciliation.resultSlug ?? "none"}
+- Public review status: ${report.publicFundReconciliation.publicReviewStatus ?? "none"}
+- Public FundClass: ${report.publicFundReconciliation.publicFundClass ?? "none"}
+- Counts for Einstein/Nobel discovery score: ${String(report.publicFundReconciliation.countsForEinsteinNobelDiscoveryScore)}
+- Reason: ${report.publicFundReconciliation.reason ?? "none"}
+
 ## Formal Anchor Yield
 
 - Audit available: ${String(report.formalAnchorYield.auditAvailable)}
@@ -2686,6 +2808,32 @@ function numberField(
 ): number {
   const value = object?.[field];
   return typeof value === "number" ? value : fallback;
+}
+
+function stringField(
+  object: Record<string, unknown> | null,
+  field: string,
+): string | null {
+  const value = object?.[field];
+  return typeof value === "string" ? value : null;
+}
+
+function booleanField(
+  object: Record<string, unknown> | null,
+  field: string,
+): boolean | null {
+  const value = object?.[field];
+  return typeof value === "boolean" ? value : null;
+}
+
+function objectField(
+  object: Record<string, unknown> | null,
+  field: string,
+): Record<string, unknown> | null {
+  const value = object?.[field];
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function asRecordNumber(

@@ -1,6 +1,7 @@
 # Limitations
 
 - No outside expert reviewed this package.
-- The external-review-ready label is an internal package readiness label.
-- The package does not claim prize significance, outside validation, or field uptake.
-- Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.
+- No candidate reached all hard gates for an externally_review_ready_candidate label.
+- Counterexample pressure narrowed the strongest candidate seed.
+- Replay caveats require narrower claims.
+- Bounded computational evidence remains bounded computational evidence.

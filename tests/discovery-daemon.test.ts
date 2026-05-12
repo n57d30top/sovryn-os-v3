@@ -839,6 +839,42 @@ async function writeCorpusFundPackage(
   return `results/${slug}`;
 }
 
+async function writePublicCorpusDowngrade(
+  root: string,
+  candidateId: string,
+): Promise<void> {
+  const packageRoot = join(
+    root,
+    "..",
+    "sovryn-open-inventions",
+    "results",
+    "downgraded-public-fund",
+  );
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(
+    join(packageRoot, "SUMMARY.json"),
+    JSON.stringify({
+      kind: "public_result_summary",
+      candidateId,
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "FUND_CANDIDATE.json"),
+    JSON.stringify({
+      kind: "fund_candidate",
+      candidate: { candidateId },
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+    }),
+    "utf8",
+  );
+}
+
 for (const command of commands) {
   test(`CLI help lists discover-daemon ${command}`, async () => {
     const response = await executeCli(["help", "--json"]);
@@ -11336,6 +11372,45 @@ test("discover-daemon cycle promotes package-backed intake only when Fund Gate p
   assert.equal(status.lastCandidateId, candidate.candidateId);
   const audit = await service.audit();
   assert.equal(audit.passed, true);
+});
+
+test("discover-daemon audit blocks active Fund when public corpus downgrades it", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const publicPackagePath = await writeFundPackage(
+    root,
+    candidate.candidateId,
+    candidate.claim,
+  );
+  await writeFile(
+    join(root, daemonRoot, "candidate-intake", "001-candidate.json"),
+    JSON.stringify({
+      candidate: {
+        ...candidate,
+        publicPackagePath,
+      },
+    }),
+    "utf8",
+  );
+  const cycle = await service.cycle();
+  assert.equal(cycle.fundGatePassed, true);
+  await writePublicCorpusDowngrade(root, candidate.candidateId);
+
+  const audit = await service.audit();
+
+  assert.equal(audit.passed, false);
+  assert.equal(audit.fundFound, false);
+  assert.equal(audit.stateFundFound, true);
+  assert.equal(audit.discoveryNotificationAllowed, false);
+  assert.equal(audit.fundClass, "not_discovery_scored_raw_reproduction_failed");
+  assert.equal(audit.countsForEinsteinNobelDiscoveryScore, false);
+  const gateCodes = (audit.gates as Array<Record<string, unknown>>)
+    .filter((gate) => gate.passed === false)
+    .map((gate) => gate.code);
+  assert.ok(gateCodes.includes("public_corpus_discovery_score_reconciliation"));
+  assert.ok(gateCodes.includes("no_fake_fund_file"));
 });
 
 test("discover-daemon cycle tombstones package-backed intake when package gates fail", async () => {

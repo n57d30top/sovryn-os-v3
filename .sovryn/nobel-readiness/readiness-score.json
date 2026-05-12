@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-12T11:14:03.122Z",
+  "scoredAt": "2026-05-12T21:30:47.643Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -9,22 +9,22 @@
   "holdout_score": 62,
   "replay_score": 58,
   "counterexample_pressure_score": 35,
-  "external_review_readiness_score": 78,
+  "external_review_readiness_score": 44,
   "safety_score": 100,
   "overclaim_risk_score": 22,
-  "totalScore": 72,
-  "label": "externally_review_ready_candidate",
-  "survivingCandidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
-  "externallyReviewReadyCandidateCount": 1,
-  "discoveryFundCandidateCount": 1,
+  "totalScore": 46,
+  "label": "promising_with_strong_caveats",
+  "survivingCandidateId": "NR-CAND-004",
+  "externallyReviewReadyCandidateCount": 0,
+  "discoveryFundCandidateCount": 0,
   "nonDiscoveryFundCandidateCount": 0,
-  "einsteinNobelDiscoveryScoreEligible": true,
+  "einsteinNobelDiscoveryScoreEligible": false,
   "scoringSeparationApplied": true,
   "rationale": [
-    "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
-    "This is an internal external-review package readiness state, not outside expert validation.",
-    "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
-    "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger."
+    "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
+    "Counterexample and replay pressure require a caveated classification.",
+    "The layer improves readiness discipline without creating a validated discovery claim.",
+    "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate."
   ],
-  "evidenceHash": "0a386e79e2449e3c09402957c8f03cf2d3242d363e38cc6af09e78b8f3399e04"
+  "evidenceHash": "c3b68366d899fed2da03a27bdcbe6ce0d8af9095bea39e6fa96cfa705b42fdaa"
 }

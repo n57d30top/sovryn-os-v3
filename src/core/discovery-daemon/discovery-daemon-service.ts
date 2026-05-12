@@ -42310,6 +42310,29 @@ export class AutonomousDiscoveryDaemonService {
       join(this.root, daemonArtifactRoot, fundCandidateFile),
     );
     const fundGate = await this.refreshFundGateFromCandidate();
+    const frictionHealth = await new DiscoveryFrictionHealthService(
+      this.root,
+    ).friction();
+    const publicFundReconciliation = frictionHealth.publicFundReconciliation;
+    const publicCorpusBlocksDiscovery =
+      publicFundReconciliation.blocksDiscoveryScore === true;
+    const effectiveFundGate = publicCorpusBlocksDiscovery
+      ? {
+          ...fundGate,
+          passed: false,
+          status: "continue_searching" as const,
+          failedGates: Array.from(
+            new Set([...fundGate.failedGates, "public_corpus_downgrade"]),
+          ),
+          fundClass: publicFundReconciliation.publicFundClass,
+          countsForEinsteinNobelDiscoveryScore: false,
+          notificationAllowed: false,
+        }
+      : fundGate;
+    const effectiveFundFound =
+      state.fundFound === true &&
+      fundGate.notificationAllowed === true &&
+      !publicCorpusBlocksDiscovery;
     const packageScoutReport = await readOptionalJson<Record<string, unknown>>(
       join(this.root, daemonArtifactRoot, packageScoutFile),
     );
@@ -42398,13 +42421,13 @@ export class AutonomousDiscoveryDaemonService {
       ),
       gate(
         "no_fake_fund_file",
-        fundGate.notificationAllowed || !fundFoundFile,
+        effectiveFundGate.notificationAllowed || !fundFoundFile,
         "FUND_FOUND.md must not exist unless a discovery-scored FundClass may notify.",
       ),
       gate(
         "no_stale_fund_candidate_file",
-        state.fundFound
-          ? fundCandidateFilePresent && fundGate.notificationAllowed
+        effectiveFundFound
+          ? fundCandidateFilePresent && effectiveFundGate.notificationAllowed
           : !fundCandidateFilePresent,
         "fund-candidate.json must exist only for an active discovery-scored Fund notification state; rejected candidates are tombstoned and non-discovery Funds are classified separately.",
       ),
@@ -42415,10 +42438,16 @@ export class AutonomousDiscoveryDaemonService {
       ),
       gate(
         "fund_state_status_consistency",
-        state.fundFound
-          ? state.status === "FUND_FOUND" && fundGate.notificationAllowed
+        effectiveFundFound
+          ? state.status === "FUND_FOUND" &&
+              effectiveFundGate.notificationAllowed
           : state.status === "continue_searching",
         "Daemon state status must be FUND_FOUND only when a discovery-scored FundClass may notify, and continue_searching otherwise.",
+      ),
+      gate(
+        "public_corpus_discovery_score_reconciliation",
+        !publicCorpusBlocksDiscovery,
+        "A public corpus downgrade must block internal discovery-scored Fund status until raw-data or formal reproduction restores public discovery-score eligibility.",
       ),
       gate(
         "safe_high_impact_domain_rotation",
@@ -42588,7 +42617,7 @@ export class AutonomousDiscoveryDaemonService {
           (latestCycle !== null &&
             latestCycleFundGateStateConsistent(
               latestCycle,
-              state.fundFound,
+              effectiveFundFound,
               classifiedNonDiscoveryFundIds,
             )),
         "Latest cycle Fund Gate status must match the effective persisted Fund state after package gates; semantic preflight alone must not look like a Fund.",
@@ -42653,8 +42682,9 @@ export class AutonomousDiscoveryDaemonService {
       ),
       gate(
         "fund_only_notification",
-        fundGate.notificationAllowed === state.fundFound &&
-          (state.fundFound || fundGate.status === "continue_searching"),
+        effectiveFundGate.notificationAllowed === effectiveFundFound &&
+          (effectiveFundFound ||
+            effectiveFundGate.status === "continue_searching"),
         "Notification must be allowed only when the Fund Gate passes and FundClass is discovery-scored.",
       ),
       gate(
@@ -42669,7 +42699,7 @@ export class AutonomousDiscoveryDaemonService {
         "resumable_indefinite_search_model",
         state.silentMode &&
           state.notifyOnlyOnFund &&
-          (state.fundFound || state.status === "continue_searching"),
+          (effectiveFundFound || state.status === "continue_searching"),
         "Without a Fund, the daemon must remain resumable and continue searching instead of completing.",
       ),
     );
@@ -42678,11 +42708,13 @@ export class AutonomousDiscoveryDaemonService {
       passed: gates.every((item) => item.passed),
       gates,
       status: state.status,
-      fundFound: state.fundFound,
-      discoveryNotificationAllowed: fundGate.notificationAllowed,
-      fundClass: fundGate.fundClass,
+      fundFound: effectiveFundFound,
+      stateFundFound: state.fundFound,
+      discoveryNotificationAllowed: effectiveFundGate.notificationAllowed,
+      fundClass: effectiveFundGate.fundClass,
       countsForEinsteinNobelDiscoveryScore:
-        fundGate.countsForEinsteinNobelDiscoveryScore,
+        effectiveFundGate.countsForEinsteinNobelDiscoveryScore,
+      publicFundReconciliation,
       notificationOnlyOnFund: true,
       artifactRefs: [
         `${daemonArtifactRoot}/state.json`,

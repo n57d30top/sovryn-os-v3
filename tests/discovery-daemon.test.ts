@@ -4830,6 +4830,15 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   assert.equal(lift.acceptedClaimLifts, 6);
   assert.equal(lift.discoveryCandidatesCreated, 6);
   assert.equal(lift.fundCandidateDraftsCreated, 6);
+  assert.equal(lift.fundGateEvaluations.length, 6);
+  assert.equal(lift.fundGateResult.passed, true);
+  assert.equal(lift.fundGateResult.fundClass, "pipeline_fund_candidate");
+  assert.equal(lift.fundGateResult.countsForEinsteinNobelDiscoveryScore, false);
+  assert.equal(lift.fundGateResult.notificationAllowed, false);
+  assert.equal(
+    lift.fundGateResult.failedGates.includes("candidate_present"),
+    false,
+  );
   assert.equal(lift.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

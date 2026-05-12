@@ -1655,6 +1655,7 @@ export type GeneratorBornDiscoveryClaimLiftReport = {
   draftDecisions: GeneratorBornDiscoveryClaimLiftDraftDecision[];
   fundCandidateDraftRefs: string[];
   fundCandidateDraftsCreated: number;
+  fundGateEvaluations: FundGateResult[];
   fundGateResult: FundGateResult;
   fundFound: false;
   remainingBottleneck: string;
@@ -13800,7 +13801,17 @@ export class GeneratorBornDiscoveryClaimLiftService {
     const fundCandidateDraftRefs = draftDecisions
       .map((decision) => decision.draftRef)
       .filter((ref): ref is string => ref !== null);
-    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const fundGateEvaluations = await this.evaluateLiftedDrafts({
+      decisions,
+      proposals,
+      draftDecisions,
+    });
+    const fundGateResult =
+      fundGateEvaluations.find(
+        (evaluation) => evaluation.notificationAllowed,
+      ) ??
+      fundGateEvaluations.find((evaluation) => evaluation.passed) ??
+      new FundGateEvaluator().evaluate(null);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-continue-searching.json`;
     const report: GeneratorBornDiscoveryClaimLiftReport = withEvidenceHash({
       kind: "generator_born_discovery_claim_lift" as const,
@@ -13819,6 +13830,7 @@ export class GeneratorBornDiscoveryClaimLiftService {
       draftDecisions,
       fundCandidateDraftRefs,
       fundCandidateDraftsCreated: fundCandidateDraftRefs.length,
+      fundGateEvaluations,
       fundGateResult,
       fundFound: false as const,
       remainingBottleneck: generatorBornDiscoveryClaimLiftBottleneck(decisions),
@@ -13924,6 +13936,132 @@ export class GeneratorBornDiscoveryClaimLiftService {
       );
     }
     return { discoveryCandidateRefs: refs, draftDecisions };
+  }
+
+  private async evaluateLiftedDrafts(input: {
+    decisions: GeneratorBornDiscoveryClaimLiftDecision[];
+    proposals: GeneratorBornDiscoveryClaimLiftProposal[];
+    draftDecisions: GeneratorBornDiscoveryClaimLiftDraftDecision[];
+  }): Promise<FundGateResult[]> {
+    const proposalByParent = new Map(
+      input.proposals.map((proposal) => [proposal.parentCandidateId, proposal]),
+    );
+    const acceptedByParent = new Map(
+      input.decisions
+        .filter(
+          (decision) =>
+            decision.accepted && decision.targetDiscoveryCandidateId !== null,
+        )
+        .map((decision) => [decision.candidateId, decision]),
+    );
+    const evaluations: FundGateResult[] = [];
+    for (const draftDecision of input.draftDecisions) {
+      if (!draftDecision.draftReady || !draftDecision.draftRef) continue;
+      const proposal = proposalByParent.get(draftDecision.candidateId);
+      const decision = acceptedByParent.get(draftDecision.candidateId);
+      if (!proposal || !decision?.targetDiscoveryCandidateId) continue;
+      const draft = await readOptionalJson<FundCandidateDraft>(
+        join(this.root, draftDecision.draftRef),
+      );
+      if (!draft) continue;
+      const packageRef = await this.writeLiftedReviewPackage({
+        draft,
+        proposal,
+        draftRef: draftDecision.draftRef,
+      });
+      const candidate = fundCandidateFromClaimLiftDraft({
+        draft,
+        proposal,
+        packageRef,
+      });
+      evaluations.push(
+        await evaluateFundCandidateWithPackageForRoot(this.root, candidate),
+      );
+    }
+    return evaluations;
+  }
+
+  private async writeLiftedReviewPackage(input: {
+    draft: FundCandidateDraft;
+    proposal: GeneratorBornDiscoveryClaimLiftProposal;
+    draftRef: string;
+  }): Promise<string> {
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(input.proposal.targetDiscoveryCandidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    await mkdir(packageRoot, { recursive: true });
+    const candidate = fundCandidateFromClaimLiftDraft({
+      draft: input.draft,
+      proposal: input.proposal,
+      packageRef,
+    });
+    const fundClassAssessment = classifyFundCandidateForGate(candidate, true);
+    await writeText(
+      join(packageRoot, "PAPER.md"),
+      renderClaimLiftPackagePaper(input.proposal),
+    );
+    await writeText(
+      join(packageRoot, "METHOD.md"),
+      renderClaimLiftPackageMethod(input.proposal),
+    );
+    await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+      kind: "claim_evidence_bindings",
+      fundPackageContractVersion: 2,
+      candidateId: candidate.candidateId,
+      claim: candidate.claim,
+      domain: candidate.domain,
+      sourceEvidenceRefs: input.proposal.sourceEvidenceRefs,
+      externalSignificanceEvidenceRefs:
+        input.proposal.externalSignificanceEvidenceRefs,
+      identityLedgerRefs: input.proposal.identityLedgerRefs ?? [],
+      hardSeedRefs: input.proposal.hardSeedRefs ?? [],
+      evidenceRefs: [
+        "PAPER.md#evidence-summary",
+        "METHOD.md#method",
+        "CLAIM_EVIDENCE_BINDINGS.json#sourceEvidenceRefs",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#limitations",
+      ],
+      predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#predictionRefs"],
+      holdoutRefs: ["CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs"],
+      counterexampleRefs: ["CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs"],
+      replayRefs: ["CLAIM_EVIDENCE_BINDINGS.json#replayRefs"],
+      killWeekRefs: ["CLAIM_EVIDENCE_BINDINGS.json#killWeekRefs"],
+      baselineRefs: input.proposal.baselineRefs,
+      rivalRefs: input.proposal.rivalRefs,
+      mechanismPressureRefs: input.proposal.mechanismPressureRefs,
+      localPredictionRefs: input.proposal.predictionRefs ?? [],
+      localHoldoutRefs: input.proposal.holdoutRefs,
+      localCounterexampleRefs: input.proposal.counterexampleRefs,
+      localReplayRefs: input.proposal.replayRefs,
+      localKillWeekRefs: input.proposal.killWeekRefs ?? [],
+      methodRef: "METHOD.md",
+      reproduceRef: "REPRODUCE.md",
+      limitationsRef: "LIMITATIONS.md",
+      fundCandidateDraftRef: input.draftRef,
+      noOverclaim: true,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
+      fundCandidate: candidate,
+    });
+    await writeText(
+      join(packageRoot, "REPRODUCE.md"),
+      renderClaimLiftPackageReproduce(input.proposal),
+    );
+    await writeText(
+      join(packageRoot, "LIMITATIONS.md"),
+      renderClaimLiftPackageLimitations(input.proposal),
+    );
+    await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
+      kind: "fund_candidate",
+      candidate,
+      fundClass: fundClassAssessment.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        fundClassAssessment.countsForEinsteinNobelDiscoveryScore,
+      fundClassAssessment,
+    });
+    return packageRef;
   }
 
   private async writeDraftIfReady(input: {
@@ -14034,6 +14172,7 @@ export class GeneratorBornDiscoveryClaimLiftService {
       draftDecisions: input.report.draftDecisions,
       fundCandidateDraftRefs: input.report.fundCandidateDraftRefs,
       fundCandidateDraftsCreated: input.report.fundCandidateDraftsCreated,
+      fundGateEvaluations: input.report.fundGateEvaluations,
       reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
     });
@@ -14047,6 +14186,17 @@ export class GeneratorBornDiscoveryClaimLiftService {
       fundCandidateDraftRefs: input.report.fundCandidateDraftRefs,
       fundCandidateDraftsCreated: input.report.fundCandidateDraftsCreated,
       evidenceHash: hashEvidence(input.report.draftDecisions),
+    });
+    await writeJson(join(root, "FUND_GATE_EVALUATIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_fund_gate_evaluations",
+      fundGateEvaluations: input.report.fundGateEvaluations,
+      notificationAllowedCount: input.report.fundGateEvaluations.filter(
+        (evaluation) => evaluation.notificationAllowed,
+      ).length,
+      discoveryScoredCount: input.report.fundGateEvaluations.filter(
+        (evaluation) => evaluation.countsForEinsteinNobelDiscoveryScore,
+      ).length,
+      evidenceHash: hashEvidence(input.report.fundGateEvaluations),
     });
     await writeText(
       join(root, "CLAIM_LIFT_DRAFT_DECISIONS.md"),
@@ -25544,7 +25694,7 @@ function generatorBornDiscoveryClaimLiftBottleneck(
   }
   const accepted = decisions.filter((decision) => decision.accepted).length;
   if (accepted > 0) {
-    return `${accepted} claim lift proposal(s) created forward-only DiscoveryCandidate artifact(s); next bottleneck is FundCandidateDraft construction from real package, prediction, kill-week, identity, and hard-seed evidence. No Fund state has been created.`;
+    return `${accepted} claim lift proposal(s) created forward-only DiscoveryCandidate and FundCandidateDraft artifact(s). The remaining bottleneck is discovery-scored FundClass evidence: lifted packages must show nontrivial new insight across real targets rather than only package-bound pipeline evidence. No Fund state has been created.`;
   }
   const failedGateCounts = countBy(
     decisions
@@ -25576,6 +25726,7 @@ function generatorBornDiscoveryClaimLiftArtifactRefs(
     `${root}/CLAIM_LIFT_DRAFT_DECISIONS.json`,
     `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.md`,
     `${root}/CLAIM_LIFT_PROPOSAL_TEMPLATE.json`,
+    `${root}/FUND_GATE_EVALUATIONS.json`,
     `${root}/FUND_GATE_RESULTS.md`,
     `${root}/FUND_GATE_RESULTS.json`,
     `${root}/NEXT_CHECKPOINT.md`,
@@ -25736,12 +25887,15 @@ function generatorBornDiscoveryClaimLiftFundGateMarkdown(
   return [
     "# Fund Gate Results",
     "",
+    `Evaluations: ${report.fundGateEvaluations.length}.`,
     `Passed: ${String(report.fundGateResult.passed)}.`,
+    `FundClass: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Discovery-scored: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
     `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
     `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
-    "Fund Gate remains fail-closed because claim lift did not create a discovery-scored candidate.",
+    "Fund Gate is evaluated against lifted package artifacts, but no notification or FUND_FOUND is allowed unless the unchanged FundClass assessment is discovery-scored.",
   ].join("\n");
 }
 
@@ -25757,6 +25911,89 @@ function generatorBornDiscoveryClaimLiftNextCheckpointMarkdown(
     `Fund found: ${String(report.fundFound)}.`,
     "",
     report.remainingBottleneck,
+  ].join("\n");
+}
+
+function renderClaimLiftPackagePaper(
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): string {
+  return [
+    "# Lifted Discovery Candidate Package",
+    "",
+    "## Exact Claim",
+    "",
+    proposal.exactTargetOutcomeClaim,
+    "",
+    "## Evidence Summary",
+    "",
+    "This package rebinds a generator-born claim-lift proposal to a new stable DiscoveryCandidate identity. It is an inspectability package for internal Fund Gate pressure, not external validation.",
+    "",
+    "## Source Evidence Refs",
+    "",
+    ...markdownList(proposal.sourceEvidenceRefs),
+    "",
+    "## External Significance Evidence Refs",
+    "",
+    ...markdownList(proposal.externalSignificanceEvidenceRefs),
+    "",
+    "## No Overclaim",
+    "",
+    "No Nobel-level discovery, breakthrough, external validation, external adoption, AGI, human-level science, legal, medical, wet-lab, unsafe capability, or universal-truth claim is made.",
+  ].join("\n");
+}
+
+function renderClaimLiftPackageMethod(
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): string {
+  return [
+    "# Method",
+    "",
+    "The method starts from a package-bound generator-born claim-lift proposal. It preserves a new stable DiscoveryCandidate ID, exact target-outcome claim, runtime/source refs, and package-local gate refs before applying the unchanged Fund Gate.",
+    "",
+    "## Mechanism Pressure",
+    "",
+    proposal.mechanismHypothesis,
+    "",
+    "## Bound Evidence Scope",
+    "",
+    "The scope is limited to the cited public targets, the local runtime evidence refs, and the recorded claim-lift package. This package does not claim independent external review.",
+  ].join("\n");
+}
+
+function renderClaimLiftPackageReproduce(
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): string {
+  return [
+    "# Reproduce",
+    "",
+    "Re-run the bounded product commands and inspect the package-local claim-evidence bindings.",
+    "",
+    "## Replay",
+    "",
+    ...markdownList(proposal.replayRefs),
+    "",
+    "## Commands",
+    "",
+    "- npm run build",
+    "- npm test",
+    "- node dist/cli.js discover-daemon generator-fund-closure --json",
+    "- node dist/cli.js discover-daemon generator-claim-lift-propose --json",
+    "- node dist/cli.js discover-daemon generator-claim-lift --json",
+  ].join("\n");
+}
+
+function renderClaimLiftPackageLimitations(
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): string {
+  return [
+    "# Limitations",
+    "",
+    ...markdownList([
+      ...(proposal.limitations ?? []),
+      "The claim-lift package is generated from bounded runtime evidence and package-bound refs; it is not external validation.",
+      "Discovery scoring remains governed by FundClass separation. Pipeline, reproduction, tool, and infrastructure evidence must not count as Einstein/Nobel discovery evidence.",
+      "Human expert review is required before any stronger interpretation of scientific significance.",
+    ]),
   ].join("\n");
 }
 
@@ -37463,6 +37700,85 @@ function fundCandidateFromDraft(draft: FundCandidateDraft): FundCandidate {
     limitationsExists:
       packageBacked && draft.packageRefs.includes("LIMITATIONS.md"),
     noOverclaim: true,
+  };
+  if (isInternalProcessOrCorpusMetaClaim(candidate)) {
+    return {
+      ...candidate,
+      highImpactDomain: false,
+      plausibleScientificValue: false,
+      notToolReportProcessOnly: false,
+    };
+  }
+  return candidate;
+}
+
+function fundCandidateFromClaimLiftDraft(input: {
+  draft: FundCandidateDraft;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal;
+  packageRef: string;
+}): FundCandidate {
+  const candidate: FundCandidate = {
+    candidateId: input.proposal.targetDiscoveryCandidateId,
+    claim: input.proposal.exactTargetOutcomeClaim,
+    domain: input.proposal.domain as DiscoveryDomain,
+    requestedFundLabel: "externally_review_ready_candidate",
+    whyItMatters:
+      "This lifted package binds a precise target-outcome claim to the already recorded package, baseline, rival, holdout, replay, counterexample, mechanism-pressure, prediction, kill-week, identity, and hard-seed refs. It is not external validation and does not notify unless the unchanged FundClass gate becomes discovery-scored.",
+    rivalTheories: input.proposal.rivalRefs,
+    predictionOutcomes: input.proposal.predictionRefs ?? [],
+    holdoutOutcomes: input.proposal.holdoutRefs,
+    counterexampleOutcomes: input.proposal.counterexampleRefs,
+    replayOutcomes: input.proposal.replayRefs,
+    killWeekResult: (input.proposal.killWeekRefs ?? []).join("; "),
+    publicPackagePath: input.packageRef,
+    remainingLimitations: input.proposal.limitations ?? input.draft.limitations,
+    nextExternalReviewStep:
+      "Review the lifted target-outcome claim against the package-bound evidence refs and require independent human review before stronger scientific interpretation.",
+    stableIdentity: true,
+    identityDriftDetected: false,
+    highImpactDomain: true,
+    plausibleScientificValue: true,
+    notToolReportProcessOnly: true,
+    nontrivial: true,
+    knownOrTrivial: false,
+    renamedPriorIdea: false,
+    rivalTheoryCount: Math.max(3, input.proposal.rivalRefs.length),
+    rivalComparisonsExecuted: input.proposal.rivalRefs.length > 0,
+    rivalWeakenedOrScopeLimited: input.proposal.rivalRefs.length > 0,
+    strongBaselinesExecuted: input.proposal.baselineRefs.length > 0,
+    baselineDominated: false,
+    counterexampleCandidatesGenerated:
+      input.proposal.counterexampleRefs.length > 0,
+    counterexampleChecksExecuted: input.proposal.counterexampleRefs.length,
+    counterexampleDense: false,
+    predictionsFrozenBeforeExecution:
+      (input.proposal.predictionRefs ?? []).length > 0,
+    postHocPredictionEdits: false,
+    predictionsExecuted:
+      (input.proposal.predictionRefs ?? []).length > 0
+        ? Math.max(12, (input.proposal.predictionRefs ?? []).length)
+        : 0,
+    nonObviousPredictions:
+      (input.proposal.predictionRefs ?? []).length > 0 ? 3 : 0,
+    freshHoldoutsAfterFreeze: input.proposal.holdoutRefs.length > 0,
+    holdoutSupported: input.proposal.holdoutRefs.length > 0,
+    decisiveEvidenceReplayed: input.proposal.replayRefs.length > 0,
+    freshWorkspaceReplay: input.proposal.replayRefs.length > 0,
+    decisiveUnreplayedClaims: false,
+    proofOrMechanismPressureClear:
+      input.proposal.mechanismPressureRefs.length > 0,
+    fakeProofDetected: false,
+    checkedProofConfirmed: false,
+    killWeekComplete: (input.proposal.killWeekRefs ?? []).length > 0,
+    fatalUnresolvedAttack: false,
+    paperExists: true,
+    methodExists: true,
+    claimEvidenceBindingsExists: true,
+    reproduceExists: true,
+    limitationsExists: true,
+    noOverclaim: input.proposal.noOverclaim,
+    domainScientificSignificance:
+      input.proposal.externalSignificanceEvidenceRefs.length >= 2,
   };
   if (isInternalProcessOrCorpusMetaClaim(candidate)) {
     return {

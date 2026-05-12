@@ -3757,7 +3757,7 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     externalProblemAnchor: {
       anchorId: "EXT-TEST",
       anchorType: "known_formal_question" as const,
-      sourceRef: "https://example.org/public-target",
+      sourceRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
       problemStatement: "Public formal target for evaluator test.",
       measuredTargetOutcome: "bounded formal outcome with public target refs",
       knownBaselineOrPrior: "size density and trivial-rule baselines",
@@ -3768,10 +3768,10 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       discoveryScoredOutcome:
         "A discovery-scored outcome would be a checked proof refutation or bounded validated conjecture with public formal significance.",
       significanceEvidenceRefs: [
-        "https://example.org/public-target",
-        "https://example.org/public-target-significance",
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+        "https://smt-lib.org/",
       ],
-      inspectabilityRef: "https://example.org/public-target",
+      inspectabilityRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
     },
     domainSignificanceHypothesis: {
       statement:
@@ -3783,8 +3783,8 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       falsifier:
         "The hypothesis is falsified when a simple baseline, known-prior rival, or bounded counterexample explains the measured formal outcome.",
       evidenceRefs: [
-        "https://example.org/public-target",
-        "https://example.org/public-target-significance",
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+        "https://smt-lib.org/",
       ],
       tested: true,
       supported: true,
@@ -3792,8 +3792,8 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     runtimeEvidencePresent: true,
     sourceRefs: ["formal-generator://bounded-property/test-family"],
     evidenceRefs: [
-      "https://example.org/public-target",
-      "https://example.org/public-target-significance",
+      "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      "https://smt-lib.org/",
       ".sovryn/discovery-daemon/generator-families/GENERATOR_RUN_RESULTS.md#target-001",
     ],
     residualMagnitude: 0.2,
@@ -3816,12 +3816,38 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       ...baseInput,
       externalProblemAnchor: {
         ...baseInput.externalProblemAnchor,
-        significanceEvidenceRefs: ["https://example.org/public-target"],
+        significanceEvidenceRefs: [
+          "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+        ],
       },
       domainSignificanceHypothesis: {
         ...baseInput.domainSignificanceHypothesis,
-        evidenceRefs: ["https://example.org/public-target"],
+        evidenceRefs: ["https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html"],
       },
+    }).primaryBlocker,
+    "missing_significance_evidence_refs",
+  );
+  assert.equal(
+    evaluator.evaluate({
+      ...baseInput,
+      externalProblemAnchor: {
+        ...baseInput.externalProblemAnchor,
+        significanceEvidenceRefs: [
+          "https://example.org/public-target",
+          "https://example.org/public-target-significance",
+        ],
+      },
+      domainSignificanceHypothesis: {
+        ...baseInput.domainSignificanceHypothesis,
+        evidenceRefs: [
+          "https://example.org/public-target",
+          "https://example.org/public-target-significance",
+        ],
+      },
+      evidenceRefs: [
+        "https://example.org/public-target",
+        "https://example.org/public-target-significance",
+      ],
     }).primaryBlocker,
     "missing_significance_evidence_refs",
   );
@@ -4712,8 +4738,8 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
             mechanismHypothesis:
               "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
             externalSignificanceEvidenceRefs: [
-              "https://example.org/materials-significance-a",
-              "https://example.org/materials-significance-b",
+              "https://matbench.materialsproject.org/",
+              "https://materialsproject.org/",
             ],
             sourceEvidenceRefs,
             baselineRefs,
@@ -4879,8 +4905,8 @@ test("generator-born discovery claim lift creates FundCandidateDraft only from f
             mechanismHypothesis:
               "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
             externalSignificanceEvidenceRefs: [
-              "https://example.org/materials-significance-a",
-              "https://example.org/materials-significance-b",
+              "https://matbench.materialsproject.org/",
+              "https://materialsproject.org/",
             ],
             sourceEvidenceRefs,
             baselineRefs,
@@ -4958,8 +4984,8 @@ test("generator-born discovery claim lift rejects unresolved local evidence refs
             mechanismHypothesis:
               "Descriptor transfer stability predicts the measured outcome better than formula-size and source-family rivals.",
             externalSignificanceEvidenceRefs: [
-              "https://example.org/materials-significance-a",
-              "https://example.org/materials-significance-b",
+              "https://matbench.materialsproject.org/",
+              "https://materialsproject.org/",
             ],
             sourceEvidenceRefs: [
               ".sovryn/discovery-daemon/missing/materials-a.json",
@@ -5727,8 +5753,8 @@ test("discovery-grade anchor selector rejects pipeline-only anchors before gener
     anchorId: "DISC-TEST-MATERIALS-ANCHOR",
     domain: "computational_materials_property_data" as const,
     anchorType: "public_scientific_dataset" as const,
-    sourceRef: "https://example.org/materials-anchor",
-    inspectabilityRef: "https://example.org/materials-anchor",
+    sourceRef: "https://matbench.materialsproject.org/",
+    inspectabilityRef: "https://matbench.materialsproject.org/",
     problemStatement:
       "External materials-property anchor for discovery-grade selector testing.",
     measuredTargetOutcome:
@@ -5753,8 +5779,8 @@ test("discovery-grade anchor selector rejects pipeline-only anchors before gener
     discoveryScoredOutcome:
       "A discovery-scored outcome would be a narrow, replayable mechanism claim that survives baselines, rivals, counterexamples, holdouts, and replay.",
     significanceEvidenceRefs: [
-      "https://example.org/materials-anchor",
-      "https://example.org/materials-significance",
+      "https://matbench.materialsproject.org/",
+      "https://materialsproject.org/",
     ],
     recommendedGeneratorDesign:
       "materials_descriptor_ablation_generator with family-held-out controls",

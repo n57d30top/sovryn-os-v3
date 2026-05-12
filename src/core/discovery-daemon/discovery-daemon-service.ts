@@ -25181,7 +25181,7 @@ async function generatorBornDiscoveryClaimLiftProposalScaffold(
         ...sourceEvidenceRefs,
         ...evidenceRefs,
       ])
-        .filter((ref) => ref.startsWith("https://") && publicSafeRef(ref))
+        .filter(externalSignificanceRef)
         .slice(0, 8),
       sourceEvidenceRefs,
       baselineRefs,
@@ -41237,19 +41237,43 @@ function publicSafeRef(ref: string): boolean {
   );
 }
 
+function externalSignificanceRef(ref: string): boolean {
+  const value = ref.trim();
+  if (!value.startsWith("https://") || !publicSafeRef(value)) return false;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.toLowerCase();
+    const blockedHosts = new Set([
+      "example.com",
+      "example.org",
+      "example.net",
+      "localhost",
+      "127.0.0.1",
+    ]);
+    if (blockedHosts.has(hostname) || hostname.endsWith(".example.org")) {
+      return false;
+    }
+    if (hostname === "github.com" && pathname.startsWith("/n57d30top/sovryn")) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function externalSignificanceRefsMeetMinimum(refs: string[]): boolean {
   const uniqueRefs = uniqueStrings(refs);
   return (
     uniqueRefs.length >= minimumExternalSignificanceEvidenceRefs &&
-    uniqueRefs.every((ref) => ref.startsWith("https://") && publicSafeRef(ref))
+    uniqueRefs.every(externalSignificanceRef)
   );
 }
 
 function externalSignificanceRefsBound(refs: string[], allRefs: string[]) {
   return (
     externalSignificanceRefsMeetMinimum(refs) &&
-    refs.every((ref) => ref.startsWith("https://")) &&
-    refs.every(publicSafeRef) &&
     refs.every((ref) => allRefs.includes(ref))
   );
 }

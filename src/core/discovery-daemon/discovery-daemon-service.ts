@@ -15262,10 +15262,31 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
             payload.candidate.publicPackagePath ?? rebindDecision.packageRef!,
         }
       : null;
-    const fundGateResult =
+    const packageFundGateResult =
       candidate === null
         ? new FundGateEvaluator().evaluate(null)
         : await evaluateFundCandidateWithPackageForRoot(this.root, candidate);
+    const publicFundReconciliation = await new DiscoveryFrictionHealthService(
+      this.root,
+    ).publicFundReconciliationForCandidate(
+      candidate?.candidateId ?? rebindDecision.candidateId,
+    );
+    const fundGateResult = publicFundReconciliation.blocksDiscoveryScore
+      ? {
+          ...packageFundGateResult,
+          passed: false,
+          status: "continue_searching" as const,
+          failedGates: Array.from(
+            new Set([
+              ...packageFundGateResult.failedGates,
+              "public_corpus_downgrade",
+            ]),
+          ),
+          fundClass: packageFundGateResult.fundClass,
+          countsForEinsteinNobelDiscoveryScore: false,
+          notificationAllowed: false,
+        }
+      : packageFundGateResult;
     const gates = [
       gate(
         "rebind_decision_rebound",
@@ -15306,6 +15327,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         "package_discovery_scored_fund_class",
         fundGateResult.countsForEinsteinNobelDiscoveryScore,
         "Root intake may write Fund state only for discovery-scored FundClasses.",
+      ),
+      gate(
+        "public_corpus_discovery_score_reconciliation",
+        publicFundReconciliation.blocksDiscoveryScore !== true,
+        "Root intake must stop when a matching public corpus package already downgraded the candidate from discovery scoring.",
       ),
     ];
     const failedGates = gates
@@ -27168,6 +27194,9 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBlocker(
     failedGates.includes("package_fund_candidate_present")
   ) {
     return "missing_package_candidate";
+  }
+  if (failedGates.includes("public_corpus_discovery_score_reconciliation")) {
+    return "public_corpus_downgrade";
   }
   if (
     failedGates.includes("rebind_discovery_scored") ||

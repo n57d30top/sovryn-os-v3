@@ -848,7 +848,10 @@ async function writePublicCorpusDowngrade(
     "..",
     "sovryn-open-inventions",
     "results",
-    "downgraded-public-fund",
+    `downgraded-public-fund-${candidateId
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .slice(0, 80)}`,
   );
   await mkdir(packageRoot, { recursive: true });
   await writeFile(
@@ -5340,6 +5343,99 @@ test("generator-born claim lift intake consumes rebound discovery package throug
   assert.equal(audit.passed, true);
   assert.equal(audit.fundFound, true);
   assert.equal(audit.discoveryNotificationAllowed, true);
+});
+
+test("generator-born claim lift intake blocks rebound package after public corpus downgrade", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  await service.generatorClaimLiftExperiment();
+  const rebind = await service.generatorClaimLiftRebind();
+  for (const decision of rebind.decisions.filter(
+    (item) => item.rebindStatus === "rebound",
+  )) {
+    if (decision.packageRef === null) continue;
+    const payload = JSON.parse(
+      await readFile(join(root, decision.packageRef, "FUND_CANDIDATE.json"), {
+        encoding: "utf8",
+      }),
+    ) as { candidate?: { candidateId?: string } };
+    const packageCandidateId = payload.candidate?.candidateId;
+    if (typeof packageCandidateId !== "string") {
+      throw new Error(
+        "Expected package candidate ID for public downgrade test.",
+      );
+    }
+    await writePublicCorpusDowngrade(root, packageCandidateId);
+  }
+
+  const intake = await service.generatorClaimLiftIntake();
+
+  assert.equal(
+    intake.kind,
+    "generator_born_discovery_claim_lift_signal_intake",
+  );
+  assert.equal(intake.status, "continue_searching_checkpointed");
+  assert.equal(intake.fundFound, false);
+  assert.equal(intake.eligiblePackages, 0);
+  assert.equal(intake.packagesStaged, 0);
+  assert.equal(intake.acceptedPackages, 0);
+  assert.equal(intake.fundGateResult.notificationAllowed, false);
+  assert.equal(
+    intake.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    false,
+  );
+  assert.equal(
+    intake.decisions.some((decision) =>
+      decision.failedGates.includes(
+        "public_corpus_discovery_score_reconciliation",
+      ),
+    ),
+    true,
+  );
+  assert.equal(intake.blockerDistribution.public_corpus_downgrade > 0, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
 });
 
 test("generator-born claim lift intake remains checkpointed without rebound discovery-scored package", async () => {

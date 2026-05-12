@@ -1073,7 +1073,7 @@ export class DiscoveryFrictionHealthService {
     const candidateId =
       typeof gate?.candidateId === "string" ? gate.candidateId : null;
     const publicFundReconciliation =
-      await this.loadPublicFundReconciliation(candidateId);
+      await this.publicFundReconciliationForCandidate(candidateId);
     const structurallyActive =
       gate?.kind === "fund_gate_result" &&
       gate.passed === true &&
@@ -1125,7 +1125,7 @@ export class DiscoveryFrictionHealthService {
     };
   }
 
-  private async loadPublicFundReconciliation(
+  async publicFundReconciliationForCandidate(
     candidateId: string | null,
   ): Promise<PublicFundReconciliation> {
     const empty: PublicFundReconciliation = {

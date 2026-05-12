@@ -205,6 +205,7 @@ Commands:
   sovryn discover-daemon generator-fund-closure [--json]
   sovryn discover-daemon generator-claim-lift-propose [--json]
   sovryn discover-daemon generator-claim-lift [--json]
+  sovryn discover-daemon generator-claim-lift-pressure [--json]
   sovryn discover-daemon dimacs-boundary-closure [--json]
   sovryn discover-daemon formal-anchor-select [--json]
   sovryn discover-daemon formal-anchor-pilot [--json]
@@ -1709,7 +1710,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|generator-claim-lift-propose|generator-claim-lift|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates or --significance-candidates with generator-families or generator-run to select the generator family set.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|generator-claim-lift-propose|generator-claim-lift|generator-claim-lift-pressure|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates or --significance-candidates with generator-families or generator-run to select the generator family set.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -1874,6 +1875,8 @@ async function discoverDaemonCommand(
       return service.generatorClaimLiftPropose();
     case "generator-claim-lift":
       return service.generatorClaimLift();
+    case "generator-claim-lift-pressure":
+      return service.generatorClaimLiftPressure();
     case "dimacs-boundary-closure":
       return service.dimacsBoundaryClosure();
     case "formal-anchor-select":

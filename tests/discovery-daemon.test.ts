@@ -95,6 +95,7 @@ const commands = [
   "generator-fund-closure",
   "generator-claim-lift-propose",
   "generator-claim-lift",
+  "generator-claim-lift-pressure",
   "dimacs-boundary-closure",
   "formal-anchor-select",
   "formal-anchor-pilot",
@@ -4847,6 +4848,141 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   );
 });
 
+test("generator-born claim lift signal pressure blocks pipeline-class packages before discovery scoring", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+
+  const pressure = await service.generatorClaimLiftPressure();
+
+  assert.equal(
+    pressure.kind,
+    "generator_born_discovery_claim_lift_signal_pressure",
+  );
+  assert.equal(pressure.status, "continue_searching_checkpointed");
+  assert.equal(pressure.liftedCandidatesLoaded, 6);
+  assert.equal(pressure.packagesEvaluated, 6);
+  assert.equal(pressure.discoverySignalReady, 0);
+  assert.equal(pressure.blockedSignals, 6);
+  assert.deepEqual(pressure.blockerDistribution, {
+    missing_nontrivial_new_insight_evidence: 6,
+  });
+  assert.equal(pressure.fundGateResult.passed, true);
+  assert.equal(pressure.fundGateResult.fundClass, "pipeline_fund_candidate");
+  assert.equal(
+    pressure.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    false,
+  );
+  assert.equal(
+    pressure.decisions.every(
+      (decision) =>
+        decision.signalStatus === "blocked" &&
+        decision.primaryBlocker === "missing_nontrivial_new_insight_evidence" &&
+        decision.failedGates.includes(
+          "nontrivial_new_insight_evidence_bound",
+        ) &&
+        decision.failedGates.includes("discovery_scored_fund_class"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift signal pressure recognizes explicit discovery insight evidence without writing Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  const lift = await service.generatorClaimLift();
+  const targetId = lift.fundGateEvaluations[0]?.candidateId;
+  assert.ok(targetId);
+  const normalizedTargetId = targetId
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  const packageRef = `${daemonRoot}/evidence-packages/${normalizedTargetId}`;
+  const insightRefs = [
+    `${daemonRoot}/runtime-evidence/${targetId}-insight-a.json`,
+    `${daemonRoot}/runtime-evidence/${targetId}-insight-b.json`,
+  ];
+  for (const ref of insightRefs) {
+    await mkdir(dirname(join(root, ref)), { recursive: true });
+    await writeFile(
+      join(root, ref),
+      JSON.stringify(
+        {
+          kind: "nontrivial_insight_fixture",
+          targetId,
+          ref,
+          claim:
+            "Nontrivial new insight across real targets survived matched baseline and counterexample pressure.",
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+  }
+  const candidatePath = join(root, packageRef, "FUND_CANDIDATE.json");
+  const candidatePayload = JSON.parse(
+    await readFile(candidatePath, "utf8"),
+  ) as { candidate: Record<string, unknown> };
+  candidatePayload.candidate.nontrivialNewInsightAcrossRealTargets = true;
+  candidatePayload.candidate.domainScientificSignificance = true;
+  candidatePayload.candidate.insightEvidenceRefs = insightRefs;
+  await writeFile(
+    candidatePath,
+    JSON.stringify(candidatePayload, null, 2),
+    "utf8",
+  );
+  const bindingsPath = join(root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json");
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.insightEvidenceRefs = insightRefs;
+  bindings.nontrivialInsightEvidenceRefs = insightRefs;
+  bindings.fundCandidate = candidatePayload.candidate;
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+
+  const pressure = await service.generatorClaimLiftPressure();
+  const decision = pressure.decisions.find(
+    (item) => item.candidateId === targetId,
+  );
+
+  assert.equal(pressure.discoverySignalReady, 1);
+  assert.equal(decision?.signalStatus, "discovery_signal_ready");
+  assert.equal(decision?.countsForEinsteinNobelDiscoveryScore, true);
+  assert.equal(decision?.notificationAllowed, true);
+  assert.equal(decision?.failedGates.length, 0);
+  assert.equal(
+    pressure.fundGateResult.countsForEinsteinNobelDiscoveryScore,
+    true,
+  );
+  assert.equal(pressure.fundGateResult.notificationAllowed, true);
+  assert.equal(pressure.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born discovery claim lift accepts only fully evidenced new DiscoveryCandidate proposal", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -8899,6 +9035,11 @@ const cliScenarios: {
     name: "generator-claim-lift",
     args: ["discover-daemon", "generator-claim-lift", "--json"],
     expectedKind: "generator_born_discovery_claim_lift",
+  },
+  {
+    name: "generator-claim-lift-pressure",
+    args: ["discover-daemon", "generator-claim-lift-pressure", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_signal_pressure",
   },
   {
     name: "formal-anchor-select",

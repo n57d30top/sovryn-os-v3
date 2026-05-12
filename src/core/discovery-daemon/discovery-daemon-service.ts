@@ -1663,6 +1663,41 @@ export type GeneratorBornDiscoveryClaimLiftReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftSignalPressureDecision = {
+  kind: "generator_born_discovery_claim_lift_signal_pressure_decision";
+  candidateId: string;
+  parentCandidateId: string | null;
+  packageRef: string | null;
+  fundClass: FundClass | null;
+  countsForEinsteinNobelDiscoveryScore: boolean;
+  notificationAllowed: boolean;
+  signalStatus: "discovery_signal_ready" | "blocked";
+  primaryBlocker: string;
+  gates: FundGate[];
+  failedGates: string[];
+  evidenceRefs: string[];
+  requiredNextExperiment: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSignalPressureReport = {
+  kind: "generator_born_discovery_claim_lift_signal_pressure";
+  status: "discovery_signal_ready" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  liftedCandidatesLoaded: number;
+  packagesEvaluated: number;
+  discoverySignalReady: number;
+  blockedSignals: number;
+  decisions: GeneratorBornDiscoveryClaimLiftSignalPressureDecision[];
+  blockerDistribution: Record<string, number>;
+  fundGateResult: FundGateResult;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornFundClosureCandidateResult = {
   kind: "generator_born_fund_closure_candidate_result";
   candidateId: string;
@@ -14217,6 +14252,257 @@ export class GeneratorBornDiscoveryClaimLiftService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftSignalPressureReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    const lift = await this.readClaimLiftOrRun();
+    const proposals = await this.readProposals();
+    const decisions = await Promise.all(
+      proposals.map((proposal) => this.evaluateProposal(proposal)),
+    );
+    const ready = decisions.filter(
+      (decision) => decision.signalStatus === "discovery_signal_ready",
+    );
+    const notificationReady =
+      ready.find((decision) => decision.notificationAllowed) ?? ready[0];
+    const fundGateResult =
+      notificationReady !== undefined
+        ? await this.fundGateForDecision(notificationReady)
+        : lift.fundGateResult;
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-pressure-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftSignalPressureReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_signal_pressure" as const,
+        status:
+          ready.length > 0
+            ? ("discovery_signal_ready" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: lift.nextCheckpointRef,
+        nextCheckpointRef,
+        liftedCandidatesLoaded: proposals.length,
+        packagesEvaluated: decisions.filter(
+          (decision) => decision.packageRef !== null,
+        ).length,
+        discoverySignalReady: ready.length,
+        blockedSignals: decisions.filter(
+          (decision) => decision.signalStatus === "blocked",
+        ).length,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundGateResult,
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftSignalPressureBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftSignalPressureArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readClaimLiftOrRun(): Promise<GeneratorBornDiscoveryClaimLiftReport> {
+    const existing =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftReport>(
+        join(this.liftRoot(), "latest.json"),
+      );
+    if (existing !== null) return existing;
+    return new GeneratorBornDiscoveryClaimLiftService(this.root).run();
+  }
+
+  private async readProposals(): Promise<
+    GeneratorBornDiscoveryClaimLiftProposal[]
+  > {
+    const payload = await readOptionalJson<{
+      proposals?: GeneratorBornDiscoveryClaimLiftProposal[];
+    }>(join(this.liftRoot(), "CLAIM_LIFT_PROPOSALS.json"));
+    return (payload?.proposals ?? []).filter(
+      (proposal) =>
+        proposal.kind === "generator_born_discovery_claim_lift_proposal" &&
+        typeof proposal.targetDiscoveryCandidateId === "string",
+    );
+  }
+
+  private async evaluateProposal(
+    proposal: GeneratorBornDiscoveryClaimLiftProposal,
+  ): Promise<GeneratorBornDiscoveryClaimLiftSignalPressureDecision> {
+    const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(proposal.targetDiscoveryCandidateId)}`;
+    const packageRoot = join(this.root, packageRef);
+    const candidatePayload = await readOptionalJson<{
+      candidate?: FundCandidate;
+      fundClass?: FundClass;
+    }>(join(packageRoot, "FUND_CANDIDATE.json"));
+    const bindings = await readOptionalJson<Record<string, unknown>>(
+      join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    );
+    const candidate =
+      candidatePayload?.candidate ??
+      (isRecord(bindings?.fundCandidate)
+        ? (bindings.fundCandidate as FundCandidate)
+        : null);
+    const packageFilesPresent = (
+      await Promise.all(
+        requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
+      )
+    ).every(Boolean);
+    const evaluation =
+      candidate === null
+        ? new FundGateEvaluator().evaluate(null)
+        : await evaluateFundCandidateWithPackageForRoot(this.root, candidate);
+    const signalEvidenceRefs = generatorBornClaimLiftSignalEvidenceRefs({
+      candidate,
+      bindings,
+      proposal,
+    });
+    const insightRefsResolve =
+      signalEvidenceRefs.length >= 2 &&
+      (await claimLiftEvidenceRefsResolvable(this.root, signalEvidenceRefs));
+    const discoveryGate = evaluation.fundClassAssessment?.discoveryGate;
+    const hasNontrivialInsight =
+      candidate?.nontrivialNewInsightAcrossRealTargets === true &&
+      discoveryGate?.nontrivialNewInsightAcrossRealTargets === true &&
+      insightRefsResolve;
+    const gates = [
+      gate(
+        "lifted_package_present",
+        await exists(packageRoot),
+        "Signal pressure requires the lifted external-review package directory.",
+      ),
+      gate(
+        "required_package_files_present",
+        packageFilesPresent,
+        "Signal pressure requires PAPER, METHOD, bindings, reproduce, and limitations files.",
+      ),
+      gate(
+        "fund_candidate_present",
+        candidate !== null,
+        "Signal pressure requires the package-bound FundCandidate payload.",
+      ),
+      gate(
+        "structural_fund_gate_passed",
+        evaluation.passed,
+        "The unchanged package-aware Fund Gate must pass before discovery-signal pressure can matter.",
+      ),
+      gate(
+        "nontrivial_new_insight_evidence_bound",
+        hasNontrivialInsight,
+        "Discovery scoring requires resolvable evidence refs for a nontrivial new insight across real targets, not only package or pipeline evidence.",
+      ),
+      gate(
+        "domain_scientific_significance_bound",
+        discoveryGate?.domainScientificSignificance === true,
+        "Discovery scoring requires explicit domain scientific significance.",
+      ),
+      gate(
+        "not_pipeline_fund_class",
+        evaluation.fundClass !== "pipeline_fund_candidate",
+        "Pipeline Fund candidates may prove operating capability but must not count as discovery.",
+      ),
+      gate(
+        "discovery_scored_fund_class",
+        evaluation.countsForEinsteinNobelDiscoveryScore,
+        "Only discovery-scored FundClasses can advance the Einstein/Nobel path.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const primaryBlocker = generatorBornClaimLiftSignalPrimaryBlocker({
+      candidate,
+      evaluation,
+      failedGates,
+      signalEvidenceRefs,
+    });
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_signal_pressure_decision" as const,
+      candidateId: proposal.targetDiscoveryCandidateId,
+      parentCandidateId: proposal.parentCandidateId,
+      packageRef: (await exists(packageRoot)) ? packageRef : null,
+      fundClass: evaluation.fundClass,
+      countsForEinsteinNobelDiscoveryScore:
+        evaluation.countsForEinsteinNobelDiscoveryScore,
+      notificationAllowed: evaluation.notificationAllowed,
+      signalStatus:
+        failedGates.length === 0
+          ? ("discovery_signal_ready" as const)
+          : ("blocked" as const),
+      primaryBlocker,
+      gates,
+      failedGates,
+      evidenceRefs: signalEvidenceRefs,
+      requiredNextExperiment:
+        generatorBornClaimLiftSignalRequiredNextExperiment(primaryBlocker),
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private async fundGateForDecision(
+    decision: GeneratorBornDiscoveryClaimLiftSignalPressureDecision,
+  ): Promise<FundGateResult> {
+    if (decision.packageRef === null)
+      return new FundGateEvaluator().evaluate(null);
+    const payload = await readOptionalJson<{ candidate?: FundCandidate }>(
+      join(this.root, decision.packageRef, "FUND_CANDIDATE.json"),
+    );
+    return evaluateFundCandidateWithPackageForRoot(
+      this.root,
+      payload?.candidate ?? null,
+    );
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftSignalPressureReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "SIGNAL_PRESSURE.json"), report);
+    await writeJson(join(root, "SIGNAL_PRESSURE_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_pressure_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(root, "SIGNAL_PRESSURE_FUND_GATE_RESULTS.json"), {
+      kind: "generator_born_discovery_claim_lift_signal_pressure_fund_gate",
+      fundGateResult: report.fundGateResult,
+      fundFound: report.fundFound,
+      evidenceHash: hashEvidence(report.fundGateResult),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_signal_pressure_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      discoverySignalReady: report.discoverySignalReady,
+      blockedSignals: report.blockedSignals,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SIGNAL_PRESSURE.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "SIGNAL_PRESSURE_DECISIONS.md"),
+      generatorBornDiscoveryClaimLiftSignalPressureMarkdown(report),
+    );
+    await writeText(
+      join(root, "DISCOVERY_SIGNAL_READINESS.md"),
+      generatorBornDiscoveryClaimLiftSignalReadinessMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_PRESSURE_FUND_GATE_RESULTS.md"),
+      generatorBornDiscoveryClaimLiftSignalFundGateMarkdown(report),
+    );
+    await writeText(
+      join(root, "SIGNAL_PRESSURE_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(report),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftProposalBuilder {
   constructor(private readonly root: string) {}
 
@@ -25485,6 +25771,195 @@ async function claimLiftPackageRefResolvable(
     if (!(await exists(join(root, packageRef, file)))) return false;
   }
   return true;
+}
+
+function generatorBornClaimLiftSignalEvidenceRefs(input: {
+  candidate: FundCandidate | null;
+  bindings: Record<string, unknown> | null;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal;
+}): string[] {
+  return uniqueStrings([
+    ...(input.candidate?.insightEvidenceRefs ?? []),
+    ...stringArray(input.bindings?.insightEvidenceRefs),
+    ...stringArray(input.bindings?.nontrivialInsightEvidenceRefs),
+    ...stringArray(input.bindings?.domainSignificanceEvidenceRefs),
+    ...input.proposal.externalSignificanceEvidenceRefs,
+  ]).filter(publicSafeRef);
+}
+
+function generatorBornClaimLiftSignalPrimaryBlocker(input: {
+  candidate: FundCandidate | null;
+  evaluation: FundGateResult;
+  failedGates: string[];
+  signalEvidenceRefs: string[];
+}): string {
+  if (input.candidate === null) return "missing_fund_candidate_package";
+  if (input.failedGates.includes("structural_fund_gate_passed")) {
+    return "fund_gate_structural_blocker";
+  }
+  if (
+    input.failedGates.includes("nontrivial_new_insight_evidence_bound") ||
+    input.signalEvidenceRefs.length < 2
+  ) {
+    return "missing_nontrivial_new_insight_evidence";
+  }
+  if (input.failedGates.includes("domain_scientific_significance_bound")) {
+    return "missing_domain_scientific_significance";
+  }
+  if (
+    input.evaluation.fundClass === "pipeline_fund_candidate" ||
+    input.failedGates.includes("not_pipeline_fund_class")
+  ) {
+    return "pipeline_fund_candidate";
+  }
+  if (input.failedGates.includes("discovery_scored_fund_class")) {
+    return "non_discovery_fund_class";
+  }
+  return input.failedGates[0] ?? "none";
+}
+
+function generatorBornClaimLiftSignalRequiredNextExperiment(
+  blocker: string,
+): string {
+  switch (blocker) {
+    case "missing_nontrivial_new_insight_evidence":
+      return "Run a mechanism-specific lift experiment that binds new insightEvidenceRefs showing a nontrivial target-outcome pattern across real targets after baseline, rival, holdout, replay, counterexample, and mechanism pressure.";
+    case "missing_domain_scientific_significance":
+      return "Bind external domain-significance evidence showing why the measured target-outcome pattern changes scientific interpretation rather than only package inspectability.";
+    case "pipeline_fund_candidate":
+    case "non_discovery_fund_class":
+      return "Keep the package as pipeline capability evidence and generate a new externally anchored target-outcome experiment before attempting discovery scoring.";
+    case "fund_gate_structural_blocker":
+      return "Repair the package or draft contract without changing Fund Gate semantics, then rerun signal pressure.";
+    case "missing_fund_candidate_package":
+      return "Create the forward-only package-bound FundCandidate artifact from a valid FundCandidateDraft before signal pressure.";
+    default:
+      return "Continue searching with exact blocker carried into the candidate graveyard.";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftSignalPressureBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftSignalPressureDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No lifted claim packages are available for discovery-signal pressure; create package-backed claim lifts first.";
+  }
+  const ready = decisions.filter(
+    (decision) => decision.signalStatus === "discovery_signal_ready",
+  );
+  if (ready.length > 0) {
+    return `${ready.length} lifted claim package(s) are discovery-signal ready; run the explicit Fund notification path only if unchanged Fund Gate notification remains allowed.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `All ${decisions.length} lifted claim package(s) remain blocked before discovery scoring. Dominant blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftSignalPressureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/SIGNAL_PRESSURE.json`,
+    `${root}/SIGNAL_PRESSURE_DECISIONS.json`,
+    `${root}/SIGNAL_PRESSURE_DECISIONS.md`,
+    `${root}/DISCOVERY_SIGNAL_READINESS.md`,
+    `${root}/SIGNAL_PRESSURE_FUND_GATE_RESULTS.json`,
+    `${root}/SIGNAL_PRESSURE_FUND_GATE_RESULTS.md`,
+    `${root}/SIGNAL_PRESSURE_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftSignalPressureMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalPressureReport,
+): string {
+  return [
+    "# Claim Lift Signal Pressure Decisions",
+    "",
+    `Lifted candidates loaded: ${report.liftedCandidatesLoaded}.`,
+    `Packages evaluated: ${report.packagesEvaluated}.`,
+    `Discovery-signal ready: ${report.discoverySignalReady}.`,
+    `Blocked: ${report.blockedSignals}.`,
+    "",
+    "## Blockers",
+    "",
+    ...Object.entries(report.blockerDistribution).map(
+      ([blocker, count]) => `- ${blocker}: ${count}`,
+    ),
+    ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Fund class | Counts | Status | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.fundClass ?? "none"} | ${String(decision.countsForEinsteinNobelDiscoveryScore)} | ${decision.signalStatus} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | none | false | blocked | none | none |"]
+      : []),
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalReadinessMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalPressureReport,
+): string {
+  return [
+    "# Discovery Signal Readiness",
+    "",
+    `Status: ${report.status}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    `Fund notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for Einstein/Nobel discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    "",
+    report.remainingBottleneck,
+    "",
+    "## Required Next Experiments",
+    "",
+    ...report.decisions.map(
+      (decision) =>
+        `- ${decision.candidateId}: ${decision.requiredNextExperiment}`,
+    ),
+    ...(report.decisions.length === 0 ? ["- none"] : []),
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalFundGateMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalPressureReport,
+): string {
+  return [
+    "# Signal Pressure Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Notification allowed: ${String(report.fundGateResult.notificationAllowed)}.`,
+    `Fund class: ${report.fundGateResult.fundClass ?? "none"}.`,
+    `Counts for discovery score: ${String(report.fundGateResult.countsForEinsteinNobelDiscoveryScore)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "This command does not write FUND_FOUND.md or fund-candidate.json. It only checks whether lifted packages contain discovery-scored signal evidence.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSignalPressureReport,
+): string {
+  return [
+    "# Signal Pressure Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
 }
 
 type GeneratorBornDiscoveryClaimLiftProposalScaffold = {
@@ -39302,6 +39777,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLift(): Promise<GeneratorBornDiscoveryClaimLiftReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftService(this.root).run();
+  }
+
+  async generatorClaimLiftPressure(): Promise<GeneratorBornDiscoveryClaimLiftSignalPressureReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftSignalPressureService(
+      this.root,
+    ).run();
   }
 
   async dimacsBoundaryClosure(): Promise<DimacsBoundaryClosureReport> {

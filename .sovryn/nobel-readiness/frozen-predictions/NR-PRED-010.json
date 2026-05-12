@@ -12,6 +12,6 @@
   "holdoutPlan": "fresh repo package holdouts",
   "replayPlan": "fresh workspace replay",
   "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-  "frozenTimestamp": "2026-05-12T09:46:15.238Z",
-  "preregistrationHash": "e37751cbecda7daee88e62a13d47bdb964bcaa10b5662c3b7a0f038fe75ba662"
+  "frozenTimestamp": "2026-05-12T10:40:54.807Z",
+  "preregistrationHash": "5081c6ae110a0b31017e48f31b0e8e14fab478dedb5573cd611a5d651873ecd4"
 }

@@ -2480,6 +2480,41 @@ test("discover-daemon marathon status resume and audit enforce valid terminal st
   );
   assert.equal((auditResponse.data as Record<string, unknown>).passed, true);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  await writeFile(
+    join(root, daemonRoot, "fund-gate-results.json"),
+    JSON.stringify(
+      {
+        kind: "fund_gate_result",
+        status: "FUND_FOUND",
+        passed: true,
+        notificationAllowed: true,
+        countsForEinsteinNobelDiscoveryScore: true,
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(join(root, daemonRoot, "FUND_FOUND.md"), "# FUND_FOUND\n");
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify(fundCandidate(), null, 2),
+  );
+  const postFundAuditResponse = await executeCli(
+    ["discover-daemon", "marathon", "audit", "--json"],
+    root,
+  );
+  assert.equal(
+    (postFundAuditResponse.data as Record<string, unknown>).passed,
+    true,
+  );
+  assert.equal(
+    (
+      (postFundAuditResponse.data as Record<string, unknown>)
+        .failedGates as string[]
+    ).includes("no_fake_fund"),
+    false,
+  );
 });
 
 test("discover-daemon marathon depth gauntlet hardens measurement depth and death causes", async () => {
@@ -9223,7 +9258,11 @@ test("FundNotificationPackageBuilder writes FUND_FOUND only for passing fund", a
     assert.equal(fundReport.includes(heading), true);
   }
   assert.equal(fundReport.includes("/Users/"), false);
-  assert.equal(fundReport.includes("Nobel-level discovery claim"), true);
+  assert.equal(
+    fundReport.includes("No prohibited public overclaim is made."),
+    true,
+  );
+  assert.equal(fundReport.includes("Nobel-level discovery claim"), false);
 });
 
 const cliScenarios: {

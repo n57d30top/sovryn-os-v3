@@ -12,6 +12,6 @@
   "holdoutPlan": "higher bounds and edge structures",
   "replayPlan": "deterministic recomputation",
   "noEditRule": "Frozen before execution; post-hoc prediction edits invalidate readiness scoring.",
-  "frozenTimestamp": "2026-05-12T09:46:15.238Z",
-  "preregistrationHash": "b95820273795c589535a1bd7ec03470a8c6a4a9550a64eb38cc97fd69ea69915"
+  "frozenTimestamp": "2026-05-12T10:40:54.807Z",
+  "preregistrationHash": "9c164ed0109305aee86a7b0c228bcbc2426e33039fb8139d5ac6a901ad4f9316"
 }

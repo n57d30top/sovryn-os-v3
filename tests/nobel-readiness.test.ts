@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -499,6 +499,57 @@ test("nobel-readiness score reconciles persisted external-review discovery FundC
   assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
 });
 
+test("nobel-readiness external-review handoff verifies package refs without claiming external validation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-handoff-pass-"));
+  await writeActiveDiscoveryFundPackage(root);
+
+  const handoff = await new NobelReadinessService(root).externalReviewHandoff();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "EXTERNAL_REVIEW_HANDOFF.md"),
+    "utf8",
+  );
+
+  assert.equal(handoff.passed, true);
+  assert.equal(handoff.status, "ready_for_external_human_review");
+  assert.equal(handoff.externalExpertValidationClaimed, false);
+  assert.equal(handoff.refResolution.unresolvedRefs.length, 0);
+  assert.equal(
+    handoff.gates.find(
+      (gate) => gate.code === "external_validation_not_claimed",
+    )?.passed,
+    true,
+  );
+  assert.match(report, /does not claim outside expert validation/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
+test("nobel-readiness external-review handoff blocks unresolved package anchors", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-handoff-block-"));
+  const { packageRoot } = await writeActiveDiscoveryFundPackage(root);
+  const bindingsPath = join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json");
+  const bindings = await readJson<Record<string, unknown>>(bindingsPath);
+  await writeJson(bindingsPath, {
+    ...bindings,
+    evidenceRefs: [
+      ...((bindings.evidenceRefs as string[]) ?? []),
+      "PAPER.md#missing-review-anchor",
+    ],
+  });
+
+  const handoff = await new NobelReadinessService(root).externalReviewHandoff();
+
+  assert.equal(handoff.passed, false);
+  assert.equal(handoff.status, "blocked");
+  assert.equal(
+    handoff.gates.find((gate) => gate.code === "all_review_refs_resolve")
+      ?.passed,
+    false,
+  );
+  assert.deepEqual(handoff.refResolution.unresolvedRefs, [
+    "PAPER.md#missing-review-anchor",
+  ]);
+});
+
 for (const field of scoreFields) {
   test(`nobel readiness score has bounded numeric field ${field}`, () => {
     const value = readinessScore[field as keyof typeof readinessScore];
@@ -551,6 +602,7 @@ const helpCommands = [
   "nobel-readiness rival-review",
   "nobel-readiness score",
   "nobel-readiness package",
+  "nobel-readiness external-review-handoff",
   "nobel-readiness audit",
 ];
 
@@ -577,6 +629,7 @@ for (const args of [
   ["rival-review"],
   ["score"],
   ["package"],
+  ["external-review-handoff"],
   ["audit"],
 ]) {
   test(`nobel readiness CLI command works: ${args.join(" ")}`, async () => {
@@ -631,6 +684,52 @@ test("nobel readiness service writes frozen prediction cards", async () => {
   assert.equal(stored.preregistrationHash.length, 64);
 });
 
+test("nobel readiness audit does not refreeze existing predictions", async () => {
+  const root = await tempRoot();
+  const service = new NobelReadinessService(root);
+  await service.freeze();
+  const ledgerPath = join(
+    root,
+    ".sovryn",
+    "nobel-readiness",
+    "freeze-ledger.json",
+  );
+  const predictionPath = join(
+    root,
+    ".sovryn",
+    "nobel-readiness",
+    "frozen-predictions",
+    "NR-PRED-001.json",
+  );
+  const beforeLedger = await readFile(ledgerPath, "utf8");
+  const beforePrediction = await readFile(predictionPath, "utf8");
+
+  await service.audit();
+
+  assert.equal(await readFile(ledgerPath, "utf8"), beforeLedger);
+  assert.equal(await readFile(predictionPath, "utf8"), beforePrediction);
+});
+
+test("nobel readiness freeze blocks edited preregistered predictions", async () => {
+  const root = await tempRoot();
+  const service = new NobelReadinessService(root);
+  await service.freeze();
+  const ledgerPath = join(
+    root,
+    ".sovryn",
+    "nobel-readiness",
+    "freeze-ledger.json",
+  );
+  const ledger = await readJson<any>(ledgerPath);
+  ledger.cards[0].expectedObservation = "post-hoc edited observation";
+  await writeJson(ledgerPath, ledger);
+
+  await assert.rejects(
+    () => service.freeze(),
+    /Frozen predictions were edited after preregistration/,
+  );
+});
+
 test("nobel readiness package avoids forbidden public claims", async () => {
   const root = await tempRoot();
   await new NobelReadinessService(root).package();
@@ -656,6 +755,122 @@ test("nobel readiness audit passes quota and hygiene gates", async () => {
   assert.equal(audit.replayAttemptCount, 8);
   assert.equal(audit.finalLabel, "promising_with_strong_caveats");
 });
+
+async function writeActiveDiscoveryFundPackage(
+  root: string,
+): Promise<{ packageRoot: string; candidateId: string }> {
+  const candidateId = "DISCOVERY-LIFT-MATERIALS-HANDOFF-001";
+  const claim =
+    "A nontrivial new insight across real targets has domain scientific significance in computational materials property data.";
+  const packageRel = `.sovryn/discovery-daemon/evidence-packages/${candidateId}`;
+  const packageRoot = join(root, packageRel);
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(packageRoot, { recursive: true });
+  const assessment = classifyFundCandidate({
+    candidateId,
+    claim,
+    domain: "computational_materials_property_data",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#evidence-summary"],
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    status: "FUND_FOUND",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    notificationAllowed: true,
+    fundClassAssessment: assessment,
+  });
+  await writeJson(join(daemonRoot, "fund-candidate.json"), {
+    kind: "fund_candidate",
+    candidate: {
+      candidateId,
+      claim,
+      domain: "computational_materials_property_data",
+      requestedFundLabel: "externally_review_ready_candidate",
+      publicPackagePath: packageRel,
+      sourceEvidenceRefs: [
+        "PAPER.md#evidence-summary",
+        "METHOD.md#method",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#limitations",
+      ],
+    },
+  });
+  await writeFile(
+    join(packageRoot, "PAPER.md"),
+    `# Paper
+
+## Evidence Summary
+
+This is a bounded internal external-review package readiness artifact.
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    `# Method
+
+## Method
+
+The method records baseline, rival, holdout, replay, and counterexample pressure.
+
+## Mechanism Pressure
+
+Mechanism pressure is bounded to the cited computational slice.
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "REPRODUCE.md"),
+    `# Reproduce
+
+## Replay
+
+Run the package-local checks and inspect the bindings.
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    `# Limitations
+
+- No outside expert reviewed this package.
+- Bounded computational evidence remains bounded.
+`,
+    "utf8",
+  );
+  await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
+    kind: "fund_candidate",
+    candidateId,
+    claim,
+  });
+  await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    kind: "claim_evidence_bindings",
+    candidateId,
+    claim,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    evidenceRefs: [
+      "PAPER.md#evidence-summary",
+      "METHOD.md#method",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#limitations",
+      "FUND_CANDIDATE.json",
+    ],
+    mechanismPressureRefs: ["METHOD.md#mechanism-pressure"],
+    externalSignificanceEvidenceRefs: [
+      "https://matbench.materialsproject.org/",
+    ],
+    noOverclaim: true,
+  });
+  return { packageRoot, candidateId };
+}
 
 async function tempRoot(): Promise<string> {
   return mkdtemp(join(tmpdir(), "sovryn-nobel-readiness-"));

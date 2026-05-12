@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-12T09:46:15.250Z",
+  "scoredAt": "2026-05-12T11:03:14.769Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -26,5 +26,5 @@
     "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
     "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger."
   ],
-  "evidenceHash": "730c26c46e4421560ac3d6c5cac97b99d197e384882abc67930be4297ade8c64"
+  "evidenceHash": "b738c995e3b0dbdd3fbafcdd2a37ba6ba721a83ba3267f0ae1c6c0b663b76555"
 }

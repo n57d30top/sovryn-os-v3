@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
@@ -234,6 +234,45 @@ export type NobelReadinessAudit = {
   evidenceHash: string;
 };
 
+export type ExternalReviewHandoffRefResolution = {
+  ref: string;
+  kind: "external_url" | "local_file" | "markdown_anchor" | "json_anchor";
+  resolved: boolean;
+  publicSafe: boolean;
+  reason: string;
+};
+
+export type ExternalReviewHandoffRequiredArtifact = {
+  artifact: string;
+  exists: boolean;
+  forbiddenClaimFindings: string[];
+};
+
+export type ExternalReviewHandoffAudit = {
+  kind: "nobel_readiness_external_review_handoff";
+  generatedAt: string;
+  status: "ready_for_external_human_review" | "blocked";
+  passed: boolean;
+  candidateId: string | null;
+  fundClass: string | null;
+  readinessLabel: NobelReadinessLabel | null;
+  readinessScore: number | null;
+  externalReviewReadinessScore: number | null;
+  externalExpertValidationClaimed: false;
+  packagePath: string | null;
+  requiredArtifacts: ExternalReviewHandoffRequiredArtifact[];
+  refResolution: {
+    totalRefs: number;
+    resolvedRefs: number;
+    unresolvedRefs: string[];
+    refs: ExternalReviewHandoffRefResolution[];
+  };
+  gates: Array<{ code: string; passed: boolean; message: string }>;
+  nextHumanAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type CandidateSearchResult = {
   kind: "nobel_readiness_candidate_search";
   generatedAt: string;
@@ -341,12 +380,96 @@ async function readOptionalJson<T>(path: string): Promise<T | null> {
 
 async function fileExists(path: string): Promise<boolean> {
   try {
-    await readFile(path, "utf8");
+    await stat(path);
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
   }
+}
+
+function isExternalUrl(ref: string): boolean {
+  return /^https?:\/\//i.test(ref);
+}
+
+function splitRef(ref: string): { pathPart: string; anchor: string | null } {
+  const index = ref.indexOf("#");
+  if (index === -1) return { pathPart: ref, anchor: null };
+  return {
+    pathPart: ref.slice(0, index),
+    anchor: decodeURIComponent(ref.slice(index + 1)),
+  };
+}
+
+function isPublicSafeRef(ref: string): boolean {
+  return (
+    !ref.startsWith("/") &&
+    !ref.includes("..") &&
+    !/\b(stdout|stderr|raw[-_ ]?log|command[-_ ]?journal)\b/i.test(ref)
+  );
+}
+
+function markdownAnchorSlug(heading: string): string {
+  return heading
+    .trim()
+    .toLowerCase()
+    .replace(/`/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function markdownHasAnchor(text: string, anchor: string): boolean {
+  const normalized = anchor.replace(/^#/, "").toLowerCase();
+  return text
+    .split(/\r?\n/)
+    .filter((line) => /^#{1,6}\s+/.test(line))
+    .some(
+      (line) =>
+        markdownAnchorSlug(line.replace(/^#{1,6}\s+/, "")) === normalized,
+    );
+}
+
+function jsonHasAnchor(value: unknown, anchor: string): boolean {
+  if (!anchor) return true;
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(record, anchor)) return true;
+  return JSON.stringify(value).includes(anchor);
+}
+
+function collectStringRefs(value: unknown): string[] {
+  const refs = new Set<string>();
+  const visit = (item: unknown): void => {
+    if (typeof item === "string") {
+      for (const candidate of item
+        .split(";")
+        .map((part) => part.trim())
+        .filter(Boolean)) {
+        if (
+          candidate.startsWith(".") ||
+          candidate.startsWith("http://") ||
+          candidate.startsWith("https://") ||
+          /^[A-Z0-9_ -]+\.(md|json)#?/i.test(candidate)
+        ) {
+          refs.add(candidate);
+        }
+      }
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child);
+      return;
+    }
+    if (item && typeof item === "object") {
+      for (const child of Object.values(item as Record<string, unknown>)) {
+        visit(child);
+      }
+    }
+  };
+  visit(value);
+  return [...refs].sort();
 }
 
 function categoryCounts(
@@ -1347,16 +1470,34 @@ export class NobelReadinessService {
   async freeze(): Promise<
     NobelReadinessFreezeLedger & { artifactRefs: string[] }
   > {
+    const ledgerPath = join(this.rootDir, "freeze-ledger.json");
+    const existing =
+      await readOptionalJson<NobelReadinessFreezeLedger>(ledgerPath);
+    if (existing) {
+      const verification = new NobelReadinessFreezeLedgerService().verify(
+        existing.cards,
+      );
+      if (!verification.passed) {
+        throw new AppError(
+          "NOBEL_READINESS_FREEZE_EDITED",
+          `Frozen predictions were edited after preregistration: ${verification.editedPredictionIds.join(", ")}`,
+        );
+      }
+      await this.writeFrozenPredictionCards(existing);
+      return {
+        ...existing,
+        artifactRefs: [
+          ".sovryn/nobel-readiness/freeze-ledger.json",
+          ".sovryn/nobel-readiness/frozen-predictions",
+        ],
+      };
+    }
     const search = await this.candidateSearchOrCreate();
     const ledger = new NobelReadinessFreezeLedgerService().freeze(
       search.promoted,
     );
-    await writeJson(join(this.rootDir, "freeze-ledger.json"), ledger);
-    const predictionDir = join(this.rootDir, "frozen-predictions");
-    await mkdir(predictionDir, { recursive: true });
-    for (const card of ledger.cards) {
-      await writeJson(join(predictionDir, `${card.predictionId}.json`), card);
-    }
+    await writeJson(ledgerPath, ledger);
+    await this.writeFrozenPredictionCards(ledger);
     return {
       ...ledger,
       artifactRefs: [
@@ -1364,6 +1505,16 @@ export class NobelReadinessService {
         ".sovryn/nobel-readiness/frozen-predictions",
       ],
     };
+  }
+
+  private async writeFrozenPredictionCards(
+    ledger: NobelReadinessFreezeLedger,
+  ): Promise<void> {
+    const predictionDir = join(this.rootDir, "frozen-predictions");
+    await mkdir(predictionDir, { recursive: true });
+    for (const card of ledger.cards) {
+      await writeJson(join(predictionDir, `${card.predictionId}.json`), card);
+    }
   }
 
   async execute(): Promise<Record<string, unknown>> {
@@ -1560,6 +1711,235 @@ export class NobelReadinessService {
     return hashedAudit;
   }
 
+  async externalReviewHandoff(): Promise<ExternalReviewHandoffAudit> {
+    const score = await this.scoreOrCreate();
+    await this.package();
+    const fundGate = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, ".sovryn", "discovery-daemon", "fund-gate-results.json"),
+    );
+    const fundCandidateEnvelope = await readOptionalJson<
+      Record<string, unknown>
+    >(join(this.root, ".sovryn", "discovery-daemon", "fund-candidate.json"));
+    const candidateRecord = candidateRecordFromEnvelope(fundCandidateEnvelope);
+    const candidateId = stringValue(candidateRecord?.candidateId);
+    const packagePath = stringValue(candidateRecord?.publicPackagePath);
+    const packageRoot = packagePath ? join(this.root, packagePath) : null;
+    const requiredArtifactNames = [
+      "PAPER.md",
+      "METHOD.md",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+      "REPRODUCE.md",
+      "LIMITATIONS.md",
+      "FUND_CANDIDATE.json",
+    ];
+    const requiredArtifacts: ExternalReviewHandoffRequiredArtifact[] = [];
+    for (const artifact of requiredArtifactNames) {
+      const path = packageRoot ? join(packageRoot, artifact) : "";
+      const exists = packageRoot ? await fileExists(path) : false;
+      const text = exists ? await readFile(path, "utf8") : "";
+      requiredArtifacts.push({
+        artifact,
+        exists,
+        forbiddenClaimFindings: exists
+          ? auditNobelReadinessPublicText(text)
+          : [],
+      });
+    }
+    const bindings = packageRoot
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+        )
+      : null;
+    const refs = collectStringRefs({ bindings, candidateRecord });
+    const refResolutions = [];
+    for (const ref of refs) {
+      refResolutions.push(await this.resolveHandoffRef(ref, packagePath));
+    }
+    const unresolvedRefs = refResolutions
+      .filter((resolution) => !resolution.resolved)
+      .map((resolution) => resolution.ref);
+    const requiredArtifactsPresent = requiredArtifacts.every(
+      (artifact) => artifact.exists,
+    );
+    const noForbiddenClaims = requiredArtifacts.every(
+      (artifact) => artifact.forbiddenClaimFindings.length === 0,
+    );
+    const discoveryScoredFund =
+      fundGate?.status === "FUND_FOUND" &&
+      fundGate.passed === true &&
+      fundGate.notificationAllowed === true &&
+      fundGate.countsForEinsteinNobelDiscoveryScore === true;
+    const claimBindingMatchesCandidate =
+      Boolean(candidateId) &&
+      typeof bindings?.candidateId === "string" &&
+      bindings.candidateId === candidateId;
+    const packageFundClass = stringValue(bindings?.fundClass);
+    const gates = [
+      {
+        code: "discovery_scored_fund_state",
+        passed: discoveryScoredFund,
+        message:
+          "Root Fund state must be a discovery-scored Fund notification state.",
+      },
+      {
+        code: "readiness_score_reconciled",
+        passed:
+          score.label === "externally_review_ready_candidate" &&
+          score.einsteinNobelDiscoveryScoreEligible &&
+          score.externallyReviewReadyCandidateCount > 0,
+        message:
+          "Nobel-readiness score must reconcile the discovery-scored FundClass.",
+      },
+      {
+        code: "required_package_artifacts_present",
+        passed: requiredArtifactsPresent,
+        message:
+          "External handoff requires PAPER, METHOD, bindings, reproduce, limitations, and candidate JSON artifacts.",
+      },
+      {
+        code: "claim_bindings_match_candidate",
+        passed: claimBindingMatchesCandidate,
+        message:
+          "CLAIM_EVIDENCE_BINDINGS.json must bind to the active Fund candidate identity.",
+      },
+      {
+        code: "all_review_refs_resolve",
+        passed: unresolvedRefs.length === 0,
+        message:
+          "All local package and evidence refs used by the handoff must resolve.",
+      },
+      {
+        code: "no_forbidden_public_claims",
+        passed: noForbiddenClaims,
+        message:
+          "Handoff artifacts must avoid forbidden public overclaim categories.",
+      },
+      {
+        code: "external_validation_not_claimed",
+        passed: true,
+        message:
+          "The handoff is ready for human review but does not claim outside expert validation.",
+      },
+    ];
+    const passed = gates.every((gate) => gate.passed);
+    const handoff: ExternalReviewHandoffAudit = {
+      kind: "nobel_readiness_external_review_handoff",
+      generatedAt: nowIso(),
+      status: passed ? "ready_for_external_human_review" : "blocked",
+      passed,
+      candidateId,
+      fundClass:
+        stringValue(fundGate?.fundClass) ??
+        packageFundClass ??
+        stringValue(candidateRecord?.fundClass),
+      readinessLabel: score.label,
+      readinessScore: score.totalScore,
+      externalReviewReadinessScore: score.external_review_readiness_score,
+      externalExpertValidationClaimed: false,
+      packagePath,
+      requiredArtifacts,
+      refResolution: {
+        totalRefs: refResolutions.length,
+        resolvedRefs: refResolutions.filter((resolution) => resolution.resolved)
+          .length,
+        unresolvedRefs,
+        refs: refResolutions,
+      },
+      gates,
+      nextHumanAction:
+        "Give the package path, claim, bindings, method, reproduce instructions, limitations, and this handoff audit to an independent domain expert for review and reproduction.",
+      artifactRefs: [
+        ".sovryn/nobel-readiness/external-review-handoff.json",
+        ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md",
+      ],
+      evidenceHash: "",
+    };
+    const hashedHandoff = {
+      ...handoff,
+      evidenceHash: hashEvidence({ ...handoff, evidenceHash: "" }),
+    };
+    await writeJson(
+      join(this.rootDir, "external-review-handoff.json"),
+      hashedHandoff,
+    );
+    await writeFile(
+      join(this.rootDir, "EXTERNAL_REVIEW_HANDOFF.md"),
+      externalReviewHandoffMarkdown(hashedHandoff),
+      "utf8",
+    );
+    return hashedHandoff;
+  }
+
+  private async resolveHandoffRef(
+    ref: string,
+    packagePath: string | null,
+  ): Promise<ExternalReviewHandoffRefResolution> {
+    const publicSafe = isPublicSafeRef(ref);
+    if (isExternalUrl(ref)) {
+      return {
+        ref,
+        kind: "external_url",
+        resolved: publicSafe,
+        publicSafe,
+        reason: publicSafe
+          ? "external public URL recorded for human review"
+          : "external URL failed public-safety checks",
+      };
+    }
+    const { pathPart, anchor } = splitRef(ref);
+    if (!publicSafe || !pathPart) {
+      return {
+        ref,
+        kind: anchor ? "markdown_anchor" : "local_file",
+        resolved: false,
+        publicSafe,
+        reason: "ref is not a relative public-safe local path",
+      };
+    }
+    const absolutePath = pathPart.startsWith(".")
+      ? join(this.root, pathPart)
+      : packagePath
+        ? join(this.root, packagePath, pathPart)
+        : join(this.root, pathPart);
+    const exists = await fileExists(absolutePath);
+    if (!exists) {
+      return {
+        ref,
+        kind: anchor
+          ? pathPart.toLowerCase().endsWith(".json")
+            ? "json_anchor"
+            : "markdown_anchor"
+          : "local_file",
+        resolved: false,
+        publicSafe,
+        reason: "local artifact path does not exist",
+      };
+    }
+    if (!anchor) {
+      return {
+        ref,
+        kind: "local_file",
+        resolved: true,
+        publicSafe,
+        reason: "local artifact exists",
+      };
+    }
+    const text = await readFile(absolutePath, "utf8");
+    const isJson = pathPart.toLowerCase().endsWith(".json");
+    const resolved = isJson
+      ? jsonHasAnchor(JSON.parse(text) as unknown, anchor)
+      : markdownHasAnchor(text, anchor);
+    return {
+      ref,
+      kind: isJson ? "json_anchor" : "markdown_anchor",
+      resolved,
+      publicSafe,
+      reason: resolved
+        ? "anchor resolved"
+        : `anchor '${anchor}' was not found in local artifact`,
+    };
+  }
+
   private async domainSelectionOrCreate(): Promise<DomainSelectionResult> {
     const path = join(this.rootDir, "domain-selection.json");
     return (
@@ -1644,6 +2024,100 @@ export class NobelReadinessService {
     if (!isFundClassAssessment(assessment)) return [];
     return [assessment];
   }
+}
+
+function candidateRecordFromEnvelope(
+  value: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!value) return null;
+  const nested = value.candidate;
+  if (nested && typeof nested === "object") {
+    return nested as Record<string, unknown>;
+  }
+  return value;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function externalReviewHandoffMarkdown(
+  handoff: ExternalReviewHandoffAudit,
+): string {
+  const failedGates = handoff.gates.filter((gate) => !gate.passed);
+  const unresolved = handoff.refResolution.unresolvedRefs;
+  const artifactRows = handoff.requiredArtifacts
+    .map(
+      (artifact) =>
+        `| ${artifact.artifact} | ${artifact.exists ? "yes" : "no"} | ${
+          artifact.forbiddenClaimFindings.length === 0
+            ? "none"
+            : artifact.forbiddenClaimFindings.join(", ")
+        } |`,
+    )
+    .join("\n");
+  const gateRows = handoff.gates
+    .map(
+      (gate) =>
+        `| ${gate.code} | ${gate.passed ? "pass" : "fail"} | ${gate.message} |`,
+    )
+    .join("\n");
+  return `# External Review Handoff
+
+## Decision
+
+Status: \`${handoff.status}\`
+
+This handoff is an internal package-readiness audit for independent human review. It does not claim outside expert validation, prize significance, field uptake, or other prohibited claims.
+
+## Candidate
+
+- Candidate ID: ${handoff.candidateId ?? "missing"}
+- Fund class: ${handoff.fundClass ?? "missing"}
+- Readiness label: ${handoff.readinessLabel ?? "missing"}
+- Readiness score: ${handoff.readinessScore ?? "missing"}/100
+- External review readiness score: ${
+    handoff.externalReviewReadinessScore ?? "missing"
+  }/100
+- Package path: ${handoff.packagePath ?? "missing"}
+- Outside expert validation claimed: no
+
+## Gates
+
+| Gate | Status | Meaning |
+| --- | --- | --- |
+${gateRows}
+
+## Required Artifacts
+
+| Artifact | Exists | Forbidden claim findings |
+| --- | --- | --- |
+${artifactRows}
+
+## Evidence Ref Resolution
+
+- Total refs: ${handoff.refResolution.totalRefs}
+- Resolved refs: ${handoff.refResolution.resolvedRefs}
+- Unresolved refs: ${unresolved.length}
+
+${
+  unresolved.length > 0
+    ? unresolved.map((ref) => `- ${ref}`).join("\n")
+    : "All local handoff refs resolved. External URLs are recorded as public review sources, not as externally validated evidence."
+}
+
+## Remaining Human Action
+
+${handoff.nextHumanAction}
+
+## Failed Gates
+
+${
+  failedGates.length > 0
+    ? failedGates.map((gate) => `- ${gate.code}: ${gate.message}`).join("\n")
+    : "None."
+}
+`;
 }
 
 function isFundClassAssessment(value: unknown): value is FundClassAssessment {

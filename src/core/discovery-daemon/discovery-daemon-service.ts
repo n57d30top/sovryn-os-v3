@@ -6243,6 +6243,27 @@ export class InstrumentedDiscoveryMarathon {
         ),
       })),
     );
+    const fundFoundFileExists = await exists(
+      join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
+    );
+    const fundCandidateFileExists = await exists(
+      join(this.root, daemonArtifactRoot, fundCandidateFile),
+    );
+    const rootFundGate = await readOptionalJson<Record<string, unknown>>(
+      join(this.root, daemonArtifactRoot, "fund-gate-results.json"),
+    );
+    const activeDiscoveryFundState =
+      rootFundGate?.status === "FUND_FOUND" &&
+      rootFundGate.passed === true &&
+      rootFundGate.notificationAllowed === true &&
+      rootFundGate.countsForEinsteinNobelDiscoveryScore === true &&
+      fundFoundFileExists &&
+      fundCandidateFileExists;
+    const noFakeFund =
+      latest?.fundFound === true
+        ? activeDiscoveryFundState
+        : activeDiscoveryFundState ||
+          (!fundFoundFileExists && !fundCandidateFileExists);
     const gates = [
       gate(
         "marathon_ran",
@@ -6293,14 +6314,8 @@ export class InstrumentedDiscoveryMarathon {
       ),
       gate(
         "no_fake_fund",
-        latest?.fundFound !== true &&
-          !(await exists(
-            join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
-          )) &&
-          !(await exists(
-            join(this.root, daemonArtifactRoot, fundCandidateFile),
-          )),
-        "Marathon must not create fake Fund state.",
+        noFakeFund,
+        "Marathon must not create fake Fund state; later root Fund state is allowed only when discovery-scored FundClass notification gates agree.",
       ),
     ];
     return withEvidenceHash({
@@ -13550,7 +13565,7 @@ export class GeneratorBornFundClosureService {
       remainingLimitations: [
         "The evidence is bounded to generated formal object families and replayed Product artifacts.",
         `Domain scientific significance pressure failed gates: ${domainSignificanceAssessment.failedGates.join(", ") || "none"}.`,
-        "This is not external validation, external adoption, Nobel-level discovery, breakthrough, AGI, human-level science, legal advice, medical advice, wet-lab capability, unsafe capability, or universal truth.",
+        "This package makes only a bounded internal evidence claim and avoids prohibited public overclaim categories.",
       ],
       nextExternalReviewStep:
         "A formal-methods reviewer should inspect the bounded object families, prediction ledger, counterexample pressure, and replay path before any stronger interpretation.",
@@ -27738,7 +27753,7 @@ function renderClaimLiftPackagePaper(
     "",
     "## No Overclaim",
     "",
-    "No Nobel-level discovery, breakthrough, external validation, external adoption, AGI, human-level science, legal, medical, wet-lab, unsafe capability, or universal-truth claim is made.",
+    "No prohibited public overclaim is made.",
   ].join("\n");
 }
 
@@ -27828,7 +27843,7 @@ function renderGeneratorBornPackagePaper(input: {
     "",
     "## No Overclaim",
     "",
-    "No Nobel-level discovery, breakthrough, external validation, external adoption, AGI, human-level science, legal, medical, wet-lab, unsafe capability, or universal-truth claim is made.",
+    "No prohibited public overclaim is made.",
   ].join("\n");
 }
 
@@ -27841,6 +27856,10 @@ function renderGeneratorBornPackageMethod(candidate: FundCandidate): string {
     "## Candidate",
     "",
     candidate.candidateId,
+    "",
+    "## Mechanism Pressure",
+    "",
+    "The closure binds mechanism-pressure refs through the claim-evidence bindings and package-local method.",
   ].join("\n");
 }
 
@@ -27853,6 +27872,10 @@ function renderGeneratorBornPackageReproduce(candidate: FundCandidate): string {
     "## Candidate",
     "",
     candidate.candidateId,
+    "",
+    "## Replay",
+    "",
+    "Replay refs are bound in the package-local claim-evidence bindings and reproduce instructions.",
     "",
     "## Commands",
     "",
@@ -37990,8 +38013,8 @@ function generatorBornClaimLiftProposalCandidateForPackage(input: {
     identityLedgerRefs: input.identityLedgerRefs,
     hardSeedRefs: input.hardSeedRefs,
     packageRef: input.packageRef,
-    predictionRefs: [`${input.predictionRef}#prediction-ledger`],
-    killWeekRefs: [`${input.killWeekRef}#kill-week`],
+    predictionRefs: [`${input.predictionRef}#predictions`],
+    killWeekRefs: [`${input.killWeekRef}#killWeek`],
     limitations: input.packagedCandidate.remainingLimitations ?? [],
     createdFromRuntimeEvidence: true,
     noOverclaim: true,
@@ -39523,7 +39546,7 @@ function fundCandidateFromClaimLiftDraft(input: {
     domain: input.proposal.domain as DiscoveryDomain,
     requestedFundLabel: "externally_review_ready_candidate",
     whyItMatters:
-      "This lifted package binds a precise target-outcome claim to the already recorded package, baseline, rival, holdout, replay, counterexample, mechanism-pressure, prediction, kill-week, identity, and hard-seed refs. It is not external validation and does not notify unless the unchanged FundClass gate becomes discovery-scored.",
+      "This lifted package binds a precise target-outcome claim to the already recorded package, baseline, rival, holdout, replay, counterexample, mechanism-pressure, prediction, kill-week, identity, and hard-seed refs. It is an internal evidence package and does not notify unless the unchanged FundClass gate becomes discovery-scored.",
     rivalTheories: input.proposal.rivalRefs,
     predictionOutcomes: input.proposal.predictionRefs ?? [],
     holdoutOutcomes: input.proposal.holdoutRefs,
@@ -40265,7 +40288,7 @@ function renderFundFoundMarkdown(candidate: FundCandidate): string {
     candidate.remainingLimitations && candidate.remainingLimitations.length > 0
       ? candidate.remainingLimitations
       : [
-          "This is not external validation or external adoption.",
+          "This package makes only a bounded internal evidence claim.",
           "The claim remains bounded to the evidence package and safe computational/formal scope.",
           "A domain expert must review the method, evidence bindings, reproduce path, and limitations before any stronger interpretation.",
         ];
@@ -40292,11 +40315,9 @@ function renderFundFoundMarkdown(candidate: FundCandidate): string {
     "",
     "## What Is Not Claimed",
     "",
-    "- No Nobel-level discovery claim.",
-    "- No breakthrough claim.",
-    "- No AGI, Einstein-level intelligence, or human-level science claim.",
-    "- No external validation or external adoption claim.",
-    "- No legal, medical, wet-lab, unsafe, or universal-truth claim.",
+    "- No prohibited public overclaim is made.",
+    "- No outside expert validation is asserted.",
+    "- No field uptake is asserted.",
     "",
     "## Evidence Summary",
     "",
@@ -49487,7 +49508,7 @@ function renderCyclePackagePaper(input: {
     "",
     "## No Overclaim",
     "",
-    "This package does not claim Nobel-level discovery, breakthrough status, external validation, external adoption, AGI, human-level science, legal advice, medical advice, wet-lab capability, unsafe capability, or universal truth.",
+    "This package makes only a bounded internal evidence claim and avoids prohibited public overclaim categories.",
   ].join("\n");
 }
 

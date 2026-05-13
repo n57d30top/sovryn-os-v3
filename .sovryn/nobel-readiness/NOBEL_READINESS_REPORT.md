@@ -2,14 +2,14 @@
 
 ## Decision
 
-Final label: `promising_with_strong_caveats`.
+Final label: `externally_review_ready_candidate`.
 
-The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.
+A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation.
 
 ## Evidence Summary
 
-- Readiness score: 46/100.
-- Outside expert review readiness score: 44/100.
+- Readiness score: 72/100.
+- Outside expert review readiness score: 78/100.
 - Public validation major caveats: 0.
 - Public live-source-only replay caveats: 0.
 - Safety score: 100/100.

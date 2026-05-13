@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-13T08:26:26.150Z",
+  "scoredAt": "2026-05-13T08:56:53.906Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -9,27 +9,27 @@
   "holdout_score": 62,
   "replay_score": 58,
   "counterexample_pressure_score": 35,
-  "external_review_readiness_score": 44,
+  "external_review_readiness_score": 78,
   "safety_score": 100,
   "overclaim_risk_score": 22,
-  "totalScore": 46,
-  "label": "promising_with_strong_caveats",
-  "survivingCandidateId": "NR-CAND-004",
-  "externallyReviewReadyCandidateCount": 0,
-  "discoveryFundCandidateCount": 0,
+  "totalScore": 72,
+  "label": "externally_review_ready_candidate",
+  "survivingCandidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
+  "externallyReviewReadyCandidateCount": 1,
+  "discoveryFundCandidateCount": 1,
   "nonDiscoveryFundCandidateCount": 0,
   "publicValidationMajorCaveatCount": 0,
   "publicValidationStatuses": [],
   "publicValidationCaveats": [],
   "publicReplayLiveSourceOnlyCaveatCount": 0,
   "publicReplayLiveSourceOnlyCaveats": [],
-  "einsteinNobelDiscoveryScoreEligible": false,
+  "einsteinNobelDiscoveryScoreEligible": true,
   "scoringSeparationApplied": true,
   "rationale": [
-    "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
-    "Counterexample and replay pressure require a caveated classification.",
-    "The layer improves readiness discipline without creating a validated discovery claim.",
-    "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate."
+    "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
+    "This is an internal external-review package readiness state, not outside expert validation.",
+    "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
+    "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger."
   ],
-  "evidenceHash": "60b1b78bd67d9ebf0b90085a407c4a86cccff2aea9d9835aa4ac4696e57797e4"
+  "evidenceHash": "bd31789ffe2b5524e34c3933a73e2b825853ccf0e0f6d2ba8934d961d1ab985b"
 }

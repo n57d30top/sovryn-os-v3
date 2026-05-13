@@ -407,6 +407,35 @@ test("health friction allows public package with raw scientific reproduction rea
   );
 });
 
+test("health friction allows public formal reproduction readiness for formal candidates", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus:
+      "formal_reproduction_succeeded_caveated_no_external_validation",
+    fundClass: "externally_review_ready_discovery_candidate",
+    countsForEinsteinNobelDiscoveryScore: true,
+  });
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, true);
+  assert.equal(data.fundGateResult.status, "FUND_FOUND");
+  assert.equal(data.publicFundReconciliation.matched, true);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, false);
+  assert.equal(
+    data.publicFundReconciliation.publicRawScientificReproductionReady,
+    true,
+  );
+});
+
 test("health friction exposes public extended validation caveat without hiding raw replay readiness", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);

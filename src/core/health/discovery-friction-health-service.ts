@@ -2875,7 +2875,10 @@ function publicReviewStatusAllowsDiscoveryScoring(
   return (
     normalized.includes("raw_scientific_reproduction_succeeded") ||
     normalized.includes("standalone_raw_reproduction_succeeded") ||
-    normalized.includes("external_review_ready_raw_reproduction_succeeded")
+    normalized.includes("external_review_ready_raw_reproduction_succeeded") ||
+    normalized.includes("formal_reproduction_succeeded") ||
+    normalized.includes("formal_replay_succeeded") ||
+    normalized.includes("raw_or_formal_reproduction_succeeded")
   );
 }
 

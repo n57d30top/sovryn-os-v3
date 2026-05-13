@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_dispatch",
-  "generatedAt": "2026-05-13T11:11:49.041Z",
-  "status": "ready_to_request_external_review",
-  "passed": true,
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
-  "fundClass": "externally_review_ready_discovery_candidate",
-  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
+  "generatedAt": "2026-05-13T12:49:30.260Z",
+  "status": "blocked",
+  "passed": false,
+  "candidateId": null,
+  "fundClass": null,
+  "packagePath": null,
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "dispatchPath": ".sovryn/nobel-readiness/external-review-dispatch",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
@@ -37,11 +37,13 @@
     }
   ],
   "requiredReviewRecordFields": [
+    "reviewRecordSchemaVersion",
     "candidateId",
     "resultSlug",
     "reviewerRole",
     "reviewDate",
     "reviewSourceRef",
+    "reviewSourceReceiptRef",
     "decision",
     "independentReproductionStatus",
     "noveltyAssessment",
@@ -51,7 +53,7 @@
   "gates": [
     {
       "code": "bundle_ready",
-      "passed": true,
+      "passed": false,
       "message": "Dispatch requires a complete external review bundle with resolved refs."
     },
     {
@@ -80,7 +82,7 @@
       "message": "Dispatch requests independent review but does not claim that such review has occurred."
     }
   ],
-  "nextHumanAction": "Send the bundle and dispatch request to independent domain reviewers; store returned review JSON in the review directory and rerun external-review-intake.",
+  "nextHumanAction": "Repair blocked handoff, bundle, dispatch, or invalid review-record findings before requesting or scoring review.",
   "artifactRefs": [
     ".sovryn/nobel-readiness/external-review-dispatch.json",
     ".sovryn/nobel-readiness/external-review-dispatch/DISPATCH_MANIFEST.json",
@@ -88,5 +90,5 @@
     ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_RECORD_TEMPLATE.json",
     ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_INTAKE_INSTRUCTIONS.md"
   ],
-  "evidenceHash": "d76b09f7cc4557deb6fc5432796211c0bb5adca3d4749d586a91e86902421bab"
+  "evidenceHash": "44e8fcee3097b93c913c9cf25c0ce49ed50f7a4958afb5a4a403494e1771e771"
 }

@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_bundle",
-  "generatedAt": "2026-05-13T11:11:49.036Z",
-  "status": "ready_for_human_review_dispatch",
-  "passed": true,
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
-  "fundClass": "externally_review_ready_discovery_candidate",
-  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
+  "generatedAt": "2026-05-13T12:49:30.256Z",
+  "status": "blocked",
+  "passed": false,
+  "candidateId": null,
+  "fundClass": null,
+  "packagePath": null,
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
   "externalExpertValidationClaimed": false,
@@ -46,7 +46,6 @@
       "gate": "claim_identity",
       "question": "Does the package preserve the exact candidate identity and claim without scope drift?",
       "evidenceRefs": [
-        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
         "CLAIM_EVIDENCE_BINDINGS.json#candidateId"
       ],
       "requiredOutcome": "Reviewer confirms the reviewed claim is the same bounded package claim or requests revision."
@@ -94,9 +93,7 @@
     {
       "stepId": "review-package-inventory",
       "action": "Open the package directory and verify required artifacts are present.",
-      "inputRefs": [
-        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843"
-      ],
+      "inputRefs": [],
       "expectedEvidence": "Artifact inventory matches the handoff required-artifact table.",
       "status": "queued_for_human_review"
     },
@@ -133,7 +130,7 @@
   "gates": [
     {
       "code": "handoff_passed",
-      "passed": true,
+      "passed": false,
       "message": "External review bundle requires a passed package handoff audit."
     },
     {
@@ -166,5 +163,5 @@
     ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
     ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
   ],
-  "evidenceHash": "098335719ae6c6eabb9d740545a592f397eb5c9393c52cb69cd63d7fcb7dc3a3"
+  "evidenceHash": "d77ebc5f2eb28f2ae13cc79aa138d9cc8d744028f22c28b1f65601224f3285d1"
 }

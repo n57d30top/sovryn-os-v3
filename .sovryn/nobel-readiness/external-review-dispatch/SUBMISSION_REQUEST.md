@@ -6,9 +6,9 @@ This request asks an independent domain reviewer to inspect one bounded discover
 
 ## Candidate
 
-- Candidate ID: DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316
-- Fund class: externally_review_ready_discovery_candidate
-- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843
+- Candidate ID: missing
+- Fund class: missing
+- Package path: missing
 - Bundle path: .sovryn/nobel-readiness/external-review-bundle
 - Review record directory: .sovryn/nobel-readiness/external-review-reviews
 - Current review intake status: awaiting_external_review

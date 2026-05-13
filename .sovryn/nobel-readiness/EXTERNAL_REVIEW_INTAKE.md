@@ -8,9 +8,9 @@ This intake records independent human review files when they exist. It does not 
 
 ## Candidate
 
-- Candidate ID: DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316
-- Fund class: externally_review_ready_discovery_candidate
-- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843
+- Candidate ID: missing
+- Fund class: missing
+- Package path: missing
 - Review directory: .sovryn/nobel-readiness/external-review-reviews
 - External expert validation claimed by Sovryn: no
 - Score impact: none_awaiting_external_review
@@ -33,14 +33,17 @@ This intake records independent human review files when they exist. It does not 
 
 | Gate | Status | Meaning |
 | --- | --- | --- |
-| handoff_exists | pass | External review intake is bound to the current handoff package. |
+| handoff_exists | fail | External review intake is bound to the current handoff package. |
 | review_records_parse | pass | Review records must be valid JSON. |
+| review_records_use_current_schema | pass | Review records must declare the current external human review schema version before they can affect readiness. |
 | valid_reviews_match_candidate | pass | Valid review records must match the active Fund candidate identity. |
 | review_sources_resolve | pass | Valid review records require public-safe review source refs. |
+| external_review_sources_have_valid_receipts | pass | External review URL records require a locally fetched source receipt with URL, hash, candidate binding, and current schema binding. |
 | no_forbidden_review_claims | pass | External review records must not contain prohibited overclaim text. |
 | invalid_reviews_do_not_raise_score | pass | Invalid or unverified reviews are recorded but cannot increase readiness scores. |
 | supportive_review_requires_reproduction_and_novelty | pass | A supportive review can affect scoring only with independent reproduction and bounded novelty assessment. |
 | supportive_review_requires_external_source | pass | A supportive review can affect scoring only when its source ref is an external public URL, not a local self-report. |
+| independent_reproduction_requires_external_source | pass | Independent external reproduction can clear bounded-100 blockers only when its review source is an external public URL. |
 
 ## Next Human Action
 

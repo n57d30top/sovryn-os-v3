@@ -1,7 +1,7 @@
 {
   "kind": "nobel_readiness_audit",
-  "checkedAt": "2026-05-13T11:11:49.055Z",
-  "passed": true,
+  "checkedAt": "2026-05-13T12:49:30.263Z",
+  "passed": false,
   "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
   "criteriaCount": 12,
   "domainCount": 10,
@@ -16,12 +16,12 @@
   "replayAttemptCount": 8,
   "killWeekAttackedCount": 40,
   "killWeekDowngradedCount": 12,
-  "finalLabel": "externally_review_ready_candidate",
+  "finalLabel": "promising_with_strong_caveats",
   "forbiddenClaimFindings": [],
-  "publicReviewUrlAuditStatus": "public_review_urls_ready",
-  "publicReviewUrlAuditPassed": true,
-  "publicReviewUrlCount": 19,
-  "rawPublicReviewUrlCount": 14,
+  "publicReviewUrlAuditStatus": "blocked",
+  "publicReviewUrlAuditPassed": false,
+  "publicReviewUrlCount": 0,
+  "rawPublicReviewUrlCount": 0,
   "artifactRefs": [
     ".sovryn/nobel-readiness/status.json",
     ".sovryn/nobel-readiness/criteria.json",
@@ -37,5 +37,5 @@
     ".sovryn/nobel-readiness/public-review-url-audit.json",
     ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
   ],
-  "evidenceHash": "25c35f49b07cbc57692cdcac3fc14470b1176fe1b50a22c3f183af51a5b17c26"
+  "evidenceHash": "a8b075624302199eedd0581196f79b078ddaaed7da7440fed6089dfd033e79ff"
 }

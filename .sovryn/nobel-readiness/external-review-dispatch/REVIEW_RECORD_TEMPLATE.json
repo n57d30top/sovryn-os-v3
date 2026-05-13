@@ -1,10 +1,12 @@
 {
   "kind": "external_human_review_record_template",
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
+  "reviewRecordSchemaVersion": "sovryn_external_human_review_v1",
+  "candidateId": null,
   "resultSlug": null,
   "reviewerRole": "independent_domain_expert",
   "reviewDate": "YYYY-MM-DD",
   "reviewSourceRef": "Provide a public-safe URL or a review report path copied next to the review JSON. Score-impacting supportive reviews require an external public URL.",
+  "reviewSourceReceiptRef": "For external URL reviews, first run `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json`, then provide the generated receipt path.",
   "decision": "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
   "independentReproductionStatus": "reproduced | partially_reproduced | not_reproduced | not_attempted",
   "noveltyAssessment": "nontrivial_and_plausibly_novel | known_or_trivial | unclear",

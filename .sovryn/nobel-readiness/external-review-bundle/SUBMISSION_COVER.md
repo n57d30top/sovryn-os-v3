@@ -6,11 +6,11 @@ This bundle is a dispatch packet for independent human review of one bounded dis
 
 ## Candidate
 
-- Candidate ID: DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316
-- Fund class: externally_review_ready_discovery_candidate
-- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843
-- Handoff status: ready_for_external_human_review
-- Package refs resolved: 61/61
+- Candidate ID: missing
+- Fund class: missing
+- Package path: missing
+- Handoff status: blocked
+- Package refs resolved: 0/0
 
 ## Reviewer Decision Needed
 

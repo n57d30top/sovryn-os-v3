@@ -1,165 +1,50 @@
 {
   "kind": "nobel_readiness_public_review_url_audit",
-  "generatedAt": "2026-05-13T11:11:49.055Z",
-  "status": "public_review_urls_ready",
-  "passed": true,
+  "generatedAt": "2026-05-13T12:49:30.262Z",
+  "status": "blocked",
+  "passed": false,
   "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
-  "resultSlug": "first-formal-discovery-fund-graph-minor-obstruction-boundary",
-  "resultPath": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary",
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
+  "resultSlug": "autonomous-research-program-continuity-batches5-8",
+  "resultPath": "results/autonomous-research-program-continuity-batches5-8",
+  "candidateId": null,
   "externalExpertValidationClaimed": false,
   "files": [
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/README.md",
+      "path": "results/autonomous-research-program-continuity-batches5-8/README.md",
       "exists": true,
       "forbiddenClaimFindings": []
     },
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/SUMMARY.json",
+      "path": "results/autonomous-research-program-continuity-batches5-8/SUMMARY.json",
       "exists": true,
       "forbiddenClaimFindings": []
     },
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/PUBLIC_REVIEW_URLS.md",
-      "exists": true,
+      "path": "results/autonomous-research-program-continuity-batches5-8/PUBLIC_REVIEW_URLS.md",
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_REQUEST.md",
-      "exists": true,
+      "path": "results/autonomous-research-program-continuity-batches5-8/EXTERNAL_REVIEW_REQUEST.md",
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
-      "exists": true,
+      "path": "results/autonomous-research-program-continuity-batches5-8/EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+      "exists": false,
       "forbiddenClaimFindings": []
     },
     {
-      "path": "results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
-      "exists": true,
+      "path": "results/autonomous-research-program-continuity-batches5-8/EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
+      "exists": false,
       "forbiddenClaimFindings": []
     }
   ],
-  "urls": [
-    {
-      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
-      "expectedHost": true,
-      "rawGithub": false,
-      "repositoryUrl": true
-    },
-    {
-      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_REQUEST.md",
-      "expectedHost": true,
-      "rawGithub": false,
-      "repositoryUrl": true
-    },
-    {
-      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/README.md",
-      "expectedHost": true,
-      "rawGithub": false,
-      "repositoryUrl": true
-    },
-    {
-      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/REVIEWER_SUMMARY.md",
-      "expectedHost": true,
-      "rawGithub": false,
-      "repositoryUrl": true
-    },
-    {
-      "url": "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary",
-      "expectedHost": true,
-      "rawGithub": false,
-      "repositoryUrl": true
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/CLAIM_EVIDENCE_BINDINGS.json",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/EXTERNAL_REVIEW_REQUEST.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/FORMAL_REPRODUCTION_RESULT.json",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/LIMITATIONS.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/METHOD.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/PAPER.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/README.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/REPRODUCE.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/REVIEWER_SUMMARY.md",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/raw-reproduction-bundle/formal-object-check-manifest.json",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/raw-reproduction-bundle/formal-source-cache.json",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    },
-    {
-      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/first-formal-discovery-fund-graph-minor-obstruction-boundary/reproduce_graph_minor_candidate.py",
-      "expectedHost": true,
-      "rawGithub": true,
-      "repositoryUrl": false
-    }
-  ],
+  "urls": [],
   "gates": [
     {
       "code": "dispatch_ready",
-      "passed": true,
+      "passed": false,
       "message": "Public URL audit requires internal external-review dispatch readiness."
     },
     {
@@ -169,32 +54,47 @@
     },
     {
       "code": "required_public_review_files_exist",
-      "passed": true,
+      "passed": false,
       "message": "Public package must include review URL index, request, template, instructions, README, and SUMMARY."
     },
     {
       "code": "summary_matches_dispatch",
-      "passed": true,
+      "passed": false,
       "message": "SUMMARY.json must bind the public URL package to the active dispatch state without claiming review."
     },
     {
       "code": "review_template_matches_candidate",
-      "passed": true,
+      "passed": false,
       "message": "External review template must match the active candidate and include intake-required fields."
     },
     {
+      "code": "review_template_uses_current_schema",
+      "passed": false,
+      "message": "External review template and intake instructions must require the current review record schema version."
+    },
+    {
+      "code": "public_review_scoring_contract_requires_external_url",
+      "passed": false,
+      "message": "Public review template and intake instructions must state that score-impacting supportive reviews require an external public URL."
+    },
+    {
+      "code": "public_review_requires_source_receipt",
+      "passed": false,
+      "message": "Public review template and intake instructions must require a fetch receipt for external review URLs before score impact."
+    },
+    {
       "code": "public_review_urls_present",
-      "passed": true,
+      "passed": false,
       "message": "PUBLIC_REVIEW_URLS.md must expose the core reviewer and raw replay inputs."
     },
     {
       "code": "public_review_urls_expected_host",
-      "passed": true,
+      "passed": false,
       "message": "Public review URLs must point to the public sovryn-open-inventions GitHub repository or raw host."
     },
     {
       "code": "raw_download_urls_present",
-      "passed": true,
+      "passed": false,
       "message": "Public URL index must include raw GitHub download links for reviewer inputs."
     },
     {
@@ -203,10 +103,10 @@
       "message": "Public review URL surfaces must avoid prohibited overclaim categories."
     }
   ],
-  "nextHumanAction": "Send the public review URL index to independent reviewers and intake returned review JSON records only after real review exists.",
+  "nextHumanAction": "Repair public corpus review URL files, candidate binding, template fields, or overclaim findings before requesting review.",
   "artifactRefs": [
     ".sovryn/nobel-readiness/public-review-url-audit.json",
     ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
   ],
-  "evidenceHash": "0c43ee55ab0c5f3293f46176c7e1084197d533efbb4d367495f79c567836ea26"
+  "evidenceHash": "34c30419d6e5ad532d6733886443ba7e66779b9ce5056965c090cdf419afffaa"
 }

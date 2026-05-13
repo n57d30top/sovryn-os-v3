@@ -5074,11 +5074,12 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.sourceObjectObservationsCreated, report.hardSeedsBorn);
   assert.equal(report.claimFirstPilotsRun, 10);
   assert.equal(report.claimFirstExactClaimsProduced, 10);
-  assert.equal(report.formalObjectClaimPairsCreated, 50);
-  assert.equal((report.formalObjectClaimPairsRejected ?? 0) > 0, true);
-  assert.equal(report.formalTopClaimFirstObjectsSelected, 10);
-  assert.equal(report.formalClaimFirstExecutionTestsRun, 50);
-  assert.equal(report.formalInsightCandidatesBorn, 0);
+  assert.equal((report.externalFormalAnchorsConsidered ?? 0) >= 25, true);
+  assert.equal((report.externalFormalAnchorsRejected ?? 0) > 0, true);
+  assert.equal(report.externalFormalTop20Selected, 20);
+  assert.equal(report.externalFormalTop10Executed, 10);
+  assert.equal(report.externalFormalExactClaimsFrozen, 10);
+  assert.equal(report.externalFormalInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5115,14 +5116,14 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "SOURCE_OBJECT_RECLASSIFICATION.json",
     "CLAIM_FIRST_PILOT_RESULTS.md",
     "CLAIM_FIRST_PILOT_RESULTS.json",
-    "FORMAL_SOURCE_OBJECT_BANK.md",
-    "FORMAL_SOURCE_OBJECT_BANK.json",
-    "CLAIM_TEMPLATE_SCREENING.md",
-    "CLAIM_TEMPLATE_SCREENING.json",
-    "REJECTED_OBJECT_CLAIM_PAIRS.md",
-    "TOP10_CLAIM_FIRST_OBJECTS.md",
-    "CLAIM_FIRST_EXECUTION_RESULTS.md",
-    "CLAIM_FIRST_EXECUTION_RESULTS.json",
+    "EXTERNAL_FORMAL_ANCHOR_SOURCES.md",
+    "EXTERNAL_FORMAL_ANCHOR_SOURCES.json",
+    "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
+    "FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md",
+    "TOP20_EXTERNAL_FORMAL_ANCHORS.md",
+    "TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md",
+    "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md",
+    "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json",
     "INSIGHT_BIRTH_DECISIONS.md",
     "INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
@@ -5272,89 +5273,112 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     ),
     true,
   );
-  const formalBank = JSON.parse(
+  const externalAnchors = JSON.parse(
     await readFile(
       join(
         root,
         daemonRoot,
         "source-object-first",
-        "FORMAL_SOURCE_OBJECT_BANK.json",
+        "EXTERNAL_FORMAL_ANCHOR_SOURCES.json",
       ),
       "utf8",
     ),
   ) as {
-    pairsCreated: number;
-    concreteReviewerReplayablePairs: number;
-    pairs: Array<{
+    anchorsConsidered: number;
+    concreteReplayableAnchors: number;
+    sourceFamilies: string[];
+    anchors: Array<{
+      anchorId: string;
+      publicUrlOrSpec: string;
+      sourceReceipt: string;
+      sourceHash: string;
       exactBoundedClaim: string;
       formalDefinitions: string;
+      measuredProperty: string;
       candidateMechanism: string;
       strongestRivalMechanism: string;
-      falsifier: string;
+      falsifiablePrediction: string;
+      baselineThatCouldKillIt: string;
+      counterexamplePath: string;
       replayPath: string;
       concreteSourceObject: boolean;
     }>;
   };
-  assert.equal(formalBank.pairsCreated, 50);
-  assert.equal(formalBank.concreteReviewerReplayablePairs, 50);
+  assert.equal(externalAnchors.anchorsConsidered >= 25, true);
   assert.equal(
-    formalBank.pairs.every(
-      (pair) =>
-        pair.concreteSourceObject &&
-        pair.exactBoundedClaim.length > 0 &&
-        pair.formalDefinitions.length > 0 &&
-        pair.candidateMechanism.length > 0 &&
-        pair.strongestRivalMechanism.length > 0 &&
-        pair.replayPath.length > 0,
+    externalAnchors.concreteReplayableAnchors,
+    externalAnchors.anchorsConsidered,
+  );
+  assert.equal(externalAnchors.sourceFamilies.length >= 6, true);
+  assert.equal(
+    externalAnchors.anchors.every(
+      (anchor) =>
+        anchor.concreteSourceObject &&
+        anchor.publicUrlOrSpec.length > 0 &&
+        anchor.sourceReceipt.length > 0 &&
+        anchor.sourceHash.length > 0 &&
+        anchor.exactBoundedClaim.length > 0 &&
+        anchor.formalDefinitions.length > 0 &&
+        anchor.measuredProperty.length > 0 &&
+        anchor.candidateMechanism.length > 0 &&
+        anchor.strongestRivalMechanism.length > 0 &&
+        anchor.falsifiablePrediction.length > 0 &&
+        anchor.baselineThatCouldKillIt.length > 0 &&
+        anchor.counterexamplePath.length > 0 &&
+        anchor.replayPath.length > 0,
     ),
     true,
   );
-  const formalScreening = JSON.parse(
+  const externalSelection = JSON.parse(
     await readFile(
       join(
         root,
         daemonRoot,
         "source-object-first",
-        "CLAIM_TEMPLATE_SCREENING.json",
+        "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
       ),
       "utf8",
     ),
   ) as {
-    pairsScreened: number;
+    anchorsScreened: number;
     rejectedBeforeExecution: number;
-    top10Selected: number;
+    top20Selected: number;
+    top10PilotSelected: number;
+    top20: Array<{ anchorId: string }>;
     top10: Array<{
       exactBoundedClaim: string;
-      rivalDiscriminatingPrediction: string;
-      falsifier: string;
+      falsifiablePrediction: string;
+      counterexamplePath: string;
       concreteSourceObject: boolean;
     }>;
   };
-  assert.equal(formalScreening.pairsScreened, 50);
-  assert.equal(formalScreening.rejectedBeforeExecution > 0, true);
-  assert.equal(formalScreening.top10Selected, 10);
+  assert.equal(externalSelection.anchorsScreened >= 25, true);
+  assert.equal(externalSelection.rejectedBeforeExecution > 0, true);
+  assert.equal(externalSelection.top20Selected, 20);
+  assert.equal(externalSelection.top20.length, 20);
+  assert.equal(externalSelection.top10PilotSelected, 10);
   assert.equal(
-    formalScreening.top10.every(
-      (pair) =>
-        pair.concreteSourceObject &&
-        pair.exactBoundedClaim.length > 0 &&
-        pair.rivalDiscriminatingPrediction.length > 0 &&
-        pair.falsifier.length > 0,
+    externalSelection.top10.every(
+      (anchor) =>
+        anchor.concreteSourceObject &&
+        anchor.exactBoundedClaim.length > 0 &&
+        anchor.falsifiablePrediction.length > 0 &&
+        anchor.counterexamplePath.length > 0,
     ),
     true,
   );
-  const formalExecution = JSON.parse(
+  const externalExecution = JSON.parse(
     await readFile(
       join(
         root,
         daemonRoot,
         "source-object-first",
-        "CLAIM_FIRST_EXECUTION_RESULTS.json",
+        "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json",
       ),
       "utf8",
     ),
   ) as {
-    top10Selected: number;
+    top10PilotSelected: number;
     exactClaimsFrozen: number;
     testsRun: number;
     results: Array<{
@@ -5363,11 +5387,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       evidenceRefs: string[];
     }>;
   };
-  assert.equal(formalExecution.top10Selected, 10);
-  assert.equal(formalExecution.exactClaimsFrozen, 10);
-  assert.equal(formalExecution.testsRun, 50);
+  assert.equal(externalExecution.top10PilotSelected, 10);
+  assert.equal(externalExecution.exactClaimsFrozen, 10);
+  assert.equal(externalExecution.testsRun, 50);
   assert.equal(
-    formalExecution.results.every(
+    externalExecution.results.every(
       (result) =>
         result.testsRun === 5 &&
         result.exactClaimFrozen.length > 0 &&

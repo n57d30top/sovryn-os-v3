@@ -1078,6 +1078,57 @@ test("nobel-readiness external-review dispatch blocks invalid pending review rec
   );
 });
 
+test("nobel-readiness public review URL audit verifies public corpus reviewer entrypoint", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-url-audit-pass-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-corpus-url-audit-"));
+  await writePublicReviewCorpusPackage(targetRepo, candidateId);
+
+  const audit = await new NobelReadinessService(root).publicReviewUrlAudit(
+    targetRepo,
+  );
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "PUBLIC_REVIEW_URL_AUDIT.md"),
+    "utf8",
+  );
+
+  assert.equal(audit.passed, true);
+  assert.equal(audit.status, "public_review_urls_ready");
+  assert.equal(audit.externalExpertValidationClaimed, false);
+  assert.equal(audit.resultSlug, "graph-minor-review-package");
+  assert.equal(audit.urls.filter((url) => url.rawGithub).length >= 8, true);
+  assert.equal(
+    audit.gates.find((gate) => gate.code === "public_review_urls_present")
+      ?.passed,
+    true,
+  );
+  assert.match(report, /does not claim external human review/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
+test("nobel-readiness public review URL audit blocks missing public URL index", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-url-audit-block-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-corpus-url-block-"));
+  const resultRoot = await writePublicReviewCorpusPackage(
+    targetRepo,
+    candidateId,
+  );
+  await writeFile(join(resultRoot, "PUBLIC_REVIEW_URLS.md"), "", "utf8");
+
+  const audit = await new NobelReadinessService(root).publicReviewUrlAudit(
+    targetRepo,
+  );
+
+  assert.equal(audit.passed, false);
+  assert.equal(audit.status, "blocked");
+  assert.equal(
+    audit.gates.find((gate) => gate.code === "public_review_urls_present")
+      ?.passed,
+    false,
+  );
+});
+
 test("nobel-readiness external-review intake records awaiting state without claiming validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-awaiting-"));
   await writeActiveDiscoveryFundPackage(root);
@@ -1281,6 +1332,7 @@ const helpCommands = [
   "nobel-readiness external-review-handoff",
   "nobel-readiness external-review-bundle",
   "nobel-readiness external-review-dispatch",
+  "nobel-readiness public-review-url-audit",
   "nobel-readiness external-review-intake",
   "nobel-readiness audit",
 ];
@@ -1324,6 +1376,31 @@ for (const args of [
     assert.equal(response.command, "nobel-readiness");
   });
 }
+
+test("nobel readiness CLI command works: public-review-url-audit", async () => {
+  const root = await tempRoot();
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-cli-url-audit-"));
+  await writePublicReviewCorpusPackage(targetRepo, candidateId);
+
+  const response = await executeCli(
+    [
+      "nobel-readiness",
+      "public-review-url-audit",
+      "--target-repo",
+      targetRepo,
+      "--json",
+    ],
+    root,
+  );
+
+  assert.equal(response.ok, true);
+  assert.equal(response.command, "nobel-readiness");
+  assert.equal(
+    (response.data as Record<string, unknown>).status,
+    "public_review_urls_ready",
+  );
+});
 
 test("nobel readiness service writes required internal artifacts", async () => {
   const root = await tempRoot();
@@ -1552,6 +1629,96 @@ Run the package-local checks and inspect the bindings.
     noOverclaim: true,
   });
   return { packageRoot, candidateId };
+}
+
+async function writePublicReviewCorpusPackage(
+  targetRepo: string,
+  candidateId: string,
+): Promise<string> {
+  const slug = "graph-minor-review-package";
+  const resultPath = `results/${slug}`;
+  const resultRoot = join(targetRepo, resultPath);
+  await mkdir(resultRoot, { recursive: true });
+  await mkdir(join(resultRoot, "raw-reproduction-bundle"), {
+    recursive: true,
+  });
+  await writeJson(join(targetRepo, "INDEX.json"), {
+    kind: "sovryn_open_inventions_index",
+    results: [
+      {
+        slug,
+        path: resultPath,
+        candidateId,
+        sourceCandidateId: candidateId,
+        externalReviewDispatchStatus: "ready_to_request_external_review",
+        externalHumanReviewStatus: "awaiting_external_review",
+        publicReviewUrlsRef: `${resultPath}/PUBLIC_REVIEW_URLS.md`,
+      },
+    ],
+  });
+  await writeFile(
+    join(resultRoot, "README.md"),
+    "# Public Review Package\n\nReviewer URL index: `PUBLIC_REVIEW_URLS.md`.\n",
+    "utf8",
+  );
+  await writeJson(join(resultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    slug,
+    candidateId,
+    sourceCandidateId: candidateId,
+    resultKind: "externally_review_ready_discovery_candidate",
+    externalReviewDispatchStatus: "ready_to_request_external_review",
+    externalHumanReviewStatus: "awaiting_external_review",
+    publicReviewUrlsRef: "PUBLIC_REVIEW_URLS.md",
+    validExternalHumanReviewCount: 0,
+    supportiveExternalHumanReviewCount: 0,
+  });
+  await writeFile(
+    join(resultRoot, "PUBLIC_REVIEW_URLS.md"),
+    `# Public Review URLs
+
+- https://github.com/n57d30top/sovryn-open-inventions/tree/main/${resultPath}
+- https://github.com/n57d30top/sovryn-open-inventions/blob/main/${resultPath}/README.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/README.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REVIEWER_SUMMARY.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/METHOD.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REPRODUCE.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/LIMITATIONS.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/CLAIM_EVIDENCE_BINDINGS.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/FORMAL_REPRODUCTION_RESULT.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/raw-reproduction-bundle/formal-object-check-manifest.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/reproduce_graph_minor_candidate.py
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_REQUEST.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_RECORD_TEMPLATE.json
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(resultRoot, "EXTERNAL_REVIEW_REQUEST.md"),
+    "# External Review Request\n\nThis asks for bounded technical review only.\n",
+    "utf8",
+  );
+  await writeJson(join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"), {
+    candidateId,
+    resultSlug: slug,
+    reviewerRole: "independent formal reviewer",
+    reviewDate: "YYYY-MM-DD",
+    reviewSourceRef: "public-safe URL or attached report",
+    decision:
+      "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
+    independentReproductionStatus:
+      "reproduced | partially_reproduced | not_reproduced | not_attempted",
+    noveltyAssessment:
+      "nontrivial_and_plausibly_novel | known_or_trivial | unclear",
+    evidenceRefs: ["README.md", "FORMAL_REPRODUCTION_RESULT.json"],
+    overclaimFindings: [],
+  });
+  await writeFile(
+    join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+    "# External Review Intake Instructions\n\nRun `sovryn nobel-readiness external-review-intake --json` after a real review record exists.\n",
+    "utf8",
+  );
+  return resultRoot;
 }
 
 async function tempRoot(): Promise<string> {

@@ -413,6 +413,33 @@ export type ExternalReviewDispatchAudit = {
   evidenceHash: string;
 };
 
+export type ExternalReviewPublicUrlAudit = {
+  kind: "nobel_readiness_public_review_url_audit";
+  generatedAt: string;
+  status: "public_review_urls_ready" | "blocked";
+  passed: boolean;
+  targetRepo: string;
+  resultSlug: string | null;
+  resultPath: string | null;
+  candidateId: string | null;
+  externalExpertValidationClaimed: false;
+  files: Array<{
+    path: string;
+    exists: boolean;
+    forbiddenClaimFindings: string[];
+  }>;
+  urls: Array<{
+    url: string;
+    expectedHost: boolean;
+    rawGithub: boolean;
+    repositoryUrl: boolean;
+  }>;
+  gates: Array<{ code: string; passed: boolean; message: string }>;
+  nextHumanAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalHumanReviewDecision =
   | "accepted_with_caveats"
   | "major_revision"
@@ -615,6 +642,19 @@ function isPublicSafeRef(ref: string): boolean {
     !ref.startsWith("/") &&
     !ref.includes("..") &&
     !/\b(stdout|stderr|raw[-_ ]?log|command[-_ ]?journal)\b/i.test(ref)
+  );
+}
+
+function extractUrls(text: string): string[] {
+  return Array.from(new Set(text.match(/https:\/\/[^\s)]+/g) ?? [])).sort();
+}
+
+function isExpectedSovrynCorpusReviewUrl(url: string): boolean {
+  return (
+    /^https:\/\/github\.com\/n57d30top\/sovryn-open-inventions\//.test(url) ||
+    /^https:\/\/raw\.githubusercontent\.com\/n57d30top\/sovryn-open-inventions\/main\//.test(
+      url,
+    )
   );
 }
 
@@ -2774,6 +2814,240 @@ export class NobelReadinessService {
     return hashedDispatch;
   }
 
+  async publicReviewUrlAudit(
+    targetRepo: string,
+  ): Promise<ExternalReviewPublicUrlAudit> {
+    const dispatch = await this.externalReviewDispatch();
+    const index = await readOptionalJson<Record<string, unknown>>(
+      join(targetRepo, "INDEX.json"),
+    );
+    const results = Array.isArray(index?.results) ? index.results : [];
+    let resultRecord: Record<string, unknown> | null = null;
+    for (const item of results) {
+      if (typeof item !== "object" || item === null) continue;
+      const record = item as Record<string, unknown>;
+      if (
+        stringValue(record.candidateId) === dispatch.candidateId ||
+        stringValue(record.sourceCandidateId) === dispatch.candidateId
+      ) {
+        resultRecord = record;
+        break;
+      }
+      const slug = stringValue(record.slug);
+      const path =
+        stringValue(record.path) ?? (slug ? `results/${slug}` : null);
+      const summary = path
+        ? await readOptionalJson<Record<string, unknown>>(
+            join(targetRepo, path, "SUMMARY.json"),
+          )
+        : null;
+      if (
+        stringValue(summary?.candidateId) === dispatch.candidateId ||
+        stringValue(summary?.sourceCandidateId) === dispatch.candidateId
+      ) {
+        resultRecord = record;
+        break;
+      }
+    }
+    const resultSlug =
+      resultRecord && typeof resultRecord === "object"
+        ? stringValue((resultRecord as Record<string, unknown>).slug)
+        : null;
+    const resultPath =
+      resultRecord && typeof resultRecord === "object"
+        ? (stringValue((resultRecord as Record<string, unknown>).path) ??
+          (resultSlug ? `results/${resultSlug}` : null))
+        : null;
+    const resultRoot = resultPath ? join(targetRepo, resultPath) : null;
+    const requiredFiles = [
+      "README.md",
+      "SUMMARY.json",
+      "PUBLIC_REVIEW_URLS.md",
+      "EXTERNAL_REVIEW_REQUEST.md",
+      "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+      "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
+    ];
+    const overclaimAuditedPublicReviewFiles = new Set([
+      "PUBLIC_REVIEW_URLS.md",
+      "EXTERNAL_REVIEW_REQUEST.md",
+      "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+      "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
+    ]);
+    const files = [];
+    for (const file of requiredFiles) {
+      const path = resultRoot ? join(resultRoot, file) : "";
+      const exists = resultRoot ? await fileExists(path) : false;
+      const text = exists ? await readFile(path, "utf8") : "";
+      files.push({
+        path: resultPath ? `${resultPath}/${file}` : file,
+        exists,
+        forbiddenClaimFindings:
+          exists && overclaimAuditedPublicReviewFiles.has(file)
+            ? auditNobelReadinessPublicText(text)
+            : [],
+      });
+    }
+    const summary = resultRoot
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(resultRoot, "SUMMARY.json"),
+        )
+      : null;
+    const template = resultRoot
+      ? await readOptionalJson<Record<string, unknown>>(
+          join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"),
+        )
+      : null;
+    const publicUrlText =
+      resultRoot &&
+      (await fileExists(join(resultRoot, "PUBLIC_REVIEW_URLS.md")))
+        ? await readFile(join(resultRoot, "PUBLIC_REVIEW_URLS.md"), "utf8")
+        : "";
+    const urls = extractUrls(publicUrlText).map((url) => ({
+      url,
+      expectedHost: isExpectedSovrynCorpusReviewUrl(url),
+      rawGithub:
+        /^https:\/\/raw\.githubusercontent\.com\/n57d30top\/sovryn-open-inventions\/main\//.test(
+          url,
+        ),
+      repositoryUrl:
+        /^https:\/\/github\.com\/n57d30top\/sovryn-open-inventions\//.test(url),
+    }));
+    const templateRequiredFields = [
+      "candidateId",
+      "resultSlug",
+      "reviewerRole",
+      "reviewDate",
+      "reviewSourceRef",
+      "decision",
+      "independentReproductionStatus",
+      "noveltyAssessment",
+      "evidenceRefs",
+      "overclaimFindings",
+    ];
+    const requiredRawTargets = [
+      "README.md",
+      "REVIEWER_SUMMARY.md",
+      "METHOD.md",
+      "REPRODUCE.md",
+      "LIMITATIONS.md",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+      "FORMAL_REPRODUCTION_RESULT.json",
+      "raw-reproduction-bundle/formal-object-check-manifest.json",
+      "reproduce_graph_minor_candidate.py",
+      "EXTERNAL_REVIEW_REQUEST.md",
+      "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+    ];
+    const gates = [
+      {
+        code: "dispatch_ready",
+        passed: dispatch.passed,
+        message:
+          "Public URL audit requires internal external-review dispatch readiness.",
+      },
+      {
+        code: "corpus_index_has_candidate",
+        passed:
+          resultRecord !== null && resultSlug !== null && resultPath !== null,
+        message:
+          "Corpus INDEX must expose the active candidate by candidateId or sourceCandidateId.",
+      },
+      {
+        code: "required_public_review_files_exist",
+        passed: files.every((file) => file.exists),
+        message:
+          "Public package must include review URL index, request, template, instructions, README, and SUMMARY.",
+      },
+      {
+        code: "summary_matches_dispatch",
+        passed:
+          summary !== null &&
+          stringValue(summary.candidateId) === dispatch.candidateId &&
+          stringValue(summary.externalReviewDispatchStatus) ===
+            "ready_to_request_external_review" &&
+          stringValue(summary.externalHumanReviewStatus) ===
+            "awaiting_external_review" &&
+          stringValue(summary.publicReviewUrlsRef) === "PUBLIC_REVIEW_URLS.md",
+        message:
+          "SUMMARY.json must bind the public URL package to the active dispatch state without claiming review.",
+      },
+      {
+        code: "review_template_matches_candidate",
+        passed:
+          template !== null &&
+          stringValue(template.candidateId) === dispatch.candidateId &&
+          stringValue(template.resultSlug) === resultSlug &&
+          templateRequiredFields.every((field) =>
+            Object.prototype.hasOwnProperty.call(template, field),
+          ),
+        message:
+          "External review template must match the active candidate and include intake-required fields.",
+      },
+      {
+        code: "public_review_urls_present",
+        passed:
+          urls.length >= 10 &&
+          requiredRawTargets.every((target) => publicUrlText.includes(target)),
+        message:
+          "PUBLIC_REVIEW_URLS.md must expose the core reviewer and raw replay inputs.",
+      },
+      {
+        code: "public_review_urls_expected_host",
+        passed: urls.length > 0 && urls.every((url) => url.expectedHost),
+        message:
+          "Public review URLs must point to the public sovryn-open-inventions GitHub repository or raw host.",
+      },
+      {
+        code: "raw_download_urls_present",
+        passed: urls.filter((url) => url.rawGithub).length >= 8,
+        message:
+          "Public URL index must include raw GitHub download links for reviewer inputs.",
+      },
+      {
+        code: "no_forbidden_public_claims",
+        passed: files.every((file) => file.forbiddenClaimFindings.length === 0),
+        message:
+          "Public review URL surfaces must avoid prohibited overclaim categories.",
+      },
+    ];
+    const passed = gates.every((gate) => gate.passed);
+    const audit: ExternalReviewPublicUrlAudit = {
+      kind: "nobel_readiness_public_review_url_audit",
+      generatedAt: nowIso(),
+      status: passed ? "public_review_urls_ready" : "blocked",
+      passed,
+      targetRepo,
+      resultSlug,
+      resultPath,
+      candidateId: dispatch.candidateId,
+      externalExpertValidationClaimed: false,
+      files,
+      urls,
+      gates,
+      nextHumanAction: passed
+        ? "Send the public review URL index to independent reviewers and intake returned review JSON records only after real review exists."
+        : "Repair public corpus review URL files, candidate binding, template fields, or overclaim findings before requesting review.",
+      artifactRefs: [
+        ".sovryn/nobel-readiness/public-review-url-audit.json",
+        ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md",
+      ],
+      evidenceHash: "",
+    };
+    const hashedAudit = {
+      ...audit,
+      evidenceHash: hashEvidence({ ...audit, evidenceHash: "" }),
+    };
+    await writeJson(
+      join(this.rootDir, "public-review-url-audit.json"),
+      hashedAudit,
+    );
+    await writeFile(
+      join(this.rootDir, "PUBLIC_REVIEW_URL_AUDIT.md"),
+      publicReviewUrlAuditMarkdown(hashedAudit),
+      "utf8",
+    );
+    return hashedAudit;
+  }
+
   async externalReviewIntake(): Promise<ExternalReviewIntakeAudit> {
     const handoff = await this.externalReviewHandoff();
     const reviewRel = ".sovryn/nobel-readiness/external-review-reviews";
@@ -4015,6 +4289,67 @@ Then run:
 ## Scoring Rule
 
 Invalid, mismatched, unresolved, not-public-safe, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it matches the active candidate, resolves to a public-safe source, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
+`;
+}
+
+function publicReviewUrlAuditMarkdown(
+  audit: ExternalReviewPublicUrlAudit,
+): string {
+  const fileRows = audit.files
+    .map(
+      (file) =>
+        `| ${file.path} | ${file.exists ? "yes" : "no"} | ${file.forbiddenClaimFindings.length === 0 ? "none" : file.forbiddenClaimFindings.join(", ")} |`,
+    )
+    .join("\n");
+  const urlRows = audit.urls
+    .map(
+      (url) =>
+        `| ${url.url} | ${url.expectedHost ? "yes" : "no"} | ${url.rawGithub ? "yes" : "no"} | ${url.repositoryUrl ? "yes" : "no"} |`,
+    )
+    .join("\n");
+  const gateRows = audit.gates
+    .map(
+      (gate) =>
+        `| ${gate.code} | ${gate.passed ? "pass" : "fail"} | ${gate.message} |`,
+    )
+    .join("\n");
+  return `# Public Review URL Audit
+
+## Decision
+
+Status: \`${audit.status}\`
+
+This audit verifies that the public corpus exposes a reviewer-facing URL index for the active candidate. It does not claim external human review, independent reproduction, field uptake, prize significance, or broad validation.
+
+## Candidate
+
+- Candidate ID: ${audit.candidateId ?? "missing"}
+- Result slug: ${audit.resultSlug ?? "missing"}
+- Result path: ${audit.resultPath ?? "missing"}
+- Target repo: ${audit.targetRepo}
+- External expert validation claimed by Sovryn: no
+
+## Files
+
+| File | Exists | Forbidden claim findings |
+| --- | --- | --- |
+${fileRows}
+
+## URLs
+
+| URL | Expected host | Raw GitHub | Repository URL |
+| --- | --- | --- | --- |
+${urlRows}
+
+## Gates
+
+| Gate | Status | Meaning |
+| --- | --- | --- |
+${gateRows}
+
+## Next Human Action
+
+${audit.nextHumanAction}
 `;
 }
 

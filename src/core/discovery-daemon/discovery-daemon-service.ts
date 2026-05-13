@@ -1710,6 +1710,7 @@ export type GeneratorBornDiscoveryClaimLiftSignalPressureDecision = {
   candidateId: string;
   parentCandidateId: string | null;
   packageRef: string | null;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
   fundClass: FundClass | null;
   countsForEinsteinNobelDiscoveryScore: boolean;
   notificationAllowed: boolean;
@@ -1746,6 +1747,7 @@ export type GeneratorBornDiscoveryClaimLiftSignalExperimentDecision = {
   parentCandidateId: string | null;
   domain: DiscoveryDomain | null;
   packageRef: string | null;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
   sourceCacheRef: string | null;
   measuredOutcome: number | null;
   residualMagnitude: number | null;
@@ -14587,6 +14589,14 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
     ).publicFundReconciliationForCandidate(
       candidate?.candidateId ?? proposal.targetDiscoveryCandidateId,
     );
+    const publicCorpusNegativeHistory =
+      await publicCorpusNegativeHistoryForClaimLiftProposal(
+        this.root,
+        proposal,
+      );
+    const publicCorpusBlocksDiscovery =
+      publicFundReconciliation.blocksDiscoveryScore ||
+      publicCorpusNegativeHistory.blocksSeedBirth;
     const packageFilesPresent = (
       await Promise.all(
         requiredFundPackageFiles.map((file) => exists(join(packageRoot, file))),
@@ -14596,7 +14606,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
       candidate === null
         ? new FundGateEvaluator().evaluate(null)
         : await evaluateFundCandidateWithPackageForRoot(this.root, candidate);
-    const evaluation = publicFundReconciliation.blocksDiscoveryScore
+    const evaluation = publicCorpusBlocksDiscovery
       ? {
           ...packageEvaluation,
           passed: false,
@@ -14647,8 +14657,8 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
       ),
       gate(
         "public_corpus_discovery_score_reconciliation",
-        publicFundReconciliation.blocksDiscoveryScore !== true,
-        "Discovery-signal pressure must stop when a matching public corpus package already downgraded the candidate from discovery scoring.",
+        !publicCorpusBlocksDiscovery,
+        "Discovery-signal pressure must stop when a matching public corpus package or downgraded external anchor already blocks discovery scoring.",
       ),
       gate(
         "nontrivial_new_insight_evidence_bound",
@@ -14685,6 +14695,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalPressureService {
       candidateId: proposal.targetDiscoveryCandidateId,
       parentCandidateId: proposal.parentCandidateId,
       packageRef: (await exists(packageRoot)) ? packageRef : null,
+      publicCorpusNegativeHistory,
       fundClass: evaluation.fundClass,
       countsForEinsteinNobelDiscoveryScore:
         evaluation.countsForEinsteinNobelDiscoveryScore,
@@ -14839,6 +14850,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
     proposal: GeneratorBornDiscoveryClaimLiftProposal,
   ): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentDecision> {
     const packageRef = `${daemonArtifactRoot}/${evidencePackageDir}/${normalizeCandidateIdPart(proposal.targetDiscoveryCandidateId)}`;
+    const publicCorpusNegativeHistory =
+      await publicCorpusNegativeHistoryForClaimLiftProposal(
+        this.root,
+        proposal,
+      );
     const sourceCacheRef = generatorBornClaimLiftSignalSourceCacheRef(proposal);
     const sourceCache =
       sourceCacheRef === null
@@ -14863,6 +14879,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
         bindableInsightEvidenceRefs,
       ));
     const gates = [
+      gate(
+        "public_corpus_discovery_score_reconciliation",
+        !publicCorpusNegativeHistory.blocksSeedBirth,
+        "Signal experiments must not generate new bindable insight refs for a claim-lift package whose public corpus anchor was already downgraded or rival-explained.",
+      ),
       gate(
         "lifted_package_present",
         packagePresent,
@@ -14930,6 +14951,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
       parentCandidateId: proposal.parentCandidateId,
       domain: proposal.domain ?? null,
       packageRef: packagePresent ? packageRef : null,
+      publicCorpusNegativeHistory,
       sourceCacheRef,
       measuredOutcome: sourceCache?.measuredOutcome ?? null,
       residualMagnitude: sourceCache?.residualMagnitude ?? null,
@@ -15057,6 +15079,18 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
   private async rebindDecision(
     experimentDecision: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision,
   ): Promise<GeneratorBornDiscoveryClaimLiftSignalRebindDecision> {
+    const publicCorpusNegativeHistory =
+      experimentDecision.publicCorpusNegativeHistory ??
+      (await publicCorpusNegativeHistoryForClaimLiftCandidateText(
+        this.root,
+        `${experimentDecision.candidateId} ${experimentDecision.packageRef ?? ""}`,
+      ));
+    if (publicCorpusNegativeHistory.blocksSeedBirth) {
+      return this.skippedDecision(
+        experimentDecision,
+        "public_corpus_downgrade",
+      );
+    }
     if (
       experimentDecision.experimentStatus !== "insight_evidence_ready" ||
       experimentDecision.packageRef === null
@@ -15426,13 +15460,21 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
     ).publicFundReconciliationForCandidate(
       candidate?.candidateId ?? rebindDecision.candidateId,
     );
+    const publicCorpusNegativeHistory =
+      await publicCorpusNegativeHistoryForClaimLiftCandidateText(
+        this.root,
+        `${rebindDecision.candidateId} ${rebindDecision.packageRef ?? ""}`,
+      );
+    const publicCorpusBlocksDiscovery =
+      publicFundReconciliation.blocksDiscoveryScore ||
+      publicCorpusNegativeHistory.blocksSeedBirth;
     const rawSourceReproductionConsistency =
       await generatorBornClaimLiftRawSourceReproductionConsistency(
         this.root,
         candidate,
       );
     const fundGateResult =
-      publicFundReconciliation.blocksDiscoveryScore ||
+      publicCorpusBlocksDiscovery ||
       rawSourceReproductionConsistency.passed !== true
         ? {
             ...packageFundGateResult,
@@ -15441,7 +15483,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
             failedGates: Array.from(
               new Set([
                 ...packageFundGateResult.failedGates,
-                ...(publicFundReconciliation.blocksDiscoveryScore
+                ...(publicCorpusBlocksDiscovery
                   ? ["public_corpus_downgrade"]
                   : []),
                 ...(rawSourceReproductionConsistency.passed !== true
@@ -15507,8 +15549,8 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
       ),
       gate(
         "public_corpus_discovery_score_reconciliation",
-        publicFundReconciliation.blocksDiscoveryScore !== true,
-        "Root intake must stop when a matching public corpus package already downgraded the candidate from discovery scoring.",
+        !publicCorpusBlocksDiscovery,
+        "Root intake must stop when a matching public corpus package or downgraded external anchor already blocks discovery scoring.",
       ),
     ];
     const failedGates = gates
@@ -27095,14 +27137,14 @@ function generatorBornDiscoveryClaimLiftSignalPressureMarkdown(
     "",
     "## Decisions",
     "",
-    "| Candidate | Fund class | Counts | Status | Primary blocker | Failed gates |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Candidate | Fund class | Counts | Public corpus history | Status | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.candidateId} | ${decision.fundClass ?? "none"} | ${String(decision.countsForEinsteinNobelDiscoveryScore)} | ${decision.signalStatus} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+        `| ${decision.candidateId} | ${decision.fundClass ?? "none"} | ${String(decision.countsForEinsteinNobelDiscoveryScore)} | ${decision.publicCorpusNegativeHistory?.blocksSeedBirth ? `blocked:${decision.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : (decision.publicCorpusNegativeHistory?.matched ?? false) ? `matched:${decision.publicCorpusNegativeHistory?.resultSlug ?? "unknown"}` : "none"} | ${decision.signalStatus} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.decisions.length === 0
-      ? ["| none | none | false | blocked | none | none |"]
+      ? ["| none | none | false | none | blocked | none | none |"]
       : []),
   ].join("\n");
 }
@@ -27313,6 +27355,9 @@ function generatorBornClaimLiftSignalExperimentPrimaryBlocker(
   failedGates: string[],
 ): string {
   if (failedGates.length === 0) return "none";
+  if (failedGates.includes("public_corpus_discovery_score_reconciliation")) {
+    return "public_corpus_downgrade";
+  }
   if (failedGates.includes("source_cache_present")) {
     return "missing_external_source_cache";
   }
@@ -27347,6 +27392,8 @@ function generatorBornClaimLiftSignalExperimentRequiredFix(
   blocker: string,
 ): string {
   switch (blocker) {
+    case "public_corpus_downgrade":
+      return "Do not run claim-lift signal experiments for this package while the public corpus has downgraded, rival-explained, or removed discovery-score eligibility for the matching external anchor.";
     case "missing_external_source_cache":
       return "Load or generate a real external/formal source-cache artifact for this lifted claim before insight evidence can be bound.";
     case "baseline_dominated":
@@ -27423,14 +27470,14 @@ function generatorBornDiscoveryClaimLiftSignalExperimentMarkdown(
     "",
     "## Decisions",
     "",
-    "| Candidate | Domain | Source cache | Status | Primary blocker | Residual | Failed gates |",
-    "| --- | --- | --- | --- | --- | ---: | --- |",
+    "| Candidate | Domain | Source cache | Public corpus history | Status | Primary blocker | Residual | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- | ---: | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.candidateId} | ${decision.domain ?? "unknown"} | ${decision.sourceCacheRef ?? "none"} | ${decision.experimentStatus} | ${decision.primaryBlocker} | ${decision.residualMagnitude ?? "n/a"} | ${decision.failedGates.join(", ") || "none"} |`,
+        `| ${decision.candidateId} | ${decision.domain ?? "unknown"} | ${decision.sourceCacheRef ?? "none"} | ${decision.publicCorpusNegativeHistory?.blocksSeedBirth ? `blocked:${decision.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : (decision.publicCorpusNegativeHistory?.matched ?? false) ? `matched:${decision.publicCorpusNegativeHistory?.resultSlug ?? "unknown"}` : "none"} | ${decision.experimentStatus} | ${decision.primaryBlocker} | ${decision.residualMagnitude ?? "n/a"} | ${decision.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.decisions.length === 0
-      ? ["| none | unknown | none | blocked | none | n/a | none |"]
+      ? ["| none | unknown | none | none | blocked | none | n/a | none |"]
       : []),
     "",
     "This command does not update packages, write fund-candidate.json, or write FUND_FOUND.md.",
@@ -29803,45 +29850,12 @@ async function publicCorpusNegativeHistoryForExternalProblemAnchor(
       continue;
     }
     const publicReviewStatus = optionalString(summary.publicReviewStatus);
-    const publicExtendedValidationStatus = optionalString(
-      summary.extendedValidationStatus,
-    );
-    const publicFundClass = optionalString(summary.fundClass);
-    const resultKind = optionalString(summary.resultKind);
-    const countsForEinsteinNobelDiscoveryScore = optionalBoolean(
-      summary.countsForEinsteinNobelDiscoveryScore,
-    );
-    const publicRawScientificReproductionReady = optionalBoolean(
-      summary.publicRawScientificReproductionReady,
-    );
-    const blocksSeedBirth =
-      countsForEinsteinNobelDiscoveryScore === false ||
-      publicRawScientificReproductionReady === false ||
-      optionalBoolean(summary.publicDowngradeOverridesDiscoveryScoring) ===
-        true ||
-      optionalBoolean(summary.domainScientificSignificance) === false ||
-      optionalBoolean(summary.nontrivialNewInsightAcrossRealTargets) ===
-        false ||
-      publicCorpusFundClassBlocksSeedBirth(publicFundClass) ||
-      publicCorpusResultKindBlocksSeedBirth(resultKind) ||
-      publicReviewStatusBlocksSeedBirth(publicReviewStatus) ||
-      extendedValidationBlocksSeedBirth(publicExtendedValidationStatus) ||
-      optionalString(summary.publicDiscoveryScoreBlockedReason) !== null ||
-      optionalString(summary.publicDowngradeStatus) !== null;
-    return publicCorpusNegativeHistoryAssessment({
-      checked: true,
-      matched: true,
-      blocksSeedBirth,
-      resultSlug: entry.name,
-      publicReviewStatus,
-      publicExtendedValidationStatus,
-      publicFundClass,
-      resultKind,
-      countsForEinsteinNobelDiscoveryScore,
-      publicRawScientificReproductionReady,
-      reason: blocksSeedBirth
-        ? "public corpus negative history blocks reusing this external anchor for HardSeed birth"
-        : "matched public corpus package does not block seed birth",
+    return publicCorpusNegativeHistoryFromSummary({
+      summary,
+      slug: entry.name,
+      reasonWhenBlocked:
+        "public corpus negative history blocks reusing this external anchor for HardSeed birth",
+      reasonWhenClear: `matched public corpus package does not block seed birth${publicReviewStatus ? ` (${publicReviewStatus})` : ""}`,
     });
   }
 
@@ -29857,6 +29871,149 @@ async function publicCorpusNegativeHistoryForExternalProblemAnchor(
     countsForEinsteinNobelDiscoveryScore: null,
     publicRawScientificReproductionReady: null,
     reason: "no public corpus result matched this generator anchor",
+  });
+}
+
+async function publicCorpusNegativeHistoryForClaimLiftProposal(
+  root: string,
+  proposal: GeneratorBornDiscoveryClaimLiftProposal,
+): Promise<PublicCorpusNegativeHistoryAssessment> {
+  return publicCorpusNegativeHistoryForClaimLiftCandidateText(
+    root,
+    normalizeWhitespace(
+      [
+        proposal.parentCandidateId,
+        proposal.targetDiscoveryCandidateId,
+        proposal.exactTargetOutcomeClaim,
+        proposal.mechanismHypothesis,
+        proposal.packageRef,
+        ...(proposal.sourceEvidenceRefs ?? []),
+        ...(proposal.externalSignificanceEvidenceRefs ?? []),
+      ]
+        .filter((value): value is string => typeof value === "string")
+        .join(" "),
+    ),
+  );
+}
+
+async function publicCorpusNegativeHistoryForClaimLiftCandidateText(
+  root: string,
+  text: string,
+): Promise<PublicCorpusNegativeHistoryAssessment> {
+  const tokens = publicCorpusNegativeHistoryMatchTokens(text);
+  if (tokens.length === 0) {
+    return publicCorpusNegativeHistoryAssessment({
+      checked: false,
+      matched: false,
+      blocksSeedBirth: false,
+      resultSlug: null,
+      publicReviewStatus: null,
+      publicExtendedValidationStatus: null,
+      publicFundClass: null,
+      resultKind: null,
+      countsForEinsteinNobelDiscoveryScore: null,
+      publicRawScientificReproductionReady: null,
+      reason:
+        "claim-lift candidate text did not expose a high-confidence public corpus match token",
+    });
+  }
+  const resultsRoot = join(dirname(root), "sovryn-open-inventions", "results");
+  if (!(await exists(resultsRoot))) {
+    return publicCorpusNegativeHistoryAssessment({
+      checked: false,
+      matched: false,
+      blocksSeedBirth: false,
+      resultSlug: null,
+      publicReviewStatus: null,
+      publicExtendedValidationStatus: null,
+      publicFundClass: null,
+      resultKind: null,
+      countsForEinsteinNobelDiscoveryScore: null,
+      publicRawScientificReproductionReady: null,
+      reason:
+        "public corpus sibling repository was not found; no claim-lift negative-history match was applied",
+    });
+  }
+  const entries = await readdir(resultsRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const summary = await readOptionalJson<Record<string, unknown>>(
+      join(resultsRoot, entry.name, "SUMMARY.json"),
+    );
+    if (
+      summary === null ||
+      !publicCorpusSummaryMatchesTokens(summary, entry.name, tokens)
+    ) {
+      continue;
+    }
+    return publicCorpusNegativeHistoryFromSummary({
+      summary,
+      slug: entry.name,
+      reasonWhenBlocked:
+        "public corpus negative history blocks reusing this claim-lift anchor for discovery scoring",
+      reasonWhenClear:
+        "matched public corpus package does not block claim-lift discovery scoring",
+    });
+  }
+  return publicCorpusNegativeHistoryAssessment({
+    checked: true,
+    matched: false,
+    blocksSeedBirth: false,
+    resultSlug: null,
+    publicReviewStatus: null,
+    publicExtendedValidationStatus: null,
+    publicFundClass: null,
+    resultKind: null,
+    countsForEinsteinNobelDiscoveryScore: null,
+    publicRawScientificReproductionReady: null,
+    reason: "no public corpus result matched this claim-lift candidate text",
+  });
+}
+
+function publicCorpusNegativeHistoryFromSummary(input: {
+  summary: Record<string, unknown>;
+  slug: string;
+  reasonWhenBlocked: string;
+  reasonWhenClear: string;
+}): PublicCorpusNegativeHistoryAssessment {
+  const publicReviewStatus = optionalString(input.summary.publicReviewStatus);
+  const publicExtendedValidationStatus = optionalString(
+    input.summary.extendedValidationStatus,
+  );
+  const publicFundClass = optionalString(input.summary.fundClass);
+  const resultKind = optionalString(input.summary.resultKind);
+  const countsForEinsteinNobelDiscoveryScore = optionalBoolean(
+    input.summary.countsForEinsteinNobelDiscoveryScore,
+  );
+  const publicRawScientificReproductionReady = optionalBoolean(
+    input.summary.publicRawScientificReproductionReady,
+  );
+  const blocksSeedBirth =
+    countsForEinsteinNobelDiscoveryScore === false ||
+    publicRawScientificReproductionReady === false ||
+    optionalBoolean(input.summary.publicDowngradeOverridesDiscoveryScoring) ===
+      true ||
+    optionalBoolean(input.summary.domainScientificSignificance) === false ||
+    optionalBoolean(input.summary.nontrivialNewInsightAcrossRealTargets) ===
+      false ||
+    publicCorpusFundClassBlocksSeedBirth(publicFundClass) ||
+    publicCorpusResultKindBlocksSeedBirth(resultKind) ||
+    publicReviewStatusBlocksSeedBirth(publicReviewStatus) ||
+    extendedValidationBlocksSeedBirth(publicExtendedValidationStatus) ||
+    optionalString(input.summary.publicDiscoveryScoreBlockedReason) !== null ||
+    optionalString(input.summary.publicDowngradeStatus) !== null;
+  return publicCorpusNegativeHistoryAssessment({
+    checked: true,
+    matched: true,
+    blocksSeedBirth,
+    resultSlug: input.slug,
+    publicReviewStatus,
+    publicExtendedValidationStatus,
+    publicFundClass,
+    resultKind,
+    countsForEinsteinNobelDiscoveryScore,
+    publicRawScientificReproductionReady,
+    reason: blocksSeedBirth ? input.reasonWhenBlocked : input.reasonWhenClear,
   });
 }
 
@@ -29888,6 +30045,19 @@ function publicCorpusSummaryMatchesExternalProblemAnchor(
   anchor: ExternalProblemAnchor,
   generatorId?: string | null,
 ): boolean {
+  return publicCorpusSummaryMatchesTokens(
+    summary,
+    slug,
+    publicCorpusGeneratorMatchTokens(anchor, generatorId),
+  );
+}
+
+function publicCorpusSummaryMatchesTokens(
+  summary: Record<string, unknown>,
+  slug: string,
+  tokens: string[],
+): boolean {
+  if (tokens.length === 0) return false;
   const haystack = normalizeWhitespace(
     [
       slug,
@@ -29907,9 +30077,7 @@ function publicCorpusSummaryMatchesExternalProblemAnchor(
       .filter((value) => typeof value === "string")
       .join(" "),
   ).toLowerCase();
-  return publicCorpusGeneratorMatchTokens(anchor, generatorId).some((token) =>
-    haystack.includes(token),
-  );
+  return tokens.some((token) => haystack.includes(token));
 }
 
 function publicCorpusGeneratorMatchTokens(
@@ -29939,6 +30107,33 @@ function publicCorpusGeneratorMatchTokens(
   if (text.includes("dimacs") || text.includes("color/instances")) {
     return ["dimacs"];
   }
+  return [];
+}
+
+function publicCorpusNegativeHistoryMatchTokens(text: string): string[] {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("matbench")) return ["matbench"];
+  if (normalized.includes("gaia") || normalized.includes("astrometric")) {
+    return ["gaia", "astrometric"];
+  }
+  if (
+    normalized.includes("bounded_graph_minor") ||
+    normalized.includes("graph-minor") ||
+    normalized.includes("graph minor") ||
+    normalized.includes("minor obstruction")
+  ) {
+    return ["bounded_graph_minor", "graph minor", "minor obstruction"];
+  }
+  if (normalized.includes("satlib")) return ["satlib"];
+  if (normalized.includes("snap")) return ["snap"];
+  if (normalized.includes("openml")) return ["openml"];
+  if (normalized.includes("pvdaq") || normalized.includes("nrel")) {
+    return ["pvdaq", "nrel"];
+  }
+  if (normalized.includes("nasa") && normalized.includes("solar")) {
+    return ["nasa", "solar"];
+  }
+  if (normalized.includes("dimacs")) return ["dimacs"];
   return [];
 }
 

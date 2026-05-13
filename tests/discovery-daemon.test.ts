@@ -5754,6 +5754,100 @@ test("generator-born claim lift signal pressure blocks public-downgraded package
   );
 });
 
+test("generator-born claim lift path blocks downgraded public-corpus anchors even when candidate IDs differ", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  await writePublicCorpusSummaryFixture(
+    root,
+    "first-discovery-fund-matbench-descriptor-transfer",
+    {
+      title: "Matbench descriptor-transfer public downgrade fixture",
+      candidateId: "PUBLIC-MATBENCH-DIFFERENT-ID",
+      claim:
+        "Public Matbench descriptor-transfer package was downgraded after raw scientific reproduction failed.",
+      resultKind:
+        "internal_runtime_replay_candidate_raw_scientific_reproduction_failed",
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: false,
+      publicDowngradeOverridesDiscoveryScoring: true,
+    },
+  );
+
+  const pressure = await service.generatorClaimLiftPressure();
+  const matbenchPressureDecisions = pressure.decisions.filter((decision) =>
+    decision.candidateId.includes("MATBENCH"),
+  );
+
+  assert.equal(matbenchPressureDecisions.length > 0, true);
+  assert.equal(
+    matbenchPressureDecisions.every(
+      (decision) =>
+        decision.primaryBlocker === "public_corpus_downgrade" &&
+        decision.publicCorpusNegativeHistory?.matched === true &&
+        decision.publicCorpusNegativeHistory.blocksSeedBirth === true &&
+        decision.publicCorpusNegativeHistory.resultSlug ===
+          "first-discovery-fund-matbench-descriptor-transfer" &&
+        decision.failedGates.includes(
+          "public_corpus_discovery_score_reconciliation",
+        ),
+    ),
+    true,
+  );
+
+  const experiment = await service.generatorClaimLiftExperiment();
+  const matbenchExperimentDecisions = experiment.decisions.filter((decision) =>
+    decision.candidateId.includes("MATBENCH"),
+  );
+
+  assert.equal(
+    matbenchExperimentDecisions.every(
+      (decision) =>
+        decision.experimentStatus === "blocked" &&
+        decision.primaryBlocker === "public_corpus_downgrade" &&
+        decision.publicCorpusNegativeHistory?.resultSlug ===
+          "first-discovery-fund-matbench-descriptor-transfer" &&
+        decision.failedGates.includes(
+          "public_corpus_discovery_score_reconciliation",
+        ),
+    ),
+    true,
+  );
+
+  const rebind = await service.generatorClaimLiftRebind();
+  const matbenchRebindDecisions = rebind.decisions.filter((decision) =>
+    decision.candidateId.includes("MATBENCH"),
+  );
+
+  assert.equal(
+    matbenchRebindDecisions.every(
+      (decision) =>
+        decision.rebindStatus === "skipped" &&
+        decision.primaryBlocker === "public_corpus_downgrade" &&
+        decision.packageMutated === false &&
+        decision.countsForEinsteinNobelDiscoveryScoreAfter === false,
+    ),
+    true,
+  );
+  assert.equal(pressure.discoverySignalReady, 0);
+  assert.equal(experiment.insightEvidenceReady, 0);
+  assert.equal(rebind.discoveryScoredPackages, 0);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift signal experiment identifies bindable external-source insight refs without Fund state", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

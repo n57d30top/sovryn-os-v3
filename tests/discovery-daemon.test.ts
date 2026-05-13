@@ -5020,6 +5020,38 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
+  await mkdir(join(root, daemonRoot, "insight-candidates"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(
+      root,
+      daemonRoot,
+      "insight-candidates",
+      "INSIGHT-SOURCE-OBJECT-CAND-LEGACY-001.json",
+    ),
+    JSON.stringify(
+      {
+        kind: "insight_candidate_record",
+        candidate: {
+          candidateId: "INSIGHT-SOURCE-OBJECT-CAND-LEGACY-001",
+          exactNarrowClaim:
+            "This is only an InsightCandidate over a source-object family signal and is not a DiscoveryCandidate.",
+          domain: "formal_mathematics_conjecture_refutation",
+          evidenceScope:
+            "Bounded to edge-list:source-object-graph-legacy and target outcome checked graph-family boundary outcome.",
+          mechanismHypothesis:
+            "legacy source-object pressure signal requires semantic claim lift.",
+          parentEvidenceRefs: [
+            ".sovryn/discovery-daemon/source-object-first/HARD_SEED_BIRTH_DECISIONS.json#LEGACY",
+          ],
+          whatIsNotClaimed: ["not a DiscoveryCandidate", "not FUND_FOUND"],
+        },
+      },
+      null,
+      2,
+    ),
+  );
 
   const report = await service.sourceObjectEngine();
 
@@ -5166,6 +5198,33 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         decision.blockers.includes("missing_exact_bounded_claim") &&
         decision.blockers.includes("semantic_scope_expansion_required"),
     ),
+    true,
+  );
+  const stateAudit = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "SOURCE_OBJECT_INSIGHT_STATE_AUDIT.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    previousInsightCandidatesFound: number;
+    items: Array<{
+      candidateId: string;
+      archiveRecommendation: string;
+      shouldRemainActive: boolean;
+    }>;
+  };
+  assert.equal(stateAudit.previousInsightCandidatesFound, 1);
+  assert.deepEqual(
+    stateAudit.items.map((item) => item.archiveRecommendation),
+    ["archive_non_liftable_observation"],
+  );
+  assert.equal(
+    stateAudit.items.every((item) => item.shouldRemainActive === false),
     true,
   );
   const pilot = JSON.parse(

@@ -13506,9 +13506,12 @@ export class SourceObjectFirstDiscoveryEngine {
       await readOptionalJson<SourceObjectClaimLiftGauntletReport>(
         join(this.engineRoot(), "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json"),
       );
+    const currentInsightStateItems =
+      await this.readCurrentSourceObjectInsightStateItems(checkpointUsed);
     const stateAudit = sourceObjectInsightStateAudit(
       previousClaimLiftGauntlet,
       checkpointUsed,
+      currentInsightStateItems,
     );
     const harvest = new ExternalSourceObjectHarvester().harvest();
     const acceptedObjects = harvest.objects;
@@ -13656,6 +13659,43 @@ export class SourceObjectFirstDiscoveryEngine {
       report,
     });
     return report;
+  }
+
+  private async readCurrentSourceObjectInsightStateItems(
+    checkpointUsed: string | null,
+  ): Promise<SourceObjectInsightStateAuditItem[]> {
+    const candidateDir = join(
+      this.root,
+      daemonArtifactRoot,
+      "insight-candidates",
+    );
+    let names: string[] = [];
+    try {
+      names = await readdir(candidateDir);
+    } catch {
+      return [];
+    }
+    const items: SourceObjectInsightStateAuditItem[] = [];
+    for (const name of names
+      .filter(
+        (entry) =>
+          entry.startsWith("INSIGHT-SOURCE-OBJECT") && entry.endsWith(".json"),
+      )
+      .sort()) {
+      const artifactRef = `${daemonArtifactRoot}/insight-candidates/${name}`;
+      const record = await readOptionalJson<Record<string, unknown>>(
+        join(this.root, artifactRef),
+      );
+      const candidate = isRecord(record?.candidate) ? record.candidate : null;
+      if (candidate === null) continue;
+      const item = sourceObjectInsightStateAuditItemFromCandidateRecord({
+        candidate,
+        artifactRef,
+        checkpointUsed,
+      });
+      if (item !== null) items.push(item);
+    }
+    return items;
   }
 
   async status(): Promise<Record<string, unknown>> {
@@ -15600,47 +15640,179 @@ function sourceObjectClaimLiftRequired(candidate: InsightCandidate): boolean {
 function sourceObjectInsightStateAudit(
   previous: SourceObjectClaimLiftGauntletReport | null,
   checkpointUsed: string | null,
+  currentInsightItems: SourceObjectInsightStateAuditItem[] = [],
 ): SourceObjectInsightStateAuditReport {
-  const items = (previous?.inventory ?? []).map((item) => {
-    const nonLiftable =
-      item.concreteSourceObjectStatus === "placeholder_or_manifest_only" ||
-      item.exactCurrentInsightStatement
-        .toLowerCase()
-        .includes("only an insightcandidate") ||
-      item.currentBlocker.includes("stable_discovery_claim_lift");
-    const decision: SourceObjectInsightStateAuditItem["archiveRecommendation"] =
-      nonLiftable
-        ? "archive_non_liftable_observation"
-        : item.concreteSourceObjectStatus === "public_concrete_object" ||
-            item.concreteSourceObjectStatus === "deterministic_generator_spec"
-          ? "eligible_for_claim_first_retest"
-          : "keep_as_source_object_observation";
-    return withEvidenceHash({
-      kind: "source_object_insight_state_audit_item" as const,
-      candidateId: item.candidateId,
-      sourceObjectRef: item.sourceObjectRefs[0] ?? null,
-      checkpointOrSource: checkpointUsed,
-      concreteSourceObjectStatus: item.concreteSourceObjectStatus,
-      shouldRemainActive: decision === "eligible_for_claim_first_retest",
-      archiveRecommendation: decision,
-      reason:
-        decision === "archive_non_liftable_observation"
-          ? "The previous InsightCandidate was born before claim-first enforcement and cannot be lifted without semantic expansion or concrete source-object repair."
-          : decision === "eligible_for_claim_first_retest"
-            ? "The candidate has a concrete or deterministic source object but must be retested with the exact claim frozen before birth."
-            : "The candidate remains useful as observation evidence but is not active for discovery promotion.",
-    });
-  });
+  const previousItems = (previous?.inventory ?? []).map((item) =>
+    sourceObjectInsightStateAuditItemFromInventoryItem(item, checkpointUsed),
+  );
+  const items =
+    currentInsightItems.length > 0 ? currentInsightItems : previousItems;
   return withEvidenceHash({
     kind: "source_object_insight_state_audit" as const,
     previousInsightCandidatesFound: items.length,
     checkpointUsed,
     whyCurrentCandidatesExist:
       items.length > 0
-        ? "They were created by the prior source-object engine before claim-first birth gating; they passed evidence pressure but still carried non-discovery InsightCandidate wording and incomplete external-review package bindings."
+        ? "They were created by the prior source-object engine before claim-first birth gating; they passed evidence pressure but still carried non-discovery InsightCandidate wording, source-object placeholder risk, or incomplete external-review package bindings."
         : "No prior source-object InsightCandidates were found in the current engine root.",
     items,
   });
+}
+
+function sourceObjectInsightStateAuditItemFromInventoryItem(
+  item: SourceObjectInsightInventoryItem,
+  checkpointUsed: string | null,
+): SourceObjectInsightStateAuditItem {
+  const nonLiftable =
+    item.concreteSourceObjectStatus === "placeholder_or_manifest_only" ||
+    item.exactCurrentInsightStatement
+      .toLowerCase()
+      .includes("only an insightcandidate") ||
+    item.currentBlocker.includes("stable_discovery_claim_lift");
+  const decision: SourceObjectInsightStateAuditItem["archiveRecommendation"] =
+    nonLiftable
+      ? "archive_non_liftable_observation"
+      : item.concreteSourceObjectStatus === "public_concrete_object" ||
+          item.concreteSourceObjectStatus === "deterministic_generator_spec"
+        ? "eligible_for_claim_first_retest"
+        : "keep_as_source_object_observation";
+  return withEvidenceHash({
+    kind: "source_object_insight_state_audit_item" as const,
+    candidateId: item.candidateId,
+    sourceObjectRef: item.sourceObjectRefs[0] ?? null,
+    checkpointOrSource: checkpointUsed,
+    concreteSourceObjectStatus: item.concreteSourceObjectStatus,
+    shouldRemainActive: decision === "eligible_for_claim_first_retest",
+    archiveRecommendation: decision,
+    reason: sourceObjectInsightStateAuditReason(decision),
+  });
+}
+
+function sourceObjectInsightStateAuditItemFromCandidateRecord(input: {
+  candidate: Record<string, unknown>;
+  artifactRef: string;
+  checkpointUsed: string | null;
+}): SourceObjectInsightStateAuditItem | null {
+  const candidateId = stringOrNull(input.candidate.candidateId);
+  if (candidateId === null) return null;
+  const evidenceScope = stringOrNull(input.candidate.evidenceScope) ?? "";
+  const sourceObjectRef =
+    sourceObjectRefFromInsightEvidenceScope(evidenceScope) ??
+    stringArray(input.candidate.parentEvidenceRefs).find(
+      (ref) => !ref.startsWith(`${daemonArtifactRoot}/`),
+    ) ??
+    null;
+  const concreteSourceObjectStatus =
+    sourceObjectRef === null
+      ? "placeholder_or_manifest_only"
+      : sourceObjectConcreteSourceStatus(
+          sourceObjectObjectShapeFromRef(sourceObjectRef),
+        );
+  const semanticExpansionRequired =
+    sourceObjectInsightRecordRequiresSemanticExpansion(input.candidate);
+  const archiveRecommendation: SourceObjectInsightStateAuditItem["archiveRecommendation"] =
+    semanticExpansionRequired
+      ? "archive_non_liftable_observation"
+      : concreteSourceObjectStatus === "placeholder_or_manifest_only"
+        ? "keep_as_source_object_observation"
+        : "eligible_for_claim_first_retest";
+  return withEvidenceHash({
+    kind: "source_object_insight_state_audit_item" as const,
+    candidateId,
+    sourceObjectRef,
+    checkpointOrSource: input.artifactRef,
+    concreteSourceObjectStatus,
+    shouldRemainActive:
+      archiveRecommendation === "eligible_for_claim_first_retest",
+    archiveRecommendation,
+    reason: sourceObjectInsightStateAuditReason(archiveRecommendation),
+  });
+}
+
+function sourceObjectInsightStateAuditReason(
+  decision: SourceObjectInsightStateAuditItem["archiveRecommendation"],
+): string {
+  return decision === "archive_non_liftable_observation"
+    ? "The previous InsightCandidate was born before claim-first enforcement and cannot be lifted without semantic expansion or concrete source-object repair."
+    : decision === "eligible_for_claim_first_retest"
+      ? "The candidate has a concrete or deterministic source object but must be retested with the exact claim frozen before birth."
+      : "The candidate remains useful as observation evidence but is not active for discovery promotion.";
+}
+
+function sourceObjectRefFromInsightEvidenceScope(scope: string): string | null {
+  const match = scope.match(/\bBounded to (.+?) and target outcome\b/);
+  return match?.[1]?.trim() ?? null;
+}
+
+function sourceObjectObjectShapeFromRef(ref: string): Record<string, unknown> {
+  if (ref.startsWith("formal-generator://")) {
+    return {
+      sourceObjectKind: "deterministic_formal_generator_spec",
+      sourceObjectRef: ref,
+      sourcePayload: { deterministic: ref.includes("seed=deterministic") },
+    };
+  }
+  if (ref.startsWith("graph6:")) {
+    return { sourceObjectKind: "public_graph6", sourceObjectRef: ref };
+  }
+  if (ref.startsWith("edge-list:")) {
+    return { sourceObjectKind: "public_edge_list", sourceObjectRef: ref };
+  }
+  if (ref.startsWith("adjacency:")) {
+    return {
+      sourceObjectKind: "public_adjacency_matrix",
+      sourceObjectRef: ref,
+    };
+  }
+  if (/^(hog|graphclasses):/i.test(ref)) {
+    return {
+      sourceObjectKind: "public_hog_or_graphclasses_id",
+      sourceObjectRef: ref,
+    };
+  }
+  if (/^openml-(task|dataset):\d+$/i.test(ref)) {
+    return {
+      sourceObjectKind: "public_benchmark_object",
+      sourceObjectRef: ref,
+    };
+  }
+  if (/^matbench-[a-z0-9_:-]+$/i.test(ref)) {
+    return {
+      sourceObjectKind: "public_materials_object",
+      sourceObjectRef: ref,
+    };
+  }
+  if (/^repo-outcome:https:\/\/github\.com\/[^/]+\/[^/]+/i.test(ref)) {
+    return {
+      sourceObjectKind: "public_repo_outcome_object",
+      sourceObjectRef: ref,
+    };
+  }
+  return {
+    sourceObjectKind: "placeholder_or_manifest_only",
+    sourceObjectRef: ref,
+  };
+}
+
+function sourceObjectInsightRecordRequiresSemanticExpansion(
+  candidate: Record<string, unknown>,
+): boolean {
+  const text = normalizeWhitespace(
+    [
+      stringOrNull(candidate.exactNarrowClaim) ?? "",
+      stringOrNull(candidate.evidenceScope) ?? "",
+      stringOrNull(candidate.mechanismHypothesis) ?? "",
+      ...stringArray(candidate.whatIsNotClaimed),
+    ].join(" "),
+  ).toLowerCase();
+  return (
+    text.includes("not a discoverycandidate") ||
+    text.includes("not a discovery candidate") ||
+    text.includes("not fundcandidatedraft") ||
+    text.includes("not fund_found") ||
+    text.includes("only an insightcandidate") ||
+    text.includes("not a broad source-family theorem")
+  );
 }
 
 function sourceObjectClaimFirstBirthGate(

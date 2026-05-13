@@ -20,6 +20,8 @@ A bounded discovery-scored candidate package satisfies the internal external-rev
 - Public formal frozen predictions: 12; executed: 12; supported: 9; non-obvious: 4; prediction ready: true.
 - Public formal counterexample pressure ready: true.
 - Public formal counterexample checks: 72; collapsed checks: 0.
+- External human review status: awaiting_external_review.
+- External human review records: 0/0; supportive: 0; independent reproductions: 0; score impact: none_awaiting_external_review.
 - Safety score: 100/100.
 - Overclaim risk score: 22/100.
 

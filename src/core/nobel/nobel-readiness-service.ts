@@ -228,6 +228,20 @@ export type NobelReadinessScore = {
   publicFormalCounterexampleCheckCount: number | null;
   publicFormalCounterexampleCollapsedCount: number | null;
   publicFormalCounterexamplePressureReady: boolean;
+  externalHumanReviewStatus:
+    | "awaiting_external_review"
+    | "blocked_invalid_external_review"
+    | "external_review_requires_revision_or_rejects"
+    | "supportive_external_review_recorded";
+  externalHumanReviewCount: number;
+  validExternalHumanReviewCount: number;
+  supportiveExternalHumanReviewCount: number;
+  externalHumanIndependentReproductionCount: number;
+  externalHumanReviewScoreImpact:
+    | "none_awaiting_external_review"
+    | "no_score_change_invalid_review"
+    | "blocks_discovery_readiness"
+    | "supports_higher_external_review_readiness";
   einsteinNobelDiscoveryScoreEligible: boolean;
   scoringSeparationApplied: true;
   rationale: string[];
@@ -363,6 +377,75 @@ export type ExternalReviewBundleAudit = {
     expectedEvidence: string;
     status: "queued_for_human_review";
   }>;
+  gates: Array<{ code: string; passed: boolean; message: string }>;
+  nextHumanAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalHumanReviewDecision =
+  | "accepted_with_caveats"
+  | "major_revision"
+  | "rejected"
+  | "invalid_or_unverified";
+
+export type ExternalHumanReviewReproductionStatus =
+  | "reproduced"
+  | "partially_reproduced"
+  | "not_reproduced"
+  | "not_attempted";
+
+export type ExternalHumanReviewNoveltyAssessment =
+  | "nontrivial_and_plausibly_novel"
+  | "known_or_trivial"
+  | "unclear";
+
+export type ExternalReviewIntakeRecord = {
+  path: string;
+  exists: boolean;
+  candidateId: string | null;
+  resultSlug: string | null;
+  reviewerRole: string | null;
+  reviewDate: string | null;
+  reviewSourceRef: string | null;
+  reviewSourceResolved: boolean;
+  reviewSourcePublicSafe: boolean;
+  decision: ExternalHumanReviewDecision | null;
+  independentReproductionStatus: ExternalHumanReviewReproductionStatus | null;
+  noveltyAssessment: ExternalHumanReviewNoveltyAssessment | null;
+  overclaimFindings: string[];
+  evidenceRefs: string[];
+  valid: boolean;
+  supportive: boolean;
+  revisionOrRejection: boolean;
+  reasons: string[];
+};
+
+export type ExternalReviewIntakeAudit = {
+  kind: "nobel_readiness_external_review_intake";
+  generatedAt: string;
+  status:
+    | "awaiting_external_review"
+    | "blocked_invalid_external_review"
+    | "external_review_requires_revision_or_rejects"
+    | "supportive_external_review_recorded";
+  passed: boolean;
+  candidateId: string | null;
+  fundClass: string | null;
+  packagePath: string | null;
+  reviewDirectory: string;
+  reviewCount: number;
+  validReviewCount: number;
+  supportiveReviewCount: number;
+  independentReproductionCount: number;
+  revisionOrRejectionCount: number;
+  externalExpertValidationClaimed: false;
+  scoreImpact:
+    | "none_awaiting_external_review"
+    | "no_score_change_invalid_review"
+    | "blocks_discovery_readiness"
+    | "supports_higher_external_review_readiness";
+  records: ExternalReviewIntakeRecord[];
   gates: Array<{ code: string; passed: boolean; message: string }>;
   nextHumanAction: string;
   artifactRefs: string[];
@@ -1316,6 +1399,7 @@ export class NobelReadinessScorer {
     killWeek: KillWeekResult;
     fundClassifications?: FundClassAssessment[];
     publicValidationContexts?: NobelReadinessPublicValidationContext[];
+    externalReviewIntake?: ExternalReviewIntakeAudit | null;
   }): NobelReadinessScore {
     const successfulHoldouts = input.holdouts.filter(
       (holdout) =>
@@ -1496,8 +1580,27 @@ export class NobelReadinessScorer {
       publicFormalRivalPressureReady &&
       publicFormalPredictionReady &&
       publicFormalCounterexamplePressureReady;
+    const externalHumanReviewStatus =
+      input.externalReviewIntake?.status ?? "awaiting_external_review";
+    const externalHumanReviewCount =
+      input.externalReviewIntake?.reviewCount ?? 0;
+    const validExternalHumanReviewCount =
+      input.externalReviewIntake?.validReviewCount ?? 0;
+    const supportiveExternalHumanReviewCount =
+      input.externalReviewIntake?.supportiveReviewCount ?? 0;
+    const externalHumanIndependentReproductionCount =
+      input.externalReviewIntake?.independentReproductionCount ?? 0;
+    const externalHumanReviewScoreImpact =
+      input.externalReviewIntake?.scoreImpact ??
+      "none_awaiting_external_review";
+    const externalHumanReviewBlocksReadiness =
+      externalHumanReviewScoreImpact === "blocks_discovery_readiness";
+    const supportiveExternalHumanReview =
+      externalHumanReviewScoreImpact ===
+      "supports_higher_external_review_readiness";
     const discoveryScoringAllowed =
       !publicDiscoveryScoreBlocked &&
+      !externalHumanReviewBlocksReadiness &&
       discoveryFundCandidateCount > 0 &&
       discoveryFundClassifications.some(
         (assessment) =>
@@ -1510,24 +1613,26 @@ export class NobelReadinessScorer {
           replayCaveats === 0 &&
           effectiveCounterexamplePressure <= 1 &&
           input.killWeek.downgradedOrRejectedCount < 5));
-    const label: NobelReadinessLabel = publicDiscoveryScoreBlocked
-      ? "promising_but_unvalidated"
-      : hardGatesPass
-        ? "externally_review_ready_candidate"
-        : successfulHoldouts >= 6 && effectiveCounterexamplePressure <= 6
-          ? "promising_with_strong_caveats"
-          : "promising_but_unvalidated";
+    const label: NobelReadinessLabel =
+      publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
+        ? "promising_but_unvalidated"
+        : hardGatesPass
+          ? "externally_review_ready_candidate"
+          : successfulHoldouts >= 6 && effectiveCounterexamplePressure <= 6
+            ? "promising_with_strong_caveats"
+            : "promising_but_unvalidated";
     const survivingCandidateId =
       discoveryFundClassifications[0]?.candidateId ??
       input.promoted[1]?.candidateId ??
       null;
-    const rivalTheoryScore = publicDiscoveryScoreBlocked
-      ? 12
-      : majorPublicRivalCaveat
-        ? 34
-        : publicFormalRivalPressureReady
-          ? 62
-          : 49;
+    const rivalTheoryScore =
+      publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
+        ? 12
+        : majorPublicRivalCaveat
+          ? 34
+          : publicFormalRivalPressureReady
+            ? 62
+            : 49;
     const baselineResistanceScore =
       publicFormalBaselineResistanceReady && !publicDiscoveryScoreBlocked
         ? 70
@@ -1546,13 +1651,14 @@ export class NobelReadinessScorer {
       20,
       (majorPublicRivalCaveat ? 58 : 70) - effectiveCounterexamplePressure * 7,
     );
-    const externalReviewReadinessScore = publicDiscoveryScoreBlocked
-      ? 28
-      : hardGatesPass
-        ? majorPublicRivalCaveat
-          ? 64
-          : 78
-        : 44;
+    const externalReviewReadinessScore =
+      publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
+        ? 28
+        : hardGatesPass
+          ? majorPublicRivalCaveat
+            ? 64
+            : 78
+          : 44;
     const caveatAdjustedExternalReviewReadinessScore =
       publicReplayLiveSourceOnly && hardGatesPass
         ? Math.min(
@@ -1560,19 +1666,31 @@ export class NobelReadinessScorer {
             majorPublicRivalCaveat ? 60 : 70,
           )
         : externalReviewReadinessScore;
-    const totalScore = publicDiscoveryScoreBlocked
-      ? 38
-      : hardGatesPass
-        ? publicReplayLiveSourceOnly
-          ? majorPublicRivalCaveat
-            ? 60
-            : 68
-          : publicFormalValidationBundleReady
-            ? 76
-            : majorPublicRivalCaveat
-              ? 63
-              : 72
-        : 46;
+    const reviewAdjustedExternalReviewReadinessScore =
+      externalHumanReviewBlocksReadiness
+        ? Math.min(caveatAdjustedExternalReviewReadinessScore, 36)
+        : supportiveExternalHumanReview && hardGatesPass
+          ? Math.max(caveatAdjustedExternalReviewReadinessScore, 88)
+          : caveatAdjustedExternalReviewReadinessScore;
+    const baseTotalScore =
+      publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
+        ? 38
+        : hardGatesPass
+          ? publicReplayLiveSourceOnly
+            ? majorPublicRivalCaveat
+              ? 60
+              : 68
+            : publicFormalValidationBundleReady
+              ? 76
+              : majorPublicRivalCaveat
+                ? 63
+                : 72
+          : 46;
+    const totalScore = externalHumanReviewBlocksReadiness
+      ? Math.min(baseTotalScore, 58)
+      : supportiveExternalHumanReview && hardGatesPass
+        ? Math.max(baseTotalScore, 84)
+        : baseTotalScore;
     const replayScore =
       publicReplayLiveSourceOnly && replayCaveats <= 2
         ? 49
@@ -1593,19 +1711,20 @@ export class NobelReadinessScorer {
       replay_score: replayScore,
       counterexample_pressure_score: counterexamplePressureScore,
       external_review_readiness_score:
-        caveatAdjustedExternalReviewReadinessScore,
+        reviewAdjustedExternalReviewReadinessScore,
       safety_score: 100,
       overclaim_risk_score: 22,
       totalScore,
       label,
       survivingCandidateId,
-      externallyReviewReadyCandidateCount: publicDiscoveryScoreBlocked
-        ? 0
-        : packageReadyDiscoveryFund
-          ? externallyReviewReadyFundClassifications.length
-          : hardGatesPass
-            ? discoveryFundCandidateCount
-            : 0,
+      externallyReviewReadyCandidateCount:
+        publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
+          ? 0
+          : packageReadyDiscoveryFund
+            ? externallyReviewReadyFundClassifications.length
+            : hardGatesPass
+              ? discoveryFundCandidateCount
+              : 0,
       discoveryFundCandidateCount,
       nonDiscoveryFundCandidateCount,
       publicValidationMajorCaveatCount: publicMajorCaveats.length,
@@ -1632,48 +1751,67 @@ export class NobelReadinessScorer {
       publicFormalCounterexampleCheckCount,
       publicFormalCounterexampleCollapsedCount,
       publicFormalCounterexamplePressureReady,
+      externalHumanReviewStatus,
+      externalHumanReviewCount,
+      validExternalHumanReviewCount,
+      supportiveExternalHumanReviewCount,
+      externalHumanIndependentReproductionCount,
+      externalHumanReviewScoreImpact,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
-      rationale: publicDiscoveryScoreBlocked
+      rationale: externalHumanReviewBlocksReadiness
         ? [
-            "A matching public corpus package blocks Einstein/Nobel discovery scoring for the persisted Fund candidate.",
-            "Public extended validation or public package metadata indicates that a rival explanation explains or downgrades the discovery signal.",
-            "The raw replay may remain useful, but the candidate no longer counts as an externally-review-ready discovery-scored Fund until a new public package resolves the blocker.",
-            "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
+            "A recorded external human review requires revision, rejects the candidate, reports non-reproduction, or assesses the signal as known or trivial.",
+            "The candidate is not counted as externally-review-ready until a new review resolves the blocker.",
+            "The layer records outside review status without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
           ]
-        : packageReadyDiscoveryFund
+        : publicDiscoveryScoreBlocked
           ? [
-              "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
-              "This is an internal external-review package readiness state, not outside expert validation.",
-              ...(majorPublicRivalCaveat
-                ? [
-                    "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
-                  ]
-                : []),
-              ...(publicReplayLiveSourceOnly
-                ? [
-                    "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
-                  ]
-                : []),
-              ...(publicFormalCounterexamplePressureReady
-                ? [
-                    "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
-                  ]
-                : []),
-              ...(publicFormalValidationBundleReady
-                ? [
-                    "Public formal replay bundle evidence is consumed for replay, holdout, baseline, rival, prediction, and counterexample readiness sub-scores; this remains internal scoring and not outside expert validation.",
-                  ]
-                : []),
+              "A matching public corpus package blocks Einstein/Nobel discovery scoring for the persisted Fund candidate.",
+              "Public extended validation or public package metadata indicates that a rival explanation explains or downgrades the discovery signal.",
+              "The raw replay may remain useful, but the candidate no longer counts as an externally-review-ready discovery-scored Fund until a new public package resolves the blocker.",
               "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
-              "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
             ]
-          : [
-              "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
-              "Counterexample and replay pressure require a caveated classification.",
-              "The layer improves readiness discipline without creating a validated discovery claim.",
-              "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
-            ],
+          : packageReadyDiscoveryFund
+            ? [
+                "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
+                "This is an internal external-review package readiness state, not outside expert validation.",
+                ...(majorPublicRivalCaveat
+                  ? [
+                      "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
+                    ]
+                  : []),
+                ...(publicReplayLiveSourceOnly
+                  ? [
+                      "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
+                    ]
+                  : []),
+                ...(publicFormalCounterexamplePressureReady
+                  ? [
+                      "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
+                    ]
+                  : []),
+                ...(publicFormalValidationBundleReady
+                  ? [
+                      "Public formal replay bundle evidence is consumed for replay, holdout, baseline, rival, prediction, and counterexample readiness sub-scores; this remains internal scoring and not outside expert validation.",
+                    ]
+                  : []),
+                ...(supportiveExternalHumanReview
+                  ? [
+                      "A candidate-matching external human review record with independent reproduction and plausibly novel assessment is recorded; this raises package review readiness but does not assert prize significance or field adoption.",
+                    ]
+                  : [
+                      "External human review intake is awaiting a valid independent review record before any further readiness increase.",
+                    ]),
+                "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
+                "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
+              ]
+            : [
+                "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
+                "Counterexample and replay pressure require a caveated classification.",
+                "The layer improves readiness discipline without creating a validated discovery claim.",
+                "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
+              ],
       evidenceHash: "",
     };
     return {
@@ -1726,20 +1864,24 @@ export class NobelReadinessPackageBuilder {
       score.publicFormalFrozenPredictionCount !== null
         ? `\n- Public formal frozen predictions: ${score.publicFormalFrozenPredictionCount}; executed: ${score.publicFormalExecutedPredictionCount ?? "unknown"}; supported: ${score.publicFormalSupportedPredictionCount ?? "unknown"}; non-obvious: ${score.publicFormalNonObviousPredictionCount ?? "unknown"}; prediction ready: ${String(score.publicFormalPredictionReady)}.`
         : "";
+    const externalHumanReviewLimitation =
+      score.externalHumanReviewStatus === "supportive_external_review_recorded"
+        ? "- A supportive external human review record is stored, but the package still does not claim prize significance, field uptake, or broad outside validation."
+        : "- No outside expert reviewed this package.";
     const decision = packageReady
       ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
       : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
     const limitations = packageReady
       ? `# Limitations
 
-- No outside expert reviewed this package.
+${externalHumanReviewLimitation}
 - The external-review-ready label is an internal package readiness label.
 - The package does not claim prize significance, outside validation, or field uptake.
 - Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.${publicValidationCaveatText}${publicReplayCaveatText}
 `
       : `# Limitations
 
-- No outside expert reviewed this package.
+${externalHumanReviewLimitation}
 - No candidate reached all hard gates for an externally_review_ready_candidate label.
 - Counterexample pressure narrowed the strongest candidate seed.
 - Replay caveats require narrower claims.
@@ -1761,6 +1903,8 @@ ${decision}
 - Public live-source-only replay caveats: ${score.publicReplayLiveSourceOnlyCaveatCount}.
 - Public formal replay ready: ${String(score.publicFormalReplayReady)}.${publicFormalReplayText}${publicFormalHoldoutText}${publicFormalBaselineText}${publicFormalRivalText}${publicFormalPredictionText}
 - Public formal counterexample pressure ready: ${String(score.publicFormalCounterexamplePressureReady)}.${publicFormalCounterexampleText}
+- External human review status: ${score.externalHumanReviewStatus}.
+- External human review records: ${score.validExternalHumanReviewCount}/${score.externalHumanReviewCount}; supportive: ${score.supportiveExternalHumanReviewCount}; independent reproductions: ${score.externalHumanIndependentReproductionCount}; score impact: ${score.externalHumanReviewScoreImpact}.
 - Safety score: ${score.safety_score}/100.
 - Overclaim risk score: ${score.overclaim_risk_score}/100.
 
@@ -1998,6 +2142,7 @@ export class NobelReadinessService {
     const fundClassifications = await this.daemonFundClassifications();
     const publicValidationContexts =
       await this.publicValidationContextsForFundClasses(fundClassifications);
+    const externalReviewIntake = await this.externalReviewIntakeOrNull();
     await writeJson(join(this.rootDir, "kill-week-results.json"), killWeek);
     const score = new NobelReadinessScorer().score({
       promoted: search.promoted,
@@ -2009,6 +2154,7 @@ export class NobelReadinessService {
       killWeek,
       fundClassifications,
       publicValidationContexts,
+      externalReviewIntake,
     });
     await writeJson(join(this.rootDir, "readiness-score.json"), score);
     return {
@@ -2405,6 +2551,260 @@ export class NobelReadinessService {
     return hashedBundle;
   }
 
+  async externalReviewIntake(): Promise<ExternalReviewIntakeAudit> {
+    const handoff = await this.externalReviewHandoff();
+    const reviewRel = ".sovryn/nobel-readiness/external-review-reviews";
+    const reviewDir = join(this.root, reviewRel);
+    await mkdir(reviewDir, { recursive: true });
+    const entries = (await readdir(reviewDir))
+      .filter((entry) => entry.endsWith(".json"))
+      .sort();
+    const records: ExternalReviewIntakeRecord[] = [];
+    for (const entry of entries) {
+      const path = join(reviewDir, entry);
+      const relPath = `${reviewRel}/${entry}`;
+      const reasons: string[] = [];
+      let payload: Record<string, unknown> | null = null;
+      try {
+        payload = await readJson<Record<string, unknown>>(path);
+      } catch {
+        reasons.push("invalid_json");
+      }
+      const candidateId = stringValue(payload?.candidateId);
+      const resultSlug = stringValue(payload?.resultSlug);
+      const reviewerRole = stringValue(payload?.reviewerRole);
+      const reviewDate = stringValue(payload?.reviewDate);
+      const reviewSourceRef = stringValue(payload?.reviewSourceRef);
+      const decision = externalReviewDecisionValue(payload?.decision);
+      const independentReproductionStatus =
+        externalReviewReproductionStatusValue(
+          payload?.independentReproductionStatus,
+        );
+      const noveltyAssessment = externalReviewNoveltyAssessmentValue(
+        payload?.noveltyAssessment,
+      );
+      const evidenceRefs = arrayOfStrings(payload?.evidenceRefs);
+      const sourceResolution = await this.resolveExternalReviewSourceRef(
+        reviewSourceRef,
+        reviewDir,
+      );
+      const overclaimFindings = Array.from(
+        new Set([
+          ...arrayOfStrings(payload?.overclaimFindings),
+          ...auditNobelReadinessPublicText(JSON.stringify(payload ?? {})),
+        ]),
+      );
+      if (!candidateId) reasons.push("missing_candidate_id");
+      if (candidateId && candidateId !== handoff.candidateId) {
+        reasons.push("candidate_id_mismatch");
+      }
+      if (!reviewerRole) reasons.push("missing_reviewer_role");
+      if (!reviewDate) reasons.push("missing_review_date");
+      if (!reviewSourceRef) reasons.push("missing_review_source_ref");
+      if (!sourceResolution.resolved) reasons.push("review_source_unresolved");
+      if (!sourceResolution.publicSafe) {
+        reasons.push("review_source_not_public_safe");
+      }
+      if (!decision) reasons.push("invalid_decision");
+      if (!independentReproductionStatus) {
+        reasons.push("invalid_independent_reproduction_status");
+      }
+      if (!noveltyAssessment) reasons.push("invalid_novelty_assessment");
+      if (overclaimFindings.length > 0) reasons.push("forbidden_claim_text");
+      const valid = reasons.length === 0;
+      const supportive =
+        valid &&
+        decision === "accepted_with_caveats" &&
+        independentReproductionStatus === "reproduced" &&
+        noveltyAssessment === "nontrivial_and_plausibly_novel";
+      const revisionOrRejection =
+        valid &&
+        (decision === "major_revision" ||
+          decision === "rejected" ||
+          decision === "invalid_or_unverified" ||
+          independentReproductionStatus === "not_reproduced" ||
+          noveltyAssessment === "known_or_trivial");
+      records.push({
+        path: relPath,
+        exists: true,
+        candidateId,
+        resultSlug,
+        reviewerRole,
+        reviewDate,
+        reviewSourceRef,
+        reviewSourceResolved: sourceResolution.resolved,
+        reviewSourcePublicSafe: sourceResolution.publicSafe,
+        decision,
+        independentReproductionStatus,
+        noveltyAssessment,
+        overclaimFindings,
+        evidenceRefs,
+        valid,
+        supportive,
+        revisionOrRejection,
+        reasons,
+      });
+    }
+    const validReviewCount = records.filter((record) => record.valid).length;
+    const supportiveReviewCount = records.filter(
+      (record) => record.supportive,
+    ).length;
+    const independentReproductionCount = records.filter(
+      (record) =>
+        record.valid && record.independentReproductionStatus === "reproduced",
+    ).length;
+    const revisionOrRejectionCount = records.filter(
+      (record) => record.revisionOrRejection,
+    ).length;
+    const status: ExternalReviewIntakeAudit["status"] =
+      records.length === 0
+        ? "awaiting_external_review"
+        : validReviewCount === 0
+          ? "blocked_invalid_external_review"
+          : revisionOrRejectionCount > 0
+            ? "external_review_requires_revision_or_rejects"
+            : supportiveReviewCount > 0
+              ? "supportive_external_review_recorded"
+              : "blocked_invalid_external_review";
+    const scoreImpact: ExternalReviewIntakeAudit["scoreImpact"] =
+      status === "awaiting_external_review"
+        ? "none_awaiting_external_review"
+        : status === "supportive_external_review_recorded"
+          ? "supports_higher_external_review_readiness"
+          : status === "external_review_requires_revision_or_rejects"
+            ? "blocks_discovery_readiness"
+            : "no_score_change_invalid_review";
+    const gates = [
+      {
+        code: "handoff_exists",
+        passed: handoff.passed,
+        message:
+          "External review intake is bound to the current handoff package.",
+      },
+      {
+        code: "review_records_parse",
+        passed: records.every(
+          (record) => !record.reasons.includes("invalid_json"),
+        ),
+        message: "Review records must be valid JSON.",
+      },
+      {
+        code: "valid_reviews_match_candidate",
+        passed: records
+          .filter((record) => record.valid)
+          .every((record) => record.candidateId === handoff.candidateId),
+        message:
+          "Valid review records must match the active Fund candidate identity.",
+      },
+      {
+        code: "review_sources_resolve",
+        passed: records
+          .filter((record) => record.valid)
+          .every((record) => record.reviewSourceResolved),
+        message: "Valid review records require public-safe review source refs.",
+      },
+      {
+        code: "no_forbidden_review_claims",
+        passed: records.every(
+          (record) => record.overclaimFindings.length === 0,
+        ),
+        message:
+          "External review records must not contain prohibited overclaim text.",
+      },
+      {
+        code: "invalid_reviews_do_not_raise_score",
+        passed:
+          status !== "blocked_invalid_external_review" ||
+          scoreImpact === "no_score_change_invalid_review",
+        message:
+          "Invalid or unverified reviews are recorded but cannot increase readiness scores.",
+      },
+      {
+        code: "supportive_review_requires_reproduction_and_novelty",
+        passed: records
+          .filter((record) => record.supportive)
+          .every(
+            (record) =>
+              record.independentReproductionStatus === "reproduced" &&
+              record.noveltyAssessment === "nontrivial_and_plausibly_novel",
+          ),
+        message:
+          "A supportive review can affect scoring only with independent reproduction and bounded novelty assessment.",
+      },
+    ];
+    const passed =
+      handoff.passed && status !== "blocked_invalid_external_review";
+    const intake: ExternalReviewIntakeAudit = {
+      kind: "nobel_readiness_external_review_intake",
+      generatedAt: nowIso(),
+      status,
+      passed,
+      candidateId: handoff.candidateId,
+      fundClass: handoff.fundClass,
+      packagePath: handoff.packagePath,
+      reviewDirectory: reviewRel,
+      reviewCount: records.length,
+      validReviewCount,
+      supportiveReviewCount,
+      independentReproductionCount,
+      revisionOrRejectionCount,
+      externalExpertValidationClaimed: false,
+      scoreImpact,
+      records,
+      gates,
+      nextHumanAction:
+        status === "awaiting_external_review"
+          ? "Place candidate-matching external human review JSON records in .sovryn/nobel-readiness/external-review-reviews, then rerun this intake."
+          : status === "supportive_external_review_recorded"
+            ? "Rerun nobel-readiness score and package so the recorded external review status is reflected without changing the claim."
+            : "Resolve invalid, revision, rejection, non-reproduction, known/trivial, or overclaim findings before treating the package as stronger.",
+      artifactRefs: [
+        ".sovryn/nobel-readiness/external-review-intake.json",
+        ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
+        reviewRel,
+      ],
+      evidenceHash: "",
+    };
+    const hashedIntake = {
+      ...intake,
+      evidenceHash: hashEvidence({ ...intake, evidenceHash: "" }),
+    };
+    await writeJson(
+      join(this.rootDir, "external-review-intake.json"),
+      hashedIntake,
+    );
+    await writeFile(
+      join(this.rootDir, "EXTERNAL_REVIEW_INTAKE.md"),
+      externalReviewIntakeMarkdown(hashedIntake),
+      "utf8",
+    );
+    return hashedIntake;
+  }
+
+  private async resolveExternalReviewSourceRef(
+    ref: string | null,
+    reviewDir: string,
+  ): Promise<{ resolved: boolean; publicSafe: boolean }> {
+    if (!ref) return { resolved: false, publicSafe: false };
+    const publicSafe = isPublicSafeRef(ref);
+    if (isExternalUrl(ref)) return { resolved: publicSafe, publicSafe };
+    const { pathPart, anchor } = splitRef(ref);
+    if (!publicSafe || !pathPart) {
+      return { resolved: false, publicSafe };
+    }
+    const absolutePath = pathPart.startsWith(".")
+      ? join(this.root, pathPart)
+      : join(reviewDir, pathPart);
+    const exists = await fileExists(absolutePath);
+    if (!exists) return { resolved: false, publicSafe };
+    if (!anchor) return { resolved: true, publicSafe };
+    const text = await readFile(absolutePath, "utf8");
+    const resolved = pathPart.toLowerCase().endsWith(".json")
+      ? jsonHasAnchor(JSON.parse(text) as unknown, anchor)
+      : markdownHasAnchor(text, anchor);
+    return { resolved, publicSafe };
+  }
+
   private async resolveHandoffRef(
     ref: string,
     packagePath: string | null,
@@ -2549,6 +2949,12 @@ export class NobelReadinessService {
     if (existing) return existing;
     await this.score();
     return readJson<NobelReadinessScore>(path);
+  }
+
+  private async externalReviewIntakeOrNull(): Promise<ExternalReviewIntakeAudit | null> {
+    return readOptionalJson<ExternalReviewIntakeAudit>(
+      join(this.rootDir, "external-review-intake.json"),
+    );
   }
 
   private async daemonFundClassifications(): Promise<FundClassAssessment[]> {
@@ -2983,6 +3389,51 @@ function booleanValue(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+function arrayOfStrings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function externalReviewDecisionValue(
+  value: unknown,
+): ExternalHumanReviewDecision | null {
+  return typeof value === "string" &&
+    [
+      "accepted_with_caveats",
+      "major_revision",
+      "rejected",
+      "invalid_or_unverified",
+    ].includes(value)
+    ? (value as ExternalHumanReviewDecision)
+    : null;
+}
+
+function externalReviewReproductionStatusValue(
+  value: unknown,
+): ExternalHumanReviewReproductionStatus | null {
+  return typeof value === "string" &&
+    [
+      "reproduced",
+      "partially_reproduced",
+      "not_reproduced",
+      "not_attempted",
+    ].includes(value)
+    ? (value as ExternalHumanReviewReproductionStatus)
+    : null;
+}
+
+function externalReviewNoveltyAssessmentValue(
+  value: unknown,
+): ExternalHumanReviewNoveltyAssessment | null {
+  return typeof value === "string" &&
+    ["nontrivial_and_plausibly_novel", "known_or_trivial", "unclear"].includes(
+      value,
+    )
+    ? (value as ExternalHumanReviewNoveltyAssessment)
+    : null;
+}
+
 function publicReviewStatusAllowsRawScientificReproduction(
   status: string | null,
 ): boolean {
@@ -3318,6 +3769,67 @@ function externalReviewReproductionQueueMarkdown(
 | Step | Action | Input refs | Expected evidence | Status |
 | --- | --- | --- | --- | --- |
 ${rows}
+`;
+}
+
+function externalReviewIntakeMarkdown(
+  intake: ExternalReviewIntakeAudit,
+): string {
+  const rows =
+    intake.records.length > 0
+      ? intake.records
+          .map(
+            (record) =>
+              `| ${record.path} | ${record.valid ? "yes" : "no"} | ${record.decision ?? "missing"} | ${record.independentReproductionStatus ?? "missing"} | ${record.noveltyAssessment ?? "missing"} | ${record.supportive ? "yes" : "no"} | ${record.revisionOrRejection ? "yes" : "no"} | ${record.reasons.length === 0 ? "none" : record.reasons.join(", ")} |`,
+          )
+          .join("\n")
+      : "| none | no | missing | missing | missing | no | no | awaiting external human review |";
+  const gateRows = intake.gates
+    .map(
+      (gate) =>
+        `| ${gate.code} | ${gate.passed ? "pass" : "fail"} | ${gate.message} |`,
+    )
+    .join("\n");
+  return `# External Review Intake
+
+## Decision
+
+Status: \`${intake.status}\`
+
+This intake records independent human review files when they exist. It does not claim prize significance, field uptake, or outside validation merely because a package is ready for review.
+
+## Candidate
+
+- Candidate ID: ${intake.candidateId ?? "missing"}
+- Fund class: ${intake.fundClass ?? "missing"}
+- Package path: ${intake.packagePath ?? "missing"}
+- Review directory: ${intake.reviewDirectory}
+- External expert validation claimed by Sovryn: no
+- Score impact: ${intake.scoreImpact}
+
+## Review Summary
+
+- Review records: ${intake.reviewCount}
+- Valid review records: ${intake.validReviewCount}
+- Supportive review records: ${intake.supportiveReviewCount}
+- Independent reproductions recorded: ${intake.independentReproductionCount}
+- Revision or rejection records: ${intake.revisionOrRejectionCount}
+
+## Records
+
+| Path | Valid | Decision | Reproduction | Novelty | Supportive | Revision/rejection | Reasons |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+${rows}
+
+## Gates
+
+| Gate | Status | Meaning |
+| --- | --- | --- |
+${gateRows}
+
+## Next Human Action
+
+${intake.nextHumanAction}
 `;
 }
 

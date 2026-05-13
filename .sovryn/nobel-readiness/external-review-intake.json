@@ -1,0 +1,62 @@
+{
+  "kind": "nobel_readiness_external_review_intake",
+  "generatedAt": "2026-05-13T10:22:37.476Z",
+  "status": "awaiting_external_review",
+  "passed": true,
+  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
+  "fundClass": "externally_review_ready_discovery_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
+  "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
+  "reviewCount": 0,
+  "validReviewCount": 0,
+  "supportiveReviewCount": 0,
+  "independentReproductionCount": 0,
+  "revisionOrRejectionCount": 0,
+  "externalExpertValidationClaimed": false,
+  "scoreImpact": "none_awaiting_external_review",
+  "records": [],
+  "gates": [
+    {
+      "code": "handoff_exists",
+      "passed": true,
+      "message": "External review intake is bound to the current handoff package."
+    },
+    {
+      "code": "review_records_parse",
+      "passed": true,
+      "message": "Review records must be valid JSON."
+    },
+    {
+      "code": "valid_reviews_match_candidate",
+      "passed": true,
+      "message": "Valid review records must match the active Fund candidate identity."
+    },
+    {
+      "code": "review_sources_resolve",
+      "passed": true,
+      "message": "Valid review records require public-safe review source refs."
+    },
+    {
+      "code": "no_forbidden_review_claims",
+      "passed": true,
+      "message": "External review records must not contain prohibited overclaim text."
+    },
+    {
+      "code": "invalid_reviews_do_not_raise_score",
+      "passed": true,
+      "message": "Invalid or unverified reviews are recorded but cannot increase readiness scores."
+    },
+    {
+      "code": "supportive_review_requires_reproduction_and_novelty",
+      "passed": true,
+      "message": "A supportive review can affect scoring only with independent reproduction and bounded novelty assessment."
+    }
+  ],
+  "nextHumanAction": "Place candidate-matching external human review JSON records in .sovryn/nobel-readiness/external-review-reviews, then rerun this intake.",
+  "artifactRefs": [
+    ".sovryn/nobel-readiness/external-review-intake.json",
+    ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
+    ".sovryn/nobel-readiness/external-review-reviews"
+  ],
+  "evidenceHash": "846f0110971332361a92884c29516c99a5d1f88915226f81e901456abb9af5f7"
+}

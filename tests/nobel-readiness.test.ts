@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { executeCli } from "../src/cli/index.js";
 import { classifyFundCandidate } from "../src/core/fund/fund-taxonomy.js";
@@ -985,6 +985,154 @@ test("nobel-readiness external-review bundle blocks when handoff refs are unreso
   );
 });
 
+test("nobel-readiness external-review intake records awaiting state without claiming validation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-awaiting-"));
+  await writeActiveDiscoveryFundPackage(root);
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "EXTERNAL_REVIEW_INTAKE.md"),
+    "utf8",
+  );
+
+  assert.equal(intake.status, "awaiting_external_review");
+  assert.equal(intake.passed, true);
+  assert.equal(intake.reviewCount, 0);
+  assert.equal(intake.externalExpertValidationClaimed, false);
+  assert.equal(score.externalHumanReviewStatus, "awaiting_external_review");
+  assert.equal(
+    score.externalHumanReviewScoreImpact,
+    "none_awaiting_external_review",
+  );
+  assert.equal(score.totalScore, 72);
+  assert.match(report, /does not claim prize significance/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
+test("nobel-readiness invalid external-review intake cannot raise score", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-invalid-"));
+  await writeActiveDiscoveryFundPackage(root);
+  const reviewDir = join(
+    root,
+    ".sovryn",
+    "nobel-readiness",
+    "external-review-reviews",
+  );
+  await mkdir(reviewDir, { recursive: true });
+  await writeJson(join(reviewDir, "invalid.json"), {
+    kind: "external_human_review",
+    candidateId: "WRONG-CANDIDATE",
+    reviewerRole: "independent materials reviewer",
+    reviewDate: "2026-05-13",
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.passed, false);
+  assert.equal(intake.validReviewCount, 0);
+  assert.equal(intake.scoreImpact, "no_score_change_invalid_review");
+  assert.equal(
+    score.externalHumanReviewStatus,
+    "blocked_invalid_external_review",
+  );
+  assert.equal(score.totalScore, 72);
+  assert.equal(score.external_review_readiness_score, 78);
+});
+
+test("nobel-readiness rejecting external review blocks external-review-ready scoring", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-reject-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/rejected.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent formal methods reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef: reviewRel,
+    decision: "rejected",
+    independentReproductionStatus: "not_reproduced",
+    noveltyAssessment: "known_or_trivial",
+    overclaimFindings: [],
+    evidenceRefs: ["PAPER.md#evidence-summary"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "external_review_requires_revision_or_rejects");
+  assert.equal(intake.passed, true);
+  assert.equal(intake.validReviewCount, 1);
+  assert.equal(intake.revisionOrRejectionCount, 1);
+  assert.equal(intake.scoreImpact, "blocks_discovery_readiness");
+  assert.equal(score.label, "promising_but_unvalidated");
+  assert.equal(score.externallyReviewReadyCandidateCount, 0);
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, false);
+  assert.equal(score.totalScore, 38);
+});
+
+test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/supportive.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent computational materials reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef: reviewRel,
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+    evidenceRefs: ["PAPER.md#evidence-summary", "METHOD.md#method"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+  await service.package();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "NOBEL_READINESS_REPORT.md"),
+    "utf8",
+  );
+
+  assert.equal(intake.status, "supportive_external_review_recorded");
+  assert.equal(intake.passed, true);
+  assert.equal(intake.supportiveReviewCount, 1);
+  assert.equal(intake.independentReproductionCount, 1);
+  assert.equal(intake.scoreImpact, "supports_higher_external_review_readiness");
+  assert.equal(score.label, "externally_review_ready_candidate");
+  assert.equal(score.external_review_readiness_score, 88);
+  assert.equal(score.totalScore, 84);
+  assert.equal(
+    score.externalHumanReviewStatus,
+    "supportive_external_review_recorded",
+  );
+  assert.match(
+    report,
+    /External human review status: supportive_external_review_recorded/,
+  );
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
 for (const field of scoreFields) {
   test(`nobel readiness score has bounded numeric field ${field}`, () => {
     const value = readinessScore[field as keyof typeof readinessScore];
@@ -1039,6 +1187,7 @@ const helpCommands = [
   "nobel-readiness package",
   "nobel-readiness external-review-handoff",
   "nobel-readiness external-review-bundle",
+  "nobel-readiness external-review-intake",
   "nobel-readiness audit",
 ];
 
@@ -1067,6 +1216,7 @@ for (const args of [
   ["package"],
   ["external-review-handoff"],
   ["external-review-bundle"],
+  ["external-review-intake"],
   ["audit"],
 ]) {
   test(`nobel readiness CLI command works: ${args.join(" ")}`, async () => {

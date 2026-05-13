@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-13T09:58:51.426Z",
+  "scoredAt": "2026-05-13T10:23:41.600Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 70,
@@ -41,6 +41,12 @@
   "publicFormalCounterexampleCheckCount": 72,
   "publicFormalCounterexampleCollapsedCount": 0,
   "publicFormalCounterexamplePressureReady": true,
+  "externalHumanReviewStatus": "awaiting_external_review",
+  "externalHumanReviewCount": 0,
+  "validExternalHumanReviewCount": 0,
+  "supportiveExternalHumanReviewCount": 0,
+  "externalHumanIndependentReproductionCount": 0,
+  "externalHumanReviewScoreImpact": "none_awaiting_external_review",
   "einsteinNobelDiscoveryScoreEligible": true,
   "scoringSeparationApplied": true,
   "rationale": [
@@ -48,8 +54,9 @@
     "This is an internal external-review package readiness state, not outside expert validation.",
     "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
     "Public formal replay bundle evidence is consumed for replay, holdout, baseline, rival, prediction, and counterexample readiness sub-scores; this remains internal scoring and not outside expert validation.",
+    "External human review intake is awaiting a valid independent review record before any further readiness increase.",
     "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
     "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger."
   ],
-  "evidenceHash": "bfe313e489512094510c33f57ab1a70eb9ec6766b944cd1692c1397cd11ec52d"
+  "evidenceHash": "c2b82a769db710923d526aeb67ca377a9a05ab0547d84e81e165bf1ff86b525e"
 }

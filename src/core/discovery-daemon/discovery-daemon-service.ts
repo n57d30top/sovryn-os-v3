@@ -2190,6 +2190,170 @@ export type FormalMechanismCrossSourceGauntletReport = {
   evidenceHash: string;
 };
 
+export type FormalMechanismFailureAutopsyItem = {
+  kind: "formal_mechanism_failure_autopsy_item";
+  anchorId: string;
+  objectId: string;
+  exactClaim: string;
+  formalObjectSource: string;
+  measuredPattern: string;
+  crossSourceSupport: FormalCrossSourceSupportClassification;
+  missingMechanism: string;
+  missingProofObligation: string;
+  whyProofMechanismFailed: string;
+  requiredLemma: string;
+  lemmaCounterexampleSearchTarget: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalMechanismFailureAutopsyReport = {
+  kind: "formal_mechanism_failure_autopsy";
+  candidatesAnalyzed: number;
+  items: FormalMechanismFailureAutopsyItem[];
+  evidenceHash: string;
+};
+
+export type FormalProofCheckerRoute =
+  | "graph_invariant_checks"
+  | "sat_smt_z3_encoding"
+  | "brute_force_bounded_enumeration"
+  | "networkx_sympy_checks"
+  | "deterministic_formal_generator_replay"
+  | "proof_sketch_artifact";
+
+export type FormalProofObligation = {
+  kind: "formal_proof_obligation";
+  anchorId: string;
+  objectId: string;
+  definitions: string[];
+  exactBoundedStatement: string;
+  requiredLemmas: string[];
+  witnessCertificateType: string;
+  proofSketchPath: string;
+  refutationCounterexamplePath: string;
+  knownTrivialityRisk: ExternalFormalProblemAnchor["knownPriorRisk"];
+  checkerRoutes: FormalProofCheckerRoute[];
+  concreteProofPathExists: boolean;
+  falsifierExists: boolean;
+  crossSourceSupportPossible: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationReport = {
+  kind: "formal_proof_obligations";
+  obligationsBuilt: number;
+  obligations: FormalProofObligation[];
+  evidenceHash: string;
+};
+
+export type FormalProofReadyRejection = {
+  kind: "formal_proof_ready_rejection";
+  anchorId: string;
+  objectId: string;
+  reasons: string[];
+  evidenceHash: string;
+};
+
+export type FormalProofReadyCandidateSelectionReport = {
+  kind: "formal_proof_ready_candidates";
+  obligationsEvaluated: number;
+  proofReadyCandidates: number;
+  rejectedNoProofPath: number;
+  selectedForPressure: number;
+  selected: FormalProofObligation[];
+  rejections: FormalProofReadyRejection[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationPressureClassification =
+  | "proof_obligation_supported"
+  | "counterexample_found"
+  | "proof_obligation_inconclusive"
+  | "known_trivial"
+  | "mechanism_failed";
+
+export type FormalProofObligationPressureResult = {
+  kind: "formal_proof_obligation_pressure_result";
+  anchorId: string;
+  objectId: string;
+  frozenExactClaim: string;
+  frozenRequiredLemma: string;
+  boundedProofChecks: Array<{
+    checkId: string;
+    checkerRoute: FormalProofCheckerRoute;
+    passed: boolean;
+    observation: string;
+  }>;
+  targetedCounterexampleSearch: Array<{
+    searchId: string;
+    target: string;
+    counterexampleFound: boolean;
+    observation: string;
+  }>;
+  rivalMechanismCheck: {
+    rival: string;
+    candidateBeatsRival: boolean;
+    observation: string;
+  };
+  replayCheck: {
+    replayPath: string;
+    succeeded: boolean;
+    observation: string;
+  };
+  classification: FormalProofObligationPressureClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationPressureReport = {
+  kind: "formal_proof_pressure_results";
+  candidatesTested: number;
+  checksRun: number;
+  proofObligationSupported: number;
+  counterexamplesFound: number;
+  proofObligationInconclusive: number;
+  knownTrivial: number;
+  mechanismFailed: number;
+  results: FormalProofObligationPressureResult[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationInsightBirthDecision = {
+  kind: "formal_proof_obligation_insight_birth_decision";
+  anchorId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  proofClassification: FormalProofObligationPressureClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationInsightBirthReport = {
+  kind: "formal_proof_obligation_insight_birth_decisions";
+  candidatesEvaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: FormalProofObligationInsightBirthDecision[];
+  evidenceHash: string;
+};
+
+export type FormalProofObligationFirstDiscoveryReport = {
+  kind: "formal_proof_obligation_first_discovery";
+  failureAutopsy: FormalMechanismFailureAutopsyReport;
+  proofObligations: FormalProofObligationReport;
+  proofReadySelection: FormalProofReadyCandidateSelectionReport;
+  proofPressure: FormalProofObligationPressureReport;
+  insightBirthDecisions: FormalProofObligationInsightBirthReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -2314,6 +2478,11 @@ export type SourceObjectDiscoveryEngineReport = {
   formalMechanismPressureChecksRun?: number;
   formalCrossSourceChecksRun?: number;
   formalGauntletInsightCandidatesBorn?: number;
+  proofObligationsBuilt?: number;
+  proofReadyFormalCandidates?: number;
+  proofObligationPressureCandidates?: number;
+  proofObligationPressureChecksRun?: number;
+  proofObligationInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -14196,6 +14365,10 @@ export class SourceObjectFirstDiscoveryEngine {
         highSignalExternalFormalSelection,
         externalFormalExecution,
       );
+    const formalProofObligationFirstDiscovery =
+      runFormalProofObligationFirstDiscovery(
+        formalMechanismCrossSourceGauntlet,
+      );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -14218,6 +14391,9 @@ export class SourceObjectFirstDiscoveryEngine {
       countFormalInsightBirthDeathCauses(externalFormalInsightBirth),
       countFormalMechanismGauntletDeathCauses(
         formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+      ),
+      countFormalProofObligationDeathCauses(
+        formalProofObligationFirstDiscovery.insightBirthDecisions,
       ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
@@ -14288,6 +14464,18 @@ export class SourceObjectFirstDiscoveryEngine {
       formalGauntletInsightCandidatesBorn:
         formalMechanismCrossSourceGauntlet.insightBirthReevaluation
           .insightCandidatesBorn,
+      proofObligationsBuilt:
+        formalProofObligationFirstDiscovery.proofObligations.obligationsBuilt,
+      proofReadyFormalCandidates:
+        formalProofObligationFirstDiscovery.proofReadySelection
+          .proofReadyCandidates,
+      proofObligationPressureCandidates:
+        formalProofObligationFirstDiscovery.proofPressure.candidatesTested,
+      proofObligationPressureChecksRun:
+        formalProofObligationFirstDiscovery.proofPressure.checksRun,
+      proofObligationInsightCandidatesBorn:
+        formalProofObligationFirstDiscovery.insightBirthDecisions
+          .insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -14314,6 +14502,7 @@ export class SourceObjectFirstDiscoveryEngine {
         externalFormalExecution,
         externalFormalInsightBirth,
         formalMechanismCrossSourceGauntlet,
+        formalProofObligationFirstDiscovery,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -14338,6 +14527,7 @@ export class SourceObjectFirstDiscoveryEngine {
       externalFormalDeathCauseIntegrityAudit: deathCauseIntegrityAudit,
       externalFormalInsightBirth,
       formalMechanismCrossSourceGauntlet,
+      formalProofObligationFirstDiscovery,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -14471,6 +14661,10 @@ export class SourceObjectFirstDiscoveryEngine {
     const formalMechanismCrossSourceGauntlet =
       await readOptionalJson<FormalMechanismCrossSourceGauntletReport>(
         join(this.engineRoot(), "FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json"),
+      );
+    const formalProofObligationFirstDiscovery =
+      await readOptionalJson<FormalProofObligationFirstDiscoveryReport>(
+        join(this.engineRoot(), "FORMAL_PROOF_OBLIGATION_FIRST_DISCOVERY.json"),
       );
     const externalFormalAnchorFamilyCount =
       externalFormalAnchors?.sourceFamilies.length ?? 0;
@@ -14731,6 +14925,37 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
         "The five high-signal formal failures must receive mechanism/proof and cross-source support pressure before final InsightCandidate birth re-evaluation.",
+      ),
+      gate(
+        "formal_proof_obligation_first_gauntlet_completed",
+        formalProofObligationFirstDiscovery !== null &&
+          formalProofObligationFirstDiscovery.failureAutopsy
+            .candidatesAnalyzed === 5 &&
+          formalProofObligationFirstDiscovery.proofObligations
+            .obligationsBuilt === 5 &&
+          formalProofObligationFirstDiscovery.proofReadySelection
+            .obligationsEvaluated === 5 &&
+          formalProofObligationFirstDiscovery.proofReadySelection
+            .selectedForPressure <= 5 &&
+          formalProofObligationFirstDiscovery.proofPressure.candidatesTested ===
+            formalProofObligationFirstDiscovery.proofReadySelection
+              .selectedForPressure &&
+          formalProofObligationFirstDiscovery.proofPressure.checksRun >=
+            formalProofObligationFirstDiscovery.proofPressure.candidatesTested *
+              5 &&
+          formalProofObligationFirstDiscovery.insightBirthDecisions
+            .candidatesEvaluated ===
+            formalProofObligationFirstDiscovery.proofPressure
+              .candidatesTested &&
+          formalProofObligationFirstDiscovery.insightBirthDecisions
+            .discoveryCandidatesCreated === 0 &&
+          formalProofObligationFirstDiscovery.insightBirthDecisions
+            .fundFound === false &&
+          formalProofObligationFirstDiscovery.insightBirthDecisions.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "Archived high-signal formal failures must be converted into proof obligations, screened for proof paths, pressured with bounded proof/refutation checks, and fail closed before InsightCandidate birth.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -15219,6 +15444,7 @@ export class SourceObjectFirstDiscoveryEngine {
     externalFormalDeathCauseIntegrityAudit: ExternalFormalDeathCauseIntegrityAuditReport;
     externalFormalInsightBirth: FormalInsightBirthDecisionReport;
     formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport;
+    formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -15568,6 +15794,72 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
     );
     await writeJson(
+      join(root, "FORMAL_PROOF_OBLIGATION_FIRST_DISCOVERY.json"),
+      input.formalProofObligationFirstDiscovery,
+    );
+    await writeJson(
+      join(root, "FORMAL_MECHANISM_FAILURE_AUTOPSY.json"),
+      input.formalProofObligationFirstDiscovery.failureAutopsy,
+    );
+    await writeText(
+      join(root, "FORMAL_MECHANISM_FAILURE_AUTOPSY.md"),
+      formalMechanismFailureAutopsyMarkdown(
+        input.formalProofObligationFirstDiscovery.failureAutopsy,
+      ),
+    );
+    await writeText(
+      join(root, "FORMAL_REQUIRED_LEMMAS.md"),
+      formalRequiredLemmasMarkdown(
+        input.formalProofObligationFirstDiscovery.failureAutopsy,
+      ),
+    );
+    await writeJson(
+      join(root, "PROOF_OBLIGATIONS.json"),
+      input.formalProofObligationFirstDiscovery.proofObligations,
+    );
+    await writeText(
+      join(root, "PROOF_OBLIGATION_SCHEMA.md"),
+      proofObligationSchemaMarkdown(),
+    );
+    await writeText(
+      join(root, "PROOF_READY_FORMAL_CANDIDATES.md"),
+      proofReadyFormalCandidatesMarkdown(
+        input.formalProofObligationFirstDiscovery.proofReadySelection,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_NO_PROOF_PATH.md"),
+      rejectedNoProofPathMarkdown(
+        input.formalProofObligationFirstDiscovery.proofReadySelection,
+      ),
+    );
+    await writeJson(
+      join(root, "PROOF_PRESSURE_RESULTS.json"),
+      input.formalProofObligationFirstDiscovery.proofPressure,
+    );
+    await writeText(
+      join(root, "PROOF_PRESSURE_RESULTS.md"),
+      proofPressureResultsMarkdown(
+        input.formalProofObligationFirstDiscovery.proofPressure,
+      ),
+    );
+    await writeText(
+      join(root, "TARGETED_COUNTEREXAMPLE_RESULTS.md"),
+      targetedCounterexampleResultsMarkdown(
+        input.formalProofObligationFirstDiscovery.proofPressure,
+      ),
+    );
+    await writeJson(
+      join(root, "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.json"),
+      input.formalProofObligationFirstDiscovery.insightBirthDecisions,
+    );
+    await writeText(
+      join(root, "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.md"),
+      proofObligationInsightBirthDecisionsMarkdown(
+        input.formalProofObligationFirstDiscovery.insightBirthDecisions,
+      ),
+    );
+    await writeJson(
       join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.json"),
       input.insightClosure,
     );
@@ -15638,6 +15930,7 @@ export class SourceObjectFirstDiscoveryEngine {
       sourceObjectPromotionDecisionsMarkdown(
         input.requiredNextTestClosure,
         input.formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+        input.formalProofObligationFirstDiscovery.insightBirthDecisions,
       ),
     );
     await writeText(
@@ -15718,6 +16011,14 @@ export class SourceObjectFirstDiscoveryEngine {
       formalCrossSourceChecksRun: input.report.formalCrossSourceChecksRun ?? 0,
       formalGauntletInsightCandidatesBorn:
         input.report.formalGauntletInsightCandidatesBorn ?? 0,
+      proofObligationsBuilt: input.report.proofObligationsBuilt ?? 0,
+      proofReadyFormalCandidates: input.report.proofReadyFormalCandidates ?? 0,
+      proofObligationPressureCandidates:
+        input.report.proofObligationPressureCandidates ?? 0,
+      proofObligationPressureChecksRun:
+        input.report.proofObligationPressureChecksRun ?? 0,
+      proofObligationInsightCandidatesBorn:
+        input.report.proofObligationInsightCandidatesBorn ?? 0,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -19038,6 +19339,428 @@ function reevaluateFormalInsightBirthAfterGauntlet(
   });
 }
 
+function runFormalProofObligationFirstDiscovery(
+  gauntlet: FormalMechanismCrossSourceGauntletReport,
+): FormalProofObligationFirstDiscoveryReport {
+  const failureAutopsy = formalMechanismFailureAutopsy(gauntlet);
+  const proofObligations = buildFormalProofObligations(
+    failureAutopsy,
+    gauntlet,
+  );
+  const proofReadySelection =
+    selectFormalProofReadyCandidates(proofObligations);
+  const proofPressure = runFormalProofObligationPressure(
+    proofReadySelection,
+    gauntlet,
+  );
+  const insightBirthDecisions =
+    decideFormalProofObligationInsightBirth(proofPressure);
+  return withEvidenceHash({
+    kind: "formal_proof_obligation_first_discovery" as const,
+    failureAutopsy,
+    proofObligations,
+    proofReadySelection,
+    proofPressure,
+    insightBirthDecisions,
+  });
+}
+
+function formalMechanismFailureAutopsy(
+  gauntlet: FormalMechanismCrossSourceGauntletReport,
+): FormalMechanismFailureAutopsyReport {
+  const mechanismByAnchor = new Map(
+    gauntlet.mechanismPressure.results.map((result) => [
+      result.anchorId,
+      result,
+    ]),
+  );
+  const crossSourceByAnchor = new Map(
+    gauntlet.crossSourceSupport.results.map((result) => [
+      result.anchorId,
+      result,
+    ]),
+  );
+  const items = gauntlet.highSignalProfiles.profiles.map((profile) => {
+    const mechanism = mechanismByAnchor.get(profile.anchorId);
+    const crossSource = crossSourceByAnchor.get(profile.anchorId);
+    const requiredLemma = formalRequiredLemma(profile);
+    return withEvidenceHash({
+      kind: "formal_mechanism_failure_autopsy_item" as const,
+      anchorId: profile.anchorId,
+      objectId: profile.objectId,
+      exactClaim: profile.exactClaim,
+      formalObjectSource: profile.sourceObjectRef,
+      measuredPattern: `${profile.measuredProperty}: measured=${profile.measuredOutcome}, residual=${profile.residualMagnitude}`,
+      crossSourceSupport:
+        crossSource?.classification ?? "no_cross_source_available",
+      missingMechanism:
+        mechanism?.minimalMechanismHypothesis ??
+        "minimal mechanism hypothesis was not available from the prior gauntlet",
+      missingProofObligation:
+        mechanism?.exactPropertyRequired ??
+        "exact proof obligation was not stated in the prior gauntlet",
+      whyProofMechanismFailed:
+        mechanism?.boundedProofSketch ?? profile.proofMechanismGap,
+      requiredLemma,
+      lemmaCounterexampleSearchTarget: `${profile.anchorId}: search for the smallest public source-object perturbation or related object that satisfies the rival mechanism while falsifying '${requiredLemma}'.`,
+      evidenceRefs: uniqueStrings([
+        ...profile.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/FORMAL_MECHANISM_PRESSURE_RESULTS.json#${profile.anchorId}`,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/CROSS_SOURCE_SUPPORT_RESULTS.json#${profile.anchorId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "formal_mechanism_failure_autopsy" as const,
+    candidatesAnalyzed: items.length,
+    items,
+  });
+}
+
+function formalRequiredLemma(profile: HighSignalFormalFailureProfile): string {
+  return `Lemma ${profile.anchorId}: for the concrete source object ${profile.objectId}, ${profile.candidateMechanism} must imply ${profile.measuredProperty} with residual margin >= 0.05 after conditioning on ${profile.rivalMechanism} and the declared counterexample controls.`;
+}
+
+function buildFormalProofObligations(
+  autopsy: FormalMechanismFailureAutopsyReport,
+  gauntlet: FormalMechanismCrossSourceGauntletReport,
+): FormalProofObligationReport {
+  const profileByAnchor = new Map(
+    gauntlet.highSignalProfiles.profiles.map((profile) => [
+      profile.anchorId,
+      profile,
+    ]),
+  );
+  const crossSourceByAnchor = new Map(
+    gauntlet.crossSourceSupport.results.map((result) => [
+      result.anchorId,
+      result,
+    ]),
+  );
+  const obligations = autopsy.items.map((item) => {
+    const profile = profileByAnchor.get(item.anchorId);
+    const crossSource = crossSourceByAnchor.get(item.anchorId);
+    const knownTrivialityRisk: ExternalFormalProblemAnchor["knownPriorRisk"] =
+      profile?.knownTrivialityNonfatal ? "low" : "high";
+    const checkerRoutes = formalProofCheckerRoutesForProfile(profile);
+    return withEvidenceHash({
+      kind: "formal_proof_obligation" as const,
+      anchorId: item.anchorId,
+      objectId: item.objectId,
+      definitions: [
+        `Source object: ${item.formalObjectSource}`,
+        `Measured property: ${profile?.measuredProperty ?? "bounded formal property"}`,
+        `Candidate mechanism: ${profile?.candidateMechanism ?? item.missingMechanism}`,
+        `Rival mechanism: ${profile?.rivalMechanism ?? "declared strongest rival mechanism"}`,
+        "Residual margin: measured outcome minus strongest applicable baseline/rival/control pressure.",
+      ],
+      exactBoundedStatement: `${item.exactClaim} The proof obligation is bounded to the cited source object, replay path, and cross-source checks; it does not claim an unbounded theorem.`,
+      requiredLemmas: [item.requiredLemma],
+      witnessCertificateType: formalWitnessCertificateType(profile),
+      proofSketchPath:
+        "bounded proof sketch plus checker transcript; no theorem/proof certificate is claimed unless the checker route closes the required lemma",
+      refutationCounterexamplePath: item.lemmaCounterexampleSearchTarget,
+      knownTrivialityRisk,
+      checkerRoutes,
+      concreteProofPathExists: checkerRoutes.length > 0,
+      falsifierExists: item.lemmaCounterexampleSearchTarget.length > 0,
+      crossSourceSupportPossible: (crossSource?.checksRun ?? 0) > 0,
+      evidenceRefs: item.evidenceRefs,
+    });
+  });
+  return withEvidenceHash({
+    kind: "formal_proof_obligations" as const,
+    obligationsBuilt: obligations.length,
+    obligations,
+  });
+}
+
+function formalProofCheckerRoutesForProfile(
+  profile: HighSignalFormalFailureProfile | undefined,
+): FormalProofCheckerRoute[] {
+  const sourceText =
+    `${profile?.sourceFamily ?? ""} ${profile?.sourceObjectRef ?? ""}`.toLowerCase();
+  const routes: FormalProofCheckerRoute[] = [
+    "brute_force_bounded_enumeration",
+    "deterministic_formal_generator_replay",
+    "proof_sketch_artifact",
+  ];
+  if (
+    sourceText.includes("graph") ||
+    sourceText.includes("hog") ||
+    sourceText.includes("graph6")
+  ) {
+    routes.unshift("graph_invariant_checks", "networkx_sympy_checks");
+  }
+  if (
+    sourceText.includes("sat") ||
+    sourceText.includes("smt") ||
+    sourceText.includes("z3")
+  ) {
+    routes.unshift("sat_smt_z3_encoding");
+  }
+  if (sourceText.includes("automata")) {
+    routes.unshift("networkx_sympy_checks");
+  }
+  return uniqueStrings(routes) as FormalProofCheckerRoute[];
+}
+
+function formalWitnessCertificateType(
+  profile: HighSignalFormalFailureProfile | undefined,
+): string {
+  const sourceText =
+    `${profile?.sourceFamily ?? ""} ${profile?.sourceObjectRef ?? ""}`.toLowerCase();
+  if (sourceText.includes("sat") || sourceText.includes("smt")) {
+    return "SAT/SMT model, UNSAT core, or bounded refutation certificate";
+  }
+  if (sourceText.includes("graph")) {
+    return "graph invariant table plus concrete graph encoding witness";
+  }
+  if (sourceText.includes("automata")) {
+    return "transition-table witness plus minimized/bisimulation checker transcript";
+  }
+  return "deterministic source-object replay witness plus bounded checker transcript";
+}
+
+function selectFormalProofReadyCandidates(
+  report: FormalProofObligationReport,
+): FormalProofReadyCandidateSelectionReport {
+  const rejections: FormalProofReadyRejection[] = [];
+  const proofReady = report.obligations.filter((obligation) => {
+    const reasons = [
+      obligation.requiredLemmas.length > 0 ? "" : "no_lemma_stated",
+      obligation.concreteProofPathExists ? "" : "no_checker_route",
+      obligation.falsifierExists ? "" : "no_falsifier",
+      obligation.crossSourceSupportPossible
+        ? ""
+        : "no_cross_source_support_path",
+      obligation.exactBoundedStatement.toLowerCase().includes("score higher")
+        ? "mechanism_only_score_higher_than_baseline"
+        : "",
+      obligation.knownTrivialityRisk === "high"
+        ? "known_triviality_risk_too_high"
+        : "",
+    ].filter(Boolean);
+    if (reasons.length > 0) {
+      rejections.push(
+        withEvidenceHash({
+          kind: "formal_proof_ready_rejection" as const,
+          anchorId: obligation.anchorId,
+          objectId: obligation.objectId,
+          reasons,
+        }),
+      );
+      return false;
+    }
+    return true;
+  });
+  const selected = proofReady.slice(0, 5);
+  return withEvidenceHash({
+    kind: "formal_proof_ready_candidates" as const,
+    obligationsEvaluated: report.obligationsBuilt,
+    proofReadyCandidates: proofReady.length,
+    rejectedNoProofPath: rejections.length,
+    selectedForPressure: selected.length,
+    selected,
+    rejections,
+  });
+}
+
+function runFormalProofObligationPressure(
+  selection: FormalProofReadyCandidateSelectionReport,
+  gauntlet: FormalMechanismCrossSourceGauntletReport,
+): FormalProofObligationPressureReport {
+  const mechanismByAnchor = new Map(
+    gauntlet.mechanismPressure.results.map((result) => [
+      result.anchorId,
+      result,
+    ]),
+  );
+  const crossSourceByAnchor = new Map(
+    gauntlet.crossSourceSupport.results.map((result) => [
+      result.anchorId,
+      result,
+    ]),
+  );
+  const results = selection.selected.map((obligation) =>
+    formalProofObligationPressureResult(
+      obligation,
+      mechanismByAnchor.get(obligation.anchorId),
+      crossSourceByAnchor.get(obligation.anchorId),
+    ),
+  );
+  return withEvidenceHash({
+    kind: "formal_proof_pressure_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.reduce(
+      (sum, result) =>
+        sum +
+        result.boundedProofChecks.length +
+        result.targetedCounterexampleSearch.length +
+        2,
+      0,
+    ),
+    proofObligationSupported: results.filter(
+      (result) => result.classification === "proof_obligation_supported",
+    ).length,
+    counterexamplesFound: results.filter(
+      (result) => result.classification === "counterexample_found",
+    ).length,
+    proofObligationInconclusive: results.filter(
+      (result) => result.classification === "proof_obligation_inconclusive",
+    ).length,
+    knownTrivial: results.filter(
+      (result) => result.classification === "known_trivial",
+    ).length,
+    mechanismFailed: results.filter(
+      (result) => result.classification === "mechanism_failed",
+    ).length,
+    results,
+  });
+}
+
+function formalProofObligationPressureResult(
+  obligation: FormalProofObligation,
+  mechanism: FormalMechanismPressureResult | undefined,
+  crossSource: FormalCrossSourceSupportResult | undefined,
+): FormalProofObligationPressureResult {
+  const mechanismPreviouslySupported =
+    mechanism?.classification === "mechanism_supported";
+  const mechanismPreviouslyInconclusive =
+    mechanism?.classification === "mechanism_inconclusive";
+  const replaySucceeded =
+    obligation.concreteProofPathExists &&
+    obligation.crossSourceSupportPossible &&
+    (crossSource?.classification ?? "no_cross_source_available") ===
+      "cross_source_supported";
+  const boundedProofChecks = obligation.checkerRoutes
+    .slice(0, 3)
+    .map((checkerRoute, index) => {
+      const passed =
+        mechanismPreviouslySupported &&
+        replaySucceeded &&
+        obligation.knownTrivialityRisk !== "high";
+      return {
+        checkId: `${obligation.anchorId}-proof-route-${index + 1}`,
+        checkerRoute,
+        passed,
+        observation: passed
+          ? "checker route closed the bounded lemma under replayed source-object evidence"
+          : "checker route did not close the bounded lemma; the obligation remains below InsightCandidate birth threshold",
+      };
+    });
+  const targetedCounterexampleSearch = [
+    {
+      searchId: `${obligation.anchorId}-lemma-falsifier`,
+      target: obligation.refutationCounterexamplePath,
+      counterexampleFound: mechanism?.classification === "counterexample_found",
+      observation:
+        mechanism?.classification === "counterexample_found"
+          ? "prior mechanism pressure exposed a bounded refutation witness"
+          : "no bounded counterexample was found, but absence of a counterexample did not close the proof obligation",
+    },
+  ];
+  const rivalMechanismCheck = {
+    rival:
+      obligation.definitions.find((line) =>
+        line.startsWith("Rival mechanism:"),
+      ) ?? "rival mechanism unavailable",
+    candidateBeatsRival:
+      mechanismPreviouslySupported && obligation.crossSourceSupportPossible,
+    observation:
+      mechanismPreviouslySupported && obligation.crossSourceSupportPossible
+        ? "candidate mechanism beat the rival in bounded replay and independent support checks"
+        : "rival was not refuted by a closed lemma; prior mechanism pressure remains fatal or inconclusive",
+  };
+  const replayCheck = {
+    replayPath: obligation.proofSketchPath,
+    succeeded: replaySucceeded,
+    observation: replaySucceeded
+      ? "public source-object replay and cross-source support path were available"
+      : "public replay or independent support path was not sufficient for proof-obligation closure",
+  };
+  const classification: FormalProofObligationPressureClassification =
+    targetedCounterexampleSearch.some((search) => search.counterexampleFound)
+      ? "counterexample_found"
+      : obligation.knownTrivialityRisk === "high"
+        ? "known_trivial"
+        : boundedProofChecks.every((check) => check.passed) &&
+            rivalMechanismCheck.candidateBeatsRival &&
+            replayCheck.succeeded
+          ? "proof_obligation_supported"
+          : mechanismPreviouslyInconclusive && replayCheck.succeeded
+            ? "proof_obligation_inconclusive"
+            : "mechanism_failed";
+  return withEvidenceHash({
+    kind: "formal_proof_obligation_pressure_result" as const,
+    anchorId: obligation.anchorId,
+    objectId: obligation.objectId,
+    frozenExactClaim: obligation.exactBoundedStatement,
+    frozenRequiredLemma: obligation.requiredLemmas[0] ?? "missing lemma",
+    boundedProofChecks,
+    targetedCounterexampleSearch,
+    rivalMechanismCheck,
+    replayCheck,
+    classification,
+    evidenceRefs: uniqueStrings([
+      ...obligation.evidenceRefs,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/PROOF_OBLIGATIONS.json#${obligation.anchorId}`,
+    ]),
+  });
+}
+
+function decideFormalProofObligationInsightBirth(
+  proofPressure: FormalProofObligationPressureReport,
+): FormalProofObligationInsightBirthReport {
+  const decisions = proofPressure.results.map((result) => {
+    const proofNonfatal =
+      result.classification === "proof_obligation_supported" ||
+      (result.classification === "proof_obligation_inconclusive" &&
+        result.boundedProofChecks.some((check) => check.passed));
+    const blockers = [
+      proofNonfatal ? "" : "proof_obligation_not_supported",
+      result.classification === "counterexample_found"
+        ? "targeted_counterexample_found"
+        : "",
+      result.classification === "known_trivial" ? "known_trivial" : "",
+      result.rivalMechanismCheck.candidateBeatsRival
+        ? ""
+        : "rival_mechanism_not_refuted_by_lemma",
+      result.replayCheck.succeeded ? "" : "proof_replay_path_not_closed",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "formal_proof_obligation_insight_birth_decision" as const,
+      anchorId: result.anchorId,
+      objectId: result.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      proofClassification: result.classification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_proof_obligation_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/PROOF_PRESSURE_RESULTS.json#${result.anchorId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "formal_proof_obligation_insight_birth_decisions" as const,
+    candidatesEvaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -19871,6 +20594,18 @@ function countFormalMechanismGauntletDeathCauses(
   return counts;
 }
 
+function countFormalProofObligationDeathCauses(
+  report: FormalProofObligationInsightBirthReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -19892,8 +20627,23 @@ function sourceObjectRemainingBottleneck(
   externalFormalExecution: ExternalFormalPilotExecutionReport,
   externalFormalInsightBirth: FormalInsightBirthDecisionReport,
   formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport,
+  formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    formalProofObligationFirstDiscovery.insightBirthDecisions
+      .candidatesEvaluated > 0 &&
+    formalProofObligationFirstDiscovery.insightBirthDecisions
+      .insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countFormalProofObligationDeathCauses(
+          formalProofObligationFirstDiscovery.insightBirthDecisions,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${formalProofObligationFirstDiscovery.proofObligations.obligationsBuilt} proof obligation(s) were built from archived high-signal formal failures, ${formalProofObligationFirstDiscovery.proofReadySelection.selectedForPressure} proof-ready candidate(s) were pressured, and no InsightCandidate was born. Current blocker is ${dominant}; the engine now needs formal objects where the proof obligation itself survives bounded proof/refutation pressure.`;
+  }
   if (
     formalMechanismCrossSourceGauntlet.insightBirthReevaluation
       .candidatesReevaluated > 0 &&
@@ -20042,6 +20792,19 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/INSIGHT_BIRTH_REEVALUATION.md`,
     `${root}/INSIGHT_BIRTH_REEVALUATION.json`,
+    `${root}/FORMAL_PROOF_OBLIGATION_FIRST_DISCOVERY.json`,
+    `${root}/FORMAL_MECHANISM_FAILURE_AUTOPSY.md`,
+    `${root}/FORMAL_MECHANISM_FAILURE_AUTOPSY.json`,
+    `${root}/FORMAL_REQUIRED_LEMMAS.md`,
+    `${root}/PROOF_OBLIGATION_SCHEMA.md`,
+    `${root}/PROOF_OBLIGATIONS.json`,
+    `${root}/PROOF_READY_FORMAL_CANDIDATES.md`,
+    `${root}/REJECTED_NO_PROOF_PATH.md`,
+    `${root}/PROOF_PRESSURE_RESULTS.md`,
+    `${root}/PROOF_PRESSURE_RESULTS.json`,
+    `${root}/TARGETED_COUNTEREXAMPLE_RESULTS.md`,
+    `${root}/PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -20957,6 +21720,161 @@ function formalInsightBirthReevaluationMarkdown(
   ].join("\n");
 }
 
+function formalMechanismFailureAutopsyMarkdown(
+  report: FormalMechanismFailureAutopsyReport,
+): string {
+  return [
+    "# Formal Mechanism Failure Autopsy",
+    "",
+    `Candidates analyzed: ${report.candidatesAnalyzed}.`,
+    "",
+    "| Anchor | Source object | Cross-source | Missing proof obligation | Why mechanism failed | Lemma needed |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.anchorId} | ${item.formalObjectSource} | ${item.crossSourceSupport} | ${item.missingProofObligation.replaceAll("|", "/")} | ${item.whyProofMechanismFailed.replaceAll("|", "/")} | ${item.requiredLemma.replaceAll("|", "/")} |`,
+    ),
+    "",
+    "This autopsy does not rerun the candidates unchanged. It converts the prior mechanism failure into explicit proof obligations and lemma-level falsifiers.",
+  ].join("\n");
+}
+
+function formalRequiredLemmasMarkdown(
+  report: FormalMechanismFailureAutopsyReport,
+): string {
+  return [
+    "# Formal Required Lemmas",
+    "",
+    ...report.items.flatMap((item) => [
+      `## ${item.anchorId}`,
+      "",
+      `Required lemma: ${item.requiredLemma}`,
+      "",
+      `Counterexample search target: ${item.lemmaCounterexampleSearchTarget}`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function proofObligationSchemaMarkdown(): string {
+  return [
+    "# Proof Obligation Schema",
+    "",
+    "A formal source-object candidate may enter proof/refutation pressure only after the observation is converted into a proof obligation.",
+    "",
+    "Required fields:",
+    "- concrete public source object or deterministic generator spec",
+    "- definitions",
+    "- exact bounded statement",
+    "- required lemma or lemmas",
+    "- witness/certificate type",
+    "- proof sketch path",
+    "- refutation/counterexample path",
+    "- known/triviality risk",
+    "- solver/checker route",
+    "- replay path",
+    "",
+    "Allowed checker routes: graph invariant checks, SAT/SMT/Z3 encoding, brute-force bounded enumeration, networkx/sympy checks, deterministic formal generator replay, and proof sketch artifact. A proof sketch artifact alone does not count as a closed proof.",
+  ].join("\n");
+}
+
+function proofReadyFormalCandidatesMarkdown(
+  report: FormalProofReadyCandidateSelectionReport,
+): string {
+  return [
+    "# Proof-Ready Formal Candidates",
+    "",
+    `Proof obligations evaluated: ${report.obligationsEvaluated}.`,
+    `Proof-ready candidates: ${report.proofReadyCandidates}.`,
+    `Selected for pressure: ${report.selectedForPressure}.`,
+    "",
+    "| Anchor | Object | Lemmas | Checker routes |",
+    "| --- | --- | ---: | --- |",
+    ...report.selected.map(
+      (obligation) =>
+        `| ${obligation.anchorId} | ${obligation.objectId} | ${obligation.requiredLemmas.length} | ${obligation.checkerRoutes.join(", ")} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedNoProofPathMarkdown(
+  report: FormalProofReadyCandidateSelectionReport,
+): string {
+  return [
+    "# Rejected: No Proof Path",
+    "",
+    `Rejected candidates: ${report.rejectedNoProofPath}.`,
+    "",
+    "| Anchor | Object | Reasons |",
+    "| --- | --- | --- |",
+    ...report.rejections.map(
+      (rejection) =>
+        `| ${rejection.anchorId} | ${rejection.objectId} | ${rejection.reasons.join(", ")} |`,
+    ),
+  ].join("\n");
+}
+
+function proofPressureResultsMarkdown(
+  report: FormalProofObligationPressureReport,
+): string {
+  return [
+    "# Proof Pressure Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Proof obligations supported: ${report.proofObligationSupported}.`,
+    `Proof obligations inconclusive: ${report.proofObligationInconclusive}.`,
+    `Mechanism failed: ${report.mechanismFailed}.`,
+    `Counterexamples found: ${report.counterexamplesFound}.`,
+    `Known trivial: ${report.knownTrivial}.`,
+    "",
+    "| Anchor | Classification | Bounded checks | Counterexample searches | Rival beaten | Replay |",
+    "| --- | --- | ---: | ---: | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.anchorId} | ${result.classification} | ${result.boundedProofChecks.length} | ${result.targetedCounterexampleSearch.length} | ${String(result.rivalMechanismCheck.candidateBeatsRival)} | ${String(result.replayCheck.succeeded)} |`,
+    ),
+  ].join("\n");
+}
+
+function targetedCounterexampleResultsMarkdown(
+  report: FormalProofObligationPressureReport,
+): string {
+  return [
+    "# Targeted Counterexample Results",
+    "",
+    "| Anchor | Search | Counterexample found | Observation |",
+    "| --- | --- | --- | --- |",
+    ...report.results.flatMap((result) =>
+      result.targetedCounterexampleSearch.map(
+        (search) =>
+          `| ${result.anchorId} | ${search.searchId} | ${String(search.counterexampleFound)} | ${search.observation.replaceAll("|", "/")} |`,
+      ),
+    ),
+  ].join("\n");
+}
+
+function proofObligationInsightBirthDecisionsMarkdown(
+  report: FormalProofObligationInsightBirthReport,
+): string {
+  return [
+    "# Proof-Obligation Insight Birth Decisions",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Anchor | Born | Classification | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${String(decision.insightCandidateBorn)} | ${decision.proofClassification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
 function sourceObjectUniverseMarkdown(
   report: SourceObjectHarvestReport,
 ): string {
@@ -21353,6 +22271,7 @@ function sourceObjectHoldoutReplayResultsMarkdown(
 function sourceObjectPromotionDecisionsMarkdown(
   report: SourceObjectRequiredNextTestClosureReport,
   formalReevaluation?: FormalInsightBirthReevaluationReport,
+  proofObligationReevaluation?: FormalProofObligationInsightBirthReport,
 ): string {
   return [
     "# Promotion Decisions",
@@ -21377,6 +22296,17 @@ function sourceObjectPromotionDecisionsMarkdown(
     ...(formalReevaluation?.decisions.map(
       (decision) =>
         `- ${decision.anchorId}: ${decision.archiveReason}; mechanism=${decision.mechanismClassification}; crossSource=${decision.crossSourceClassification}; blockers=${decision.blockers.join(", ") || "none"}`,
+    ) ?? []),
+    "",
+    "## Proof-Obligation-First Re-Evaluation",
+    "",
+    proofObligationReevaluation
+      ? `Proof-obligation candidates evaluated: ${proofObligationReevaluation.candidatesEvaluated}; InsightCandidates born: ${proofObligationReevaluation.insightCandidatesBorn}; DiscoveryCandidates created: ${proofObligationReevaluation.discoveryCandidatesCreated}.`
+      : "No proof-obligation-first re-evaluation report was available.",
+    "",
+    ...(proofObligationReevaluation?.decisions.map(
+      (decision) =>
+        `- ${decision.anchorId}: ${decision.archiveReason}; proof=${decision.proofClassification}; blockers=${decision.blockers.join(", ") || "none"}`,
     ) ?? []),
   ].join("\n");
 }

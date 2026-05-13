@@ -5107,6 +5107,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal((report.formalMechanismPressureChecksRun ?? 0) >= 20, true);
   assert.equal((report.formalCrossSourceChecksRun ?? 0) >= 10, true);
   assert.equal(report.formalGauntletInsightCandidatesBorn, 0);
+  assert.equal(report.proofObligationsBuilt, 5);
+  assert.equal((report.proofReadyFormalCandidates ?? 0) <= 5, true);
+  assert.equal(report.proofObligationPressureCandidates, 5);
+  assert.equal((report.proofObligationPressureChecksRun ?? 0) >= 25, true);
+  assert.equal(report.proofObligationInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5188,6 +5193,19 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "CROSS_SOURCE_SUPPORT_RESULTS.json",
     "INSIGHT_BIRTH_REEVALUATION.md",
     "INSIGHT_BIRTH_REEVALUATION.json",
+    "FORMAL_PROOF_OBLIGATION_FIRST_DISCOVERY.json",
+    "FORMAL_MECHANISM_FAILURE_AUTOPSY.md",
+    "FORMAL_MECHANISM_FAILURE_AUTOPSY.json",
+    "FORMAL_REQUIRED_LEMMAS.md",
+    "PROOF_OBLIGATION_SCHEMA.md",
+    "PROOF_OBLIGATIONS.json",
+    "PROOF_READY_FORMAL_CANDIDATES.md",
+    "REJECTED_NO_PROOF_PATH.md",
+    "PROOF_PRESSURE_RESULTS.md",
+    "PROOF_PRESSURE_RESULTS.json",
+    "TARGETED_COUNTEREXAMPLE_RESULTS.md",
+    "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.md",
+    "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -5898,6 +5916,179 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(
     formalGauntlet.insightBirthReevaluation.candidatesReevaluated,
     5,
+  );
+  const proofAutopsy = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "FORMAL_MECHANISM_FAILURE_AUTOPSY.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesAnalyzed: number;
+    items: Array<{
+      exactClaim: string;
+      formalObjectSource: string;
+      measuredPattern: string;
+      crossSourceSupport: string;
+      missingMechanism: string;
+      missingProofObligation: string;
+      requiredLemma: string;
+      lemmaCounterexampleSearchTarget: string;
+    }>;
+  };
+  assert.equal(proofAutopsy.candidatesAnalyzed, 5);
+  assert.equal(
+    proofAutopsy.items.every(
+      (item) =>
+        item.exactClaim.length > 0 &&
+        item.formalObjectSource.length > 0 &&
+        item.measuredPattern.length > 0 &&
+        item.crossSourceSupport.length > 0 &&
+        item.missingMechanism.length > 0 &&
+        item.missingProofObligation.length > 0 &&
+        item.requiredLemma.length > 0 &&
+        item.lemmaCounterexampleSearchTarget.length > 0,
+    ),
+    true,
+  );
+  const proofObligations = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "source-object-first", "PROOF_OBLIGATIONS.json"),
+      "utf8",
+    ),
+  ) as {
+    obligationsBuilt: number;
+    obligations: Array<{
+      definitions: string[];
+      exactBoundedStatement: string;
+      requiredLemmas: string[];
+      witnessCertificateType: string;
+      proofSketchPath: string;
+      refutationCounterexamplePath: string;
+      checkerRoutes: string[];
+      concreteProofPathExists: boolean;
+      falsifierExists: boolean;
+    }>;
+  };
+  assert.equal(proofObligations.obligationsBuilt, 5);
+  assert.equal(
+    proofObligations.obligations.every(
+      (obligation) =>
+        obligation.definitions.length >= 4 &&
+        obligation.exactBoundedStatement.length > 0 &&
+        obligation.requiredLemmas.length > 0 &&
+        obligation.witnessCertificateType.length > 0 &&
+        obligation.proofSketchPath.length > 0 &&
+        obligation.refutationCounterexamplePath.length > 0 &&
+        obligation.checkerRoutes.length > 0 &&
+        obligation.concreteProofPathExists &&
+        obligation.falsifierExists,
+    ),
+    true,
+  );
+  const proofPressure = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "PROOF_PRESSURE_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesTested: number;
+    checksRun: number;
+    proofObligationSupported: number;
+    counterexamplesFound: number;
+    mechanismFailed: number;
+    results: Array<{
+      classification: string;
+      frozenExactClaim: string;
+      frozenRequiredLemma: string;
+      boundedProofChecks: Array<{ checkerRoute: string; observation: string }>;
+      targetedCounterexampleSearch: Array<{
+        counterexampleFound: boolean;
+        observation: string;
+      }>;
+      rivalMechanismCheck: { observation: string };
+      replayCheck: { observation: string };
+    }>;
+  };
+  assert.equal(proofPressure.candidatesTested, 5);
+  assert.equal(proofPressure.checksRun >= 25, true);
+  assert.equal(proofPressure.proofObligationSupported, 0);
+  assert.equal(proofPressure.counterexamplesFound, 0);
+  assert.equal(proofPressure.mechanismFailed, 5);
+  assert.equal(
+    proofPressure.results.every(
+      (result) =>
+        result.frozenExactClaim.length > 0 &&
+        result.frozenRequiredLemma.length > 0 &&
+        result.boundedProofChecks.length >= 3 &&
+        result.boundedProofChecks.every(
+          (check) =>
+            check.checkerRoute.length > 0 && check.observation.length > 0,
+        ) &&
+        result.targetedCounterexampleSearch.length >= 1 &&
+        result.targetedCounterexampleSearch.every(
+          (search) =>
+            search.counterexampleFound === false &&
+            search.observation.length > 0,
+        ) &&
+        result.rivalMechanismCheck.observation.length > 0 &&
+        result.replayCheck.observation.length > 0 &&
+        [
+          "proof_obligation_supported",
+          "counterexample_found",
+          "proof_obligation_inconclusive",
+          "known_trivial",
+          "mechanism_failed",
+        ].includes(result.classification),
+    ),
+    true,
+  );
+  const proofBirth = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesEvaluated: number;
+    candidatesArchived: number;
+    insightCandidatesBorn: number;
+    discoveryCandidatesCreated: number;
+    fundFound: boolean;
+    decisions: Array<{
+      insightCandidateBorn: boolean;
+      proofClassification: string;
+      blockers: string[];
+      archiveReason: string;
+    }>;
+  };
+  assert.equal(proofBirth.candidatesEvaluated, 5);
+  assert.equal(proofBirth.candidatesArchived, 5);
+  assert.equal(proofBirth.insightCandidatesBorn, 0);
+  assert.equal(proofBirth.discoveryCandidatesCreated, 0);
+  assert.equal(proofBirth.fundFound, false);
+  assert.equal(
+    proofBirth.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.proofClassification === "mechanism_failed" &&
+        decision.blockers.includes("proof_obligation_not_supported") &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
   );
   const claimLift = JSON.parse(
     await readFile(

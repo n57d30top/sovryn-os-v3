@@ -1457,6 +1457,57 @@ test("nobel-readiness local reproduced review source cannot clear independent ex
   );
 });
 
+test("nobel-readiness placeholder external review URL cannot raise score", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-placeholder-url-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/placeholder-url.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent formal methods reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef:
+      "https://reviews.example.org/sovryn/graph-minor-obstruction-boundary-review.json",
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+    evidenceRefs: ["FORMAL_REPRODUCTION_RESULT.json"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.validReviewCount, 0);
+  assert.equal(intake.supportiveReviewCount, 0);
+  assert.equal(intake.independentReproductionCount, 0);
+  assert.equal(intake.records[0]?.reviewSourceResolved, false);
+  assert.equal(intake.records[0]?.reviewSourceExternal, false);
+  assert.equal(
+    intake.records[0]?.reasons.includes("review_source_unresolved"),
+    true,
+  );
+  assert.equal(
+    intake.records[0]?.reasons.includes("review_source_not_public_safe"),
+    true,
+  );
+  assert.equal(score.totalScore, 72);
+  assert.equal(
+    score.boundedHundredPercentBlockers.includes(
+      "independent_external_reproduction_missing",
+    ),
+    true,
+  );
+});
+
 test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);
@@ -1471,7 +1522,7 @@ test("nobel-readiness supportive external review can raise only review readiness
     reviewerRole: "independent computational materials reviewer",
     reviewDate: "2026-05-13",
     reviewSourceRef:
-      "https://reviews.example.org/sovryn/graph-minor-obstruction-boundary-review.json",
+      "https://zenodo.org/records/sovryn-graph-minor-obstruction-boundary-review",
     decision: "accepted_with_caveats",
     independentReproductionStatus: "reproduced",
     noveltyAssessment: "nontrivial_and_plausibly_novel",

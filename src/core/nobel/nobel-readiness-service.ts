@@ -643,6 +643,41 @@ function isExternalUrl(ref: string): boolean {
   return /^https?:\/\//i.test(ref);
 }
 
+function isScoreEligibleExternalReviewUrl(ref: string): boolean {
+  try {
+    const url = new URL(ref);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "example.com" ||
+      host === "example.org" ||
+      host === "example.net" ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".example.com") ||
+      host.endsWith(".example.org") ||
+      host.endsWith(".example.net") ||
+      host.endsWith(".invalid") ||
+      host.endsWith(".test")
+    ) {
+      return false;
+    }
+    if (
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+      host === "0.0.0.0" ||
+      host === "::1"
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function splitRef(ref: string): { pathPart: string; anchor: string | null } {
   const index = ref.indexOf("#");
   if (index === -1) return { pathPart: ref, anchor: null };
@@ -3418,7 +3453,12 @@ export class NobelReadinessService {
     if (!ref) return { resolved: false, publicSafe: false, external: false };
     const publicSafe = isPublicSafeRef(ref);
     if (isExternalUrl(ref)) {
-      return { resolved: publicSafe, publicSafe, external: true };
+      const scoreEligibleExternal = isScoreEligibleExternalReviewUrl(ref);
+      return {
+        resolved: publicSafe && scoreEligibleExternal,
+        publicSafe: publicSafe && scoreEligibleExternal,
+        external: scoreEligibleExternal,
+      };
     }
     const { pathPart, anchor } = splitRef(ref);
     if (!publicSafe || !pathPart) {

@@ -407,6 +407,38 @@ test("health friction allows public package with raw scientific reproduction rea
   );
 });
 
+test("health friction exposes public extended validation caveat without hiding raw replay readiness", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus: "raw_scientific_reproduction_succeeded",
+    extendedValidationStatus: "extended_validation_major_rival_caveat",
+    fundClass: "externally_review_ready_discovery_candidate",
+    countsForEinsteinNobelDiscoveryScore: true,
+  });
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, true);
+  assert.equal(data.fundGateResult.status, "FUND_FOUND");
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, false);
+  assert.equal(
+    data.publicFundReconciliation.publicExtendedValidationStatus,
+    "extended_validation_major_rival_caveat",
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicExtendedValidationMajorCaveat,
+    true,
+  );
+});
+
 test("health friction clears readiness reconciliation blocker when Nobel-readiness score consumed FundClass", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);
@@ -761,6 +793,7 @@ async function writePublicCorpusDiscoveryPackage(
   candidateId: string,
   input: {
     publicReviewStatus: string;
+    extendedValidationStatus?: string;
     fundClass: string;
     countsForEinsteinNobelDiscoveryScore: boolean;
   },
@@ -779,6 +812,7 @@ async function writePublicCorpusDiscoveryPackage(
       kind: "public_result_summary",
       candidateId,
       publicReviewStatus: input.publicReviewStatus,
+      extendedValidationStatus: input.extendedValidationStatus,
       fundClass: input.fundClass,
       countsForEinsteinNobelDiscoveryScore:
         input.countsForEinsteinNobelDiscoveryScore,

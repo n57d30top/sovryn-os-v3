@@ -302,6 +302,8 @@ export type PublicFundReconciliation = {
   blocksDiscoveryScore: boolean;
   resultSlug: string | null;
   publicReviewStatus: string | null;
+  publicExtendedValidationStatus: string | null;
+  publicExtendedValidationMajorCaveat: boolean;
   publicFundClass: string | null;
   countsForEinsteinNobelDiscoveryScore: boolean | null;
   publicRawScientificReproductionReady: boolean | null;
@@ -1134,6 +1136,8 @@ export class DiscoveryFrictionHealthService {
       blocksDiscoveryScore: false,
       resultSlug: null,
       publicReviewStatus: null,
+      publicExtendedValidationStatus: null,
+      publicExtendedValidationMajorCaveat: false,
       publicFundClass: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
@@ -1172,6 +1176,17 @@ export class DiscoveryFrictionHealthService {
         stringField(summary, "publicReviewStatus") ??
         stringField(fundCandidate, "publicReviewStatus") ??
         stringField(nestedCandidate, "publicReviewStatus");
+      const publicExtendedValidationStatus =
+        stringField(summary, "extendedValidationStatus") ??
+        stringField(fundCandidate, "extendedValidationStatus") ??
+        stringField(nestedCandidate, "extendedValidationStatus");
+      const publicExtendedValidationMajorCaveat =
+        publicExtendedValidationStatus
+          ?.toLowerCase()
+          .includes("major_rival_caveat") === true ||
+        publicExtendedValidationStatus
+          ?.toLowerCase()
+          .includes("major_caveat") === true;
       const countsForEinsteinNobelDiscoveryScore =
         booleanField(summary, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(fundCandidate, "countsForEinsteinNobelDiscoveryScore") ??
@@ -1187,6 +1202,8 @@ export class DiscoveryFrictionHealthService {
         blocksDiscoveryScore,
         resultSlug: entry.name,
         publicReviewStatus: publicReviewStatus ?? null,
+        publicExtendedValidationStatus: publicExtendedValidationStatus ?? null,
+        publicExtendedValidationMajorCaveat,
         publicFundClass: publicFundClass ?? null,
         countsForEinsteinNobelDiscoveryScore:
           countsForEinsteinNobelDiscoveryScore ?? null,
@@ -2490,6 +2507,8 @@ ${bulletList(report.promotionReadinessBlockers)}
 - Blocks discovery score: ${String(report.publicFundReconciliation.blocksDiscoveryScore)}
 - Result slug: ${report.publicFundReconciliation.resultSlug ?? "none"}
 - Public review status: ${report.publicFundReconciliation.publicReviewStatus ?? "none"}
+- Public extended validation status: ${report.publicFundReconciliation.publicExtendedValidationStatus ?? "none"}
+- Public extended validation major caveat: ${String(report.publicFundReconciliation.publicExtendedValidationMajorCaveat)}
 - Public FundClass: ${report.publicFundReconciliation.publicFundClass ?? "none"}
 - Counts for Einstein/Nobel discovery score: ${String(report.publicFundReconciliation.countsForEinsteinNobelDiscoveryScore)}
 - Reason: ${report.publicFundReconciliation.reason ?? "none"}

@@ -5141,6 +5141,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "FAILED_EXTERNAL_ANCHOR_AUTOPSY.json",
     "CLAIM_FIRST_PILOT_RESULTS.md",
     "CLAIM_FIRST_PILOT_RESULTS.json",
+    "EXTERNAL_OBJECT_HARVEST_REPORT.md",
+    "EXTERNAL_OBJECTS.json",
+    "VALID_EXTERNAL_OBJECTS.md",
+    "REJECTED_EXTERNAL_OBJECTS.md",
+    "OBJECT_SOURCE_RECEIPTS.json",
     "EXTERNAL_FORMAL_ANCHOR_SOURCES.md",
     "EXTERNAL_FORMAL_ANCHOR_SOURCES.json",
     "ANCHOR_QUALITY_GATE.md",
@@ -5149,9 +5154,12 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
     "FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md",
     "TOP20_EXTERNAL_FORMAL_ANCHORS.md",
+    "TOP20_EXTERNAL_OBJECTS.md",
     "TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md",
     "TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md",
+    "TOP10_OBJECT_CLAIM_FIRST_PILOTS.md",
     "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md",
+    "CLAIM_FIRST_EXTERNAL_OBJECT_RESULTS.md",
     "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json",
     "CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md",
     "INSIGHT_BIRTH_DECISIONS.md",
@@ -5300,6 +5308,53 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(
     pilot.results.every(
       (result) => result.concreteSourceObject && !result.insightCandidateBorn,
+    ),
+    true,
+  );
+  const externalObjects = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "source-object-first", "EXTERNAL_OBJECTS.json"),
+      "utf8",
+    ),
+  ) as {
+    objectsHarvested: number;
+    validPublicReceipts: number;
+    validObjects: number;
+    rejectedObjects: number;
+    sourceFamiliesRepresented: string[];
+    objects: Array<{
+      objectId: string;
+      sourceUrlOrPublicId: string;
+      sourceReceipt: string;
+      sourceHash: string;
+      objectType: string;
+      encodingKind: string;
+      concreteEncoding: string;
+      replayCommandOrReconstruction: string;
+      candidateMechanism: string;
+      rivalMechanism: string;
+      rivalDiscriminatingPrediction: string;
+      falsifier: string;
+      baselineThatCouldKillIt: string;
+    }>;
+  };
+  assert.equal(externalObjects.objectsHarvested >= 100, true);
+  assert.equal(externalObjects.validPublicReceipts >= 60, true);
+  assert.equal(externalObjects.validObjects >= 20, true);
+  assert.equal(externalObjects.rejectedObjects > 0, true);
+  assert.equal(externalObjects.sourceFamiliesRepresented.length >= 5, true);
+  assert.equal(
+    externalObjects.objects.every(
+      (object) =>
+        object.objectId.length > 0 &&
+        object.sourceUrlOrPublicId.length > 0 &&
+        object.sourceHash.length > 0 &&
+        object.objectType.length > 0 &&
+        object.concreteEncoding.length > 0 &&
+        object.replayCommandOrReconstruction.length > 0 &&
+        object.candidateMechanism.length > 0 &&
+        object.rivalMechanism.length > 0 &&
+        object.baselineThatCouldKillIt.length > 0,
     ),
     true,
   );
@@ -5502,11 +5557,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   };
   assert.equal(externalExecution.top10PilotSelected, 10);
   assert.equal(externalExecution.exactClaimsFrozen, 10);
-  assert.equal(externalExecution.testsRun, 50);
+  assert.equal(externalExecution.testsRun, 60);
   assert.equal(
     externalExecution.results.every(
       (result) =>
-        result.testsRun === 5 &&
+        result.testsRun === 6 &&
         result.exactClaimFrozen.length > 0 &&
         result.evidenceRefs.length >= 4,
     ),

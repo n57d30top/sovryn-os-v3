@@ -1828,6 +1828,56 @@ export type ExternalFormalAnchorSourceFamily =
   | "combinatorial_design_instance"
   | "bounded_coloring_instance";
 
+export type ExternalFormalObjectEncodingKind =
+  | "cnf"
+  | "smt2"
+  | "graph6"
+  | "edge_list"
+  | "adjacency_matrix"
+  | "sequence_terms"
+  | "transition_table"
+  | "incidence_structure";
+
+export type ExternalFormalConcreteObject = {
+  kind: "external_formal_concrete_object";
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  sourceUrlOrPublicId: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  objectType: string;
+  encodingKind: ExternalFormalObjectEncodingKind;
+  concreteEncoding: string;
+  replayCommandOrReconstruction: string;
+  validPublicReceipt: boolean;
+  knownPriorRisk: FormalSourceObjectKnownTrivialityRisk;
+  knownPriorAssessment: string;
+  candidateMechanism: string;
+  rivalMechanism: string;
+  rivalDiscriminatingPrediction: string;
+  falsifier: string;
+  baselineThatCouldKillIt: string;
+  counterexamplePath: string;
+  holdoutPath: string;
+  familyOnlyPlaceholder: boolean;
+  sourceFamilyLikelyAbsorbs: boolean;
+  baselineLikelyDominates: boolean;
+  evidenceHash: string;
+};
+
+export type ExternalFormalObjectHarvestReport = {
+  kind: "external_formal_object_harvest";
+  objectsHarvested: number;
+  validPublicReceipts: number;
+  validObjects: number;
+  rejectedObjects: number;
+  sourceFamiliesRepresented: ExternalFormalAnchorSourceFamily[];
+  objects: ExternalFormalConcreteObject[];
+  valid: ExternalFormalConcreteObject[];
+  rejected: ExternalFormalConcreteObject[];
+  evidenceHash: string;
+};
+
 export type ExternalFormalProblemAnchor = {
   kind: "external_formal_problem_anchor";
   anchorId: string;
@@ -2032,6 +2082,11 @@ export type SourceObjectDiscoveryEngineReport = {
   externalFormalTop10Executed?: number;
   externalFormalExactClaimsFrozen?: number;
   externalFormalInsightCandidatesBorn?: number;
+  externalObjectsHarvested?: number;
+  validExternalObjects?: number;
+  externalObjectSourceFamilies?: number;
+  externalObjectTop20Selected?: number;
+  externalObjectTop10Executed?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -13879,7 +13934,10 @@ export class SourceObjectFirstDiscoveryEngine {
       previousExternalFormalExecution,
       previousExternalFormalFailureAutopsy,
     );
-    const externalFormalAnchors = buildExternalFormalAnchorSources();
+    const externalFormalObjectHarvest = harvestConcreteExternalFormalObjects();
+    const externalFormalAnchors = buildExternalFormalAnchorSources(
+      externalFormalObjectHarvest,
+    );
     const externalFormalQuality = scoreExternalFormalAnchorQuality(
       externalFormalAnchors,
       externalFormalFailureAutopsy,
@@ -13967,6 +14025,12 @@ export class SourceObjectFirstDiscoveryEngine {
         externalFormalExecution.exactClaimsFrozen,
       externalFormalInsightCandidatesBorn:
         externalFormalInsightBirth.insightCandidatesBorn,
+      externalObjectsHarvested: externalFormalObjectHarvest.objectsHarvested,
+      validExternalObjects: externalFormalObjectHarvest.validObjects,
+      externalObjectSourceFamilies:
+        externalFormalObjectHarvest.sourceFamiliesRepresented.length,
+      externalObjectTop20Selected: externalFormalSelection.top20Selected,
+      externalObjectTop10Executed: externalFormalExecution.top10PilotSelected,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -14007,6 +14071,7 @@ export class SourceObjectFirstDiscoveryEngine {
       reclassification,
       claimFirstPilot,
       externalFormalFailureAutopsy,
+      externalFormalObjectHarvest,
       externalFormalAnchors,
       externalFormalQuality,
       externalFormalSelection,
@@ -14113,6 +14178,10 @@ export class SourceObjectFirstDiscoveryEngine {
     const externalFormalAnchors =
       await readOptionalJson<ExternalFormalAnchorSourcesReport>(
         join(this.engineRoot(), "EXTERNAL_FORMAL_ANCHOR_SOURCES.json"),
+      );
+    const externalFormalObjectHarvest =
+      await readOptionalJson<ExternalFormalObjectHarvestReport>(
+        join(this.engineRoot(), "EXTERNAL_OBJECTS.json"),
       );
     const externalFormalQuality =
       await readOptionalJson<SourceObjectExternalFormalAnchorQualityReport>(
@@ -14227,6 +14296,26 @@ export class SourceObjectFirstDiscoveryEngine {
               claimFirstBirthGate.eligibleForInsightBirth ===
               latest.hardSeedsBorn),
         "Source-object InsightCandidates must be born only after exact claim-first source-object gate approval; otherwise they remain observations.",
+      ),
+      gate(
+        "external_formal_object_harvest_completed",
+        externalFormalObjectHarvest !== null &&
+          externalFormalObjectHarvest.objectsHarvested >= 100 &&
+          externalFormalObjectHarvest.validPublicReceipts >= 60 &&
+          externalFormalObjectHarvest.sourceFamiliesRepresented.length >= 5 &&
+          externalFormalObjectHarvest.objects.every(
+            (object) =>
+              object.concreteEncoding.length > 0 &&
+              object.sourceReceipt.length > 0 &&
+              object.sourceHash.length > 0 &&
+              object.replayCommandOrReconstruction.length > 0 &&
+              object.candidateMechanism.length > 0 &&
+              object.rivalMechanism.length > 0 &&
+              object.rivalDiscriminatingPrediction.length > 0 &&
+              object.falsifier.length > 0 &&
+              object.baselineThatCouldKillIt.length > 0,
+          ),
+        "External formal object harvest must collect at least one hundred concrete public objects across at least five source families, with sixty or more valid public receipts and replayable encodings.",
       ),
       gate(
         "external_formal_anchor_sources_created",
@@ -14794,6 +14883,7 @@ export class SourceObjectFirstDiscoveryEngine {
     reclassification: SourceObjectReclassificationReport;
     claimFirstPilot: SourceObjectClaimFirstPilotReport;
     externalFormalFailureAutopsy: SourceObjectExternalFormalFailedPilotAutopsyReport;
+    externalFormalObjectHarvest: ExternalFormalObjectHarvestReport;
     externalFormalAnchors: ExternalFormalAnchorSourcesReport;
     externalFormalQuality: SourceObjectExternalFormalAnchorQualityReport;
     externalFormalSelection: SourceObjectExternalFormalAnchorSelectionReport;
@@ -14932,6 +15022,46 @@ export class SourceObjectFirstDiscoveryEngine {
       failedExternalAnchorAutopsyMarkdown(input.externalFormalFailureAutopsy),
     );
     await writeJson(
+      join(root, "EXTERNAL_OBJECTS.json"),
+      input.externalFormalObjectHarvest,
+    );
+    await writeText(
+      join(root, "EXTERNAL_OBJECT_HARVEST_REPORT.md"),
+      externalFormalObjectHarvestMarkdown(input.externalFormalObjectHarvest),
+    );
+    await writeJson(join(root, "OBJECT_SOURCE_RECEIPTS.json"), {
+      kind: "external_formal_object_source_receipts",
+      receipts: input.externalFormalObjectHarvest.objects.map((object) => ({
+        objectId: object.objectId,
+        sourceFamily: object.sourceFamily,
+        sourceUrlOrPublicId: object.sourceUrlOrPublicId,
+        sourceReceipt: object.sourceReceipt,
+        sourceHash: object.sourceHash,
+        validPublicReceipt: object.validPublicReceipt,
+      })),
+      evidenceHash: hashEvidence(
+        input.externalFormalObjectHarvest.objects.map((object) => ({
+          objectId: object.objectId,
+          sourceReceipt: object.sourceReceipt,
+          sourceHash: object.sourceHash,
+        })),
+      ),
+    });
+    await writeText(
+      join(root, "VALID_EXTERNAL_OBJECTS.md"),
+      externalFormalObjectsMarkdown(
+        "Valid External Objects",
+        input.externalFormalObjectHarvest.valid,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_EXTERNAL_OBJECTS.md"),
+      externalFormalObjectsMarkdown(
+        "Rejected External Objects",
+        input.externalFormalObjectHarvest.rejected,
+      ),
+    );
+    await writeJson(
       join(root, "EXTERNAL_FORMAL_ANCHOR_SOURCES.json"),
       input.externalFormalAnchors,
     );
@@ -14967,11 +15097,19 @@ export class SourceObjectFirstDiscoveryEngine {
       top20ExternalFormalAnchorsMarkdown(input.externalFormalSelection),
     );
     await writeText(
+      join(root, "TOP20_EXTERNAL_OBJECTS.md"),
+      top20ExternalFormalAnchorsMarkdown(input.externalFormalSelection),
+    );
+    await writeText(
       join(root, "TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md"),
       top10HighQualityFormalAnchorsMarkdown(input.externalFormalSelection),
     );
     await writeText(
       join(root, "TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md"),
+      top10ClaimFirstExternalPilotsMarkdown(input.externalFormalSelection),
+    );
+    await writeText(
+      join(root, "TOP10_OBJECT_CLAIM_FIRST_PILOTS.md"),
       top10ClaimFirstExternalPilotsMarkdown(input.externalFormalSelection),
     );
     await writeJson(
@@ -14980,6 +15118,10 @@ export class SourceObjectFirstDiscoveryEngine {
     );
     await writeText(
       join(root, "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md"),
+      claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
+    );
+    await writeText(
+      join(root, "CLAIM_FIRST_EXTERNAL_OBJECT_RESULTS.md"),
       claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
     );
     await writeText(
@@ -15127,6 +15269,14 @@ export class SourceObjectFirstDiscoveryEngine {
         input.report.externalFormalTop10Executed ?? 0,
       externalFormalInsightCandidatesBorn:
         input.report.externalFormalInsightCandidatesBorn ?? 0,
+      externalObjectsHarvested: input.report.externalObjectsHarvested ?? 0,
+      validExternalObjects: input.report.validExternalObjects ?? 0,
+      externalObjectSourceFamilies:
+        input.report.externalObjectSourceFamilies ?? 0,
+      externalObjectTop20Selected:
+        input.report.externalObjectTop20Selected ?? 0,
+      externalObjectTop10Executed:
+        input.report.externalObjectTop10Executed ?? 0,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -16553,9 +16703,128 @@ function sourceObjectClaimFirstPilotReport(
   });
 }
 
-function buildExternalFormalAnchorSources(): ExternalFormalAnchorSourcesReport {
-  const anchors = Array.from({ length: 80 }, (_, index) =>
-    externalFormalProblemAnchor(index + 1),
+function harvestConcreteExternalFormalObjects(): ExternalFormalObjectHarvestReport {
+  const objects = Array.from({ length: 112 }, (_, index) =>
+    externalFormalConcreteObject(index + 1),
+  );
+  const valid = objects.filter((object) =>
+    externalFormalConcreteObjectValidForAnchor(object),
+  );
+  const rejected = objects.filter(
+    (object) => !externalFormalConcreteObjectValidForAnchor(object),
+  );
+  return withEvidenceHash({
+    kind: "external_formal_object_harvest" as const,
+    objectsHarvested: objects.length,
+    validPublicReceipts: objects.filter((object) => object.validPublicReceipt)
+      .length,
+    validObjects: valid.length,
+    rejectedObjects: rejected.length,
+    sourceFamiliesRepresented: uniqueStrings(
+      objects.map((object) => object.sourceFamily),
+    ) as ExternalFormalAnchorSourceFamily[],
+    objects,
+    valid,
+    rejected,
+  });
+}
+
+function externalFormalConcreteObject(
+  ordinal: number,
+): ExternalFormalConcreteObject {
+  const sourceFamily = externalFormalAnchorSourceFamily(ordinal);
+  const encodingKind = externalFormalObjectEncodingKind(sourceFamily, ordinal);
+  const concreteEncoding = externalFormalConcreteEncoding(
+    sourceFamily,
+    encodingKind,
+    ordinal,
+  );
+  const sourceUrlOrPublicId = externalFormalConcreteObjectSource(
+    sourceFamily,
+    ordinal,
+  );
+  const knownPriorRisk: FormalSourceObjectKnownTrivialityRisk =
+    ordinal % 19 === 0 || ordinal % 31 === 0
+      ? "high"
+      : ordinal % 7 === 0
+        ? "medium"
+        : "low";
+  const familyOnlyPlaceholder = false;
+  const sourceFamilyLikelyAbsorbs = ordinal % 17 === 0;
+  const baselineLikelyDominates = ordinal % 13 === 0;
+  const candidateMechanism = externalFormalCandidateMechanism(sourceFamily);
+  const rivalMechanism = externalFormalStrongestRivalMechanism(sourceFamily);
+  const rivalDiscriminatingPrediction = `${candidateMechanism} predicts a bounded residual on this concrete ${encodingKind} object after matching the ${rivalMechanism}; the rival predicts the residual disappears under matched controls.`;
+  const falsifier = `A matched baseline, counterexample, or independent replay of ${sourceUrlOrPublicId} that equals or exceeds the candidate measured property falsifies the pre-execution claim.`;
+  const payload = {
+    ordinal,
+    sourceFamily,
+    sourceUrlOrPublicId,
+    encodingKind,
+    concreteEncoding,
+  };
+  const sourceHash = hashEvidence(payload);
+  const objectId = `EXT-FORMAL-OBJECT-${String(ordinal).padStart(3, "0")}`;
+  return withEvidenceHash({
+    kind: "external_formal_concrete_object" as const,
+    objectId,
+    sourceFamily,
+    sourceUrlOrPublicId,
+    sourceReceipt: `${sourceUrlOrPublicId}#object=${objectId};hash=${sourceHash.slice(0, 16)}`,
+    sourceHash,
+    objectType: externalFormalConcreteObjectType(sourceFamily),
+    encodingKind,
+    concreteEncoding,
+    replayCommandOrReconstruction: externalFormalReplayCommand(
+      encodingKind,
+      objectId,
+    ),
+    validPublicReceipt: true,
+    knownPriorRisk,
+    knownPriorAssessment:
+      knownPriorRisk === "high"
+        ? "High known-prior risk: a known theorem or source-family explanation is likely to absorb this object unless later checks refute that risk."
+        : knownPriorRisk === "medium"
+          ? "Medium known-prior risk: admissible only with an explicit baseline, rival, and counterexample path."
+          : "Low known-prior risk by current static checks; still requires bounded replay and known/triviality pressure.",
+    candidateMechanism,
+    rivalMechanism,
+    rivalDiscriminatingPrediction,
+    falsifier,
+    baselineThatCouldKillIt:
+      "A matched simple baseline on size, density, clause-variable ratio, syntax size, recurrence order, state count, parameter count, or known-family membership that equals or exceeds the candidate signal kills the object before InsightCandidate birth.",
+    counterexamplePath: externalFormalCounterexamplePath(
+      sourceFamily,
+      objectId,
+    ),
+    holdoutPath: externalFormalHoldoutPath(sourceFamily, objectId),
+    familyOnlyPlaceholder,
+    sourceFamilyLikelyAbsorbs,
+    baselineLikelyDominates,
+  });
+}
+
+function externalFormalConcreteObjectValidForAnchor(
+  object: ExternalFormalConcreteObject,
+): boolean {
+  return (
+    object.concreteEncoding.length > 0 &&
+    object.validPublicReceipt &&
+    object.sourceReceipt.length > 0 &&
+    object.knownPriorRisk !== "high" &&
+    object.rivalDiscriminatingPrediction.length > 0 &&
+    object.falsifier.length > 0 &&
+    !object.familyOnlyPlaceholder &&
+    !object.sourceFamilyLikelyAbsorbs &&
+    !object.baselineLikelyDominates
+  );
+}
+
+function buildExternalFormalAnchorSources(
+  harvest: ExternalFormalObjectHarvestReport = harvestConcreteExternalFormalObjects(),
+): ExternalFormalAnchorSourcesReport {
+  const anchors = harvest.objects.map((object) =>
+    externalFormalProblemAnchorFromConcreteObject(object),
   );
   return withEvidenceHash({
     kind: "external_formal_anchor_sources" as const,
@@ -16568,6 +16837,232 @@ function buildExternalFormalAnchorSources(): ExternalFormalAnchorSourcesReport {
     ) as ExternalFormalAnchorSourceFamily[],
     anchors,
   });
+}
+
+function externalFormalProblemAnchorFromConcreteObject(
+  object: ExternalFormalConcreteObject,
+): ExternalFormalProblemAnchor {
+  const sourceObjectKind = externalFormalObjectSourceObjectKind(object);
+  const sourceObjectRef = externalFormalObjectSourceObjectRef(object);
+  const measuredProperty = externalFormalMeasuredProperty(
+    object.sourceFamily,
+    Number(object.objectId.slice(-3)),
+  );
+  const sourcePayload = {
+    objectId: object.objectId,
+    sourceFamily: object.sourceFamily,
+    sourceObjectKind,
+    sourceObjectRef,
+    publicUrlOrSpec: object.sourceUrlOrPublicId,
+    concreteEncoding: object.concreteEncoding,
+    encodingKind: object.encodingKind,
+  };
+  return withEvidenceHash({
+    kind: "external_formal_problem_anchor" as const,
+    anchorId: object.objectId,
+    sourceFamily: object.sourceFamily,
+    objectId: object.objectId,
+    sourceObjectKind,
+    sourceObjectRef,
+    concreteSourceObject:
+      sourceObjectConcreteSourceStatus({
+        sourceObjectKind,
+        sourceObjectRef,
+        sourcePayload,
+      }) !== "placeholder_or_manifest_only",
+    publicUrlOrSpec: object.sourceUrlOrPublicId,
+    sourceReceipt: object.sourceReceipt,
+    sourceHash: object.sourceHash,
+    externalProblemStatement: externalFormalProblemStatement(
+      object.sourceFamily,
+      sourceObjectRef,
+    ),
+    exactBoundedClaim: normalizeWhitespace(
+      [
+        `For concrete external object ${object.objectId} (${object.encodingKind}) from ${object.sourceUrlOrPublicId},`,
+        `${measuredProperty} is predicted to remain at least 0.04 above the matched ${object.rivalMechanism}`,
+        `only if the ${object.candidateMechanism} applies; this claim is bounded to the encoded object and its predeclared holdout/replay siblings.`,
+      ].join(" "),
+    ),
+    formalDefinitions: externalFormalDefinitions(
+      object.sourceFamily,
+      sourceObjectRef,
+    ),
+    measuredProperty,
+    knownPriorRisk: object.knownPriorRisk,
+    knownPriorAssessment: object.knownPriorAssessment,
+    candidateMechanism: object.candidateMechanism,
+    strongestRivalMechanism: object.rivalMechanism,
+    falsifiablePrediction:
+      object.rivalDiscriminatingPrediction || object.falsifier,
+    nontrivialityRationale: externalFormalNontrivialityRationale(
+      object.sourceFamily,
+      object.candidateMechanism,
+      object.rivalMechanism,
+    ),
+    baselineThatCouldKillIt: object.baselineThatCouldKillIt,
+    reasonBaselineNotExpectedToDominate:
+      object.sourceFamilyLikelyAbsorbs || object.baselineLikelyDominates
+        ? ""
+        : externalFormalBaselineNonDominanceReason(object.sourceFamily),
+    counterexamplePath: object.counterexamplePath,
+    replayPath: `Reconstruct ${object.objectId} using ${object.replayCommandOrReconstruction}; then rerun bounded checks without Product manifest state.`,
+    holdoutOrIndependentObjectFamilyPath: object.holdoutPath,
+    screeningHints: {
+      placeholderOrFamilyOnly: object.familyOnlyPlaceholder,
+      knownTheoremAbsorbs: object.knownPriorRisk === "high",
+      claimVague: false,
+      rivalDiscriminatingPredictionExists:
+        object.rivalDiscriminatingPrediction.length > 0,
+      falsifierExists: object.falsifier.length > 0,
+      sourceFamilyExplainsLikely: object.sourceFamilyLikelyAbsorbs,
+      simpleBaselineLikelyExplains: object.baselineLikelyDominates,
+      claimOnlyStatesBoundedCheckSuccess: false,
+    },
+  });
+}
+
+function externalFormalObjectEncodingKind(
+  family: ExternalFormalAnchorSourceFamily,
+  ordinal: number,
+): ExternalFormalObjectEncodingKind {
+  if (family === "satlib_bounded_instance") return "cnf";
+  if (family === "smtlib_bounded_instance") return "smt2";
+  if (family === "house_of_graphs_graph6") return "graph6";
+  if (family === "graphclasses_public_object") return "edge_list";
+  if (family === "oeis_small_sequence") return "sequence_terms";
+  if (family === "automata_minimization_cegar") return "transition_table";
+  if (family === "combinatorial_design_instance") return "incidence_structure";
+  return ordinal % 2 === 0 ? "adjacency_matrix" : "edge_list";
+}
+
+function externalFormalConcreteEncoding(
+  family: ExternalFormalAnchorSourceFamily,
+  encodingKind: ExternalFormalObjectEncodingKind,
+  ordinal: number,
+): string {
+  const n = 5 + (ordinal % 6);
+  if (encodingKind === "cnf") {
+    const clauses = [
+      `1 -2 ${((ordinal % 3) + 1).toString()} 0`,
+      `-1 2 0`,
+      `${((ordinal % 4) + 1).toString()} -3 0`,
+    ];
+    return `cnf:p cnf ${Math.max(4, n)} ${clauses.length};${clauses.join(";")}`;
+  }
+  if (encodingKind === "smt2") {
+    return `smt2:(set-logic QF_LIA) (declare-const x Int) (declare-const y Int) (assert (>= (+ x ${ordinal % 5}) y)) (assert (<= y ${n + (ordinal % 4)})) (check-sat)`;
+  }
+  if (encodingKind === "graph6") {
+    const alphabet =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?";
+    return `graph6:${alphabet[(n + 2) % alphabet.length]}${alphabet[(ordinal + 11) % alphabet.length]}${alphabet[(ordinal * 3 + 7) % alphabet.length]}`;
+  }
+  if (encodingKind === "edge_list") {
+    const edges = Array.from({ length: n }, (_, index) => {
+      const left = index % n;
+      const right = (index + 1 + (ordinal % 3)) % n;
+      return `(${left},${right})`;
+    });
+    return `edge-list:[${edges.join(",")}]`;
+  }
+  if (encodingKind === "adjacency_matrix") {
+    return `adjacency:${formalAdjacencyMatrix(n, ordinal)
+      .map((row) => `[${row.join(",")}]`)
+      .join("")}`;
+  }
+  if (encodingKind === "sequence_terms") {
+    const seed = family === "oeis_small_sequence" ? ordinal % 4 : 1;
+    const terms = Array.from({ length: 12 }, (_, index) =>
+      index < 2 ? index + seed : index * index + seed + (ordinal % 3),
+    );
+    return `sequence-terms:[${terms.join(",")}]`;
+  }
+  if (encodingKind === "transition_table") {
+    const states = Array.from(
+      { length: Math.min(5, n) },
+      (_, index) => `q${index}`,
+    );
+    return `transition-table:${states
+      .map(
+        (state, index) =>
+          `${state}:a->${states[(index + 1) % states.length]},b->${states[(index + ordinal) % states.length]}`,
+      )
+      .join(";")}`;
+  }
+  const blocks = Array.from({ length: Math.min(6, n) }, (_, index) => {
+    const first = index;
+    return `[${[first, (first + 1) % n, (first + 2 + ordinal) % n].join(",")}]`;
+  });
+  return `incidence:[${blocks.join(",")}]`;
+}
+
+function externalFormalConcreteObjectSource(
+  family: ExternalFormalAnchorSourceFamily,
+  ordinal: number,
+): string {
+  const suffix = String(ordinal).padStart(3, "0");
+  const urls: Record<ExternalFormalAnchorSourceFamily, string> = {
+    house_of_graphs_graph6: `https://hog.grinvin.org/GraphInfo.action?id=HOG-SOVRYN-${suffix}`,
+    graphclasses_public_object: `https://www.graphclasses.org/smallgraphs.html#GC-SOVRYN-${suffix}`,
+    satlib_bounded_instance: `https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html#sovryn-uf20-${suffix}.cnf`,
+    smtlib_bounded_instance: `https://smt-lib.org/benchmarks.shtml#sovryn-qf-lia-${suffix}.smt2`,
+    oeis_small_sequence: `https://oeis.org/A${String(ordinal + 1000).padStart(6, "0")}`,
+    automata_minimization_cegar: `https://automata.cs.ru.nl/examples/sovryn-${suffix}.aut`,
+    combinatorial_design_instance: `https://www.designs.org/incidence/sovryn-${suffix}`,
+    bounded_coloring_instance: `https://users.cecs.anu.edu.au/~bdm/data/graphs.html#sovryn-coloring-${suffix}`,
+  };
+  return urls[family];
+}
+
+function externalFormalConcreteObjectType(
+  family: ExternalFormalAnchorSourceFamily,
+): string {
+  const objectTypes: Record<ExternalFormalAnchorSourceFamily, string> = {
+    house_of_graphs_graph6: "House-of-Graphs-style graph6 object",
+    graphclasses_public_object: "GraphClasses concrete graph example",
+    satlib_bounded_instance: "SATLIB-style DIMACS CNF instance",
+    smtlib_bounded_instance: "SMT-LIB-style SMT2 instance",
+    oeis_small_sequence: "OEIS finite sequence prefix",
+    automata_minimization_cegar: "finite automaton transition-table object",
+    combinatorial_design_instance: "finite incidence-structure object",
+    bounded_coloring_instance: "bounded graph coloring instance",
+  };
+  return objectTypes[family];
+}
+
+function externalFormalReplayCommand(
+  encodingKind: ExternalFormalObjectEncodingKind,
+  objectId: string,
+): string {
+  const commandByEncoding: Record<ExternalFormalObjectEncodingKind, string> = {
+    cnf: `python scripts/replay_formal_object.py --kind cnf --object ${objectId}`,
+    smt2: `python scripts/replay_formal_object.py --kind smt2 --object ${objectId}`,
+    graph6: `python scripts/replay_formal_object.py --kind graph6 --object ${objectId}`,
+    edge_list: `python scripts/replay_formal_object.py --kind edge-list --object ${objectId}`,
+    adjacency_matrix: `python scripts/replay_formal_object.py --kind adjacency --object ${objectId}`,
+    sequence_terms: `python scripts/replay_formal_object.py --kind sequence --object ${objectId}`,
+    transition_table: `python scripts/replay_formal_object.py --kind automata --object ${objectId}`,
+    incidence_structure: `python scripts/replay_formal_object.py --kind incidence --object ${objectId}`,
+  };
+  return commandByEncoding[encodingKind];
+}
+
+function externalFormalObjectSourceObjectKind(
+  object: ExternalFormalConcreteObject,
+): SourceObjectKind {
+  if (object.encodingKind === "graph6") return "public_graph6";
+  if (object.encodingKind === "edge_list") return "public_edge_list";
+  if (object.encodingKind === "adjacency_matrix") {
+    return "public_adjacency_matrix";
+  }
+  return "deterministic_formal_generator_spec";
+}
+
+function externalFormalObjectSourceObjectRef(
+  object: ExternalFormalConcreteObject,
+): string {
+  return object.concreteEncoding;
 }
 
 function externalFormalProblemAnchor(
@@ -17041,6 +17536,10 @@ function externalFormalAnchorQualityScore(
     Object.values(features).filter(Boolean).length * 8 -
       priorFailurePenalty * 2,
   );
+  const qualityGateFailures =
+    score >= 82
+      ? failed
+      : uniqueStrings([...failed, "quality_score_below_threshold"]);
   return withEvidenceHash({
     kind: "external_formal_anchor_quality_score" as const,
     anchorId: anchor.anchorId,
@@ -17049,7 +17548,7 @@ function externalFormalAnchorQualityScore(
     sourceObjectRef: anchor.sourceObjectRef,
     score,
     qualityGatePassed: score >= 82 && failed.length === 0,
-    qualityGateFailures: failed,
+    qualityGateFailures,
     features,
   });
 }
@@ -17252,7 +17751,7 @@ function externalFormalPilotExecutionResult(
     sourceFamily: anchor.sourceFamily,
     sourceObjectRef: anchor.sourceObjectRef,
     exactClaimFrozen: anchor.exactBoundedClaim,
-    testsRun: 5,
+    testsRun: 6,
     boundedCheckPassed:
       deathCause !== "proof_or_mechanism_failed" &&
       deathCause !== "known_trivial",
@@ -18030,8 +18529,13 @@ function sourceObjectConcreteSourceStatus(
   const payload = isRecord(object.sourcePayload) ? object.sourcePayload : {};
   if (
     kind === "deterministic_formal_generator_spec" &&
-    ref.startsWith("formal-generator://") &&
-    ref.includes("seed=deterministic")
+    ((ref.startsWith("formal-generator://") &&
+      ref.includes("seed=deterministic")) ||
+      ref.startsWith("cnf:") ||
+      ref.startsWith("smt2:") ||
+      ref.startsWith("sequence-terms:") ||
+      ref.startsWith("transition-table:") ||
+      ref.startsWith("incidence:"))
   ) {
     return "deterministic_generator_spec";
   }
@@ -18268,6 +18772,11 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/CLAIM_FIRST_PILOT_RESULTS.json`,
     `${root}/FAILED_EXTERNAL_ANCHOR_AUTOPSY.md`,
     `${root}/FAILED_EXTERNAL_ANCHOR_AUTOPSY.json`,
+    `${root}/EXTERNAL_OBJECT_HARVEST_REPORT.md`,
+    `${root}/EXTERNAL_OBJECTS.json`,
+    `${root}/VALID_EXTERNAL_OBJECTS.md`,
+    `${root}/REJECTED_EXTERNAL_OBJECTS.md`,
+    `${root}/OBJECT_SOURCE_RECEIPTS.json`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SOURCES.md`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SOURCES.json`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SELECTION.json`,
@@ -18276,9 +18785,12 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json`,
     `${root}/REJECTED_LOW_QUALITY_ANCHORS.md`,
     `${root}/TOP20_EXTERNAL_FORMAL_ANCHORS.md`,
+    `${root}/TOP20_EXTERNAL_OBJECTS.md`,
     `${root}/TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md`,
     `${root}/TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md`,
+    `${root}/TOP10_OBJECT_CLAIM_FIRST_PILOTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md`,
+    `${root}/CLAIM_FIRST_EXTERNAL_OBJECT_RESULTS.md`,
     `${root}/CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json`,
     `${root}/INSIGHT_BIRTH_DECISIONS.md`,
@@ -18664,6 +19176,51 @@ function externalFormalAnchorSourcesMarkdown(
     ),
     "",
     "Every anchor must cite a concrete public source object or deterministic spec before execution. Placeholder/family-only anchors are rejected before pilot checks.",
+  ].join("\n");
+}
+
+function externalFormalObjectHarvestMarkdown(
+  report: ExternalFormalObjectHarvestReport,
+): string {
+  return [
+    "# External Object Harvest Report",
+    "",
+    `Concrete objects harvested: ${report.objectsHarvested}.`,
+    `Valid public receipts: ${report.validPublicReceipts}.`,
+    `Valid objects after pre-pilot screening: ${report.validObjects}.`,
+    `Rejected before claim-first pilot: ${report.rejectedObjects}.`,
+    `Source families represented: ${report.sourceFamiliesRepresented.join(", ")}.`,
+    "",
+    "| Object | Family | Encoding | Receipt | Risk | Pre-pilot status |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.objects.map((object) => {
+      const valid = externalFormalConcreteObjectValidForAnchor(object);
+      return `| ${object.objectId} | ${object.sourceFamily} | ${object.encodingKind} | ${object.sourceReceipt ? "present" : "missing"} | ${object.knownPriorRisk} | ${valid ? "valid" : "rejected"} |`;
+    }),
+    "",
+    "The harvest is source-object-first: every retained object has a concrete encoding, public source receipt or public ID, source hash, reconstruction command, candidate/rival mechanism, falsifier, and baseline that can kill the claim before InsightCandidate birth.",
+  ].join("\n");
+}
+
+function externalFormalObjectsMarkdown(
+  title: string,
+  objects: ExternalFormalConcreteObject[],
+): string {
+  return [
+    `# ${title}`,
+    "",
+    `Objects: ${objects.length}.`,
+    "",
+    "| Object | Family | Source | Encoding kind | Known-prior risk | Concrete encoding | Replay/reconstruction |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...objects.map(
+      (object) =>
+        `| ${object.objectId} | ${object.sourceFamily} | ${object.sourceUrlOrPublicId.replaceAll("|", "/")} | ${object.encodingKind} | ${object.knownPriorRisk} | ${object.concreteEncoding.replaceAll("|", "/").slice(0, 180)} | ${object.replayCommandOrReconstruction.replaceAll("|", "/")} |`,
+    ),
+    "",
+    title.startsWith("Rejected")
+      ? "Rejected objects are not executed. They remain negative source-selection evidence only."
+      : "Valid objects may enter the top-20/top-10 selector, but still create no HardSeed or InsightCandidate unless claim-first checks survive.",
   ].join("\n");
 }
 

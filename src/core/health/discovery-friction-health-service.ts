@@ -308,6 +308,8 @@ export type PublicFundReconciliation = {
   publicFundClass: string | null;
   countsForEinsteinNobelDiscoveryScore: boolean | null;
   publicRawScientificReproductionReady: boolean | null;
+  publicFormalReproductionReady: boolean | null;
+  publicRawOrFormalReproductionReady: boolean | null;
   reason: string | null;
 };
 
@@ -1143,6 +1145,8 @@ export class DiscoveryFrictionHealthService {
       publicFundClass: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
+      publicFormalReproductionReady: null,
+      publicRawOrFormalReproductionReady: null,
       reason: null,
     };
     if (!candidateId) return empty;
@@ -1197,12 +1201,29 @@ export class DiscoveryFrictionHealthService {
         booleanField(summary, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(fundCandidate, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(nestedCandidate, "countsForEinsteinNobelDiscoveryScore");
+      const statusReadiness =
+        publicReviewStatusReproductionReadiness(publicReviewStatus);
       const publicRawScientificReproductionReady =
-        publicReviewStatusAllowsDiscoveryScoring(publicReviewStatus);
+        booleanField(summary, "publicRawScientificReproductionReady") ??
+        booleanField(fundCandidate, "publicRawScientificReproductionReady") ??
+        booleanField(nestedCandidate, "publicRawScientificReproductionReady") ??
+        statusReadiness.raw;
+      const publicFormalReproductionReady =
+        booleanField(summary, "publicFormalReproductionReady") ??
+        booleanField(fundCandidate, "publicFormalReproductionReady") ??
+        booleanField(nestedCandidate, "publicFormalReproductionReady") ??
+        statusReadiness.formal;
+      const publicRawOrFormalReproductionReady =
+        booleanField(summary, "publicRawOrFormalReproductionReady") ??
+        booleanField(fundCandidate, "publicRawOrFormalReproductionReady") ??
+        booleanField(nestedCandidate, "publicRawOrFormalReproductionReady") ??
+        (publicRawScientificReproductionReady === true ||
+          publicFormalReproductionReady === true ||
+          statusReadiness.rawOrFormal);
       const blocksDiscoveryScore =
         countsForEinsteinNobelDiscoveryScore === false ||
         publicFundClass?.startsWith("not_discovery_scored") === true ||
-        publicRawScientificReproductionReady !== true ||
+        publicRawOrFormalReproductionReady !== true ||
         publicExtendedValidationBlocksDiscoveryScore;
       return {
         matched: true,
@@ -1216,9 +1237,11 @@ export class DiscoveryFrictionHealthService {
         countsForEinsteinNobelDiscoveryScore:
           countsForEinsteinNobelDiscoveryScore ?? null,
         publicRawScientificReproductionReady,
+        publicFormalReproductionReady,
+        publicRawOrFormalReproductionReady,
         reason: blocksDiscoveryScore
-          ? "public corpus package is missing public raw-scientific reproduction readiness, marks this candidate as not discovery-scored, or exposes fatal rival validation"
-          : "public corpus package has public raw-scientific reproduction readiness and does not block discovery scoring",
+          ? "public corpus package is missing public raw/formal reproduction readiness, marks this candidate as not discovery-scored, or exposes fatal rival validation"
+          : "public corpus package has public raw/formal reproduction readiness and does not block discovery scoring",
       };
     }
     return empty;
@@ -2861,7 +2884,17 @@ function booleanField(
 function publicReviewStatusAllowsDiscoveryScoring(
   status: string | null,
 ): boolean {
-  if (status === null) return false;
+  return publicReviewStatusReproductionReadiness(status).rawOrFormal;
+}
+
+function publicReviewStatusReproductionReadiness(status: string | null): {
+  raw: boolean;
+  formal: boolean;
+  rawOrFormal: boolean;
+} {
+  if (status === null) {
+    return { raw: false, formal: false, rawOrFormal: false };
+  }
   const normalized = status.toLowerCase();
   if (
     normalized.includes("raw_scientific_reproduction_failed") ||
@@ -2870,16 +2903,20 @@ function publicReviewStatusAllowsDiscoveryScoring(
     normalized.includes("needs_package_repair") ||
     normalized.includes("with_major_caveats")
   ) {
-    return false;
+    return { raw: false, formal: false, rawOrFormal: false };
   }
-  return (
+  const raw =
     normalized.includes("raw_scientific_reproduction_succeeded") ||
     normalized.includes("standalone_raw_reproduction_succeeded") ||
-    normalized.includes("external_review_ready_raw_reproduction_succeeded") ||
+    normalized.includes("external_review_ready_raw_reproduction_succeeded");
+  const formal =
     normalized.includes("formal_reproduction_succeeded") ||
-    normalized.includes("formal_replay_succeeded") ||
-    normalized.includes("raw_or_formal_reproduction_succeeded")
-  );
+    normalized.includes("formal_replay_succeeded");
+  const rawOrFormal =
+    raw ||
+    formal ||
+    normalized.includes("raw_or_formal_reproduction_succeeded");
+  return { raw, formal, rawOrFormal };
 }
 
 function extendedValidationBlocksDiscoveryScoring(

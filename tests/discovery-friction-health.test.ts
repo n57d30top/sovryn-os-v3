@@ -377,6 +377,14 @@ test("health friction blocks caveated public package without raw scientific repr
     data.publicFundReconciliation.publicRawScientificReproductionReady,
     false,
   );
+  assert.equal(
+    data.publicFundReconciliation.publicFormalReproductionReady,
+    false,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicRawOrFormalReproductionReady,
+    false,
+  );
 });
 
 test("health friction allows public package with raw scientific reproduction readiness", async () => {
@@ -403,6 +411,14 @@ test("health friction allows public package with raw scientific reproduction rea
   assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, false);
   assert.equal(
     data.publicFundReconciliation.publicRawScientificReproductionReady,
+    true,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicFormalReproductionReady,
+    false,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicRawOrFormalReproductionReady,
     true,
   );
 });
@@ -432,6 +448,14 @@ test("health friction allows public formal reproduction readiness for formal can
   assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, false);
   assert.equal(
     data.publicFundReconciliation.publicRawScientificReproductionReady,
+    false,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicFormalReproductionReady,
+    true,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicRawOrFormalReproductionReady,
     true,
   );
 });

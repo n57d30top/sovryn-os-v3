@@ -1255,7 +1255,13 @@ async function writePublicCorpusDiscoveryClearance(
       countsForEinsteinNobelDiscoveryScore: true,
       publicRawScientificReproductionReady: publicReviewStatus
         .toLowerCase()
-        .includes("reproduction_succeeded"),
+        .includes("raw_scientific_reproduction_succeeded"),
+      publicFormalReproductionReady:
+        publicReviewStatus.toLowerCase().includes("formal_reproduction") ||
+        publicReviewStatus.toLowerCase().includes("formal_replay"),
+      publicRawOrFormalReproductionReady:
+        publicReviewStatus.toLowerCase().includes("reproduction_succeeded") ||
+        publicReviewStatus.toLowerCase().includes("formal_replay"),
     }),
     "utf8",
   );
@@ -4686,6 +4692,8 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
         "internal_runtime_replay_candidate_raw_scientific_reproduction_failed",
       countsForEinsteinNobelDiscoveryScore: false,
       publicRawScientificReproductionReady: false,
+      publicFormalReproductionReady: false,
+      publicRawOrFormalReproductionReady: false,
       reason: "fixture public downgrade",
       evidenceHash: "fixture",
     },

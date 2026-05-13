@@ -228,6 +228,8 @@ export type NobelReadinessPublicValidationContext = {
   blocksDiscoveryScore: boolean;
   blockReason: string | null;
   publicRawScientificReproductionReady: boolean | null;
+  publicFormalReproductionReady: boolean | null;
+  publicRawOrFormalReproductionReady: boolean | null;
   sourceRowsStored: boolean | null;
   sourceRowsStoredReason: string | null;
   liveSourceOnlyReplayCaveat: boolean;
@@ -2411,24 +2413,39 @@ export class NobelReadinessService {
         booleanValue(summary?.countsForEinsteinNobelDiscoveryScore) ??
         booleanValue(fundCandidate?.countsForEinsteinNobelDiscoveryScore) ??
         booleanValue(nestedCandidate?.countsForEinsteinNobelDiscoveryScore);
-      const publicRawScientificReproductionReady =
+      const explicitRawScientificReproductionReady =
         booleanValue(summary?.publicRawScientificReproductionReady) ??
         booleanValue(fundCandidate?.publicRawScientificReproductionReady) ??
         booleanValue(nestedCandidate?.publicRawScientificReproductionReady);
+      const publicFormalReproductionReady =
+        booleanValue(summary?.publicFormalReproductionReady) ??
+        booleanValue(fundCandidate?.publicFormalReproductionReady) ??
+        booleanValue(nestedCandidate?.publicFormalReproductionReady) ??
+        publicReviewStatusAllowsFormalReproduction(publicReviewStatus);
+      const publicRawScientificReproductionReady =
+        explicitRawScientificReproductionReady ??
+        publicReviewStatusAllowsRawScientificReproduction(publicReviewStatus);
+      const publicRawOrFormalReproductionReady =
+        booleanValue(summary?.publicRawOrFormalReproductionReady) ??
+        booleanValue(fundCandidate?.publicRawOrFormalReproductionReady) ??
+        booleanValue(nestedCandidate?.publicRawOrFormalReproductionReady) ??
+        (publicRawScientificReproductionReady === true ||
+          publicFormalReproductionReady === true ||
+          publicReviewStatusAllowsRawOrFormalReproduction(publicReviewStatus));
       const extendedValidationBlocksDiscoveryScore =
         extendedValidationBlocksDiscoveryScoring(extendedValidationStatus);
       const blocksDiscoveryScore =
         countsForEinsteinNobelDiscoveryScore === false ||
         publicFundClass?.startsWith("not_discovery_scored") === true ||
-        publicRawScientificReproductionReady === false ||
+        publicRawOrFormalReproductionReady === false ||
         extendedValidationBlocksDiscoveryScore;
       const blockReason =
         countsForEinsteinNobelDiscoveryScore === false
           ? "public_counts_for_discovery_score_false"
           : publicFundClass?.startsWith("not_discovery_scored") === true
             ? "public_not_discovery_scored_fund_class"
-            : publicRawScientificReproductionReady === false
-              ? "public_raw_scientific_reproduction_not_ready"
+            : publicRawOrFormalReproductionReady === false
+              ? "public_raw_or_formal_reproduction_not_ready"
               : extendedValidationBlocksDiscoveryScore
                 ? "public_extended_validation_signal_explained"
                 : null;
@@ -2455,6 +2472,8 @@ export class NobelReadinessService {
         blocksDiscoveryScore,
         blockReason,
         publicRawScientificReproductionReady,
+        publicFormalReproductionReady,
+        publicRawOrFormalReproductionReady,
         sourceRowsStored,
         sourceRowsStoredReason,
         liveSourceOnlyReplayCaveat,
@@ -2481,6 +2500,69 @@ function stringValue(value: unknown): string | null {
 
 function booleanValue(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function publicReviewStatusAllowsRawScientificReproduction(
+  status: string | null,
+): boolean {
+  if (
+    status === null ||
+    publicReviewStatusBlocksReproductionReadiness(status)
+  ) {
+    return false;
+  }
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("raw_scientific_reproduction_succeeded") ||
+    normalized.includes("standalone_raw_reproduction_succeeded") ||
+    normalized.includes("external_review_ready_raw_reproduction_succeeded")
+  );
+}
+
+function publicReviewStatusAllowsFormalReproduction(
+  status: string | null,
+): boolean {
+  if (
+    status === null ||
+    publicReviewStatusBlocksReproductionReadiness(status)
+  ) {
+    return false;
+  }
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("formal_reproduction_succeeded") ||
+    normalized.includes("formal_replay_succeeded")
+  );
+}
+
+function publicReviewStatusAllowsRawOrFormalReproduction(
+  status: string | null,
+): boolean {
+  if (
+    status === null ||
+    publicReviewStatusBlocksReproductionReadiness(status)
+  ) {
+    return false;
+  }
+  const normalized = status.toLowerCase();
+  return (
+    publicReviewStatusAllowsRawScientificReproduction(status) ||
+    publicReviewStatusAllowsFormalReproduction(status) ||
+    normalized.includes("raw_or_formal_reproduction_succeeded")
+  );
+}
+
+function publicReviewStatusBlocksReproductionReadiness(
+  status: string,
+): boolean {
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("raw_scientific_reproduction_failed") ||
+    normalized.includes("not_external_review_ready") ||
+    normalized.includes("package_repair_required") ||
+    normalized.includes("needs_package_repair") ||
+    normalized.includes("with_major_caveats")
+  );
 }
 
 function extendedValidationBlocksDiscoveryScoring(

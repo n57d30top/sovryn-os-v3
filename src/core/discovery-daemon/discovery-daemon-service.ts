@@ -1370,6 +1370,8 @@ export type PublicCorpusNegativeHistoryAssessment = {
   resultKind: string | null;
   countsForEinsteinNobelDiscoveryScore: boolean | null;
   publicRawScientificReproductionReady: boolean | null;
+  publicFormalReproductionReady: boolean | null;
+  publicRawOrFormalReproductionReady: boolean | null;
   reason: string;
   evidenceHash: string;
 };
@@ -2019,6 +2021,8 @@ export type PublicCorpusPackageInspectabilityAssessment = {
   resultSlug: string | null;
   publicReviewStatus: string | null;
   publicRawScientificReproductionReady: boolean | null;
+  publicFormalReproductionReady: boolean | null;
+  publicRawOrFormalReproductionReady: boolean | null;
   requiredFiles: string[];
   missingFiles: string[];
   requiredReproductionArtifacts: string[];
@@ -29559,6 +29563,8 @@ async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
     resultSlug: string | null;
     publicReviewStatus: string | null;
     publicRawScientificReproductionReady: boolean | null;
+    publicFormalReproductionReady?: boolean | null;
+    publicRawOrFormalReproductionReady?: boolean | null;
   };
 }): Promise<PublicCorpusPackageInspectabilityAssessment> {
   const requiredFiles = [
@@ -29576,6 +29582,12 @@ async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
   const publicReviewStatus = input.publicFundReconciliation.publicReviewStatus;
   const publicRawScientificReproductionReady =
     input.publicFundReconciliation.publicRawScientificReproductionReady;
+  const publicFormalReproductionReady =
+    input.publicFundReconciliation.publicFormalReproductionReady ?? null;
+  const publicRawOrFormalReproductionReady =
+    input.publicFundReconciliation.publicRawOrFormalReproductionReady ??
+    (publicRawScientificReproductionReady === true ||
+      publicFormalReproductionReady === true);
   if (
     input.candidate === null ||
     input.publicFundReconciliation.matched !== true ||
@@ -29588,6 +29600,8 @@ async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
       resultSlug,
       publicReviewStatus,
       publicRawScientificReproductionReady,
+      publicFormalReproductionReady,
+      publicRawOrFormalReproductionReady,
       requiredFiles,
       missingFiles: requiredFiles,
       requiredReproductionArtifacts,
@@ -29677,8 +29691,8 @@ async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
     ...(reviewStatusAllowsRootIntake
       ? []
       : ["public_review_status_not_replay_ready"]),
-    ...(publicRawScientificReproductionReady === false
-      ? ["public_raw_scientific_reproduction_not_ready"]
+    ...(publicRawOrFormalReproductionReady === false
+      ? ["public_raw_or_formal_reproduction_not_ready"]
       : []),
   ]);
   return publicCorpusPackageInspectabilityAssessment({
@@ -29688,6 +29702,8 @@ async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
     resultSlug,
     publicReviewStatus,
     publicRawScientificReproductionReady,
+    publicFormalReproductionReady,
+    publicRawOrFormalReproductionReady,
     requiredFiles,
     missingFiles,
     requiredReproductionArtifacts,
@@ -29721,16 +29737,30 @@ function publicCorpusPackageInspectabilityAssessment(
 function publicReviewStatusAllowsClaimLiftRootIntake(
   value: string | null,
 ): boolean {
+  return publicReviewStatusReproductionReadiness(value).rawOrFormal;
+}
+
+function publicReviewStatusReproductionReadiness(value: string | null): {
+  raw: boolean;
+  formal: boolean;
+  rawOrFormal: boolean;
+} {
   if (value === null || publicReviewStatusBlocksSeedBirth(value)) {
-    return false;
+    return { raw: false, formal: false, rawOrFormal: false };
   }
   const normalized = value.toLowerCase();
-  return (
+  const raw =
     normalized.includes("raw_scientific_reproduction_succeeded") ||
+    normalized.includes("standalone_raw_reproduction_succeeded") ||
+    normalized.includes("external_review_ready_raw_reproduction_succeeded");
+  const formal =
     normalized.includes("formal_reproduction_succeeded") ||
-    normalized.includes("formal_replay_succeeded") ||
-    normalized.includes("raw_or_formal_reproduction_succeeded")
-  );
+    normalized.includes("formal_replay_succeeded");
+  const rawOrFormal =
+    raw ||
+    formal ||
+    normalized.includes("raw_or_formal_reproduction_succeeded");
+  return { raw, formal, rawOrFormal };
 }
 
 function generatorBornClaimLiftRawSourceReproductionConsistencyNotChecked(
@@ -32722,6 +32752,8 @@ async function publicCorpusNegativeHistoryForExternalProblemAnchor(
       resultKind: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
+      publicFormalReproductionReady: null,
+      publicRawOrFormalReproductionReady: null,
       reason:
         "public corpus sibling repository was not found; no negative-history match was applied",
     });
@@ -32766,6 +32798,8 @@ async function publicCorpusNegativeHistoryForExternalProblemAnchor(
     resultKind: null,
     countsForEinsteinNobelDiscoveryScore: null,
     publicRawScientificReproductionReady: null,
+    publicFormalReproductionReady: null,
+    publicRawOrFormalReproductionReady: null,
     reason: "no public corpus result matched this generator anchor",
   });
 }
@@ -32809,6 +32843,8 @@ async function publicCorpusNegativeHistoryForClaimLiftCandidateText(
       resultKind: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
+      publicFormalReproductionReady: null,
+      publicRawOrFormalReproductionReady: null,
       reason:
         "claim-lift candidate text did not expose a high-confidence public corpus match token",
     });
@@ -32826,6 +32862,8 @@ async function publicCorpusNegativeHistoryForClaimLiftCandidateText(
       resultKind: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
+      publicFormalReproductionReady: null,
+      publicRawOrFormalReproductionReady: null,
       reason:
         "public corpus sibling repository was not found; no claim-lift negative-history match was applied",
     });
@@ -32862,6 +32900,8 @@ async function publicCorpusNegativeHistoryForClaimLiftCandidateText(
     resultKind: null,
     countsForEinsteinNobelDiscoveryScore: null,
     publicRawScientificReproductionReady: null,
+    publicFormalReproductionReady: null,
+    publicRawOrFormalReproductionReady: null,
     reason: "no public corpus result matched this claim-lift candidate text",
   });
 }
@@ -32881,12 +32921,22 @@ function publicCorpusNegativeHistoryFromSummary(input: {
   const countsForEinsteinNobelDiscoveryScore = optionalBoolean(
     input.summary.countsForEinsteinNobelDiscoveryScore,
   );
-  const publicRawScientificReproductionReady = optionalBoolean(
-    input.summary.publicRawScientificReproductionReady,
-  );
+  const statusReadiness =
+    publicReviewStatusReproductionReadiness(publicReviewStatus);
+  const publicRawScientificReproductionReady =
+    optionalBoolean(input.summary.publicRawScientificReproductionReady) ??
+    statusReadiness.raw;
+  const publicFormalReproductionReady =
+    optionalBoolean(input.summary.publicFormalReproductionReady) ??
+    statusReadiness.formal;
+  const publicRawOrFormalReproductionReady =
+    optionalBoolean(input.summary.publicRawOrFormalReproductionReady) ??
+    (publicRawScientificReproductionReady === true ||
+      publicFormalReproductionReady === true ||
+      statusReadiness.rawOrFormal);
   const blocksSeedBirth =
     countsForEinsteinNobelDiscoveryScore === false ||
-    publicRawScientificReproductionReady === false ||
+    publicRawOrFormalReproductionReady === false ||
     optionalBoolean(input.summary.publicDowngradeOverridesDiscoveryScoring) ===
       true ||
     optionalBoolean(input.summary.domainScientificSignificance) === false ||
@@ -32909,6 +32959,8 @@ function publicCorpusNegativeHistoryFromSummary(input: {
     resultKind,
     countsForEinsteinNobelDiscoveryScore,
     publicRawScientificReproductionReady,
+    publicFormalReproductionReady,
+    publicRawOrFormalReproductionReady,
     reason: blocksSeedBirth ? input.reasonWhenBlocked : input.reasonWhenClear,
   });
 }
@@ -33108,6 +33160,8 @@ async function publicCorpusNegativeHistoryForHardSeed(
       resultKind: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
+      publicFormalReproductionReady: null,
+      publicRawOrFormalReproductionReady: null,
       reason: "hard seed has no external problem anchor in sourceSeed",
     });
   }

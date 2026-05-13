@@ -98,6 +98,7 @@ const commands = [
   "generator-claim-lift-pressure",
   "generator-claim-lift-experiment",
   "generator-claim-lift-source-signal",
+  "generator-claim-lift-candidate",
   "generator-claim-lift-rebind",
   "generator-claim-lift-intake",
   "dimacs-boundary-closure",
@@ -5821,6 +5822,121 @@ test("generator-born claim lift source signal binds forward-only evidence before
   );
 });
 
+test("generator-born claim lift candidate preflight blocks ordinary-known mechanism gates", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const bound = sourceSignal.decisions.find(
+    (decision) => decision.sourceSignalStatus === "source_signal_bound",
+  );
+  assert.ok(bound?.packageRef);
+  const bindingsPath = join(
+    root,
+    bound.packageRef,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.claimLiftProposalCandidate = null;
+  bindings.domainSignificanceAssessment = {
+    failedGates: [
+      "explicit_domain_significance_claim",
+      "not_ordinary_known_mechanism",
+    ],
+  };
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+
+  const preflight = await service.generatorClaimLiftCandidate();
+
+  assert.equal(
+    preflight.kind,
+    "generator_born_discovery_claim_lift_candidate_preflight",
+  );
+  assert.equal(preflight.fundFound, false);
+  assert.equal(preflight.packagesMutated, 0);
+  const editedDecision = preflight.decisions.find(
+    (decision) => decision.packageRef === bound.packageRef,
+  );
+  assert.equal(editedDecision?.candidateContractStatus, "blocked");
+  assert.equal(
+    editedDecision?.fatalDomainSignificanceGates.includes(
+      "not_ordinary_known_mechanism",
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift candidate preflight writes forward-only candidate contracts", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const bound = sourceSignal.decisions.find(
+    (decision) => decision.sourceSignalStatus === "source_signal_bound",
+  );
+  assert.ok(bound?.packageRef);
+  const bindingsPath = join(
+    root,
+    bound.packageRef,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.claimLiftProposalCandidate = null;
+  bindings.domainSignificanceAssessment = {
+    failedGates: ["explicit_domain_significance_claim"],
+  };
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+
+  const preflight = await service.generatorClaimLiftCandidate();
+  const build = await service.generatorClaimLiftPropose();
+
+  assert.equal(preflight.candidateContractsReady > 0, true);
+  assert.equal(
+    preflight.candidateContractsWritten,
+    preflight.candidateContractsReady,
+  );
+  assert.equal(
+    preflight.decisions
+      .filter(
+        (decision) =>
+          decision.candidateContractStatus === "candidate_contract_ready",
+      )
+      .every(
+        (decision) =>
+          decision.candidateContract !== null &&
+          decision.candidateContract.targetDiscoveryCandidateId.startsWith(
+            "DISCOVERY-LIFT-",
+          ) &&
+          decision.packageMutated === false,
+      ),
+    true,
+  );
+  assert.equal(build.proposalsReady >= preflight.candidateContractsReady, true);
+  assert.equal(build.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
 test("generator-born claim lift proposal builder blocks downgraded public-corpus anchors before proposal birth", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -11162,6 +11278,11 @@ const cliScenarios: {
     name: "generator-claim-lift-source-signal",
     args: ["discover-daemon", "generator-claim-lift-source-signal", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_source_signal",
+  },
+  {
+    name: "generator-claim-lift-candidate",
+    args: ["discover-daemon", "generator-claim-lift-candidate", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_candidate_preflight",
   },
   {
     name: "generator-claim-lift-rebind",

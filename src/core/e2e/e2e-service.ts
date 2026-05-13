@@ -216,7 +216,7 @@ type E2EPhaseInput = {
 };
 
 const TARGET_VERSION = "4.2.0-rc.1";
-const MAX_OUTPUT_CHARS = 20000;
+const MAX_OUTPUT_CHARS = 60000;
 const MAX_PARSE_OUTPUT_CHARS = 2_000_000;
 
 export class E2EService {

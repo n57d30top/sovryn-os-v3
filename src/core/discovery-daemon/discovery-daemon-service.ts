@@ -1835,6 +1835,43 @@ export type GeneratorBornDiscoveryClaimLiftSourceSignalReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision = {
+  kind: "generator_born_discovery_claim_lift_candidate_preflight_decision";
+  candidateId: string;
+  packageRef: string | null;
+  sourceSignalStatus: "source_signal_bound" | "blocked" | "missing";
+  targetDiscoveryCandidateId: string | null;
+  candidateContractStatus: "candidate_contract_ready" | "blocked";
+  primaryBlocker: string;
+  domainSignificanceFailedGates: string[];
+  fatalDomainSignificanceGates: string[];
+  gates: FundGate[];
+  failedGates: string[];
+  candidateContract: GeneratorBornDiscoveryClaimLiftProposal | null;
+  packageMutated: false;
+  requiredNextAction: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftCandidatePreflightReport = {
+  kind: "generator_born_discovery_claim_lift_candidate_preflight";
+  status: "candidate_contracts_ready" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  requirementsLoaded: number;
+  sourceSignalsLoaded: number;
+  candidateContractsReady: number;
+  candidateContractsBlocked: number;
+  candidateContractsWritten: number;
+  packagesMutated: 0;
+  decisions: GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision[];
+  blockerDistribution: Record<string, number>;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornDiscoveryClaimLiftSignalRebindDecision = {
   kind: "generator_born_discovery_claim_lift_signal_rebind_decision";
   candidateId: string;
@@ -15350,6 +15387,277 @@ export class GeneratorBornDiscoveryClaimLiftSourceSignalService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftCandidatePreflightReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    let closure = await this.readFundClosureOrNull();
+    if (closure === null) {
+      await new GeneratorBornFundClosureService(this.root).run();
+      closure = await this.readFundClosure();
+    }
+    const sourceSignals = await this.readSourceSignalsOrRun();
+    const decisions = await Promise.all(
+      closure.claimLiftRequirements.map((requirement) =>
+        this.evaluateRequirement(requirement, sourceSignals),
+      ),
+    );
+    const candidateContracts = decisions
+      .filter(
+        (decision) =>
+          decision.candidateContractStatus === "candidate_contract_ready" &&
+          decision.candidateContract !== null,
+      )
+      .map(
+        (decision) =>
+          decision.candidateContract as GeneratorBornDiscoveryClaimLiftProposal,
+      );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-candidate-preflight-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftCandidatePreflightReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_candidate_preflight" as const,
+        status:
+          candidateContracts.length > 0
+            ? ("candidate_contracts_ready" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: sourceSignals.nextCheckpointRef,
+        nextCheckpointRef,
+        requirementsLoaded: closure.claimLiftRequirements.length,
+        sourceSignalsLoaded: sourceSignals.decisions.length,
+        candidateContractsReady: candidateContracts.length,
+        candidateContractsBlocked: decisions.filter(
+          (decision) => decision.candidateContractStatus === "blocked",
+        ).length,
+        candidateContractsWritten: candidateContracts.length,
+        packagesMutated: 0 as const,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftCandidatePreflightBottleneck(
+            decisions,
+          ),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftCandidatePreflightArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report, candidateContracts);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readFundClosureOrNull(): Promise<GeneratorBornFundClosureReport | null> {
+    return readOptionalJson<GeneratorBornFundClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFundClosureDir,
+        "latest.json",
+      ),
+    );
+  }
+
+  private async readFundClosure(): Promise<GeneratorBornFundClosureReport> {
+    const report = await this.readFundClosureOrNull();
+    if (report === null) {
+      throw new Error(
+        "Generator claim-lift candidate preflight requires generator-fund-closure report.",
+      );
+    }
+    return report;
+  }
+
+  private async readSourceSignalsOrRun(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
+    const report =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSourceSignalReport>(
+        join(this.liftRoot(), "SOURCE_SIGNAL_BINDINGS.json"),
+      );
+    if (report !== null) return report;
+    return new GeneratorBornDiscoveryClaimLiftSourceSignalService(
+      this.root,
+    ).run();
+  }
+
+  private async evaluateRequirement(
+    requirement: GeneratorBornDiscoveryClaimLiftRequirement,
+    sourceSignals: GeneratorBornDiscoveryClaimLiftSourceSignalReport,
+  ): Promise<GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision> {
+    const packageRef = requirement.externalReviewPackagePath ?? "";
+    const packageBindingsPath =
+      packageRef.length > 0 && publicSafeRef(packageRef)
+        ? join(this.root, packageRef, "CLAIM_EVIDENCE_BINDINGS.json")
+        : "";
+    const bindings =
+      packageBindingsPath.length > 0
+        ? await readOptionalJson<Record<string, unknown>>(packageBindingsPath)
+        : null;
+    const sourceSignal = sourceSignals.decisions.find(
+      (decision) =>
+        decision.candidateId === requirement.candidateId ||
+        (packageRef.length > 0 && decision.packageRef === packageRef),
+    );
+    const domainFailedGates = generatorBornClaimLiftDomainFailedGates({
+      requirement,
+      bindings,
+    });
+    const fatalDomainGates = domainFailedGates.filter((gateId) =>
+      generatorBornClaimLiftFatalDomainGate(gateId),
+    );
+    const scaffold = await generatorBornDiscoveryClaimLiftProposalScaffold(
+      this.root,
+      requirement,
+    );
+    const candidateContract =
+      sourceSignal?.sourceSignalStatus === "source_signal_bound" &&
+      bindings !== null &&
+      fatalDomainGates.length === 0
+        ? await generatorBornClaimLiftCandidateContractFromSourceSignal({
+            root: this.root,
+            requirement,
+            bindings,
+            sourceSignal,
+            scaffold,
+          })
+        : null;
+    const claimDecision =
+      candidateContract === null
+        ? null
+        : await generatorBornDiscoveryClaimLiftDecision({
+            root: this.root,
+            requirement,
+            proposal: candidateContract,
+            proposalRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_CANDIDATE_CONTRACTS.json#${requirement.candidateId}`,
+          });
+    const gates = [
+      gate(
+        "source_signal_bound",
+        sourceSignal?.sourceSignalStatus === "source_signal_bound",
+        "Claim-lift candidate preflight requires a bound forward-only source signal.",
+      ),
+      gate(
+        "package_bindings_present",
+        bindings !== null,
+        "Claim-lift candidate preflight requires package claim-evidence bindings.",
+      ),
+      gate(
+        "claim_liftable_domain_gate_shape",
+        domainFailedGates.every((gateId) =>
+          generatorBornClaimLiftLiftableDomainGate(gateId),
+        ),
+        "Only liftable domain-significance gates may be repaired by a forward-only candidate contract.",
+      ),
+      gate(
+        "ordinary_known_mechanism_cleared",
+        fatalDomainGates.length === 0,
+        "A claim-lift candidate cannot be born while ordinary-known, known-trivial, source-family, or benchmark-family triviality gates remain failed.",
+      ),
+      gate(
+        "scaffold_refs_present",
+        scaffold.baselineRefs.length > 0 &&
+          scaffold.rivalRefs.length > 0 &&
+          scaffold.holdoutRefs.length > 0 &&
+          scaffold.replayRefs.length > 0 &&
+          scaffold.counterexampleRefs.length > 0 &&
+          scaffold.mechanismPressureRefs.length > 0,
+        "Candidate contract needs baseline, rival, holdout, replay, counterexample, and mechanism-pressure refs before proposal birth.",
+      ),
+      gate(
+        "candidate_claim_decision_accepts",
+        claimDecision?.accepted === true,
+        "The forward-only candidate contract must pass the existing claim-lift decision gate before proposal builder consumption.",
+      ),
+    ];
+    const failedGates = uniqueStrings([
+      ...gates.filter((item) => !item.passed).map((item) => item.code),
+      ...(claimDecision?.failedGates ?? []),
+    ]);
+    const primaryBlocker =
+      generatorBornClaimLiftCandidatePreflightPrimaryBlocker({
+        sourceSignal,
+        fatalDomainGates,
+        failedGates,
+      });
+    const ready =
+      failedGates.length === 0 &&
+      candidateContract !== null &&
+      claimDecision?.accepted === true;
+    const sourceSignalStatus =
+      sourceSignal?.sourceSignalStatus ?? ("missing" as const);
+    return withEvidenceHash({
+      kind: "generator_born_discovery_claim_lift_candidate_preflight_decision" as const,
+      candidateId: requirement.candidateId,
+      packageRef: packageRef.length > 0 ? packageRef : null,
+      sourceSignalStatus,
+      targetDiscoveryCandidateId: ready
+        ? candidateContract.targetDiscoveryCandidateId
+        : null,
+      candidateContractStatus: ready
+        ? ("candidate_contract_ready" as const)
+        : ("blocked" as const),
+      primaryBlocker,
+      domainSignificanceFailedGates: domainFailedGates,
+      fatalDomainSignificanceGates: fatalDomainGates,
+      gates:
+        claimDecision === null ? gates : [...gates, ...claimDecision.gates],
+      failedGates,
+      candidateContract: ready ? candidateContract : null,
+      packageMutated: false as const,
+      requiredNextAction: ready
+        ? "Run generator-claim-lift-propose; the proposal builder may consume this forward-only candidate contract without mutating the source package."
+        : generatorBornClaimLiftCandidatePreflightRequiredAction({
+            primaryBlocker,
+            fatalDomainGates,
+          }),
+    });
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftCandidatePreflightReport,
+    candidateContracts: GeneratorBornDiscoveryClaimLiftProposal[],
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "CLAIM_LIFT_CANDIDATE_PREFLIGHT.json"), report);
+    await writeJson(join(root, "CLAIM_LIFT_CANDIDATE_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_candidate_preflight_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(root, "CLAIM_LIFT_CANDIDATE_CONTRACTS.json"), {
+      kind: "generator_born_discovery_claim_lift_candidate_contracts",
+      generatedBy: "generator_born_discovery_claim_lift_candidate_preflight",
+      candidates: candidateContracts,
+      evidenceHash: hashEvidence(candidateContracts),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_candidate_preflight_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      candidateContractsReady: report.candidateContractsReady,
+      candidateContractsBlocked: report.candidateContractsBlocked,
+      candidateContractsWritten: report.candidateContractsWritten,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_CANDIDATE_PREFLIGHT.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "CLAIM_LIFT_CANDIDATE_PREFLIGHT.md"),
+      generatorBornDiscoveryClaimLiftCandidatePreflightMarkdown(report),
+    );
+    await writeText(
+      join(root, "CLAIM_LIFT_CANDIDATE_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftCandidatePreflightNextCheckpointMarkdown(
+        report,
+      ),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
   constructor(private readonly root: string) {}
 
@@ -27099,9 +27407,15 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       packageRef,
       candidateId: input.requirement.candidateId,
     });
+  const forwardCandidateContract =
+    await generatorBornClaimLiftForwardCandidateContract({
+      root: input.root,
+      packageRef,
+      candidateId: input.requirement.candidateId,
+    });
   const proposalCandidate = isRecord(bindings?.claimLiftProposalCandidate)
     ? bindings.claimLiftProposalCandidate
-    : null;
+    : forwardCandidateContract;
   const scaffold = await generatorBornDiscoveryClaimLiftProposalScaffold(
     input.root,
     input.requirement,
@@ -27241,7 +27555,7 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
     gate(
       "explicit_package_claim_lift_candidate_present",
       proposalCandidate !== null,
-      "Proposal builder cannot infer a DiscoveryCandidate from a failed frozen claim; the package must bind an explicit claimLiftProposalCandidate.",
+      "Proposal builder cannot infer a DiscoveryCandidate from a failed frozen claim; the package or forward-only candidate preflight must bind an explicit claimLiftProposalCandidate.",
     ),
     gate(
       "new_claim_not_failed_frozen_claim",
@@ -27291,7 +27605,7 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
         ? "Retire this claim-lift proposal source; the public corpus already downgraded, rival-explained, or removed discovery-score eligibility for the matching external anchor."
         : !sourceSignal.liftSignalBound
           ? `Run a mechanism-specific lift experiment before proposal birth; current source package blocker is ${sourceSignal.primaryBlocker ?? "missing_lift_signal"}.`
-          : "Bind an explicit package claimLiftProposalCandidate with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
+          : "Bind an explicit package claimLiftProposalCandidate or forward-only candidate preflight contract with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
   });
 }
 
@@ -27322,6 +27636,139 @@ async function generatorBornClaimLiftForwardSourceSignalRefs(input: {
           decision.sourceCandidateId === input.candidateId)),
   );
   return match?.bindableInsightEvidenceRefs ?? [];
+}
+
+async function generatorBornClaimLiftForwardCandidateContract(input: {
+  root: string;
+  packageRef: string;
+  candidateId: string | null;
+}): Promise<Record<string, unknown> | null> {
+  if (input.packageRef.length === 0 && input.candidateId === null) return null;
+  const report =
+    await readOptionalJson<GeneratorBornDiscoveryClaimLiftCandidatePreflightReport>(
+      join(
+        input.root,
+        daemonArtifactRoot,
+        generatorClaimLiftDir,
+        "CLAIM_LIFT_CANDIDATE_PREFLIGHT.json",
+      ),
+    );
+  if (report === null) return null;
+  const match = report.decisions.find(
+    (decision) =>
+      decision.candidateContractStatus === "candidate_contract_ready" &&
+      decision.candidateContract !== null &&
+      ((input.packageRef.length > 0 &&
+        decision.packageRef === input.packageRef) ||
+        (input.candidateId !== null &&
+          decision.candidateId === input.candidateId)),
+  );
+  return match?.candidateContract ?? null;
+}
+
+function generatorBornClaimLiftDomainFailedGates(input: {
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement;
+  bindings: Record<string, unknown> | null;
+}): string[] {
+  const domainAssessment = isRecord(
+    input.bindings?.domainSignificanceAssessment,
+  )
+    ? input.bindings.domainSignificanceAssessment
+    : null;
+  return uniqueStrings([
+    ...input.requirement.failedDomainSignificanceGates,
+    ...stringArray(domainAssessment?.failedGates),
+  ]);
+}
+
+function generatorBornClaimLiftLiftableDomainGate(gateId: string): boolean {
+  return [
+    "no_anti_discovery_claim_text",
+    "explicit_domain_significance_claim",
+  ].includes(gateId);
+}
+
+function generatorBornClaimLiftFatalDomainGate(gateId: string): boolean {
+  return [
+    "not_ordinary_known_mechanism",
+    "known_trivial",
+    "known_source_family_mechanism",
+    "source_family_triviality",
+    "benchmark_family_triviality",
+    "rival_stronger",
+    "rival_theory_stronger",
+  ].includes(gateId);
+}
+
+async function generatorBornClaimLiftCandidateContractFromSourceSignal(input: {
+  root: string;
+  requirement: GeneratorBornDiscoveryClaimLiftRequirement;
+  bindings: Record<string, unknown>;
+  sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision;
+  scaffold: GeneratorBornDiscoveryClaimLiftProposalScaffold;
+}): Promise<GeneratorBornDiscoveryClaimLiftProposal | null> {
+  const sourceCache =
+    input.sourceSignal.sourceCacheRef === null
+      ? null
+      : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+          join(input.root, input.sourceSignal.sourceCacheRef),
+        );
+  const sourceRefs = uniqueStrings([
+    ...input.sourceSignal.bindableInsightEvidenceRefs,
+    ...input.scaffold.sourceEvidenceRefs,
+  ]);
+  const externalRefs = uniqueStrings([
+    ...input.scaffold.externalSignificanceEvidenceRefs,
+    ...sourceRefs.filter(externalSignificanceRef),
+  ]).slice(0, 8);
+  if (!externalSignificanceRefsMeetMinimum(externalRefs)) return null;
+  const targetOutcome = normalizeWhitespace(
+    optionalString(sourceCache?.targetOutcome) ??
+      optionalString(sourceCache?.measuredVariable) ??
+      input.requirement.exactClaim,
+  );
+  const residual =
+    typeof sourceCache?.residualMagnitude === "number"
+      ? ` with residual magnitude ${sourceCache.residualMagnitude}`
+      : "";
+  const exactTargetOutcomeClaim = normalizeWhitespace(
+    `The measured public ${input.requirement.domain ?? "scientific"} target outcome shows domain scientific significance: ${targetOutcome}${residual} remains after the recorded baseline, rival, holdout, replay, counterexample, recurrence, and mechanism-pressure checks. The claim is limited to the cited public targets, recorded measurement scope, and the evidence package refs, and it requires independent external review before any broader interpretation.`,
+  );
+  const mechanismHypothesis = normalizeWhitespace(
+    optionalString(sourceCache?.measuredVariable) ??
+      "The candidate mechanism predicts the measured target outcome better than the named rival mechanisms within the bounded public target slice.",
+  );
+  return {
+    kind: "generator_born_discovery_claim_lift_proposal",
+    parentCandidateId: input.requirement.candidateId,
+    targetDiscoveryCandidateId: generatorBornDiscoveryClaimLiftTargetId(
+      input.requirement,
+    ),
+    domain: input.scaffold.domain,
+    exactTargetOutcomeClaim,
+    mechanismHypothesis,
+    externalSignificanceEvidenceRefs: externalRefs,
+    sourceEvidenceRefs: sourceRefs,
+    baselineRefs: input.scaffold.baselineRefs,
+    rivalRefs: input.scaffold.rivalRefs,
+    holdoutRefs: input.scaffold.holdoutRefs,
+    replayRefs: input.scaffold.replayRefs,
+    counterexampleRefs: input.scaffold.counterexampleRefs,
+    mechanismPressureRefs: input.scaffold.mechanismPressureRefs,
+    nontrivialInsightEvidenceRefs: sourceRefs,
+    domainSignificanceEvidenceRefs: externalRefs,
+    identityLedgerRefs: input.scaffold.identityLedgerRefs,
+    hardSeedRefs: input.scaffold.hardSeedRefs,
+    packageRef: input.scaffold.packageRef,
+    predictionRefs: input.scaffold.predictionRefs,
+    killWeekRefs: input.scaffold.killWeekRefs,
+    limitations: uniqueStrings([
+      ...input.scaffold.limitations,
+      "Forward-only claim-lift candidate contract; not a Fund, not externally validated, and blocked if ordinary-known mechanism pressure is unresolved.",
+    ]),
+    createdFromRuntimeEvidence: true,
+    noOverclaim: true,
+  };
 }
 
 async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
@@ -27713,6 +28160,127 @@ function generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(
 ): string {
   return [
     "# Signal Pressure Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornClaimLiftCandidatePreflightPrimaryBlocker(input: {
+  sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision | undefined;
+  fatalDomainGates: string[];
+  failedGates: string[];
+}): string {
+  if (input.sourceSignal === undefined) return "missing_source_signal";
+  if (input.sourceSignal.sourceSignalStatus !== "source_signal_bound") {
+    return input.sourceSignal.primaryBlocker || "source_signal_not_bound";
+  }
+  if (input.fatalDomainGates.length > 0) {
+    return `fatal_domain_significance_gate:${input.fatalDomainGates[0]}`;
+  }
+  if (input.failedGates.length > 0) return input.failedGates[0] ?? "blocked";
+  return "none";
+}
+
+function generatorBornClaimLiftCandidatePreflightRequiredAction(input: {
+  primaryBlocker: string;
+  fatalDomainGates: string[];
+}): string {
+  if (input.primaryBlocker === "missing_source_signal") {
+    return "Run generator-claim-lift-source-signal and bind a public-safe nontrivial source signal before candidate preflight.";
+  }
+  if (input.primaryBlocker.startsWith("fatal_domain_significance_gate:")) {
+    return `Do not create a DiscoveryCandidate contract yet; first produce independent novelty or mechanism evidence that clears ${input.fatalDomainGates.join(", ")} without reusing failed frozen claim text.`;
+  }
+  switch (input.primaryBlocker) {
+    case "claim_liftable_domain_gate_shape":
+      return "Only no-anti-discovery-text and explicit-domain-significance wording blockers can be repaired by this forward-only preflight; other domain gates need new evidence first.";
+    case "candidate_claim_decision_accepts":
+    case "exact_target_outcome_claim":
+      return "Create a narrower target-outcome claim with explicit domain scientific significance and no pipeline, generator, Nobel, Einstein, breakthrough, or external-validation language.";
+    case "scaffold_refs_present":
+      return "Bind baseline, rival, holdout, replay, counterexample, and mechanism-pressure refs before candidate contract creation.";
+    default:
+      return "Keep searching or run the missing mechanism-specific evidence step before claim-lift candidate creation.";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftCandidatePreflightBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No claim-lift requirements are available for candidate preflight.";
+  }
+  const ready = decisions.filter(
+    (decision) =>
+      decision.candidateContractStatus === "candidate_contract_ready",
+  ).length;
+  if (ready > 0) {
+    return `${ready} forward-only claim-lift candidate contract(s) are ready. They are not Funds; run generator-claim-lift-propose to apply proposal gates.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `All ${decisions.length} claim-lift candidate contract(s) remain blocked. Dominant blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftCandidatePreflightArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/CLAIM_LIFT_CANDIDATE_PREFLIGHT.json`,
+    `${root}/CLAIM_LIFT_CANDIDATE_PREFLIGHT.md`,
+    `${root}/CLAIM_LIFT_CANDIDATE_DECISIONS.json`,
+    `${root}/CLAIM_LIFT_CANDIDATE_CONTRACTS.json`,
+    `${root}/CLAIM_LIFT_CANDIDATE_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftCandidatePreflightMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftCandidatePreflightReport,
+): string {
+  return [
+    "# Claim Lift Candidate Preflight",
+    "",
+    `Requirements loaded: ${report.requirementsLoaded}.`,
+    `Source signals loaded: ${report.sourceSignalsLoaded}.`,
+    `Candidate contracts ready: ${report.candidateContractsReady}.`,
+    `Candidate contracts blocked: ${report.candidateContractsBlocked}.`,
+    `Candidate contracts written: ${report.candidateContractsWritten}.`,
+    `Packages mutated: ${report.packagesMutated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Source signal | Contract | Fatal domain gates | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.sourceSignalStatus} | ${decision.candidateContractStatus} | ${decision.fatalDomainSignificanceGates.join(", ") || "none"} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | missing | blocked | none | none | none |"]
+      : []),
+    "",
+    report.remainingBottleneck,
+    "",
+    "This preflight is fail-closed: it writes only forward-only candidate contracts and never mutates source packages, Fund Gate logic, FUND_FOUND.md, or fund-candidate.json.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftCandidatePreflightNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftCandidatePreflightReport,
+): string {
+  return [
+    "# Claim Lift Candidate Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -43066,6 +43634,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftSourceSignal(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSourceSignalService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftCandidate(): Promise<GeneratorBornDiscoveryClaimLiftCandidatePreflightReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftCandidatePreflightService(
       this.root,
     ).run();
   }

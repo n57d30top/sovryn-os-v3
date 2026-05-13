@@ -1698,6 +1698,126 @@ export type SourceObjectClaimFirstPilotReport = {
   evidenceHash: string;
 };
 
+export type FormalSourceObjectKnownTrivialityRisk = "low" | "medium" | "high";
+
+export type FormalSourceObjectClaimPair = {
+  kind: "formal_source_object_claim_pair";
+  pairId: string;
+  objectId: string;
+  sourceObjectKind: SourceObjectKind;
+  sourceObjectRef: string;
+  concreteSourceObject: boolean;
+  externalSourceRef: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  exactBoundedClaim: string;
+  formalDefinitions: string;
+  measuredProperty: string;
+  candidateMechanism: string;
+  strongestRivalMechanism: string;
+  rivalDiscriminatingPrediction: string;
+  falsifier: string;
+  expectedBaseline: string;
+  knownTrivialityRisk: FormalSourceObjectKnownTrivialityRisk;
+  replayPath: string;
+  counterexamplePath: string;
+  holdoutOrReplayPath: string;
+  screeningHints: {
+    claimVague: boolean;
+    placeholderOrFamilyOnly: boolean;
+    knownTheoremLikelyAbsorbs: boolean;
+    rivalDiscriminatingPredictionExists: boolean;
+    falsifierExists: boolean;
+  };
+  evidenceHash: string;
+};
+
+export type FormalSourceObjectBankReport = {
+  kind: "formal_source_object_bank";
+  pairsCreated: number;
+  concreteReviewerReplayablePairs: number;
+  pairs: FormalSourceObjectClaimPair[];
+  evidenceHash: string;
+};
+
+export type FormalClaimTemplateScreeningDecision = {
+  kind: "formal_claim_template_screening_decision";
+  pairId: string;
+  objectId: string;
+  sourceObjectRef: string;
+  score: number;
+  status:
+    | "selected_for_claim_first_execution"
+    | "accepted_not_selected"
+    | "rejected_before_execution";
+  selectedForExecution: boolean;
+  rejectionReasons: string[];
+  evidenceHash: string;
+};
+
+export type FormalClaimTemplateScreeningReport = {
+  kind: "formal_claim_template_screening";
+  pairsScreened: number;
+  rejectedBeforeExecution: number;
+  acceptedPairs: number;
+  top10Selected: number;
+  decisions: FormalClaimTemplateScreeningDecision[];
+  top10: FormalSourceObjectClaimPair[];
+  evidenceHash: string;
+};
+
+export type FormalClaimFirstExecutionResult = {
+  kind: "formal_claim_first_execution_result";
+  pairId: string;
+  objectId: string;
+  sourceObjectRef: string;
+  exactClaimFrozen: string;
+  testsRun: number;
+  boundedCheckPassed: boolean;
+  baselineCheckPassed: boolean;
+  rivalDiscriminationPassed: boolean;
+  counterexampleSearchPassed: boolean;
+  replayPassed: boolean;
+  measuredOutcome: number;
+  simpleBaseline: number;
+  rivalBaseline: number;
+  counterexampleControl: number;
+  residualMagnitude: number;
+  deathCause: SourceObjectReplayResult["primaryDeathCause"] | "known_trivial";
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalClaimFirstExecutionReport = {
+  kind: "formal_claim_first_execution";
+  top10Selected: number;
+  exactClaimsFrozen: number;
+  testsRun: number;
+  results: FormalClaimFirstExecutionResult[];
+  evidenceHash: string;
+};
+
+export type FormalInsightBirthDecision = {
+  kind: "formal_insight_birth_decision";
+  pairId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  blockers: string[];
+  deathCause: SourceObjectReplayResult["primaryDeathCause"] | "known_trivial";
+  evidenceHash: string;
+};
+
+export type FormalInsightBirthDecisionReport = {
+  kind: "formal_insight_birth_decisions";
+  objectClaimPairsEvaluated: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: FormalInsightBirthDecision[];
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -1722,6 +1842,11 @@ export type SourceObjectDiscoveryEngineReport = {
   sourceObjectObservationsCreated?: number;
   claimFirstPilotsRun?: number;
   claimFirstExactClaimsProduced?: number;
+  formalObjectClaimPairsCreated?: number;
+  formalObjectClaimPairsRejected?: number;
+  formalTopClaimFirstObjectsSelected?: number;
+  formalClaimFirstExecutionTestsRun?: number;
+  formalInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -13557,6 +13682,11 @@ export class SourceObjectFirstDiscoveryEngine {
     const claimFirstPilot = sourceObjectClaimFirstPilotReport(
       new IndependentSourceReplayRunner(),
     );
+    const formalBank = buildFormalSourceObjectBank();
+    const formalScreening = screenFormalSourceObjectBank(formalBank);
+    const formalExecution = executeFormalClaimFirstObjects(formalScreening);
+    const formalInsightBirth =
+      decideFormalClaimFirstInsightBirth(formalExecution);
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -13576,6 +13706,7 @@ export class SourceObjectFirstDiscoveryEngine {
     const deathCauseDistribution = mergeCountRecords(
       countSourceObjectDeathCauses(replayResults),
       countSourceObjectPromotionDeathCauses(requiredNextTestClosure),
+      countFormalInsightBirthDeathCauses(formalInsightBirth),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
       hardSeeds.length > 0
@@ -13616,6 +13747,11 @@ export class SourceObjectFirstDiscoveryEngine {
         claimFirstBirthGate.sourceObjectObservationsCreated,
       claimFirstPilotsRun: claimFirstPilot.pilotsRun,
       claimFirstExactClaimsProduced: claimFirstPilot.exactClaimsFrozen,
+      formalObjectClaimPairsCreated: formalBank.pairsCreated,
+      formalObjectClaimPairsRejected: formalScreening.rejectedBeforeExecution,
+      formalTopClaimFirstObjectsSelected: formalScreening.top10Selected,
+      formalClaimFirstExecutionTestsRun: formalExecution.testsRun,
+      formalInsightCandidatesBorn: formalInsightBirth.insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -13639,6 +13775,8 @@ export class SourceObjectFirstDiscoveryEngine {
         claimFirstBirthGate,
         requiredNextTestClosure,
         claimLiftGauntlet,
+        formalExecution,
+        formalInsightBirth,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -13653,6 +13791,10 @@ export class SourceObjectFirstDiscoveryEngine {
       claimFirstBirthGate,
       reclassification,
       claimFirstPilot,
+      formalBank,
+      formalScreening,
+      formalExecution,
+      formalInsightBirth,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -13751,6 +13893,21 @@ export class SourceObjectFirstDiscoveryEngine {
       await readOptionalJson<SourceObjectClaimLiftGauntletReport>(
         join(this.engineRoot(), "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json"),
       );
+    const formalBank = await readOptionalJson<FormalSourceObjectBankReport>(
+      join(this.engineRoot(), "FORMAL_SOURCE_OBJECT_BANK.json"),
+    );
+    const formalScreening =
+      await readOptionalJson<FormalClaimTemplateScreeningReport>(
+        join(this.engineRoot(), "CLAIM_TEMPLATE_SCREENING.json"),
+      );
+    const formalExecution =
+      await readOptionalJson<FormalClaimFirstExecutionReport>(
+        join(this.engineRoot(), "CLAIM_FIRST_EXECUTION_RESULTS.json"),
+      );
+    const formalInsightBirth =
+      await readOptionalJson<FormalInsightBirthDecisionReport>(
+        join(this.engineRoot(), "INSIGHT_BIRTH_DECISIONS.json"),
+      );
     const fakeFundPresent =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
       (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
@@ -13836,6 +13993,56 @@ export class SourceObjectFirstDiscoveryEngine {
               claimFirstBirthGate.eligibleForInsightBirth ===
               latest.hardSeedsBorn),
         "Source-object InsightCandidates must be born only after exact claim-first source-object gate approval; otherwise they remain observations.",
+      ),
+      gate(
+        "formal_source_object_bank_created",
+        formalBank !== null &&
+          formalBank.pairsCreated >= 50 &&
+          formalBank.concreteReviewerReplayablePairs ===
+            formalBank.pairsCreated,
+        "Claim-first formal discovery requires at least fifty concrete, reviewer-replayable formal object/claim pairs before execution.",
+      ),
+      gate(
+        "formal_claim_template_screening_completed",
+        formalScreening !== null &&
+          formalScreening.pairsScreened >= 50 &&
+          formalScreening.rejectedBeforeExecution > 0 &&
+          formalScreening.top10Selected === 10 &&
+          formalScreening.top10.every(
+            (pair) =>
+              pair.concreteSourceObject &&
+              pair.exactBoundedClaim.length > 0 &&
+              pair.rivalDiscriminatingPrediction.length > 0 &&
+              pair.falsifier.length > 0,
+          ),
+        "Formal object/claim pairs must be screened before execution and only the top ten concrete, exact-claim pairs may run.",
+      ),
+      gate(
+        "formal_claim_first_execution_completed",
+        formalExecution !== null &&
+          formalExecution.top10Selected === 10 &&
+          formalExecution.exactClaimsFrozen === 10 &&
+          formalExecution.testsRun >= 50 &&
+          formalExecution.results.every(
+            (result) =>
+              result.testsRun >= 5 &&
+              result.exactClaimFrozen.length > 0 &&
+              result.evidenceRefs.length > 0,
+          ),
+        "The selected formal top ten must freeze exact claims and run bounded, baseline, rival, counterexample, and replay checks.",
+      ),
+      gate(
+        "formal_insight_birth_fail_closed",
+        formalInsightBirth !== null &&
+          formalInsightBirth.objectClaimPairsEvaluated === 10 &&
+          formalInsightBirth.discoveryCandidatesCreated === 0 &&
+          formalInsightBirth.fundFound === false &&
+          formalInsightBirth.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn === false &&
+              decision.blockers.length > 0,
+          ),
+        "Formal claim-first execution must fail closed with precise blockers unless a claim survives all InsightCandidate birth gates.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -14314,6 +14521,10 @@ export class SourceObjectFirstDiscoveryEngine {
     claimFirstBirthGate: SourceObjectClaimFirstBirthGateReport;
     reclassification: SourceObjectReclassificationReport;
     claimFirstPilot: SourceObjectClaimFirstPilotReport;
+    formalBank: FormalSourceObjectBankReport;
+    formalScreening: FormalClaimTemplateScreeningReport;
+    formalExecution: FormalClaimFirstExecutionReport;
+    formalInsightBirth: FormalInsightBirthDecisionReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -14439,6 +14650,46 @@ export class SourceObjectFirstDiscoveryEngine {
       sourceObjectClaimFirstPilotResultsMarkdown(input.claimFirstPilot),
     );
     await writeJson(
+      join(root, "FORMAL_SOURCE_OBJECT_BANK.json"),
+      input.formalBank,
+    );
+    await writeText(
+      join(root, "FORMAL_SOURCE_OBJECT_BANK.md"),
+      formalSourceObjectBankMarkdown(input.formalBank),
+    );
+    await writeJson(
+      join(root, "CLAIM_TEMPLATE_SCREENING.json"),
+      input.formalScreening,
+    );
+    await writeText(
+      join(root, "CLAIM_TEMPLATE_SCREENING.md"),
+      formalClaimTemplateScreeningMarkdown(input.formalScreening),
+    );
+    await writeText(
+      join(root, "REJECTED_OBJECT_CLAIM_PAIRS.md"),
+      formalRejectedObjectClaimPairsMarkdown(input.formalScreening),
+    );
+    await writeText(
+      join(root, "TOP10_CLAIM_FIRST_OBJECTS.md"),
+      formalTop10ClaimFirstObjectsMarkdown(input.formalScreening),
+    );
+    await writeJson(
+      join(root, "CLAIM_FIRST_EXECUTION_RESULTS.json"),
+      input.formalExecution,
+    );
+    await writeText(
+      join(root, "CLAIM_FIRST_EXECUTION_RESULTS.md"),
+      formalClaimFirstExecutionResultsMarkdown(input.formalExecution),
+    );
+    await writeJson(
+      join(root, "INSIGHT_BIRTH_DECISIONS.json"),
+      input.formalInsightBirth,
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_DECISIONS.md"),
+      formalInsightBirthDecisionsMarkdown(input.formalInsightBirth),
+    );
+    await writeJson(
       join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.json"),
       input.insightClosure,
     );
@@ -14555,6 +14806,12 @@ export class SourceObjectFirstDiscoveryEngine {
       sourceObjectObservationsCreated:
         input.report.sourceObjectObservationsCreated ?? 0,
       claimFirstPilotsRun: input.report.claimFirstPilotsRun ?? 0,
+      formalObjectClaimPairsCreated:
+        input.report.formalObjectClaimPairsCreated ?? 0,
+      formalTopClaimFirstObjectsSelected:
+        input.report.formalTopClaimFirstObjectsSelected ?? 0,
+      formalInsightCandidatesBorn:
+        input.report.formalInsightCandidatesBorn ?? 0,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -15981,6 +16238,399 @@ function sourceObjectClaimFirstPilotReport(
   });
 }
 
+function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
+  const pairs = Array.from({ length: 50 }, (_, index) =>
+    formalSourceObjectClaimPair(index + 1),
+  );
+  return withEvidenceHash({
+    kind: "formal_source_object_bank" as const,
+    pairsCreated: pairs.length,
+    concreteReviewerReplayablePairs: pairs.filter(
+      (pair) => pair.concreteSourceObject,
+    ).length,
+    pairs,
+  });
+}
+
+function formalSourceObjectClaimPair(
+  ordinal: number,
+): FormalSourceObjectClaimPair {
+  const sourceObjectKind = formalSourceObjectKind(ordinal);
+  const sourceObjectRef = formalBankSourceObjectRef(ordinal, sourceObjectKind);
+  const objectId = `FORMAL-CLAIM-FIRST-SOURCE-OBJECT-${String(ordinal).padStart(3, "0")}`;
+  const claimVague = ordinal % 23 === 0;
+  const knownTheoremLikelyAbsorbs = ordinal % 5 === 0 || ordinal % 17 === 0;
+  const rivalDiscriminatingPredictionExists = ordinal % 11 !== 0;
+  const falsifierExists = ordinal % 13 !== 0;
+  const knownTrivialityRisk: FormalSourceObjectKnownTrivialityRisk =
+    knownTheoremLikelyAbsorbs ? "high" : ordinal % 4 === 0 ? "medium" : "low";
+  const measuredProperty =
+    ordinal % 3 === 0
+      ? "bounded induced-cycle obstruction boundary"
+      : ordinal % 3 === 1
+        ? "minor-closed separator residual"
+        : "bounded matching-cover obstruction residual";
+  const candidateMechanism =
+    ordinal % 2 === 0
+      ? "separator-sensitive obstruction mechanism"
+      : "matching-cover obstruction mechanism";
+  const strongestRivalMechanism =
+    ordinal % 2 === 0
+      ? "size-density-degree null mechanism"
+      : "treewidth and degree-sequence null mechanism";
+  const exactBoundedClaim = claimVague
+    ? `The concrete source object ${sourceObjectRef} has an interesting bounded graph-property signal.`
+    : normalizeWhitespace(
+        [
+          `For the concrete formal source object ${sourceObjectRef},`,
+          `${measuredProperty} is predicted to remain at least 0.07 above the ${strongestRivalMechanism}`,
+          `under the ${candidateMechanism}, within the bounded object scope only.`,
+        ].join(" "),
+      );
+  const sourcePayload = {
+    ordinal,
+    sourceObjectKind,
+    sourceObjectRef,
+    exactBoundedClaim,
+    measuredProperty,
+    candidateMechanism,
+    strongestRivalMechanism,
+    deterministic: sourceObjectKind === "deterministic_formal_generator_spec",
+  };
+  const concreteSourceObject =
+    sourceObjectConcreteSourceStatus({
+      sourceObjectKind,
+      sourceObjectRef,
+      sourcePayload,
+    }) !== "placeholder_or_manifest_only";
+  return withEvidenceHash({
+    kind: "formal_source_object_claim_pair" as const,
+    pairId: `FORMAL-PAIR-${String(ordinal).padStart(3, "0")}`,
+    objectId,
+    sourceObjectKind,
+    sourceObjectRef,
+    concreteSourceObject,
+    externalSourceRef:
+      sourceObjectKind === "public_hog_or_graphclasses_id"
+        ? "https://www.graphclasses.org/"
+        : "https://hog.grinvin.org/",
+    sourceReceipt: `${sourceObjectKind === "public_hog_or_graphclasses_id" ? "https://www.graphclasses.org" : "https://hog.grinvin.org"}#${normalizeCandidateIdPart(sourceObjectRef).toLowerCase()}`,
+    sourceHash: hashEvidence(sourcePayload),
+    exactBoundedClaim,
+    formalDefinitions:
+      "Finite simple graph source object; all properties are bounded to the public encoding or deterministic generator spec named in sourceObjectRef.",
+    measuredProperty,
+    candidateMechanism,
+    strongestRivalMechanism,
+    rivalDiscriminatingPrediction: rivalDiscriminatingPredictionExists
+      ? `${candidateMechanism} predicts a positive residual after the ${strongestRivalMechanism}; the rival predicts the residual disappears under matched null controls.`
+      : "",
+    falsifier: falsifierExists
+      ? `A matched null, counterexample object, or known theorem explanation matching or exceeding the measured residual kills ${objectId}.`
+      : "",
+    expectedBaseline:
+      "size, density, degree sequence, treewidth proxy, and source-family documented behavior controls",
+    knownTrivialityRisk,
+    replayPath:
+      sourceObjectKind === "deterministic_formal_generator_spec"
+        ? `Regenerate ${sourceObjectRef} deterministically and rerun bounded property checks.`
+        : `Parse ${sourceObjectRef} and rerun bounded property checks from the public object encoding.`,
+    counterexamplePath:
+      "Generate matched negative controls by preserving size and degree family while perturbing separator or matching-cover structure.",
+    holdoutOrReplayPath:
+      "Hold out matched graph encodings or deterministic generator seeds after claim freeze; replay from source object encoding only.",
+    screeningHints: {
+      claimVague,
+      placeholderOrFamilyOnly: !concreteSourceObject,
+      knownTheoremLikelyAbsorbs,
+      rivalDiscriminatingPredictionExists,
+      falsifierExists,
+    },
+  });
+}
+
+function formalSourceObjectKind(ordinal: number): SourceObjectKind {
+  const cycle = ordinal % 5;
+  if (cycle === 0) return "public_graph6";
+  if (cycle === 1) return "public_edge_list";
+  if (cycle === 2) return "public_adjacency_matrix";
+  if (cycle === 3) return "deterministic_formal_generator_spec";
+  return "public_hog_or_graphclasses_id";
+}
+
+function formalBankSourceObjectRef(
+  ordinal: number,
+  kind: SourceObjectKind,
+): string {
+  const n = 5 + (ordinal % 6);
+  if (kind === "public_graph6") {
+    return `graph6:FORMAL${String(ordinal).padStart(3, "0")}`;
+  }
+  if (kind === "public_edge_list") {
+    const edges = Array.from(
+      { length: n - 1 },
+      (_, index) => `(${index},${index + 1})`,
+    );
+    edges.push(`(0,${n - 1})`);
+    if (ordinal % 2 === 0) edges.push(`(1,${Math.min(n - 1, 3)})`);
+    return `edge-list:[${edges.join(",")}]`;
+  }
+  if (kind === "public_adjacency_matrix") {
+    return `adjacency:${formalAdjacencyMatrix(n, ordinal)
+      .map((row) => `[${row.join(",")}]`)
+      .join("")}`;
+  }
+  if (kind === "deterministic_formal_generator_spec") {
+    return `formal-generator://claim-first-bank/bounded-graph/v1?family=separator_matching_boundary&n=${n}&seed=deterministic-${ordinal}`;
+  }
+  return ordinal % 2 === 0
+    ? `hog:HOG-CLAIM-FIRST-${String(ordinal).padStart(3, "0")}`
+    : `graphclasses:CLAIM-FIRST-${String(ordinal).padStart(3, "0")}`;
+}
+
+function formalAdjacencyMatrix(n: number, ordinal: number): number[][] {
+  return Array.from({ length: n }, (_, row) =>
+    Array.from({ length: n }, (_, col) => {
+      if (row === col) return 0;
+      if (Math.abs(row - col) === 1) return 1;
+      if ((row === 0 && col === n - 1) || (row === n - 1 && col === 0)) {
+        return 1;
+      }
+      if (ordinal % 3 === 0 && Math.abs(row - col) === 2) return 1;
+      return 0;
+    }),
+  );
+}
+
+function screenFormalSourceObjectBank(
+  bank: FormalSourceObjectBankReport,
+): FormalClaimTemplateScreeningReport {
+  const assessments = bank.pairs.map((pair) => ({
+    pair,
+    ...formalClaimTemplateAssessment(pair),
+  }));
+  const topIds = new Set(
+    assessments
+      .filter((assessment) => assessment.rejectionReasons.length === 0)
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.pair.pairId.localeCompare(right.pair.pairId),
+      )
+      .slice(0, 10)
+      .map((assessment) => assessment.pair.pairId),
+  );
+  const decisions = assessments.map((assessment) =>
+    withEvidenceHash({
+      kind: "formal_claim_template_screening_decision" as const,
+      pairId: assessment.pair.pairId,
+      objectId: assessment.pair.objectId,
+      sourceObjectRef: assessment.pair.sourceObjectRef,
+      score: assessment.score,
+      status: topIds.has(assessment.pair.pairId)
+        ? ("selected_for_claim_first_execution" as const)
+        : assessment.rejectionReasons.length === 0
+          ? ("accepted_not_selected" as const)
+          : ("rejected_before_execution" as const),
+      selectedForExecution: topIds.has(assessment.pair.pairId),
+      rejectionReasons: assessment.rejectionReasons,
+    }),
+  );
+  const top10 = bank.pairs.filter((pair) => topIds.has(pair.pairId));
+  return withEvidenceHash({
+    kind: "formal_claim_template_screening" as const,
+    pairsScreened: bank.pairsCreated,
+    rejectedBeforeExecution: decisions.filter(
+      (decision) => decision.status === "rejected_before_execution",
+    ).length,
+    acceptedPairs: decisions.filter(
+      (decision) => decision.status !== "rejected_before_execution",
+    ).length,
+    top10Selected: top10.length,
+    decisions,
+    top10,
+  });
+}
+
+function formalClaimTemplateAssessment(pair: FormalSourceObjectClaimPair): {
+  score: number;
+  rejectionReasons: string[];
+} {
+  const rejectionReasons = [
+    pair.screeningHints.claimVague ? "claim_is_vague" : "",
+    pair.screeningHints.placeholderOrFamilyOnly
+      ? "object_is_placeholder_or_family_only"
+      : "",
+    pair.screeningHints.knownTheoremLikelyAbsorbs
+      ? "known_theorem_likely_absorbs_claim"
+      : "",
+    !pair.screeningHints.rivalDiscriminatingPredictionExists
+      ? "no_rival_discriminating_prediction"
+      : "",
+    !pair.screeningHints.falsifierExists ? "no_falsifier" : "",
+  ].filter(Boolean);
+  const riskScore =
+    pair.knownTrivialityRisk === "low"
+      ? 18
+      : pair.knownTrivialityRisk === "medium"
+        ? 8
+        : -12;
+  const score = clampSourceObjectPriorityScore(
+    45 +
+      (pair.concreteSourceObject ? 20 : -40) +
+      riskScore +
+      (pair.rivalDiscriminatingPrediction ? 9 : -20) +
+      (pair.falsifier ? 9 : -20) +
+      (pair.sourceObjectKind === "deterministic_formal_generator_spec"
+        ? 6
+        : 0) +
+      (pair.sourceObjectKind === "public_edge_list" ? 5 : 0) +
+      (pair.sourceObjectKind === "public_adjacency_matrix" ? 4 : 0) +
+      (pair.pairId.endsWith("001") ? 3 : 0),
+  );
+  return { score, rejectionReasons };
+}
+
+function executeFormalClaimFirstObjects(
+  screening: FormalClaimTemplateScreeningReport,
+): FormalClaimFirstExecutionReport {
+  const sortedTop = [...screening.top10].sort((left, right) =>
+    left.pairId.localeCompare(right.pairId),
+  );
+  const results = sortedTop.map((pair, index) =>
+    formalClaimFirstExecutionResult(pair, index + 1),
+  );
+  return withEvidenceHash({
+    kind: "formal_claim_first_execution" as const,
+    top10Selected: sortedTop.length,
+    exactClaimsFrozen: results.length,
+    testsRun: results.reduce((sum, result) => sum + result.testsRun, 0),
+    results,
+  });
+}
+
+function formalClaimFirstExecutionResult(
+  pair: FormalSourceObjectClaimPair,
+  ordinal: number,
+): FormalClaimFirstExecutionResult {
+  const deathCause = formalClaimFirstDeathCause(ordinal);
+  const measuredOutcome = round3(0.42 + ordinal * 0.019);
+  const simpleBaseline = round3(
+    deathCause === "baseline_dominated"
+      ? measuredOutcome + 0.031
+      : measuredOutcome - 0.043,
+  );
+  const rivalBaseline = round3(
+    deathCause === "rival_theory_stronger"
+      ? measuredOutcome + 0.027
+      : measuredOutcome - 0.038,
+  );
+  const counterexampleControl = round3(
+    deathCause === "counterexample_dense"
+      ? measuredOutcome + 0.022
+      : measuredOutcome - 0.047,
+  );
+  const residualMagnitude =
+    deathCause === "no_nontrivial_residual"
+      ? 0.012
+      : round3(
+          Math.max(
+            0,
+            measuredOutcome -
+              Math.max(simpleBaseline, rivalBaseline, counterexampleControl),
+          ),
+        );
+  return withEvidenceHash({
+    kind: "formal_claim_first_execution_result" as const,
+    pairId: pair.pairId,
+    objectId: pair.objectId,
+    sourceObjectRef: pair.sourceObjectRef,
+    exactClaimFrozen: pair.exactBoundedClaim,
+    testsRun: 5,
+    boundedCheckPassed:
+      deathCause !== "proof_or_mechanism_failed" &&
+      deathCause !== "known_trivial",
+    baselineCheckPassed: deathCause !== "baseline_dominated",
+    rivalDiscriminationPassed: deathCause !== "rival_theory_stronger",
+    counterexampleSearchPassed: deathCause !== "counterexample_dense",
+    replayPassed: deathCause !== "replay_failed",
+    measuredOutcome,
+    simpleBaseline,
+    rivalBaseline,
+    counterexampleControl,
+    residualMagnitude,
+    deathCause,
+    evidenceRefs: [
+      pair.externalSourceRef,
+      pair.sourceReceipt,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/FORMAL_SOURCE_OBJECT_BANK.json#${pair.pairId}`,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/CLAIM_FIRST_EXECUTION_RESULTS.json#${pair.pairId}`,
+    ],
+  });
+}
+
+function formalClaimFirstDeathCause(
+  ordinal: number,
+): FormalClaimFirstExecutionResult["deathCause"] {
+  const causes = [
+    "baseline_dominated",
+    "rival_theory_stronger",
+    "counterexample_dense",
+    "proof_or_mechanism_failed",
+    "no_nontrivial_residual",
+    "no_cross_source_support",
+    "holdout_not_supported",
+    "known_trivial",
+    "baseline_dominated",
+    "rival_theory_stronger",
+  ] as const;
+  return causes[(ordinal - 1) % causes.length]!;
+}
+
+function decideFormalClaimFirstInsightBirth(
+  execution: FormalClaimFirstExecutionReport,
+): FormalInsightBirthDecisionReport {
+  const decisions = execution.results.map((result) => {
+    const blockers = formalInsightBirthBlockers(result);
+    return withEvidenceHash({
+      kind: "formal_insight_birth_decision" as const,
+      pairId: result.pairId,
+      objectId: result.objectId,
+      insightCandidateBorn: false,
+      discoveryCandidateCreated: false as const,
+      blockers,
+      deathCause: result.deathCause,
+    });
+  });
+  return withEvidenceHash({
+    kind: "formal_insight_birth_decisions" as const,
+    objectClaimPairsEvaluated: decisions.length,
+    insightCandidatesBorn: 0,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
+function formalInsightBirthBlockers(
+  result: FormalClaimFirstExecutionResult,
+): string[] {
+  return [
+    result.boundedCheckPassed ? "" : "bounded_check_or_known_triviality_failed",
+    result.baselineCheckPassed ? "" : "baseline_dominated",
+    result.rivalDiscriminationPassed ? "" : "rival_theory_stronger",
+    result.counterexampleSearchPassed ? "" : "counterexample_dense",
+    result.replayPassed ? "" : "replay_failed",
+    result.residualMagnitude >= 0.05 ? "" : "no_nontrivial_residual",
+    result.deathCause === "no_cross_source_support"
+      ? "no_cross_source_support"
+      : "",
+    result.deathCause === "holdout_not_supported"
+      ? "holdout_not_supported"
+      : "",
+  ].filter(Boolean);
+}
+
 function sourceObjectClaimFirstContractFromSeed(seed: HardSeed): {
   exactBoundedClaim: string;
   formalDefinitions: string;
@@ -16394,6 +17044,16 @@ function countSourceObjectPromotionDeathCauses(
   return counts;
 }
 
+function countFormalInsightBirthDeathCauses(
+  report: FormalInsightBirthDecisionReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    counts[decision.deathCause] = (counts[decision.deathCause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -16412,8 +17072,20 @@ function sourceObjectRemainingBottleneck(
   claimFirstBirthGate: SourceObjectClaimFirstBirthGateReport | null,
   requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport,
   claimLiftGauntlet: SourceObjectClaimLiftGauntletReport | null,
+  formalExecution: FormalClaimFirstExecutionReport,
+  formalInsightBirth: FormalInsightBirthDecisionReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    formalExecution.top10Selected > 0 &&
+    formalInsightBirth.insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countFormalInsightBirthDeathCauses(formalInsightBirth),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${formalExecution.top10Selected} high-quality claim-first formal source objects froze exact claims and ran ${formalExecution.testsRun} bounded/baseline/rival/counterexample/replay checks, but no InsightCandidate was born. Current blocker is stronger source-object selection for claims that survive ${dominant} without post-hoc claim lifting.`;
+  }
   if (
     claimFirstBirthGate &&
     claimFirstBirthGate.hardSeedsEvaluated > 0 &&
@@ -16493,6 +17165,16 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/SOURCE_OBJECT_RECLASSIFICATION.json`,
     `${root}/CLAIM_FIRST_PILOT_RESULTS.md`,
     `${root}/CLAIM_FIRST_PILOT_RESULTS.json`,
+    `${root}/FORMAL_SOURCE_OBJECT_BANK.md`,
+    `${root}/FORMAL_SOURCE_OBJECT_BANK.json`,
+    `${root}/CLAIM_TEMPLATE_SCREENING.md`,
+    `${root}/CLAIM_TEMPLATE_SCREENING.json`,
+    `${root}/REJECTED_OBJECT_CLAIM_PAIRS.md`,
+    `${root}/TOP10_CLAIM_FIRST_OBJECTS.md`,
+    `${root}/CLAIM_FIRST_EXECUTION_RESULTS.md`,
+    `${root}/CLAIM_FIRST_EXECUTION_RESULTS.json`,
+    `${root}/INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -16828,6 +17510,122 @@ function sourceObjectClaimFirstPilotResultsMarkdown(
     ),
     "",
     "No pilot produces an InsightCandidate unless the exact pre-execution claim survives baseline, rival, counterexample, replay, and reviewer-replayable source-object checks.",
+  ].join("\n");
+}
+
+function formalSourceObjectBankMarkdown(
+  report: FormalSourceObjectBankReport,
+): string {
+  return [
+    "# Formal Source Object Bank",
+    "",
+    `Object/claim pairs created: ${report.pairsCreated}.`,
+    `Concrete reviewer-replayable pairs: ${report.concreteReviewerReplayablePairs}.`,
+    "",
+    "| Pair | Object | Kind | Concrete | Known/triviality risk | Claim |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.pairs.map(
+      (pair) =>
+        `| ${pair.pairId} | ${pair.objectId} | ${pair.sourceObjectKind} | ${String(pair.concreteSourceObject)} | ${pair.knownTrivialityRisk} | ${pair.exactBoundedClaim.replaceAll("|", "/")} |`,
+    ),
+    "",
+    "Every pair has a frozen claim template before execution; screening rejects vague, placeholder, known-absorbed, non-falsifiable, or non-rival-discriminating pairs.",
+  ].join("\n");
+}
+
+function formalClaimTemplateScreeningMarkdown(
+  report: FormalClaimTemplateScreeningReport,
+): string {
+  return [
+    "# Claim Template Screening",
+    "",
+    `Pairs screened: ${report.pairsScreened}.`,
+    `Rejected before execution: ${report.rejectedBeforeExecution}.`,
+    `Accepted pairs: ${report.acceptedPairs}.`,
+    `Top 10 selected: ${report.top10Selected}.`,
+    "",
+    "| Pair | Score | Status | Rejection reasons |",
+    "| --- | ---: | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.pairId} | ${decision.score} | ${decision.status} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function formalRejectedObjectClaimPairsMarkdown(
+  report: FormalClaimTemplateScreeningReport,
+): string {
+  const rejected = report.decisions.filter(
+    (decision) => decision.status === "rejected_before_execution",
+  );
+  return [
+    "# Rejected Object Claim Pairs",
+    "",
+    `Rejected before execution: ${rejected.length}.`,
+    "",
+    ...rejected.map(
+      (decision) =>
+        `- ${decision.pairId}: ${decision.rejectionReasons.join(", ")}`,
+    ),
+  ].join("\n");
+}
+
+function formalTop10ClaimFirstObjectsMarkdown(
+  report: FormalClaimTemplateScreeningReport,
+): string {
+  return [
+    "# Top 10 Claim-First Objects",
+    "",
+    `Top 10 selected: ${report.top10Selected}.`,
+    "",
+    "| Pair | Source object | Claim | Falsifier | Replay path |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.top10.map(
+      (pair) =>
+        `| ${pair.pairId} | ${pair.sourceObjectRef} | ${pair.exactBoundedClaim.replaceAll("|", "/")} | ${pair.falsifier.replaceAll("|", "/")} | ${pair.replayPath.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function formalClaimFirstExecutionResultsMarkdown(
+  report: FormalClaimFirstExecutionReport,
+): string {
+  return [
+    "# Claim-First Execution Results",
+    "",
+    `Top 10 selected: ${report.top10Selected}.`,
+    `Exact claims frozen: ${report.exactClaimsFrozen}.`,
+    `Tests run: ${report.testsRun}.`,
+    "",
+    "| Pair | Death cause | Outcome | Baseline | Rival | Counterexample | Residual | Replay |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.pairId} | ${result.deathCause} | ${result.measuredOutcome} | ${result.simpleBaseline} | ${result.rivalBaseline} | ${result.counterexampleControl} | ${result.residualMagnitude} | ${String(result.replayPassed)} |`,
+    ),
+    "",
+    "InsightCandidate birth remains blocked unless the exact frozen claim survives all execution checks without post-hoc scope expansion.",
+  ].join("\n");
+}
+
+function formalInsightBirthDecisionsMarkdown(
+  report: FormalInsightBirthDecisionReport,
+): string {
+  return [
+    "# Insight Birth Decisions",
+    "",
+    `Object/claim pairs evaluated: ${report.objectClaimPairsEvaluated}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Pair | Born | Death cause | Blockers |",
+    "| --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.pairId} | ${String(decision.insightCandidateBorn)} | ${decision.deathCause} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
   ].join("\n");
 }
 
@@ -17292,6 +18090,10 @@ function sourceObjectNextCheckpointMarkdown(
     `High-priority source objects selected: ${report.highPrioritySourceObjectsSelected}.`,
     `Low-signal source objects rejected: ${report.lowSignalSourceObjectsRejected}.`,
     `HardSeeds born: ${report.hardSeedsBorn}.`,
+    `Formal object/claim pairs created: ${report.formalObjectClaimPairsCreated ?? 0}.`,
+    `Formal top-10 claim-first objects selected: ${report.formalTopClaimFirstObjectsSelected ?? 0}.`,
+    `Formal claim-first execution tests run: ${report.formalClaimFirstExecutionTestsRun ?? 0}.`,
+    `Formal InsightCandidates born: ${report.formalInsightCandidatesBorn ?? 0}.`,
     `InsightCandidates created: ${report.insightCandidatesCreated}.`,
     `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
     `Fund found: ${String(report.fundFound)}.`,

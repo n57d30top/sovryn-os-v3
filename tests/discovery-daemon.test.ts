@@ -5074,6 +5074,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.sourceObjectObservationsCreated, report.hardSeedsBorn);
   assert.equal(report.claimFirstPilotsRun, 10);
   assert.equal(report.claimFirstExactClaimsProduced, 10);
+  assert.equal(report.formalObjectClaimPairsCreated, 50);
+  assert.equal((report.formalObjectClaimPairsRejected ?? 0) > 0, true);
+  assert.equal(report.formalTopClaimFirstObjectsSelected, 10);
+  assert.equal(report.formalClaimFirstExecutionTestsRun, 50);
+  assert.equal(report.formalInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5110,6 +5115,16 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "SOURCE_OBJECT_RECLASSIFICATION.json",
     "CLAIM_FIRST_PILOT_RESULTS.md",
     "CLAIM_FIRST_PILOT_RESULTS.json",
+    "FORMAL_SOURCE_OBJECT_BANK.md",
+    "FORMAL_SOURCE_OBJECT_BANK.json",
+    "CLAIM_TEMPLATE_SCREENING.md",
+    "CLAIM_TEMPLATE_SCREENING.json",
+    "REJECTED_OBJECT_CLAIM_PAIRS.md",
+    "TOP10_CLAIM_FIRST_OBJECTS.md",
+    "CLAIM_FIRST_EXECUTION_RESULTS.md",
+    "CLAIM_FIRST_EXECUTION_RESULTS.json",
+    "INSIGHT_BIRTH_DECISIONS.md",
+    "INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -5254,6 +5269,140 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(
     pilot.results.every(
       (result) => result.concreteSourceObject && !result.insightCandidateBorn,
+    ),
+    true,
+  );
+  const formalBank = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "FORMAL_SOURCE_OBJECT_BANK.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    pairsCreated: number;
+    concreteReviewerReplayablePairs: number;
+    pairs: Array<{
+      exactBoundedClaim: string;
+      formalDefinitions: string;
+      candidateMechanism: string;
+      strongestRivalMechanism: string;
+      falsifier: string;
+      replayPath: string;
+      concreteSourceObject: boolean;
+    }>;
+  };
+  assert.equal(formalBank.pairsCreated, 50);
+  assert.equal(formalBank.concreteReviewerReplayablePairs, 50);
+  assert.equal(
+    formalBank.pairs.every(
+      (pair) =>
+        pair.concreteSourceObject &&
+        pair.exactBoundedClaim.length > 0 &&
+        pair.formalDefinitions.length > 0 &&
+        pair.candidateMechanism.length > 0 &&
+        pair.strongestRivalMechanism.length > 0 &&
+        pair.replayPath.length > 0,
+    ),
+    true,
+  );
+  const formalScreening = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CLAIM_TEMPLATE_SCREENING.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    pairsScreened: number;
+    rejectedBeforeExecution: number;
+    top10Selected: number;
+    top10: Array<{
+      exactBoundedClaim: string;
+      rivalDiscriminatingPrediction: string;
+      falsifier: string;
+      concreteSourceObject: boolean;
+    }>;
+  };
+  assert.equal(formalScreening.pairsScreened, 50);
+  assert.equal(formalScreening.rejectedBeforeExecution > 0, true);
+  assert.equal(formalScreening.top10Selected, 10);
+  assert.equal(
+    formalScreening.top10.every(
+      (pair) =>
+        pair.concreteSourceObject &&
+        pair.exactBoundedClaim.length > 0 &&
+        pair.rivalDiscriminatingPrediction.length > 0 &&
+        pair.falsifier.length > 0,
+    ),
+    true,
+  );
+  const formalExecution = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CLAIM_FIRST_EXECUTION_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    top10Selected: number;
+    exactClaimsFrozen: number;
+    testsRun: number;
+    results: Array<{
+      testsRun: number;
+      exactClaimFrozen: string;
+      evidenceRefs: string[];
+    }>;
+  };
+  assert.equal(formalExecution.top10Selected, 10);
+  assert.equal(formalExecution.exactClaimsFrozen, 10);
+  assert.equal(formalExecution.testsRun, 50);
+  assert.equal(
+    formalExecution.results.every(
+      (result) =>
+        result.testsRun === 5 &&
+        result.exactClaimFrozen.length > 0 &&
+        result.evidenceRefs.length >= 4,
+    ),
+    true,
+  );
+  const formalBirth = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "INSIGHT_BIRTH_DECISIONS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    objectClaimPairsEvaluated: number;
+    insightCandidatesBorn: number;
+    discoveryCandidatesCreated: number;
+    fundFound: boolean;
+    decisions: Array<{
+      insightCandidateBorn: boolean;
+      blockers: string[];
+    }>;
+  };
+  assert.equal(formalBirth.objectClaimPairsEvaluated, 10);
+  assert.equal(formalBirth.insightCandidatesBorn, 0);
+  assert.equal(formalBirth.discoveryCandidatesCreated, 0);
+  assert.equal(formalBirth.fundFound, false);
+  assert.equal(
+    formalBirth.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn && decision.blockers.length > 0,
     ),
     true,
   );

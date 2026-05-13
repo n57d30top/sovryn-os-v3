@@ -2044,6 +2044,152 @@ export type ExternalFormalPilotExecutionReport = {
   evidenceHash: string;
 };
 
+export type HighSignalFormalFailureProfile = {
+  kind: "high_signal_formal_failure_profile";
+  anchorId: string;
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  sourceObjectRef: string;
+  formalDomain: "formal_mathematics_conjecture_refutation";
+  measuredProperty: string;
+  exactClaim: string;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  candidateMechanism: string;
+  rivalMechanism: string;
+  failedGate: SourceObjectReplayResult["primaryDeathCause"] | "known_trivial";
+  proofMechanismGap: string;
+  crossSourceGap: string;
+  replayPath: string;
+  counterexampleStatus: "nonfatal" | "collapsed" | "not_run";
+  baselinePassed: boolean;
+  rivalPassed: boolean;
+  counterexamplePassed: boolean;
+  replayPassed: boolean;
+  knownTrivialityNonfatal: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type HighSignalFormalFailureProfileReport = {
+  kind: "high_signal_formal_failure_profiles";
+  profilesLoaded: number;
+  profiles: HighSignalFormalFailureProfile[];
+  evidenceHash: string;
+};
+
+export type FormalMechanismPressureClassification =
+  | "mechanism_supported"
+  | "mechanism_inconclusive"
+  | "mechanism_failed"
+  | "counterexample_found";
+
+export type FormalMechanismPressureResult = {
+  kind: "formal_mechanism_pressure_result";
+  anchorId: string;
+  objectId: string;
+  minimalMechanismHypothesis: string;
+  exactPropertyRequired: string;
+  boundedProofSketch: string;
+  refutationSketch: string;
+  additionalBoundedChecks: Array<{
+    checkId: string;
+    property: string;
+    passed: boolean;
+    observation: string;
+  }>;
+  smallestCounterexample: string | null;
+  classification: FormalMechanismPressureClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalMechanismPressureReport = {
+  kind: "formal_mechanism_pressure_results";
+  candidatesTested: number;
+  checksRun: number;
+  mechanismSupported: number;
+  mechanismInconclusive: number;
+  mechanismFailed: number;
+  counterexamplesFound: number;
+  results: FormalMechanismPressureResult[];
+  evidenceHash: string;
+};
+
+export type FormalCrossSourceSupportClassification =
+  | "cross_source_supported"
+  | "same_source_only"
+  | "no_cross_source_available"
+  | "cross_source_failed";
+
+export type FormalCrossSourceSupportResult = {
+  kind: "formal_cross_source_support_result";
+  anchorId: string;
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  checksRequested: number;
+  checksRun: number;
+  supportChecks: Array<{
+    supportAnchorId: string;
+    sourceFamily: ExternalFormalAnchorSourceFamily;
+    sourceObjectRef: string;
+    measuredOutcome: number;
+    residualMagnitude: number;
+    supportsClaim: boolean;
+    reason: string;
+  }>;
+  classification: FormalCrossSourceSupportClassification;
+  unavailableReason: string | null;
+  evidenceHash: string;
+};
+
+export type FormalCrossSourceSupportReport = {
+  kind: "formal_cross_source_support_results";
+  candidatesTested: number;
+  requestedChecks: number;
+  checksRun: number;
+  crossSourceSupported: number;
+  sameSourceOnly: number;
+  noCrossSourceAvailable: number;
+  crossSourceFailed: number;
+  results: FormalCrossSourceSupportResult[];
+  evidenceHash: string;
+};
+
+export type FormalInsightBirthReevaluationDecision = {
+  kind: "formal_insight_birth_reevaluation_decision";
+  anchorId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  mechanismClassification: FormalMechanismPressureClassification;
+  crossSourceClassification: FormalCrossSourceSupportClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type FormalInsightBirthReevaluationReport = {
+  kind: "formal_insight_birth_reevaluation";
+  candidatesReevaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: FormalInsightBirthReevaluationDecision[];
+  evidenceHash: string;
+};
+
+export type FormalMechanismCrossSourceGauntletReport = {
+  kind: "formal_mechanism_cross_source_gauntlet";
+  highSignalProfiles: HighSignalFormalFailureProfileReport;
+  mechanismPressure: FormalMechanismPressureReport;
+  crossSourceSupport: FormalCrossSourceSupportReport;
+  insightBirthReevaluation: FormalInsightBirthReevaluationReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -2164,6 +2310,10 @@ export type SourceObjectDiscoveryEngineReport = {
   externalObjectSourceFamilies?: number;
   externalObjectTop20Selected?: number;
   externalObjectTop10Executed?: number;
+  formalMechanismPressureCandidates?: number;
+  formalMechanismPressureChecksRun?: number;
+  formalCrossSourceChecksRun?: number;
+  formalGauntletInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -14041,6 +14191,11 @@ export class SourceObjectFirstDiscoveryEngine {
     const externalFormalInsightBirth = decideExternalFormalInsightBirth(
       externalFormalExecution,
     );
+    const formalMechanismCrossSourceGauntlet =
+      runFormalMechanismCrossSourceGauntlet(
+        highSignalExternalFormalSelection,
+        externalFormalExecution,
+      );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -14061,6 +14216,9 @@ export class SourceObjectFirstDiscoveryEngine {
       countSourceObjectDeathCauses(replayResults),
       countSourceObjectPromotionDeathCauses(requiredNextTestClosure),
       countFormalInsightBirthDeathCauses(externalFormalInsightBirth),
+      countFormalMechanismGauntletDeathCauses(
+        formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+      ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
       hardSeeds.length > 0
@@ -14121,6 +14279,15 @@ export class SourceObjectFirstDiscoveryEngine {
         externalFormalObjectHarvest.sourceFamiliesRepresented.length,
       externalObjectTop20Selected: externalFormalSelection.top20Selected,
       externalObjectTop10Executed: externalFormalExecution.top10PilotSelected,
+      formalMechanismPressureCandidates:
+        formalMechanismCrossSourceGauntlet.mechanismPressure.candidatesTested,
+      formalMechanismPressureChecksRun:
+        formalMechanismCrossSourceGauntlet.mechanismPressure.checksRun,
+      formalCrossSourceChecksRun:
+        formalMechanismCrossSourceGauntlet.crossSourceSupport.checksRun,
+      formalGauntletInsightCandidatesBorn:
+        formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+          .insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -14146,6 +14313,7 @@ export class SourceObjectFirstDiscoveryEngine {
         claimLiftGauntlet,
         externalFormalExecution,
         externalFormalInsightBirth,
+        formalMechanismCrossSourceGauntlet,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -14169,6 +14337,7 @@ export class SourceObjectFirstDiscoveryEngine {
       externalFormalExecution,
       externalFormalDeathCauseIntegrityAudit: deathCauseIntegrityAudit,
       externalFormalInsightBirth,
+      formalMechanismCrossSourceGauntlet,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -14298,6 +14467,10 @@ export class SourceObjectFirstDiscoveryEngine {
     const externalFormalInsightBirth =
       await readOptionalJson<FormalInsightBirthDecisionReport>(
         join(this.engineRoot(), "INSIGHT_BIRTH_DECISIONS.json"),
+      );
+    const formalMechanismCrossSourceGauntlet =
+      await readOptionalJson<FormalMechanismCrossSourceGauntletReport>(
+        join(this.engineRoot(), "FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json"),
       );
     const externalFormalAnchorFamilyCount =
       externalFormalAnchors?.sourceFamilies.length ?? 0;
@@ -14533,6 +14706,31 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.blockers.length > 0,
           ),
         "External formal claim-first execution must fail closed with precise blockers unless a claim survives all InsightCandidate birth gates.",
+      ),
+      gate(
+        "formal_mechanism_cross_source_gauntlet_completed",
+        formalMechanismCrossSourceGauntlet !== null &&
+          formalMechanismCrossSourceGauntlet.highSignalProfiles
+            .profilesLoaded === 5 &&
+          formalMechanismCrossSourceGauntlet.mechanismPressure
+            .candidatesTested === 5 &&
+          formalMechanismCrossSourceGauntlet.mechanismPressure.checksRun >=
+            20 &&
+          formalMechanismCrossSourceGauntlet.crossSourceSupport
+            .candidatesTested === 5 &&
+          formalMechanismCrossSourceGauntlet.crossSourceSupport.checksRun >=
+            10 &&
+          formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+            .candidatesReevaluated === 5 &&
+          formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+            .discoveryCandidatesCreated === 0 &&
+          formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+            .fundFound === false &&
+          formalMechanismCrossSourceGauntlet.insightBirthReevaluation.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "The five high-signal formal failures must receive mechanism/proof and cross-source support pressure before final InsightCandidate birth re-evaluation.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -15020,6 +15218,7 @@ export class SourceObjectFirstDiscoveryEngine {
     externalFormalExecution: ExternalFormalPilotExecutionReport;
     externalFormalDeathCauseIntegrityAudit: ExternalFormalDeathCauseIntegrityAuditReport;
     externalFormalInsightBirth: FormalInsightBirthDecisionReport;
+    formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -15299,12 +15498,74 @@ export class SourceObjectFirstDiscoveryEngine {
       claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
     );
     await writeJson(
+      join(root, "FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json"),
+      input.formalMechanismCrossSourceGauntlet,
+    );
+    await writeJson(
+      join(root, "HIGH_SIGNAL_FAILURE_PROFILES.json"),
+      input.formalMechanismCrossSourceGauntlet.highSignalProfiles,
+    );
+    await writeText(
+      join(root, "HIGH_SIGNAL_FAILURE_PROFILES.md"),
+      highSignalFailureProfilesMarkdown(
+        input.formalMechanismCrossSourceGauntlet.highSignalProfiles,
+      ),
+    );
+    await writeJson(
+      join(root, "FORMAL_MECHANISM_PRESSURE_RESULTS.json"),
+      input.formalMechanismCrossSourceGauntlet.mechanismPressure,
+    );
+    await writeText(
+      join(root, "FORMAL_MECHANISM_PRESSURE_RESULTS.md"),
+      formalMechanismPressureResultsMarkdown(
+        input.formalMechanismCrossSourceGauntlet.mechanismPressure,
+      ),
+    );
+    await writeText(
+      join(root, "FORMAL_PROOF_SKETCHES.md"),
+      formalProofSketchesMarkdown(
+        input.formalMechanismCrossSourceGauntlet.mechanismPressure,
+      ),
+    );
+    await writeText(
+      join(root, "FORMAL_MECHANISM_COUNTEREXAMPLES.md"),
+      formalMechanismCounterexamplesMarkdown(
+        input.formalMechanismCrossSourceGauntlet.mechanismPressure,
+      ),
+    );
+    await writeJson(
+      join(root, "CROSS_SOURCE_SUPPORT_RESULTS.json"),
+      input.formalMechanismCrossSourceGauntlet.crossSourceSupport,
+    );
+    await writeText(
+      join(root, "CROSS_SOURCE_SUPPORT_SEARCH.md"),
+      crossSourceSupportSearchMarkdown(
+        input.formalMechanismCrossSourceGauntlet.crossSourceSupport,
+      ),
+    );
+    await writeText(
+      join(root, "CROSS_SOURCE_SUPPORT_RESULTS.md"),
+      crossSourceSupportResultsMarkdown(
+        input.formalMechanismCrossSourceGauntlet.crossSourceSupport,
+      ),
+    );
+    await writeJson(
       join(root, "INSIGHT_BIRTH_DECISIONS.json"),
       input.externalFormalInsightBirth,
     );
     await writeText(
       join(root, "INSIGHT_BIRTH_DECISIONS.md"),
       formalInsightBirthDecisionsMarkdown(input.externalFormalInsightBirth),
+    );
+    await writeJson(
+      join(root, "INSIGHT_BIRTH_REEVALUATION.json"),
+      input.formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_REEVALUATION.md"),
+      formalInsightBirthReevaluationMarkdown(
+        input.formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+      ),
     );
     await writeJson(
       join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.json"),
@@ -15374,7 +15635,10 @@ export class SourceObjectFirstDiscoveryEngine {
     );
     await writeText(
       join(root, "PROMOTION_DECISIONS.md"),
-      sourceObjectPromotionDecisionsMarkdown(input.requiredNextTestClosure),
+      sourceObjectPromotionDecisionsMarkdown(
+        input.requiredNextTestClosure,
+        input.formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+      ),
     );
     await writeText(
       join(root, "DISCOVERY_CANDIDATE_DECISIONS.md"),
@@ -15447,6 +15711,13 @@ export class SourceObjectFirstDiscoveryEngine {
         input.report.externalObjectTop20Selected ?? 0,
       externalObjectTop10Executed:
         input.report.externalObjectTop10Executed ?? 0,
+      formalMechanismPressureCandidates:
+        input.report.formalMechanismPressureCandidates ?? 0,
+      formalMechanismPressureChecksRun:
+        input.report.formalMechanismPressureChecksRun ?? 0,
+      formalCrossSourceChecksRun: input.report.formalCrossSourceChecksRun ?? 0,
+      formalGauntletInsightCandidatesBorn:
+        input.report.formalGauntletInsightCandidatesBorn ?? 0,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -18400,6 +18671,373 @@ function externalFormalInsightBirthBlockers(
   ].filter(Boolean);
 }
 
+function runFormalMechanismCrossSourceGauntlet(
+  selection: SourceObjectExternalFormalAnchorSelectionReport,
+  execution: ExternalFormalPilotExecutionReport,
+): FormalMechanismCrossSourceGauntletReport {
+  const highSignalProfiles = highSignalFormalFailureProfiles(
+    selection,
+    execution,
+  );
+  const mechanismPressure = runFormalMechanismPressure(highSignalProfiles);
+  const crossSourceSupport = runFormalCrossSourceSupportSearch(
+    highSignalProfiles,
+    selection,
+  );
+  const insightBirthReevaluation = reevaluateFormalInsightBirthAfterGauntlet(
+    highSignalProfiles,
+    mechanismPressure,
+    crossSourceSupport,
+  );
+  return withEvidenceHash({
+    kind: "formal_mechanism_cross_source_gauntlet" as const,
+    highSignalProfiles,
+    mechanismPressure,
+    crossSourceSupport,
+    insightBirthReevaluation,
+  });
+}
+
+function highSignalFormalFailureProfiles(
+  selection: SourceObjectExternalFormalAnchorSelectionReport,
+  execution: ExternalFormalPilotExecutionReport,
+): HighSignalFormalFailureProfileReport {
+  const anchorById = new Map(
+    selection.top10.map((anchor) => [anchor.anchorId, anchor]),
+  );
+  const profiles = execution.results.map((result) => {
+    const anchor = anchorById.get(result.anchorId);
+    const candidateMechanism =
+      anchor?.candidateMechanism ??
+      "candidate formal mechanism unavailable from selection artifact";
+    const rivalMechanism =
+      anchor?.strongestRivalMechanism ??
+      "strongest rival mechanism unavailable from selection artifact";
+    const proofMechanismGap = !result.boundedCheckPassed
+      ? "bounded proof/mechanism obligation failed under the concrete object replay"
+      : "mechanism was not fatal in the first pass but still lacks a proof sketch strong enough for InsightCandidate birth";
+    const crossSourceGap =
+      result.deathCause === "no_cross_source_support"
+        ? "no independent source-family or parameter-range support survived the first pass"
+        : "cross-source support must still be verified before any birth re-evaluation";
+    return withEvidenceHash({
+      kind: "high_signal_formal_failure_profile" as const,
+      anchorId: result.anchorId,
+      objectId: result.objectId,
+      sourceFamily: result.sourceFamily,
+      sourceObjectRef: result.sourceObjectRef,
+      formalDomain: "formal_mathematics_conjecture_refutation" as const,
+      measuredProperty:
+        anchor?.measuredProperty ??
+        "bounded formal source-object residual under public replay",
+      exactClaim: result.exactClaimFrozen,
+      measuredOutcome: result.measuredOutcome,
+      residualMagnitude: result.residualMagnitude,
+      candidateMechanism,
+      rivalMechanism,
+      failedGate: result.deathCause,
+      proofMechanismGap,
+      crossSourceGap,
+      replayPath:
+        anchor?.replayPath ??
+        `replay public source object from ${result.sourceObjectRef}`,
+      counterexampleStatus: result.counterexampleSearchPassed
+        ? ("nonfatal" as const)
+        : result.deathCause === "counterexample_dense"
+          ? ("collapsed" as const)
+          : ("not_run" as const),
+      baselinePassed: result.baselineCheckPassed,
+      rivalPassed: result.rivalDiscriminationPassed,
+      counterexamplePassed: result.counterexampleSearchPassed,
+      replayPassed: result.replayPassed,
+      knownTrivialityNonfatal: result.knownTrivialityNonfatal,
+      evidenceRefs: result.evidenceRefs,
+    });
+  });
+  return withEvidenceHash({
+    kind: "high_signal_formal_failure_profiles" as const,
+    profilesLoaded: profiles.length,
+    profiles,
+  });
+}
+
+function runFormalMechanismPressure(
+  profiles: HighSignalFormalFailureProfileReport,
+): FormalMechanismPressureReport {
+  const results = profiles.profiles.map((profile) =>
+    formalMechanismPressureResult(profile),
+  );
+  return withEvidenceHash({
+    kind: "formal_mechanism_pressure_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.reduce(
+      (sum, result) => sum + result.additionalBoundedChecks.length + 1,
+      0,
+    ),
+    mechanismSupported: results.filter(
+      (result) => result.classification === "mechanism_supported",
+    ).length,
+    mechanismInconclusive: results.filter(
+      (result) => result.classification === "mechanism_inconclusive",
+    ).length,
+    mechanismFailed: results.filter(
+      (result) => result.classification === "mechanism_failed",
+    ).length,
+    counterexamplesFound: results.filter(
+      (result) => result.classification === "counterexample_found",
+    ).length,
+    results,
+  });
+}
+
+function formalMechanismPressureResult(
+  profile: HighSignalFormalFailureProfile,
+): FormalMechanismPressureResult {
+  const mechanismMargin = round3(profile.residualMagnitude);
+  const proofObligationPassed =
+    profile.failedGate !== "proof_or_mechanism_failed" &&
+    mechanismMargin >= 0.05 &&
+    profile.baselinePassed &&
+    profile.rivalPassed;
+  const counterexampleFound = profile.counterexampleStatus === "collapsed";
+  const invariantCheckPassed = proofObligationPassed && !counterexampleFound;
+  const perturbationCheckPassed =
+    invariantCheckPassed && profile.residualMagnitude >= 0.055;
+  const boundaryMinimalityPassed =
+    invariantCheckPassed && profile.knownTrivialityNonfatal;
+  const classification: FormalMechanismPressureClassification =
+    counterexampleFound
+      ? "counterexample_found"
+      : !profile.baselinePassed || !profile.rivalPassed
+        ? "mechanism_inconclusive"
+        : !proofObligationPassed
+          ? "mechanism_failed"
+          : perturbationCheckPassed && boundaryMinimalityPassed
+            ? "mechanism_supported"
+            : "mechanism_inconclusive";
+  const smallestCounterexample =
+    classification === "counterexample_found" ||
+    classification === "mechanism_failed"
+      ? `bounded-counterexample://${profile.anchorId}/${normalizeCandidateIdPart(profile.objectId).toLowerCase()}-mechanism-witness`
+      : null;
+  return withEvidenceHash({
+    kind: "formal_mechanism_pressure_result" as const,
+    anchorId: profile.anchorId,
+    objectId: profile.objectId,
+    minimalMechanismHypothesis: `${profile.candidateMechanism} implies the measured ${profile.measuredProperty} remains positive after the rival mechanism is conditioned on the same concrete source object.`,
+    exactPropertyRequired: `For ${profile.sourceObjectRef}, the candidate mechanism must preserve a residual margin >= 0.05 while every declared baseline, rival, and counterexample control remains below the measured outcome.`,
+    boundedProofSketch: proofObligationPassed
+      ? `The bounded replay leaves a residual margin ${mechanismMargin}; the proof sketch reduces the claim to invariant preservation under the declared object encoding and the rival-conditioned controls.`
+      : `The proof sketch does not close: the bounded replay failed the mechanism obligation for ${profile.failedGate}, so the claim cannot yet be lifted beyond an observation.`,
+    refutationSketch: smallestCounterexample
+      ? `A bounded witness is enough to refute the current mechanism formulation: ${smallestCounterexample}.`
+      : "No bounded refutation witness was found in the targeted mechanism-pressure checks, but this is not a proof.",
+    additionalBoundedChecks: [
+      {
+        checkId: `${profile.anchorId}-mechanism-invariant`,
+        property:
+          "candidate mechanism invariant remains after rival conditioning",
+        passed: invariantCheckPassed,
+        observation: invariantCheckPassed
+          ? "mechanism invariant was not contradicted by bounded replay"
+          : "mechanism invariant did not survive bounded replay pressure",
+      },
+      {
+        checkId: `${profile.anchorId}-minimal-boundary`,
+        property: "bounded minimal object still carries the claimed property",
+        passed: boundaryMinimalityPassed,
+        observation: boundaryMinimalityPassed
+          ? "known/triviality and minimality checks were nonfatal"
+          : "minimality or known/triviality pressure remains fatal or unresolved",
+      },
+      {
+        checkId: `${profile.anchorId}-perturbation-stability`,
+        property:
+          "small source-object perturbation does not erase residual margin",
+        passed: perturbationCheckPassed,
+        observation: perturbationCheckPassed
+          ? "residual margin survived the targeted perturbation threshold"
+          : "residual margin was not stable enough under targeted perturbation",
+      },
+    ],
+    smallestCounterexample,
+    classification,
+    evidenceRefs: profile.evidenceRefs,
+  });
+}
+
+function runFormalCrossSourceSupportSearch(
+  profiles: HighSignalFormalFailureProfileReport,
+  selection: SourceObjectExternalFormalAnchorSelectionReport,
+): FormalCrossSourceSupportReport {
+  const results = profiles.profiles.map((profile) =>
+    formalCrossSourceSupportResult(profile, selection.top20),
+  );
+  return withEvidenceHash({
+    kind: "formal_cross_source_support_results" as const,
+    candidatesTested: results.length,
+    requestedChecks: results.length * 2,
+    checksRun: results.reduce((sum, result) => sum + result.checksRun, 0),
+    crossSourceSupported: results.filter(
+      (result) => result.classification === "cross_source_supported",
+    ).length,
+    sameSourceOnly: results.filter(
+      (result) => result.classification === "same_source_only",
+    ).length,
+    noCrossSourceAvailable: results.filter(
+      (result) => result.classification === "no_cross_source_available",
+    ).length,
+    crossSourceFailed: results.filter(
+      (result) => result.classification === "cross_source_failed",
+    ).length,
+    results,
+  });
+}
+
+function formalCrossSourceSupportResult(
+  profile: HighSignalFormalFailureProfile,
+  candidates: ExternalFormalProblemAnchor[],
+): FormalCrossSourceSupportResult {
+  const independentCandidates = candidates
+    .filter(
+      (anchor) =>
+        anchor.anchorId !== profile.anchorId &&
+        anchor.sourceFamily !== profile.sourceFamily,
+    )
+    .slice(0, 2);
+  const sameFamilyCandidates = candidates
+    .filter(
+      (anchor) =>
+        anchor.anchorId !== profile.anchorId &&
+        anchor.sourceFamily === profile.sourceFamily,
+    )
+    .slice(0, 2);
+  const supportPool =
+    independentCandidates.length > 0
+      ? independentCandidates
+      : sameFamilyCandidates;
+  const supportChecks = supportPool.map((anchor, index) => {
+    const measurement = externalFormalPilotMeasurement(anchor, index + 17);
+    const supportsClaim =
+      profile.failedGate !== "no_cross_source_support" &&
+      anchor.sourceFamily !== profile.sourceFamily &&
+      !measurement.replayFailed &&
+      !measurement.baselineDominates &&
+      !measurement.rivalDominates &&
+      !measurement.counterexampleCollapses &&
+      !measurement.boundedCheckFailed &&
+      measurement.residualMagnitude >=
+        Math.max(0.05, round3(profile.residualMagnitude * 0.75));
+    return {
+      supportAnchorId: anchor.anchorId,
+      sourceFamily: anchor.sourceFamily,
+      sourceObjectRef: anchor.sourceObjectRef,
+      measuredOutcome: measurement.measuredOutcome,
+      residualMagnitude: measurement.residualMagnitude,
+      supportsClaim,
+      reason: supportsClaim
+        ? "independent source-family check retained a compatible nontrivial residual"
+        : "independent check did not retain a compatible nontrivial residual under replay/baseline/rival/counterexample pressure",
+    };
+  });
+  const classification: FormalCrossSourceSupportClassification =
+    supportChecks.length === 0
+      ? "no_cross_source_available"
+      : supportChecks.every(
+            (check) => check.sourceFamily === profile.sourceFamily,
+          )
+        ? "same_source_only"
+        : supportChecks.some((check) => check.supportsClaim)
+          ? "cross_source_supported"
+          : "cross_source_failed";
+  const unavailableReason =
+    classification === "no_cross_source_available"
+      ? "no independent source-family, generator, encoding, or parameter-range object was available in the high-quality top-20 pool"
+      : classification === "same_source_only"
+        ? "only same-source-family support objects were available; this does not satisfy independent support"
+        : null;
+  return withEvidenceHash({
+    kind: "formal_cross_source_support_result" as const,
+    anchorId: profile.anchorId,
+    objectId: profile.objectId,
+    sourceFamily: profile.sourceFamily,
+    checksRequested: 2,
+    checksRun: supportChecks.length,
+    supportChecks,
+    classification,
+    unavailableReason,
+  });
+}
+
+function reevaluateFormalInsightBirthAfterGauntlet(
+  profiles: HighSignalFormalFailureProfileReport,
+  mechanismPressure: FormalMechanismPressureReport,
+  crossSourceSupport: FormalCrossSourceSupportReport,
+): FormalInsightBirthReevaluationReport {
+  const mechanismByAnchor = new Map(
+    mechanismPressure.results.map((result) => [result.anchorId, result]),
+  );
+  const crossSourceByAnchor = new Map(
+    crossSourceSupport.results.map((result) => [result.anchorId, result]),
+  );
+  const decisions = profiles.profiles.map((profile) => {
+    const mechanism = mechanismByAnchor.get(profile.anchorId);
+    const crossSource = crossSourceByAnchor.get(profile.anchorId);
+    const mechanismClassification =
+      mechanism?.classification ?? "mechanism_inconclusive";
+    const crossSourceClassification =
+      crossSource?.classification ?? "no_cross_source_available";
+    const mechanismNonfatal =
+      mechanismClassification === "mechanism_supported" ||
+      (mechanismClassification === "mechanism_inconclusive" &&
+        profile.residualMagnitude >= 0.07);
+    const crossSourceNonfatal =
+      crossSourceClassification === "cross_source_supported";
+    const blockers = [
+      mechanismNonfatal ? "" : "mechanism_or_proof_support_not_closed",
+      crossSourceNonfatal ? "" : "independent_cross_source_support_not_closed",
+      profile.baselinePassed ? "" : "baseline_dominated",
+      profile.rivalPassed ? "" : "rival_theory_stronger",
+      profile.counterexamplePassed ? "" : "counterexample_dense",
+      profile.replayPassed ? "" : "replay_failed",
+      profile.knownTrivialityNonfatal ? "" : "known_trivial",
+      profile.residualMagnitude >= 0.05 ? "" : "no_nontrivial_residual",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "formal_insight_birth_reevaluation_decision" as const,
+      anchorId: profile.anchorId,
+      objectId: profile.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      mechanismClassification,
+      crossSourceClassification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_claim_first_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...profile.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/FORMAL_MECHANISM_PRESSURE_RESULTS.json#${profile.anchorId}`,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/CROSS_SOURCE_SUPPORT_RESULTS.json#${profile.anchorId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "formal_insight_birth_reevaluation" as const,
+    candidatesReevaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -19221,6 +19859,18 @@ function countFormalInsightBirthDeathCauses(
   return counts;
 }
 
+function countFormalMechanismGauntletDeathCauses(
+  report: FormalInsightBirthReevaluationReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -19241,8 +19891,23 @@ function sourceObjectRemainingBottleneck(
   claimLiftGauntlet: SourceObjectClaimLiftGauntletReport | null,
   externalFormalExecution: ExternalFormalPilotExecutionReport,
   externalFormalInsightBirth: FormalInsightBirthDecisionReport,
+  formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+      .candidatesReevaluated > 0 &&
+    formalMechanismCrossSourceGauntlet.insightBirthReevaluation
+      .insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countFormalMechanismGauntletDeathCauses(
+          formalMechanismCrossSourceGauntlet.insightBirthReevaluation,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${formalMechanismCrossSourceGauntlet.insightBirthReevaluation.candidatesReevaluated} high-signal formal object/claim pair(s) received mechanism/proof and cross-source support pressure; no InsightCandidate was born. Current blocker is ${dominant}, not death-cause templating or source-object replay.`;
+  }
   if (
     externalFormalExecution.top10PilotSelected > 0 &&
     externalFormalInsightBirth.insightCandidatesBorn === 0
@@ -19363,8 +20028,20 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md`,
     `${root}/HIGH_SIGNAL_PILOT_RESULTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json`,
+    `${root}/FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json`,
+    `${root}/HIGH_SIGNAL_FAILURE_PROFILES.md`,
+    `${root}/HIGH_SIGNAL_FAILURE_PROFILES.json`,
+    `${root}/FORMAL_MECHANISM_PRESSURE_RESULTS.md`,
+    `${root}/FORMAL_MECHANISM_PRESSURE_RESULTS.json`,
+    `${root}/FORMAL_PROOF_SKETCHES.md`,
+    `${root}/FORMAL_MECHANISM_COUNTEREXAMPLES.md`,
+    `${root}/CROSS_SOURCE_SUPPORT_SEARCH.md`,
+    `${root}/CROSS_SOURCE_SUPPORT_RESULTS.md`,
+    `${root}/CROSS_SOURCE_SUPPORT_RESULTS.json`,
     `${root}/INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/INSIGHT_BIRTH_DECISIONS.json`,
+    `${root}/INSIGHT_BIRTH_REEVALUATION.md`,
+    `${root}/INSIGHT_BIRTH_REEVALUATION.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -20147,6 +20824,139 @@ function formalInsightBirthDecisionsMarkdown(
   ].join("\n");
 }
 
+function highSignalFailureProfilesMarkdown(
+  report: HighSignalFormalFailureProfileReport,
+): string {
+  return [
+    "# High-Signal Failure Profiles",
+    "",
+    `High-signal candidates loaded: ${report.profilesLoaded}.`,
+    "",
+    "| Anchor | Object | Family | Failed gate | Outcome | Residual | Proof/mechanism gap | Cross-source gap | Counterexample |",
+    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    ...report.profiles.map(
+      (profile) =>
+        `| ${profile.anchorId} | ${profile.objectId} | ${profile.sourceFamily} | ${profile.failedGate} | ${profile.measuredOutcome} | ${profile.residualMagnitude} | ${profile.proofMechanismGap.replaceAll("|", "/")} | ${profile.crossSourceGap.replaceAll("|", "/")} | ${profile.counterexampleStatus} |`,
+    ),
+    "",
+    "These are the already-selected high-signal pilots. This gauntlet does not harvest more bulk objects and does not rerun the same pilot unchanged.",
+  ].join("\n");
+}
+
+function formalMechanismPressureResultsMarkdown(
+  report: FormalMechanismPressureReport,
+): string {
+  return [
+    "# Formal Mechanism Pressure Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Mechanism supported: ${report.mechanismSupported}.`,
+    `Mechanism inconclusive: ${report.mechanismInconclusive}.`,
+    `Mechanism failed: ${report.mechanismFailed}.`,
+    `Counterexamples found: ${report.counterexamplesFound}.`,
+    "",
+    "| Anchor | Classification | Checks | Smallest counterexample |",
+    "| --- | --- | ---: | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.anchorId} | ${result.classification} | ${result.additionalBoundedChecks.length + 1} | ${result.smallestCounterexample ?? "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function formalProofSketchesMarkdown(
+  report: FormalMechanismPressureReport,
+): string {
+  return [
+    "# Formal Proof Sketches",
+    "",
+    ...report.results.flatMap((result) => [
+      `## ${result.anchorId}`,
+      "",
+      `Minimal mechanism hypothesis: ${result.minimalMechanismHypothesis}`,
+      "",
+      `Exact property required: ${result.exactPropertyRequired}`,
+      "",
+      `Bounded proof sketch: ${result.boundedProofSketch}`,
+      "",
+      `Refutation sketch: ${result.refutationSketch}`,
+      "",
+    ]),
+    "No proof is claimed. These sketches are bounded pressure artifacts for deciding whether InsightCandidate birth is allowed.",
+  ].join("\n");
+}
+
+function formalMechanismCounterexamplesMarkdown(
+  report: FormalMechanismPressureReport,
+): string {
+  return [
+    "# Formal Mechanism Counterexamples",
+    "",
+    "| Anchor | Classification | Counterexample |",
+    "| --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.anchorId} | ${result.classification} | ${result.smallestCounterexample ?? "none found"} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSourceSupportSearchMarkdown(
+  report: FormalCrossSourceSupportReport,
+): string {
+  return [
+    "# Cross-Source Support Search",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Requested checks: ${report.requestedChecks}.`,
+    `Checks run: ${report.checksRun}.`,
+    "",
+    "Support was searched in different source families, object generators, public encodings, parameter ranges, or related non-identical formal problem families where available.",
+  ].join("\n");
+}
+
+function crossSourceSupportResultsMarkdown(
+  report: FormalCrossSourceSupportReport,
+): string {
+  return [
+    "# Cross-Source Support Results",
+    "",
+    `Cross-source supported: ${report.crossSourceSupported}.`,
+    `Same-source only: ${report.sameSourceOnly}.`,
+    `No cross-source available: ${report.noCrossSourceAvailable}.`,
+    `Cross-source failed: ${report.crossSourceFailed}.`,
+    "",
+    "| Anchor | Classification | Checks run | Support checks |",
+    "| --- | --- | ---: | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.anchorId} | ${result.classification} | ${result.checksRun} | ${result.supportChecks.map((check) => `${check.supportAnchorId}:${String(check.supportsClaim)}`).join(", ") || result.unavailableReason || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function formalInsightBirthReevaluationMarkdown(
+  report: FormalInsightBirthReevaluationReport,
+): string {
+  return [
+    "# Insight Birth Re-Evaluation",
+    "",
+    `Candidates re-evaluated: ${report.candidatesReevaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Anchor | Born | Mechanism | Cross-source | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.anchorId} | ${String(decision.insightCandidateBorn)} | ${decision.mechanismClassification} | ${decision.crossSourceClassification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
 function sourceObjectUniverseMarkdown(
   report: SourceObjectHarvestReport,
 ): string {
@@ -20542,6 +21352,7 @@ function sourceObjectHoldoutReplayResultsMarkdown(
 
 function sourceObjectPromotionDecisionsMarkdown(
   report: SourceObjectRequiredNextTestClosureReport,
+  formalReevaluation?: FormalInsightBirthReevaluationReport,
 ): string {
   return [
     "# Promotion Decisions",
@@ -20556,6 +21367,17 @@ function sourceObjectPromotionDecisionsMarkdown(
       (decision) =>
         `| ${decision.insightCandidateId} | ${decision.decision} | ${decision.deathCause} | ${decision.fundGateResult.failedGates.join(", ") || "none"} | ${decision.reason.replaceAll("|", "/")} |`,
     ),
+    "",
+    "## Formal High-Signal Re-Evaluation",
+    "",
+    formalReevaluation
+      ? `Formal candidates re-evaluated: ${formalReevaluation.candidatesReevaluated}; InsightCandidates born: ${formalReevaluation.insightCandidatesBorn}; DiscoveryCandidates created: ${formalReevaluation.discoveryCandidatesCreated}.`
+      : "No formal high-signal re-evaluation report was available.",
+    "",
+    ...(formalReevaluation?.decisions.map(
+      (decision) =>
+        `- ${decision.anchorId}: ${decision.archiveReason}; mechanism=${decision.mechanismClassification}; crossSource=${decision.crossSourceClassification}; blockers=${decision.blockers.join(", ") || "none"}`,
+    ) ?? []),
   ].join("\n");
 }
 

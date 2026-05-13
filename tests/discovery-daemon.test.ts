@@ -5103,6 +5103,10 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.externalFormalTop10Executed, 5);
   assert.equal(report.externalFormalExactClaimsFrozen, 5);
   assert.equal(report.externalFormalInsightCandidatesBorn, 0);
+  assert.equal(report.formalMechanismPressureCandidates, 5);
+  assert.equal((report.formalMechanismPressureChecksRun ?? 0) >= 20, true);
+  assert.equal((report.formalCrossSourceChecksRun ?? 0) >= 10, true);
+  assert.equal(report.formalGauntletInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5172,6 +5176,18 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "HIGH_SIGNAL_PILOT_RESULTS.md",
     "INSIGHT_BIRTH_DECISIONS.md",
     "INSIGHT_BIRTH_DECISIONS.json",
+    "FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json",
+    "HIGH_SIGNAL_FAILURE_PROFILES.md",
+    "HIGH_SIGNAL_FAILURE_PROFILES.json",
+    "FORMAL_MECHANISM_PRESSURE_RESULTS.md",
+    "FORMAL_MECHANISM_PRESSURE_RESULTS.json",
+    "FORMAL_PROOF_SKETCHES.md",
+    "FORMAL_MECHANISM_COUNTEREXAMPLES.md",
+    "CROSS_SOURCE_SUPPORT_SEARCH.md",
+    "CROSS_SOURCE_SUPPORT_RESULTS.md",
+    "CROSS_SOURCE_SUPPORT_RESULTS.json",
+    "INSIGHT_BIRTH_REEVALUATION.md",
+    "INSIGHT_BIRTH_REEVALUATION.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -5704,6 +5720,184 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         !decision.insightCandidateBorn && decision.blockers.length > 0,
     ),
     true,
+  );
+  const failureProfiles = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "HIGH_SIGNAL_FAILURE_PROFILES.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    profilesLoaded: number;
+    profiles: Array<{
+      anchorId: string;
+      exactClaim: string;
+      candidateMechanism: string;
+      rivalMechanism: string;
+      failedGate: string;
+      proofMechanismGap: string;
+      crossSourceGap: string;
+      replayPath: string;
+    }>;
+  };
+  assert.equal(failureProfiles.profilesLoaded, 5);
+  assert.equal(
+    failureProfiles.profiles.every(
+      (profile) =>
+        profile.exactClaim.length > 0 &&
+        profile.candidateMechanism.length > 0 &&
+        profile.rivalMechanism.length > 0 &&
+        profile.failedGate.length > 0 &&
+        profile.proofMechanismGap.length > 0 &&
+        profile.crossSourceGap.length > 0 &&
+        profile.replayPath.length > 0,
+    ),
+    true,
+  );
+  const mechanismPressure = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "FORMAL_MECHANISM_PRESSURE_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesTested: number;
+    checksRun: number;
+    mechanismSupported: number;
+    mechanismFailed: number;
+    results: Array<{
+      anchorId: string;
+      classification: string;
+      boundedProofSketch: string;
+      additionalBoundedChecks: Array<{ passed: boolean; observation: string }>;
+      smallestCounterexample: string | null;
+    }>;
+  };
+  assert.equal(mechanismPressure.candidatesTested, 5);
+  assert.equal(mechanismPressure.checksRun >= 20, true);
+  assert.equal(mechanismPressure.mechanismFailed > 0, true);
+  assert.equal(
+    mechanismPressure.results.every(
+      (result) =>
+        result.boundedProofSketch.length > 0 &&
+        result.additionalBoundedChecks.length >= 3 &&
+        result.additionalBoundedChecks.every(
+          (check) => check.observation.length > 0,
+        ) &&
+        [
+          "mechanism_supported",
+          "mechanism_inconclusive",
+          "mechanism_failed",
+          "counterexample_found",
+        ].includes(result.classification),
+    ),
+    true,
+  );
+  const crossSource = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CROSS_SOURCE_SUPPORT_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesTested: number;
+    requestedChecks: number;
+    checksRun: number;
+    results: Array<{
+      classification: string;
+      supportChecks: Array<{ sourceFamily: string; reason: string }>;
+    }>;
+  };
+  assert.equal(crossSource.candidatesTested, 5);
+  assert.equal(crossSource.requestedChecks, 10);
+  assert.equal(crossSource.checksRun >= 10, true);
+  assert.equal(
+    crossSource.results.every(
+      (result) =>
+        [
+          "cross_source_supported",
+          "same_source_only",
+          "no_cross_source_available",
+          "cross_source_failed",
+        ].includes(result.classification) &&
+        result.supportChecks.every((check) => check.reason.length > 0),
+    ),
+    true,
+  );
+  const formalReevaluation = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "INSIGHT_BIRTH_REEVALUATION.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesReevaluated: number;
+    candidatesArchived: number;
+    insightCandidatesBorn: number;
+    discoveryCandidatesCreated: number;
+    fundFound: boolean;
+    decisions: Array<{
+      insightCandidateBorn: boolean;
+      mechanismClassification: string;
+      crossSourceClassification: string;
+      blockers: string[];
+      archiveReason: string;
+    }>;
+  };
+  assert.equal(formalReevaluation.candidatesReevaluated, 5);
+  assert.equal(formalReevaluation.candidatesArchived, 5);
+  assert.equal(formalReevaluation.insightCandidatesBorn, 0);
+  assert.equal(formalReevaluation.discoveryCandidatesCreated, 0);
+  assert.equal(formalReevaluation.fundFound, false);
+  assert.equal(
+    formalReevaluation.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.archiveReason.length > 0 &&
+        decision.blockers.length > 0 &&
+        decision.mechanismClassification.length > 0 &&
+        decision.crossSourceClassification.length > 0,
+    ),
+    true,
+  );
+  const formalGauntlet = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "FORMAL_MECHANISM_CROSS_SOURCE_GAUNTLET.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    highSignalProfiles: { profilesLoaded: number };
+    mechanismPressure: { candidatesTested: number };
+    crossSourceSupport: { candidatesTested: number };
+    insightBirthReevaluation: { candidatesReevaluated: number };
+  };
+  assert.equal(formalGauntlet.highSignalProfiles.profilesLoaded, 5);
+  assert.equal(formalGauntlet.mechanismPressure.candidatesTested, 5);
+  assert.equal(formalGauntlet.crossSourceSupport.candidatesTested, 5);
+  assert.equal(
+    formalGauntlet.insightBirthReevaluation.candidatesReevaluated,
+    5,
   );
   const claimLift = JSON.parse(
     await readFile(

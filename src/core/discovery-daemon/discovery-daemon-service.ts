@@ -1995,6 +1995,7 @@ export type GeneratorBornDiscoveryClaimLiftSignalIntakeDecision = {
   gates: FundGate[];
   failedGates: string[];
   rawSourceReproductionConsistency: GeneratorBornClaimLiftRawSourceReproductionConsistency;
+  publicCorpusPackageInspectability: PublicCorpusPackageInspectabilityAssessment;
   evidenceHash: string;
 };
 
@@ -2008,6 +2009,27 @@ export type GeneratorBornClaimLiftRawSourceReproductionConsistency = {
   sourceResidualMagnitude: number | null;
   runtimeResidualMagnitude: number | null;
   reason: string;
+};
+
+export type PublicCorpusPackageInspectabilityAssessment = {
+  kind: "public_corpus_package_inspectability_assessment";
+  checked: boolean;
+  matched: boolean;
+  passed: boolean;
+  resultSlug: string | null;
+  publicReviewStatus: string | null;
+  publicRawScientificReproductionReady: boolean | null;
+  requiredFiles: string[];
+  missingFiles: string[];
+  requiredReproductionArtifacts: string[];
+  missingReproductionArtifacts: string[];
+  candidateIdMatches: boolean;
+  claimBindingsPresent: boolean;
+  reviewTextPresent: boolean;
+  machineReadableReproductionPresent: boolean;
+  blockers: string[];
+  reason: string;
+  evidenceHash: string;
 };
 
 export type GeneratorBornDiscoveryClaimLiftSignalIntakeReport = {
@@ -16523,6 +16545,8 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         failedGates: evaluation.failedGates,
         rawSourceReproductionConsistency:
           evaluation.rawSourceReproductionConsistency,
+        publicCorpusPackageInspectability:
+          evaluation.publicCorpusPackageInspectability,
       };
       return { ...decision, evidenceHash: hashEvidence(decision) };
     });
@@ -16603,6 +16627,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
     failedGates: string[];
     primaryBlocker: string;
     rawSourceReproductionConsistency: GeneratorBornClaimLiftRawSourceReproductionConsistency;
+    publicCorpusPackageInspectability: PublicCorpusPackageInspectabilityAssessment;
   }> {
     const packageRoot =
       rebindDecision.packageRef === null
@@ -16643,9 +16668,16 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         this.root,
         candidate,
       );
+    const publicCorpusPackageInspectability =
+      await publicCorpusPackageInspectabilityForClaimLiftIntake({
+        root: this.root,
+        candidate,
+        publicFundReconciliation,
+      });
     const fundGateResult =
       publicCorpusBlocksDiscovery ||
-      rawSourceReproductionConsistency.passed !== true
+      rawSourceReproductionConsistency.passed !== true ||
+      publicCorpusPackageInspectability.passed !== true
         ? {
             ...packageFundGateResult,
             passed: false,
@@ -16658,6 +16690,9 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
                   : []),
                 ...(rawSourceReproductionConsistency.passed !== true
                   ? ["raw_source_reproduction_consistency"]
+                  : []),
+                ...(publicCorpusPackageInspectability.passed !== true
+                  ? ["public_corpus_package_inspectability"]
                   : []),
               ]),
             ),
@@ -16691,6 +16726,11 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
         "raw_source_reproduction_consistency",
         rawSourceReproductionConsistency.passed === true,
         "Root intake for generator-born claim-lift packages requires public/raw source-cache metrics to match the bound generator runtime evidence.",
+      ),
+      gate(
+        "public_corpus_package_inspectability",
+        publicCorpusPackageInspectability.passed === true,
+        "Root intake requires a public corpus package with reviewer-facing files and a machine-readable raw/formal reproduction result, not only a SUMMARY.json clearance.",
       ),
       gate(
         "rebind_discovery_scored",
@@ -16737,6 +16777,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalIntakeService {
           ? "none"
           : generatorBornDiscoveryClaimLiftSignalIntakeBlocker(failedGates),
       rawSourceReproductionConsistency,
+      publicCorpusPackageInspectability,
     };
   }
 
@@ -29510,6 +29551,188 @@ async function generatorBornClaimLiftRawSourceReproductionConsistency(
   };
 }
 
+async function publicCorpusPackageInspectabilityForClaimLiftIntake(input: {
+  root: string;
+  candidate: FundCandidate | null;
+  publicFundReconciliation: {
+    matched: boolean;
+    resultSlug: string | null;
+    publicReviewStatus: string | null;
+    publicRawScientificReproductionReady: boolean | null;
+  };
+}): Promise<PublicCorpusPackageInspectabilityAssessment> {
+  const requiredFiles = [
+    "SUMMARY.json",
+    "FUND_CANDIDATE.json",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "METHOD.md",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+  ];
+  const requiredReproductionArtifacts = [
+    "standalone_reproduction_result.json or FORMAL_REPRODUCTION_RESULT.json or raw-reproduction-bundle/",
+  ];
+  const resultSlug = input.publicFundReconciliation.resultSlug;
+  const publicReviewStatus = input.publicFundReconciliation.publicReviewStatus;
+  const publicRawScientificReproductionReady =
+    input.publicFundReconciliation.publicRawScientificReproductionReady;
+  if (
+    input.candidate === null ||
+    input.publicFundReconciliation.matched !== true ||
+    resultSlug === null
+  ) {
+    return publicCorpusPackageInspectabilityAssessment({
+      checked: true,
+      matched: false,
+      passed: false,
+      resultSlug,
+      publicReviewStatus,
+      publicRawScientificReproductionReady,
+      requiredFiles,
+      missingFiles: requiredFiles,
+      requiredReproductionArtifacts,
+      missingReproductionArtifacts: requiredReproductionArtifacts,
+      candidateIdMatches: false,
+      claimBindingsPresent: false,
+      reviewTextPresent: false,
+      machineReadableReproductionPresent: false,
+      blockers: ["public_corpus_package_missing"],
+      reason:
+        "No matching public corpus result package is available for root claim-lift intake.",
+    });
+  }
+  const resultRoot = join(
+    dirname(input.root),
+    "sovryn-open-inventions",
+    "results",
+    resultSlug,
+  );
+  const fileExists = await Promise.all(
+    requiredFiles.map(async (file) => ({
+      file,
+      exists: await exists(join(resultRoot, file)),
+    })),
+  );
+  const missingFiles = fileExists
+    .filter((item) => !item.exists)
+    .map((item) => item.file);
+  const summary = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "SUMMARY.json"),
+  );
+  const publicCandidate = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "FUND_CANDIDATE.json"),
+  );
+  const bindings = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+  );
+  const nestedCandidate = isRecord(publicCandidate?.candidate)
+    ? publicCandidate.candidate
+    : null;
+  const bindingsCandidate = isRecord(bindings?.candidate)
+    ? bindings.candidate
+    : null;
+  const bindingsFundCandidate = isRecord(bindings?.fundCandidate)
+    ? bindings.fundCandidate
+    : null;
+  const candidateIds = uniqueStrings(
+    [
+      optionalString(summary?.candidateId),
+      optionalString(summary?.sourceCandidateId),
+      optionalString(publicCandidate?.candidateId),
+      optionalString(nestedCandidate?.candidateId),
+    ].filter((value): value is string => value !== null),
+  );
+  const bindingCandidateIds = uniqueStrings(
+    [
+      optionalString(bindings?.candidateId),
+      optionalString(bindingsCandidate?.candidateId),
+      optionalString(bindingsFundCandidate?.candidateId),
+    ].filter((value): value is string => value !== null),
+  );
+  const candidateIdMatches =
+    candidateIds.includes(input.candidate.candidateId) &&
+    bindingCandidateIds.includes(input.candidate.candidateId);
+  const claimBindingsPresent =
+    bindings !== null &&
+    (stringArray(bindings.evidenceRefs).length >= 5 ||
+      stringArray(bindings.insightEvidenceRefs).length >= 2 ||
+      stringArray(bindings.nontrivialInsightEvidenceRefs).length >= 2);
+  const reviewTextPresent =
+    (await exists(join(resultRoot, "PAPER.md"))) ||
+    (await exists(join(resultRoot, "REVIEWER_BRIEF.md")));
+  const machineReadableReproductionPresent =
+    (await exists(join(resultRoot, "standalone_reproduction_result.json"))) ||
+    (await exists(join(resultRoot, "FORMAL_REPRODUCTION_RESULT.json"))) ||
+    (await exists(join(resultRoot, "raw-reproduction-bundle")));
+  const reviewStatusAllowsRootIntake =
+    publicReviewStatusAllowsClaimLiftRootIntake(publicReviewStatus);
+  const blockers = uniqueStrings([
+    ...missingFiles.map((file) => `missing_public_file:${file}`),
+    ...(candidateIdMatches ? [] : ["candidate_id_mismatch"]),
+    ...(claimBindingsPresent ? [] : ["claim_evidence_bindings_incomplete"]),
+    ...(reviewTextPresent ? [] : ["review_text_missing"]),
+    ...(machineReadableReproductionPresent
+      ? []
+      : ["machine_readable_reproduction_missing"]),
+    ...(reviewStatusAllowsRootIntake
+      ? []
+      : ["public_review_status_not_replay_ready"]),
+    ...(publicRawScientificReproductionReady === false
+      ? ["public_raw_scientific_reproduction_not_ready"]
+      : []),
+  ]);
+  return publicCorpusPackageInspectabilityAssessment({
+    checked: true,
+    matched: true,
+    passed: blockers.length === 0,
+    resultSlug,
+    publicReviewStatus,
+    publicRawScientificReproductionReady,
+    requiredFiles,
+    missingFiles,
+    requiredReproductionArtifacts,
+    missingReproductionArtifacts: machineReadableReproductionPresent
+      ? []
+      : requiredReproductionArtifacts,
+    candidateIdMatches,
+    claimBindingsPresent,
+    reviewTextPresent,
+    machineReadableReproductionPresent,
+    blockers,
+    reason:
+      blockers.length === 0
+        ? "Public corpus package exposes candidate bindings, reviewer-facing files, and machine-readable raw/formal reproduction evidence."
+        : "Public corpus package is not yet inspectable enough for root claim-lift Fund intake.",
+  });
+}
+
+function publicCorpusPackageInspectabilityAssessment(
+  input: Omit<
+    PublicCorpusPackageInspectabilityAssessment,
+    "kind" | "evidenceHash"
+  >,
+): PublicCorpusPackageInspectabilityAssessment {
+  return withEvidenceHash({
+    kind: "public_corpus_package_inspectability_assessment" as const,
+    ...input,
+  });
+}
+
+function publicReviewStatusAllowsClaimLiftRootIntake(
+  value: string | null,
+): boolean {
+  if (value === null || publicReviewStatusBlocksSeedBirth(value)) {
+    return false;
+  }
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("raw_scientific_reproduction_succeeded") ||
+    normalized.includes("formal_reproduction_succeeded") ||
+    normalized.includes("formal_replay_succeeded") ||
+    normalized.includes("raw_or_formal_reproduction_succeeded")
+  );
+}
+
 function generatorBornClaimLiftRawSourceReproductionConsistencyNotChecked(
   reason: string,
 ): GeneratorBornClaimLiftRawSourceReproductionConsistency {
@@ -30006,6 +30229,9 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBlocker(
   if (failedGates.includes("raw_source_reproduction_consistency")) {
     return "raw_source_reproduction_mismatch";
   }
+  if (failedGates.includes("public_corpus_package_inspectability")) {
+    return "public_corpus_package_incomplete";
+  }
   if (
     failedGates.includes("rebind_discovery_scored") ||
     failedGates.includes("package_discovery_scored_fund_class")
@@ -30034,6 +30260,14 @@ function generatorBornDiscoveryClaimLiftSignalIntakeBottleneck(input: {
   }
   if (input.eligibleCount > 0) {
     return "At least one package was eligible for root intake, but the package-backed cycle did not produce a discovery-scored Fund notification. Inspect SIGNAL_INTAKE_FUND_GATE_RESULTS.json.";
+  }
+  if (
+    input.decisions.some(
+      (decision) =>
+        decision.primaryBlocker === "public_corpus_package_incomplete",
+    )
+  ) {
+    return "A rebound package has discovery-scored internal evidence, but root intake requires a complete public corpus review package with machine-readable raw/formal reproduction evidence before Fund state can be written.";
   }
   if (input.decisions.length === 0) {
     return "No signal-rebind decisions are available for root package intake.";

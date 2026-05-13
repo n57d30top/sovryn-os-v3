@@ -1232,6 +1232,7 @@ async function writePublicCorpusDiscoveryClearance(
   root: string,
   candidateId: string,
   publicReviewStatus = "raw_scientific_reproduction_succeeded",
+  options: { writeInspectabilityPackage?: boolean } = {},
 ): Promise<void> {
   const packageRoot = join(
     root,
@@ -1252,6 +1253,9 @@ async function writePublicCorpusDiscoveryClearance(
       publicReviewStatus,
       fundClass: "externally_review_ready_discovery_candidate",
       countsForEinsteinNobelDiscoveryScore: true,
+      publicRawScientificReproductionReady: publicReviewStatus
+        .toLowerCase()
+        .includes("reproduction_succeeded"),
     }),
     "utf8",
   );
@@ -1259,9 +1263,72 @@ async function writePublicCorpusDiscoveryClearance(
     join(packageRoot, "FUND_CANDIDATE.json"),
     JSON.stringify({
       kind: "fund_candidate",
-      candidate: { candidateId },
+      candidate: {
+        candidateId,
+        claim:
+          "Fixture public corpus package binds a replay-ready discovery-scored claim-lift candidate.",
+      },
       fundClass: "externally_review_ready_discovery_candidate",
       countsForEinsteinNobelDiscoveryScore: true,
+    }),
+    "utf8",
+  );
+  if (options.writeInspectabilityPackage === false) return;
+  await writeFile(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    JSON.stringify({
+      kind: "claim_evidence_bindings",
+      candidateId,
+      claim:
+        "Fixture public corpus package binds a replay-ready discovery-scored claim-lift candidate.",
+      evidenceRefs: [
+        "PAPER.md#claim",
+        "METHOD.md#method",
+        "REPRODUCE.md#replay",
+        "LIMITATIONS.md#scope",
+        "FORMAL_REPRODUCTION_RESULT.json#result",
+      ],
+      predictionRefs: ["FORMAL_REPRODUCTION_RESULT.json#predictions"],
+      holdoutRefs: ["FORMAL_REPRODUCTION_RESULT.json#holdout"],
+      counterexampleRefs: ["FORMAL_REPRODUCTION_RESULT.json#counterexamples"],
+      replayRefs: ["FORMAL_REPRODUCTION_RESULT.json#replay"],
+      killWeekRefs: ["FORMAL_REPRODUCTION_RESULT.json#kill-week"],
+      insightEvidenceRefs: [
+        "FORMAL_REPRODUCTION_RESULT.json#formal-runtime-source",
+        "FORMAL_REPRODUCTION_RESULT.json#residual",
+      ],
+      noOverclaim: true,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "PAPER.md"),
+    "# Reviewer Brief\n\nBounded fixture review package for a claim-lift candidate. No external validation is claimed.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    "# Method\n\nReplay the formal or raw source evidence and compare it with the bound runtime result.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "REPRODUCE.md"),
+    "# Reproduce\n\nUse FORMAL_REPRODUCTION_RESULT.json as the machine-readable public replay result for this fixture package.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "# Limitations\n\nNo Nobel, Einstein-level, breakthrough, external-validation, or external-adoption claim is made.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "FORMAL_REPRODUCTION_RESULT.json"),
+    JSON.stringify({
+      kind: "formal_reproduction_result",
+      candidateId,
+      status: "formal_reproduction_succeeded",
+      replayReady: true,
+      publicSafe: true,
     }),
     "utf8",
   );
@@ -7329,6 +7396,42 @@ test("generator-born claim lift intake consumes rebound discovery package throug
   assert.equal(reconciledState.fundFound, false);
   assert.equal(
     await exists(join(root, daemonRoot, "search-cycles", "cycle-0000.json")),
+    false,
+  );
+
+  for (const decision of rebind.decisions.filter(
+    (item) => item.rebindStatus === "rebound",
+  )) {
+    await writePublicCorpusDiscoveryClearance(
+      root,
+      decision.candidateId,
+      "raw_scientific_reproduction_succeeded",
+      { writeInspectabilityPackage: false },
+    );
+  }
+
+  const summaryOnlyPublicIntake = await service.generatorClaimLiftIntake();
+
+  assert.equal(
+    summaryOnlyPublicIntake.status,
+    "continue_searching_checkpointed",
+  );
+  assert.equal(summaryOnlyPublicIntake.eligiblePackages, 0);
+  assert.equal(summaryOnlyPublicIntake.fundFound, false);
+  assert.equal(
+    summaryOnlyPublicIntake.blockerDistribution
+      .public_corpus_package_incomplete > 0,
+    true,
+  );
+  assert.equal(
+    summaryOnlyPublicIntake.decisions.some((decision) =>
+      decision.failedGates.includes("public_corpus_package_inspectability"),
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
 

@@ -5054,7 +5054,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   );
 
   const firstReport = await service.sourceObjectEngine();
-  assert.equal(firstReport.externalFormalTop10Executed, 10);
+  assert.equal(firstReport.externalFormalTop10Executed, 5);
   const firstExternalSelection = JSON.parse(
     await readFile(
       join(
@@ -5100,8 +5100,8 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal((report.externalFormalQualityRejected ?? 0) > 0, true);
   assert.equal((report.externalFormalAnchorsRejected ?? 0) > 0, true);
   assert.equal(report.externalFormalTop20Selected, 20);
-  assert.equal(report.externalFormalTop10Executed, 10);
-  assert.equal(report.externalFormalExactClaimsFrozen, 10);
+  assert.equal(report.externalFormalTop10Executed, 5);
+  assert.equal(report.externalFormalExactClaimsFrozen, 5);
   assert.equal(report.externalFormalInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
@@ -5151,6 +5151,13 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "ANCHOR_QUALITY_GATE.md",
     "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json",
     "REJECTED_LOW_QUALITY_ANCHORS.md",
+    "DEATH_CAUSE_INTEGRITY_AUDIT.md",
+    "DEATH_CAUSE_INTEGRITY_AUDIT.json",
+    "DEATH_CAUSE_EVIDENCE_BINDINGS.json",
+    "OBJECT_CLAIM_PAIR_QUALITY.md",
+    "OBJECT_CLAIM_PAIR_QUALITY.json",
+    "SIGNAL_SELECTION_RULES.md",
+    "REJECTED_LOW_SIGNAL_OBJECT_CLAIMS.md",
     "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
     "FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md",
     "TOP20_EXTERNAL_FORMAL_ANCHORS.md",
@@ -5162,6 +5169,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "CLAIM_FIRST_EXTERNAL_OBJECT_RESULTS.md",
     "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json",
     "CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md",
+    "HIGH_SIGNAL_PILOT_RESULTS.md",
     "INSIGHT_BIRTH_DECISIONS.md",
     "INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
@@ -5452,6 +5460,41 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     ),
     true,
   );
+  const objectClaimQuality = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "OBJECT_CLAIM_PAIR_QUALITY.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    objectClaimPairsScored: number;
+    highSignalGatePassed: number;
+    rejectedLowSignal: number;
+    top5Selected: number;
+    scores: Array<{
+      anchorId: string;
+      highSignalGatePassed: boolean;
+      expectedDeathCausePreObvious: boolean;
+      rejectionReasons: string[];
+    }>;
+    top5: Array<{ anchorId: string }>;
+  };
+  assert.equal(objectClaimQuality.objectClaimPairsScored, 20);
+  assert.equal(objectClaimQuality.highSignalGatePassed >= 5, true);
+  assert.equal(objectClaimQuality.rejectedLowSignal > 0, true);
+  assert.equal(objectClaimQuality.top5Selected, 5);
+  assert.equal(objectClaimQuality.top5.length, 5);
+  assert.equal(
+    objectClaimQuality.scores.every(
+      (score) =>
+        score.highSignalGatePassed || score.rejectionReasons.length > 0,
+    ),
+    true,
+  );
   const failedExternalAutopsy = JSON.parse(
     await readFile(
       join(
@@ -5507,11 +5550,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(externalSelection.rejectedBeforeExecution > 0, true);
   assert.equal(externalSelection.top20Selected, 20);
   assert.equal(externalSelection.top20.length, 20);
-  assert.equal(externalSelection.top10PilotSelected, 10);
+  assert.equal(externalSelection.top10PilotSelected, 5);
   const pilotQualityDecisions = externalSelection.decisions.filter(
     (decision) => decision.selectedForPilot,
   );
-  assert.equal(pilotQualityDecisions.length, 10);
+  assert.equal(pilotQualityDecisions.length, 5);
   assert.equal(
     pilotQualityDecisions.every(
       (decision) =>
@@ -5535,6 +5578,15 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     ),
     true,
   );
+  const selectedHighSignalIds = new Set(
+    objectClaimQuality.top5.map((anchor) => anchor.anchorId),
+  );
+  assert.equal(
+    externalSelection.top10.every((anchor) =>
+      selectedHighSignalIds.has(anchor.anchorId),
+    ),
+    true,
+  );
   const externalExecution = JSON.parse(
     await readFile(
       join(
@@ -5553,17 +5605,72 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       testsRun: number;
       exactClaimFrozen: string;
       evidenceRefs: string[];
+      measuredOutcome: number;
+      simpleBaseline: number;
+      rivalBaseline: number;
+      counterexampleControl: number;
+      residualMagnitude: number;
+      deathCause: string;
     }>;
   };
-  assert.equal(externalExecution.top10PilotSelected, 10);
-  assert.equal(externalExecution.exactClaimsFrozen, 10);
-  assert.equal(externalExecution.testsRun, 60);
+  assert.equal(externalExecution.top10PilotSelected, 5);
+  assert.equal(externalExecution.exactClaimsFrozen, 5);
+  assert.equal(externalExecution.testsRun, 30);
   assert.equal(
     externalExecution.results.every(
       (result) =>
         result.testsRun === 6 &&
         result.exactClaimFrozen.length > 0 &&
         result.evidenceRefs.length >= 4,
+    ),
+    true,
+  );
+  assert.equal(
+    externalExecution.results.every((result) => {
+      if (result.deathCause === "baseline_dominated") {
+        return result.simpleBaseline >= result.measuredOutcome;
+      }
+      if (result.deathCause === "rival_theory_stronger") {
+        return result.rivalBaseline >= result.measuredOutcome;
+      }
+      if (result.deathCause === "counterexample_dense") {
+        return result.counterexampleControl >= result.measuredOutcome;
+      }
+      if (result.deathCause === "no_nontrivial_residual") {
+        return result.residualMagnitude < 0.05;
+      }
+      return result.deathCause.length > 0;
+    }),
+    true,
+  );
+  const deathCauseIntegrity = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "DEATH_CAUSE_INTEGRITY_AUDIT.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    repeatedDeathCauseTemplatesDetected: boolean;
+    unsupportedDeathCauses: number;
+    weakLinkages: number;
+    bindings: Array<{
+      supportedByMeasuredEvidence: boolean;
+      templateLikeDeathCauseRisk: boolean;
+    }>;
+  };
+  assert.equal(deathCauseIntegrity.repeatedDeathCauseTemplatesDetected, false);
+  assert.equal(deathCauseIntegrity.unsupportedDeathCauses, 0);
+  assert.equal(deathCauseIntegrity.weakLinkages, 0);
+  assert.equal(deathCauseIntegrity.bindings.length, 5);
+  assert.equal(
+    deathCauseIntegrity.bindings.every(
+      (binding) =>
+        binding.supportedByMeasuredEvidence &&
+        !binding.templateLikeDeathCauseRisk,
     ),
     true,
   );
@@ -5587,7 +5694,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       blockers: string[];
     }>;
   };
-  assert.equal(formalBirth.objectClaimPairsEvaluated, 10);
+  assert.equal(formalBirth.objectClaimPairsEvaluated, 5);
   assert.equal(formalBirth.insightCandidatesBorn, 0);
   assert.equal(formalBirth.discoveryCandidatesCreated, 0);
   assert.equal(formalBirth.fundFound, false);

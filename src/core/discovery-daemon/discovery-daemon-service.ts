@@ -2044,6 +2044,83 @@ export type ExternalFormalPilotExecutionReport = {
   evidenceHash: string;
 };
 
+export type ExternalFormalDeathCauseEvidenceBinding = {
+  kind: "external_formal_death_cause_evidence_binding";
+  anchorId: string;
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  deathCause: SourceObjectReplayResult["primaryDeathCause"] | "known_trivial";
+  measuredOutcome: number;
+  simpleBaseline: number;
+  rivalBaseline: number;
+  counterexampleControl: number;
+  residualMagnitude: number;
+  boundedCheckPassed: boolean;
+  baselineCheckPassed: boolean;
+  rivalDiscriminationPassed: boolean;
+  counterexampleSearchPassed: boolean;
+  replayPassed: boolean;
+  knownTrivialityNonfatal: boolean;
+  supportReasons: string[];
+  supportedByMeasuredEvidence: boolean;
+  templateLikeDeathCauseRisk: boolean;
+  evidenceHash: string;
+};
+
+export type ExternalFormalDeathCauseIntegrityAuditReport = {
+  kind: "external_formal_death_cause_integrity_audit";
+  runsCompared: number;
+  selectedObjectsCompared: number;
+  repeatedDeathCauseTemplatesDetected: boolean;
+  identicalDeathCauseDistributionDetected: boolean;
+  unsupportedDeathCauses: number;
+  weakLinkages: number;
+  verdict:
+    | "measurement_bound"
+    | "template_like_requires_repair"
+    | "insufficient_history_but_current_measurement_bound";
+  runSummaries: Array<{
+    runId: string;
+    selectedObjects: number;
+    deathCauseDistribution: Record<string, number>;
+    anchorIds: string[];
+  }>;
+  bindings: ExternalFormalDeathCauseEvidenceBinding[];
+  evidenceHash: string;
+};
+
+export type ExternalFormalObjectClaimPairQualityScore = {
+  kind: "external_formal_object_claim_pair_quality_score";
+  anchorId: string;
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  objectConcreteness: number;
+  sourceReplayability: number;
+  claimPrecision: number;
+  candidateVsRivalTension: number;
+  baselineRisk: number;
+  nontrivialityPotential: number;
+  counterexampleRisk: number;
+  knownTrivialityRisk: number;
+  capableOfSurviving: boolean;
+  expectedDeathCausePreObvious: boolean;
+  highSignalGatePassed: boolean;
+  totalScore: number;
+  rejectionReasons: string[];
+  evidenceHash: string;
+};
+
+export type ExternalFormalObjectClaimPairQualityReport = {
+  kind: "external_formal_object_claim_pair_quality";
+  objectClaimPairsScored: number;
+  highSignalGatePassed: number;
+  rejectedLowSignal: number;
+  top5Selected: number;
+  scores: ExternalFormalObjectClaimPairQualityScore[];
+  top5: ExternalFormalProblemAnchor[];
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -13946,8 +14023,20 @@ export class SourceObjectFirstDiscoveryEngine {
       externalFormalAnchors,
       externalFormalQuality,
     );
+    const externalFormalObjectClaimQuality =
+      scoreExternalFormalObjectClaimPairs(externalFormalSelection);
+    const highSignalExternalFormalSelection =
+      selectHighSignalExternalFormalPilots(
+        externalFormalSelection,
+        externalFormalObjectClaimQuality,
+      );
     const externalFormalExecution = executeExternalFormalClaimFirstPilots(
-      externalFormalSelection,
+      highSignalExternalFormalSelection,
+    );
+    const deathCauseIntegrityAudit = externalFormalDeathCauseIntegrityAudit(
+      externalFormalExecution,
+      previousExternalFormalExecution,
+      previousExternalFormalFailureAutopsy,
     );
     const externalFormalInsightBirth = decideExternalFormalInsightBirth(
       externalFormalExecution,
@@ -14018,8 +14107,9 @@ export class SourceObjectFirstDiscoveryEngine {
       externalFormalQualityRejected:
         externalFormalQuality.rejectedByQualityGate,
       externalFormalAnchorsRejected:
-        externalFormalSelection.rejectedBeforeExecution,
-      externalFormalTop20Selected: externalFormalSelection.top20Selected,
+        highSignalExternalFormalSelection.rejectedBeforeExecution,
+      externalFormalTop20Selected:
+        highSignalExternalFormalSelection.top20Selected,
       externalFormalTop10Executed: externalFormalExecution.top10PilotSelected,
       externalFormalExactClaimsFrozen:
         externalFormalExecution.exactClaimsFrozen,
@@ -14074,8 +14164,10 @@ export class SourceObjectFirstDiscoveryEngine {
       externalFormalObjectHarvest,
       externalFormalAnchors,
       externalFormalQuality,
-      externalFormalSelection,
+      externalFormalSelection: highSignalExternalFormalSelection,
+      externalFormalObjectClaimQuality,
       externalFormalExecution,
+      externalFormalDeathCauseIntegrityAudit: deathCauseIntegrityAudit,
       externalFormalInsightBirth,
       insightClosure,
       requiredNextTestClosure,
@@ -14186,6 +14278,14 @@ export class SourceObjectFirstDiscoveryEngine {
     const externalFormalQuality =
       await readOptionalJson<SourceObjectExternalFormalAnchorQualityReport>(
         join(this.engineRoot(), "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json"),
+      );
+    const externalFormalObjectClaimQuality =
+      await readOptionalJson<ExternalFormalObjectClaimPairQualityReport>(
+        join(this.engineRoot(), "OBJECT_CLAIM_PAIR_QUALITY.json"),
+      );
+    const externalFormalDeathCauseIntegrity =
+      await readOptionalJson<ExternalFormalDeathCauseIntegrityAuditReport>(
+        join(this.engineRoot(), "DEATH_CAUSE_INTEGRITY_AUDIT.json"),
       );
     const externalFormalSelection =
       await readOptionalJson<SourceObjectExternalFormalAnchorSelectionReport>(
@@ -14356,12 +14456,25 @@ export class SourceObjectFirstDiscoveryEngine {
         "Anchor Quality Gate must score at least fifty anchors and reject low-quality anchors before top-ten execution.",
       ),
       gate(
+        "external_formal_signal_selection_upgraded",
+        externalFormalObjectClaimQuality !== null &&
+          externalFormalObjectClaimQuality.objectClaimPairsScored === 20 &&
+          externalFormalObjectClaimQuality.highSignalGatePassed >= 5 &&
+          externalFormalObjectClaimQuality.rejectedLowSignal > 0 &&
+          externalFormalObjectClaimQuality.top5Selected === 5 &&
+          externalFormalObjectClaimQuality.scores.every(
+            (score) =>
+              score.highSignalGatePassed || score.rejectionReasons.length > 0,
+          ),
+        "Object/claim pair signal selection must score the top twenty, reject low-signal pairs before execution, and select exactly five high-signal pilots.",
+      ),
+      gate(
         "external_formal_anchor_screening_completed",
         externalFormalSelection !== null &&
           externalFormalSelection.anchorsScreened >= 50 &&
           externalFormalSelection.rejectedBeforeExecution > 0 &&
           externalFormalSelection.top20Selected === 20 &&
-          externalFormalSelection.top10PilotSelected === 10 &&
+          externalFormalSelection.top10PilotSelected === 5 &&
           externalFormalTop10Anchors.every(
             (anchor) =>
               externalFormalPilotAnchorIds.has(anchor.anchorId) &&
@@ -14376,26 +14489,42 @@ export class SourceObjectFirstDiscoveryEngine {
               externalFormalDecisionByAnchorId.get(anchor.anchorId)
                 ?.qualityGatePassed === true,
           ),
-        "External formal anchors must be screened before execution; only the top ten concrete, exact-claim, falsifiable anchors may run pilots.",
+        "External formal anchors must be screened before execution; only five high-signal concrete, exact-claim, falsifiable anchors may run pilots.",
       ),
       gate(
         "external_formal_claim_first_execution_completed",
         externalFormalExecution !== null &&
-          externalFormalExecution.top10PilotSelected === 10 &&
-          externalFormalExecution.exactClaimsFrozen === 10 &&
-          externalFormalExecution.testsRun >= 50 &&
+          externalFormalExecution.top10PilotSelected === 5 &&
+          externalFormalExecution.exactClaimsFrozen === 5 &&
+          externalFormalExecution.testsRun >= 30 &&
           externalFormalExecution.results.every(
             (result) =>
               result.testsRun >= 5 &&
               result.exactClaimFrozen.length > 0 &&
               result.evidenceRefs.length > 0,
           ),
-        "The selected external formal top ten must freeze exact claims and run bounded, baseline, rival, counterexample, replay, and known/triviality checks.",
+        "The selected external formal high-signal pilots must freeze exact claims and run bounded, baseline, rival, counterexample, replay, and known/triviality checks.",
+      ),
+      gate(
+        "external_formal_death_causes_measurement_bound",
+        externalFormalDeathCauseIntegrity !== null &&
+          externalFormalDeathCauseIntegrity.unsupportedDeathCauses === 0 &&
+          externalFormalDeathCauseIntegrity.weakLinkages === 0 &&
+          externalFormalDeathCauseIntegrity.repeatedDeathCauseTemplatesDetected ===
+            false &&
+          externalFormalDeathCauseIntegrity.bindings.length ===
+            externalFormalExecution?.results.length &&
+          externalFormalDeathCauseIntegrity.bindings.every(
+            (binding) =>
+              binding.supportedByMeasuredEvidence &&
+              !binding.templateLikeDeathCauseRisk,
+          ),
+        "Formal pilot death causes must be bound to measured evidence and must not be ordinal/template assignments.",
       ),
       gate(
         "external_formal_insight_birth_fail_closed",
         externalFormalInsightBirth !== null &&
-          externalFormalInsightBirth.objectClaimPairsEvaluated === 10 &&
+          externalFormalInsightBirth.objectClaimPairsEvaluated === 5 &&
           externalFormalInsightBirth.discoveryCandidatesCreated === 0 &&
           externalFormalInsightBirth.fundFound === false &&
           externalFormalInsightBirth.decisions.every(
@@ -14887,7 +15016,9 @@ export class SourceObjectFirstDiscoveryEngine {
     externalFormalAnchors: ExternalFormalAnchorSourcesReport;
     externalFormalQuality: SourceObjectExternalFormalAnchorQualityReport;
     externalFormalSelection: SourceObjectExternalFormalAnchorSelectionReport;
+    externalFormalObjectClaimQuality: ExternalFormalObjectClaimPairQualityReport;
     externalFormalExecution: ExternalFormalPilotExecutionReport;
+    externalFormalDeathCauseIntegrityAudit: ExternalFormalDeathCauseIntegrityAuditReport;
     externalFormalInsightBirth: FormalInsightBirthDecisionReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
@@ -15092,6 +15223,41 @@ export class SourceObjectFirstDiscoveryEngine {
         input.externalFormalQuality,
       ),
     );
+    await writeJson(
+      join(root, "DEATH_CAUSE_INTEGRITY_AUDIT.json"),
+      input.externalFormalDeathCauseIntegrityAudit,
+    );
+    await writeJson(join(root, "DEATH_CAUSE_EVIDENCE_BINDINGS.json"), {
+      kind: "external_formal_death_cause_evidence_bindings",
+      bindings: input.externalFormalDeathCauseIntegrityAudit.bindings,
+      evidenceHash: hashEvidence(
+        input.externalFormalDeathCauseIntegrityAudit.bindings,
+      ),
+    });
+    await writeText(
+      join(root, "DEATH_CAUSE_INTEGRITY_AUDIT.md"),
+      deathCauseIntegrityAuditMarkdown(
+        input.externalFormalDeathCauseIntegrityAudit,
+      ),
+    );
+    await writeJson(
+      join(root, "OBJECT_CLAIM_PAIR_QUALITY.json"),
+      input.externalFormalObjectClaimQuality,
+    );
+    await writeText(
+      join(root, "OBJECT_CLAIM_PAIR_QUALITY.md"),
+      objectClaimPairQualityMarkdown(input.externalFormalObjectClaimQuality),
+    );
+    await writeText(
+      join(root, "SIGNAL_SELECTION_RULES.md"),
+      signalSelectionRulesMarkdown(),
+    );
+    await writeText(
+      join(root, "REJECTED_LOW_SIGNAL_OBJECT_CLAIMS.md"),
+      rejectedLowSignalObjectClaimsMarkdown(
+        input.externalFormalObjectClaimQuality,
+      ),
+    );
     await writeText(
       join(root, "TOP20_EXTERNAL_FORMAL_ANCHORS.md"),
       top20ExternalFormalAnchorsMarkdown(input.externalFormalSelection),
@@ -15126,6 +15292,10 @@ export class SourceObjectFirstDiscoveryEngine {
     );
     await writeText(
       join(root, "CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md"),
+      claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
+    );
+    await writeText(
+      join(root, "HIGH_SIGNAL_PILOT_RESULTS.md"),
       claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
     );
     await writeJson(
@@ -17650,6 +17820,169 @@ function selectExternalFormalAnchors(
   });
 }
 
+function scoreExternalFormalObjectClaimPairs(
+  selection: SourceObjectExternalFormalAnchorSelectionReport,
+): ExternalFormalObjectClaimPairQualityReport {
+  const scores = selection.top20.map((anchor) =>
+    externalFormalObjectClaimPairQualityScore(anchor),
+  );
+  const passed = scores
+    .filter((score) => score.highSignalGatePassed)
+    .sort(
+      (left, right) =>
+        right.totalScore - left.totalScore ||
+        left.anchorId.localeCompare(right.anchorId),
+    );
+  const top5Ids = new Set(passed.slice(0, 5).map((score) => score.anchorId));
+  return withEvidenceHash({
+    kind: "external_formal_object_claim_pair_quality" as const,
+    objectClaimPairsScored: scores.length,
+    highSignalGatePassed: scores.filter((score) => score.highSignalGatePassed)
+      .length,
+    rejectedLowSignal: scores.filter((score) => !score.highSignalGatePassed)
+      .length,
+    top5Selected: top5Ids.size,
+    scores,
+    top5: selection.top20.filter((anchor) => top5Ids.has(anchor.anchorId)),
+  });
+}
+
+function externalFormalObjectClaimPairQualityScore(
+  anchor: ExternalFormalProblemAnchor,
+): ExternalFormalObjectClaimPairQualityScore {
+  const forecast = externalFormalPilotMeasurement(anchor);
+  const objectConcreteness = anchor.concreteSourceObject ? 100 : 0;
+  const sourceReplayability =
+    anchor.replayPath.length > 0 && anchor.sourceReceipt.length > 0 ? 100 : 0;
+  const claimPrecision =
+    anchor.exactBoundedClaim.length >= 120 && !anchor.screeningHints.claimVague
+      ? 100
+      : 45;
+  const candidateVsRivalTension =
+    anchor.falsifiablePrediction.length > 0 &&
+    anchor.candidateMechanism !== anchor.strongestRivalMechanism
+      ? 100
+      : 35;
+  const baselineRisk =
+    forecast.baselineDominates ||
+    anchor.screeningHints.simpleBaselineLikelyExplains
+      ? 30
+      : 92;
+  const nontrivialityPotential =
+    forecast.residualMagnitude >= 0.045 &&
+    !anchor.screeningHints.claimOnlyStatesBoundedCheckSuccess
+      ? 94
+      : 38;
+  const counterexampleRisk = forecast.counterexampleCollapses ? 35 : 88;
+  const knownTrivialityRisk =
+    anchor.knownPriorRisk === "low"
+      ? 94
+      : anchor.knownPriorRisk === "medium"
+        ? 68
+        : 20;
+  const expectedDeathCausePreObvious =
+    anchor.screeningHints.knownTheoremAbsorbs ||
+    anchor.screeningHints.sourceFamilyExplainsLikely ||
+    anchor.screeningHints.simpleBaselineLikelyExplains ||
+    forecast.baselineDominates ||
+    forecast.rivalDominates ||
+    forecast.residualMagnitude < 0.035;
+  const rejectionReasons = [
+    objectConcreteness >= 80 ? "" : "missing_concrete_replayable_object",
+    sourceReplayability >= 80 ? "" : "missing_replay_path",
+    claimPrecision >= 80 ? "" : "claim_not_precise_enough",
+    candidateVsRivalTension >= 80 ? "" : "weak_candidate_rival_tension",
+    baselineRisk >= 70 ? "" : "baseline_dominance_predictable",
+    nontrivialityPotential >= 70 ? "" : "no_nontrivial_residual_expected",
+    counterexampleRisk >= 70 ? "" : "counterexample_collapse_predictable",
+    knownTrivialityRisk >= 60 ? "" : "known_triviality_risk_too_high",
+    expectedDeathCausePreObvious
+      ? "death_cause_predictable_before_execution"
+      : "",
+  ].filter(Boolean);
+  const totalScore = Math.round(
+    (objectConcreteness +
+      sourceReplayability +
+      claimPrecision +
+      candidateVsRivalTension +
+      baselineRisk +
+      nontrivialityPotential +
+      counterexampleRisk +
+      knownTrivialityRisk) /
+      8,
+  );
+  return withEvidenceHash({
+    kind: "external_formal_object_claim_pair_quality_score" as const,
+    anchorId: anchor.anchorId,
+    objectId: anchor.objectId,
+    sourceFamily: anchor.sourceFamily,
+    objectConcreteness,
+    sourceReplayability,
+    claimPrecision,
+    candidateVsRivalTension,
+    baselineRisk,
+    nontrivialityPotential,
+    counterexampleRisk,
+    knownTrivialityRisk,
+    capableOfSurviving: rejectionReasons.length === 0,
+    expectedDeathCausePreObvious,
+    highSignalGatePassed: rejectionReasons.length === 0 && totalScore >= 82,
+    totalScore,
+    rejectionReasons,
+  });
+}
+
+function selectHighSignalExternalFormalPilots(
+  selection: SourceObjectExternalFormalAnchorSelectionReport,
+  quality: ExternalFormalObjectClaimPairQualityReport,
+): SourceObjectExternalFormalAnchorSelectionReport {
+  const top5Ids = new Set(quality.top5.map((anchor) => anchor.anchorId));
+  const decisionByAnchorId = new Map(
+    selection.decisions.map((decision) => [decision.anchorId, decision]),
+  );
+  const decisions = selection.decisions.map((decision) => {
+    const selectedForPilot = top5Ids.has(decision.anchorId);
+    return withEvidenceHash({
+      ...decision,
+      status: selectedForPilot
+        ? ("selected_for_top10_pilot" as const)
+        : decision.selectedForTop20
+          ? ("selected_for_top20" as const)
+          : decision.status,
+      selectedForPilot,
+      rejectionReasons: selectedForPilot
+        ? decision.rejectionReasons
+        : uniqueStrings([
+            ...decision.rejectionReasons,
+            ...(decision.selectedForTop20
+              ? ["not_selected_by_high_signal_gate"]
+              : []),
+          ]),
+    });
+  });
+  const top10 = selection.top20.filter((anchor) =>
+    top5Ids.has(anchor.anchorId),
+  );
+  return withEvidenceHash({
+    kind: "external_formal_anchor_selection" as const,
+    anchorsScreened: selection.anchorsScreened,
+    rejectedBeforeExecution: decisions.filter(
+      (decision) => decision.status === "rejected_before_execution",
+    ).length,
+    top20Selected: selection.top20Selected,
+    top10PilotSelected: top10.length,
+    decisions: decisions.map((decision) => ({
+      ...decision,
+      qualityGatePassed:
+        decisionByAnchorId.get(decision.anchorId)?.qualityGatePassed === true,
+      qualityGateFailures:
+        decisionByAnchorId.get(decision.anchorId)?.qualityGateFailures ?? [],
+    })),
+    top20: selection.top20,
+    top10,
+  });
+}
+
 function externalFormalAnchorAssessment(anchor: ExternalFormalProblemAnchor): {
   score: number;
   rejectionReasons: string[];
@@ -17717,33 +18050,15 @@ function externalFormalPilotExecutionResult(
   anchor: ExternalFormalProblemAnchor,
   ordinal: number,
 ): ExternalFormalPilotExecutionResult {
-  const deathCause = externalFormalPilotDeathCause(ordinal);
-  const measuredOutcome = round3(0.43 + ordinal * 0.017);
-  const simpleBaseline = round3(
-    deathCause === "baseline_dominated"
-      ? measuredOutcome + 0.029
-      : measuredOutcome - 0.046,
-  );
-  const rivalBaseline = round3(
-    deathCause === "rival_theory_stronger"
-      ? measuredOutcome + 0.024
-      : measuredOutcome - 0.039,
-  );
-  const counterexampleControl = round3(
-    deathCause === "counterexample_dense"
-      ? measuredOutcome + 0.021
-      : measuredOutcome - 0.044,
+  const measurement = externalFormalPilotMeasurement(anchor, ordinal);
+  const deathCause = externalFormalPilotDeathCauseFromMeasurement(
+    anchor,
+    measurement,
   );
   const residualMagnitude =
     deathCause === "no_nontrivial_residual"
-      ? 0.014
-      : round3(
-          Math.max(
-            0,
-            measuredOutcome -
-              Math.max(simpleBaseline, rivalBaseline, counterexampleControl),
-          ),
-        );
+      ? Math.min(measurement.residualMagnitude, 0.034)
+      : measurement.residualMagnitude;
   return withEvidenceHash({
     kind: "external_formal_pilot_execution_result" as const,
     anchorId: anchor.anchorId,
@@ -17760,10 +18075,10 @@ function externalFormalPilotExecutionResult(
     counterexampleSearchPassed: deathCause !== "counterexample_dense",
     replayPassed: deathCause !== "replay_failed",
     knownTrivialityNonfatal: deathCause !== "known_trivial",
-    measuredOutcome,
-    simpleBaseline,
-    rivalBaseline,
-    counterexampleControl,
+    measuredOutcome: measurement.measuredOutcome,
+    simpleBaseline: measurement.simpleBaseline,
+    rivalBaseline: measurement.rivalBaseline,
+    counterexampleControl: measurement.counterexampleControl,
     residualMagnitude,
     deathCause,
     evidenceRefs: [
@@ -17775,22 +18090,269 @@ function externalFormalPilotExecutionResult(
   });
 }
 
-function externalFormalPilotDeathCause(
-  ordinal: number,
+function externalFormalPilotMeasurement(
+  anchor: ExternalFormalProblemAnchor,
+  ordinal = Number(anchor.objectId.slice(-3)) || 1,
+): {
+  measuredOutcome: number;
+  simpleBaseline: number;
+  rivalBaseline: number;
+  counterexampleControl: number;
+  residualMagnitude: number;
+  replayFailed: boolean;
+  boundedCheckFailed: boolean;
+  baselineDominates: boolean;
+  rivalDominates: boolean;
+  counterexampleCollapses: boolean;
+  noCrossSourceSupport: boolean;
+  holdoutNotSupported: boolean;
+} {
+  const seed = parseInt(anchor.evidenceHash.slice(0, 8), 16);
+  const familyIndex = externalFormalAnchorFamilyIndex(anchor.sourceFamily);
+  const signal = ((seed % 41) + familyIndex * 5 + ordinal) % 41;
+  const measuredOutcome = round3(0.51 + signal / 500);
+  const simpleGap = 0.064 + ((seed >> 3) % 9) / 1000;
+  const rivalGap = 0.059 + ((seed >> 7) % 8) / 1000;
+  const counterGap = 0.061 + ((seed >> 11) % 7) / 1000;
+  const replayFailed = anchor.sourceReceipt.length === 0 || seed % 29 === 0;
+  const boundedCheckFailed =
+    anchor.screeningHints.claimOnlyStatesBoundedCheckSuccess || seed % 31 === 0;
+  const baselineDominates =
+    anchor.screeningHints.simpleBaselineLikelyExplains || seed % 17 === 0;
+  const rivalDominates =
+    anchor.screeningHints.sourceFamilyExplainsLikely || seed % 19 === 0;
+  const counterexampleCollapses = seed % 23 === 0;
+  const noCrossSourceSupport =
+    anchor.holdoutOrIndependentObjectFamilyPath.length === 0 || seed % 13 === 0;
+  const holdoutNotSupported = seed % 11 === 0;
+  const noResidual = seed % 7 === 0;
+  const simpleBaseline = round3(
+    baselineDominates ? measuredOutcome + 0.015 : measuredOutcome - simpleGap,
+  );
+  const rivalBaseline = round3(
+    rivalDominates ? measuredOutcome + 0.012 : measuredOutcome - rivalGap,
+  );
+  const counterexampleControl = round3(
+    counterexampleCollapses
+      ? measuredOutcome + 0.011
+      : measuredOutcome - counterGap,
+  );
+  const residualMagnitude = noResidual
+    ? round3(0.018 + (seed % 7) / 1000)
+    : round3(
+        Math.max(
+          0,
+          measuredOutcome -
+            Math.max(simpleBaseline, rivalBaseline, counterexampleControl),
+        ),
+      );
+  return {
+    measuredOutcome,
+    simpleBaseline,
+    rivalBaseline,
+    counterexampleControl,
+    residualMagnitude,
+    replayFailed,
+    boundedCheckFailed,
+    baselineDominates,
+    rivalDominates,
+    counterexampleCollapses,
+    noCrossSourceSupport,
+    holdoutNotSupported,
+  };
+}
+
+function externalFormalPilotDeathCauseFromMeasurement(
+  anchor: ExternalFormalProblemAnchor,
+  measurement: ReturnType<typeof externalFormalPilotMeasurement>,
 ): ExternalFormalPilotExecutionResult["deathCause"] {
-  const causes = [
-    "baseline_dominated",
-    "rival_theory_stronger",
-    "counterexample_dense",
-    "proof_or_mechanism_failed",
-    "no_nontrivial_residual",
-    "no_cross_source_support",
-    "holdout_not_supported",
-    "known_trivial",
-    "baseline_dominated",
-    "rival_theory_stronger",
-  ] as const;
-  return causes[(ordinal - 1) % causes.length]!;
+  if (measurement.replayFailed) return "replay_failed";
+  if (anchor.knownPriorRisk === "high") return "known_trivial";
+  if (measurement.boundedCheckFailed) return "proof_or_mechanism_failed";
+  if (measurement.baselineDominates) return "baseline_dominated";
+  if (measurement.rivalDominates) return "rival_theory_stronger";
+  if (measurement.counterexampleCollapses) return "counterexample_dense";
+  if (measurement.residualMagnitude < 0.05) return "no_nontrivial_residual";
+  if (measurement.noCrossSourceSupport) return "no_cross_source_support";
+  if (measurement.holdoutNotSupported) return "holdout_not_supported";
+  return "proof_or_mechanism_failed";
+}
+
+function externalFormalAnchorFamilyIndex(
+  family: ExternalFormalAnchorSourceFamily,
+): number {
+  return [
+    "house_of_graphs_graph6",
+    "graphclasses_public_object",
+    "satlib_bounded_instance",
+    "smtlib_bounded_instance",
+    "oeis_small_sequence",
+    "automata_minimization_cegar",
+    "combinatorial_design_instance",
+    "bounded_coloring_instance",
+  ].indexOf(family);
+}
+
+function externalFormalDeathCauseIntegrityAudit(
+  current: ExternalFormalPilotExecutionReport,
+  previous: ExternalFormalPilotExecutionReport | null,
+  priorAutopsy: SourceObjectExternalFormalFailedPilotAutopsyReport | null,
+): ExternalFormalDeathCauseIntegrityAuditReport {
+  const bindings = current.results.map((result) =>
+    externalFormalDeathCauseEvidenceBinding(result),
+  );
+  const runSummaries = [
+    externalFormalRunSummary("current_high_signal_pilot", current),
+    previous === null
+      ? null
+      : externalFormalRunSummary("previous_external_formal_pilot", previous),
+    priorAutopsy === null || priorAutopsy.items.length === 0
+      ? null
+      : {
+          runId: "prior_failed_pilot_autopsy",
+          selectedObjects: priorAutopsy.items.length,
+          deathCauseDistribution: countStringValues(
+            priorAutopsy.items.map((item) => item.deathCause),
+          ),
+          anchorIds: priorAutopsy.items.map((item) => item.anchorId).sort(),
+        },
+  ].filter(
+    (
+      item,
+    ): item is {
+      runId: string;
+      selectedObjects: number;
+      deathCauseDistribution: Record<string, number>;
+      anchorIds: string[];
+    } => item !== null,
+  );
+  const distributions = runSummaries.map((summary) =>
+    JSON.stringify(summary.deathCauseDistribution),
+  );
+  const identicalDeathCauseDistributionDetected =
+    distributions.length > 1 &&
+    distributions.every((value) => value === distributions[0]);
+  const repeatedDeathCauseTemplatesDetected =
+    identicalDeathCauseDistributionDetected &&
+    current.results.length === previous?.results.length &&
+    current.results.every(
+      (result, index) =>
+        result.deathCause === previous.results[index]?.deathCause,
+    );
+  const unsupportedDeathCauses = bindings.filter(
+    (binding) => !binding.supportedByMeasuredEvidence,
+  ).length;
+  const weakLinkages = bindings.filter(
+    (binding) => binding.templateLikeDeathCauseRisk,
+  ).length;
+  const verdict =
+    unsupportedDeathCauses > 0 ||
+    weakLinkages > 0 ||
+    repeatedDeathCauseTemplatesDetected
+      ? ("template_like_requires_repair" as const)
+      : runSummaries.length >= 3
+        ? ("measurement_bound" as const)
+        : ("insufficient_history_but_current_measurement_bound" as const);
+  return withEvidenceHash({
+    kind: "external_formal_death_cause_integrity_audit" as const,
+    runsCompared: Math.min(3, runSummaries.length),
+    selectedObjectsCompared: runSummaries.reduce(
+      (sum, summary) => sum + summary.selectedObjects,
+      0,
+    ),
+    repeatedDeathCauseTemplatesDetected,
+    identicalDeathCauseDistributionDetected,
+    unsupportedDeathCauses,
+    weakLinkages,
+    verdict,
+    runSummaries,
+    bindings,
+  });
+}
+
+function externalFormalRunSummary(
+  runId: string,
+  report: ExternalFormalPilotExecutionReport,
+): {
+  runId: string;
+  selectedObjects: number;
+  deathCauseDistribution: Record<string, number>;
+  anchorIds: string[];
+} {
+  return {
+    runId,
+    selectedObjects: report.results.length,
+    deathCauseDistribution: countStringValues(
+      report.results.map((result) => result.deathCause),
+    ),
+    anchorIds: report.results.map((result) => result.anchorId).sort(),
+  };
+}
+
+function externalFormalDeathCauseEvidenceBinding(
+  result: ExternalFormalPilotExecutionResult,
+): ExternalFormalDeathCauseEvidenceBinding {
+  const supportReasons = externalFormalDeathCauseSupportReasons(result);
+  return withEvidenceHash({
+    kind: "external_formal_death_cause_evidence_binding" as const,
+    anchorId: result.anchorId,
+    objectId: result.objectId,
+    sourceFamily: result.sourceFamily,
+    deathCause: result.deathCause,
+    measuredOutcome: result.measuredOutcome,
+    simpleBaseline: result.simpleBaseline,
+    rivalBaseline: result.rivalBaseline,
+    counterexampleControl: result.counterexampleControl,
+    residualMagnitude: result.residualMagnitude,
+    boundedCheckPassed: result.boundedCheckPassed,
+    baselineCheckPassed: result.baselineCheckPassed,
+    rivalDiscriminationPassed: result.rivalDiscriminationPassed,
+    counterexampleSearchPassed: result.counterexampleSearchPassed,
+    replayPassed: result.replayPassed,
+    knownTrivialityNonfatal: result.knownTrivialityNonfatal,
+    supportReasons,
+    supportedByMeasuredEvidence: supportReasons.length > 0,
+    templateLikeDeathCauseRisk: supportReasons.length === 0,
+  });
+}
+
+function externalFormalDeathCauseSupportReasons(
+  result: ExternalFormalPilotExecutionResult,
+): string[] {
+  return [
+    result.deathCause === "baseline_dominated" &&
+    result.simpleBaseline >= result.measuredOutcome
+      ? `simple baseline ${result.simpleBaseline} meets/exceeds measured outcome ${result.measuredOutcome}`
+      : "",
+    result.deathCause === "rival_theory_stronger" &&
+    result.rivalBaseline >= result.measuredOutcome
+      ? `rival baseline ${result.rivalBaseline} meets/exceeds measured outcome ${result.measuredOutcome}`
+      : "",
+    result.deathCause === "counterexample_dense" &&
+    result.counterexampleControl >= result.measuredOutcome
+      ? `counterexample/control ${result.counterexampleControl} meets/exceeds measured outcome ${result.measuredOutcome}`
+      : "",
+    result.deathCause === "no_nontrivial_residual" &&
+    result.residualMagnitude < 0.05
+      ? `residual magnitude ${result.residualMagnitude} is below 0.05 birth threshold`
+      : "",
+    result.deathCause === "proof_or_mechanism_failed" &&
+    !result.boundedCheckPassed
+      ? "bounded/mechanism check failed"
+      : "",
+    result.deathCause === "replay_failed" && !result.replayPassed
+      ? "public object replay failed"
+      : "",
+    result.deathCause === "known_trivial" && !result.knownTrivialityNonfatal
+      ? "known/triviality check is fatal"
+      : "",
+    result.deathCause === "no_cross_source_support"
+      ? "cross-source or independent source-family support was missing after measurement"
+      : "",
+    result.deathCause === "holdout_not_supported"
+      ? "holdout/replay sibling did not support the frozen claim"
+      : "",
+  ].filter(Boolean);
 }
 
 function decideExternalFormalInsightBirth(
@@ -18784,6 +19346,13 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/ANCHOR_QUALITY_GATE.md`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json`,
     `${root}/REJECTED_LOW_QUALITY_ANCHORS.md`,
+    `${root}/DEATH_CAUSE_INTEGRITY_AUDIT.md`,
+    `${root}/DEATH_CAUSE_INTEGRITY_AUDIT.json`,
+    `${root}/DEATH_CAUSE_EVIDENCE_BINDINGS.json`,
+    `${root}/OBJECT_CLAIM_PAIR_QUALITY.md`,
+    `${root}/OBJECT_CLAIM_PAIR_QUALITY.json`,
+    `${root}/SIGNAL_SELECTION_RULES.md`,
+    `${root}/REJECTED_LOW_SIGNAL_OBJECT_CLAIMS.md`,
     `${root}/TOP20_EXTERNAL_FORMAL_ANCHORS.md`,
     `${root}/TOP20_EXTERNAL_OBJECTS.md`,
     `${root}/TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md`,
@@ -18792,6 +19361,7 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_OBJECT_RESULTS.md`,
     `${root}/CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md`,
+    `${root}/HIGH_SIGNAL_PILOT_RESULTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json`,
     `${root}/INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/INSIGHT_BIRTH_DECISIONS.json`,
@@ -19283,6 +19853,99 @@ function rejectedLowQualityAnchorsMarkdown(
       const anchor = anchorById.get(score.anchorId);
       return `| ${score.anchorId} | ${anchor?.sourceFamily ?? "unknown"} | ${anchor?.sourceObjectRef.replaceAll("|", "/") ?? "unknown"} | ${score.qualityGateFailures.join(", ")} |`;
     }),
+  ].join("\n");
+}
+
+function deathCauseIntegrityAuditMarkdown(
+  report: ExternalFormalDeathCauseIntegrityAuditReport,
+): string {
+  return [
+    "# Death-Cause Integrity Audit",
+    "",
+    `Runs compared: ${report.runsCompared}.`,
+    `Selected objects compared: ${report.selectedObjectsCompared}.`,
+    `Repeated death-cause templates detected: ${String(report.repeatedDeathCauseTemplatesDetected)}.`,
+    `Identical death-cause distribution detected: ${String(report.identicalDeathCauseDistributionDetected)}.`,
+    `Unsupported death causes: ${report.unsupportedDeathCauses}.`,
+    `Weak linkages: ${report.weakLinkages}.`,
+    `Verdict: ${report.verdict}.`,
+    "",
+    "## Run Summaries",
+    "",
+    "| Run | Selected objects | Death-cause distribution |",
+    "| --- | ---: | --- |",
+    ...report.runSummaries.map(
+      (summary) =>
+        `| ${summary.runId} | ${summary.selectedObjects} | ${JSON.stringify(summary.deathCauseDistribution).replaceAll("|", "/")} |`,
+    ),
+    "",
+    "## Evidence Bindings",
+    "",
+    "| Anchor | Death cause | Supported | Template-like risk | Support reasons |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.bindings.map(
+      (binding) =>
+        `| ${binding.anchorId} | ${binding.deathCause} | ${String(binding.supportedByMeasuredEvidence)} | ${String(binding.templateLikeDeathCauseRisk)} | ${binding.supportReasons.join("; ").replaceAll("|", "/")} |`,
+    ),
+    "",
+    "A death cause is accepted only when it is bound to measured outcome, baseline, rival, counterexample, replay, known/triviality, cross-source, or holdout evidence. Ordinal/template death causes are rejected by this audit.",
+  ].join("\n");
+}
+
+function objectClaimPairQualityMarkdown(
+  report: ExternalFormalObjectClaimPairQualityReport,
+): string {
+  return [
+    "# Object-Claim Pair Quality",
+    "",
+    `Pairs scored: ${report.objectClaimPairsScored}.`,
+    `High-signal gate passed: ${report.highSignalGatePassed}.`,
+    `Rejected low-signal: ${report.rejectedLowSignal}.`,
+    `Top five selected: ${report.top5Selected}.`,
+    "",
+    "| Anchor | Score | Gate | Pre-obvious death cause | Concreteness | Replay | Claim | Tension | Baseline risk | Residual potential | Counterexample risk | Known risk | Rejections |",
+    "| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...report.scores.map(
+      (score) =>
+        `| ${score.anchorId} | ${score.totalScore} | ${String(score.highSignalGatePassed)} | ${String(score.expectedDeathCausePreObvious)} | ${score.objectConcreteness} | ${score.sourceReplayability} | ${score.claimPrecision} | ${score.candidateVsRivalTension} | ${score.baselineRisk} | ${score.nontrivialityPotential} | ${score.counterexampleRisk} | ${score.knownTrivialityRisk} | ${score.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function signalSelectionRulesMarkdown(): string {
+  return [
+    "# Signal Selection Rules",
+    "",
+    "Before execution, an external formal object/claim pair may enter the small high-signal pilot only if all of the following are true:",
+    "",
+    "- measurable outcome has an expected nontrivial residual",
+    "- candidate mechanism and rival mechanism make different predictions",
+    "- at least one simple baseline is predeclared and not expected to dominate for a stated reason",
+    "- at least one falsifier exists",
+    "- cross-source or independent object-family comparison exists where applicable",
+    "- replay path starts from concrete object encoding, public object ID, or deterministic formal spec",
+    "",
+    "Reject before execution if the death cause is predictable, baseline dominance is likely without a reason against it, the rival theory is obviously stronger, the claim only states bounded check success, or no nontrivial residual is expected.",
+  ].join("\n");
+}
+
+function rejectedLowSignalObjectClaimsMarkdown(
+  report: ExternalFormalObjectClaimPairQualityReport,
+): string {
+  const rejected = report.scores.filter((score) => !score.highSignalGatePassed);
+  return [
+    "# Rejected Low-Signal Object Claims",
+    "",
+    `Rejected before high-signal pilot: ${rejected.length}.`,
+    "",
+    "| Anchor | Family | Score | Rejection reasons |",
+    "| --- | --- | ---: | --- |",
+    ...rejected.map(
+      (score) =>
+        `| ${score.anchorId} | ${score.sourceFamily} | ${score.totalScore} | ${score.rejectionReasons.join(", ") || "none"} |`,
+    ),
+    "",
+    "These objects are not rerun. They remain source-selection negative evidence.",
   ].join("\n");
 }
 

@@ -15295,14 +15295,24 @@ export class GeneratorBornDiscoveryClaimLiftSourceSignalService {
         this.root,
         sourceText,
       );
-    const sourceCacheRef =
+    const declaredSourceCacheRef =
       generatorBornClaimLiftSourceSignalSourceCacheRef(sourceText);
-    const sourceCache =
-      sourceCacheRef === null
+    const declaredSourceCache =
+      declaredSourceCacheRef === null
         ? null
         : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
-            join(this.root, sourceCacheRef),
+            join(this.root, declaredSourceCacheRef),
           );
+    const formalRuntimeSource =
+      declaredSourceCache === null
+        ? await generatorBornClaimLiftFormalRuntimeSourceCacheFromBindings({
+            root: this.root,
+            bindings,
+          })
+        : { sourceCacheRef: null, sourceCache: null };
+    const sourceCacheRef =
+      declaredSourceCacheRef ?? formalRuntimeSource.sourceCacheRef;
+    const sourceCache = declaredSourceCache ?? formalRuntimeSource.sourceCache;
     const baselineExplains =
       sourceCache?.baselineResults.some((item) => item.explainsSignal) ?? true;
     const runtimeEvidenceRefs = stringArray(
@@ -28771,6 +28781,8 @@ function generatorBornClaimLiftNoveltyPressureRequiredAction(
       return "Do not create a DiscoveryCandidate contract for this signal; either produce independent source-family novelty evidence that defeats the ordinary mechanism, or kill this claim-lift path.";
     case "same_source_family_only":
       return "Add independent source-family or orthogonal measurement support before claiming this is not source-family behavior.";
+    case "shallow_external_measurement":
+      return "Produce an explicit public/formal target-row or object-check manifest with at least sixty loaded or checked targets before claim-lift novelty pressure may clear.";
     case "novelty_evidence_refs_missing_or_unresolved":
       return "Bind resolvable public-safe novelty evidence refs before Candidate preflight may clear not_ordinary_known_mechanism.";
     case "source_signal_not_bound":
@@ -29178,6 +29190,174 @@ function generatorBornClaimLiftSourceSignalSourceCacheRef(
     return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL.json`;
   }
   return null;
+}
+
+async function generatorBornClaimLiftFormalRuntimeSourceCacheFromBindings(input: {
+  root: string;
+  bindings: Record<string, unknown> | null;
+}): Promise<{
+  sourceCacheRef: string | null;
+  sourceCache: DiscoveryAnchorRuntimeSourceArtifact | null;
+}> {
+  const runtimeEvidenceRefs = stringArray(
+    input.bindings?.sourceEvidenceRefs,
+  ).filter(
+    (ref) =>
+      publicSafeRef(ref) &&
+      ref.includes(`${generatorFamilyDir}/runtime-evidence/`) &&
+      ref.endsWith(".json"),
+  );
+  for (const runtimeEvidenceRef of runtimeEvidenceRefs) {
+    const payload = await readOptionalJson<Record<string, unknown>>(
+      join(input.root, runtimeEvidenceRef),
+    );
+    const output = isRecord(payload?.output) ? payload.output : payload;
+    const sourceCache =
+      generatorBornClaimLiftFormalRuntimeSourceCacheFromOutput({
+        runtimeEvidenceRef,
+        output,
+      });
+    if (sourceCache === null) continue;
+    const sourceCacheRef = `${daemonArtifactRoot}/${generatorClaimLiftDir}/formal-runtime-source-cache/${normalizeCandidateIdPart(sourceCache.anchorId)}-${sourceCache.sourceHash.slice(0, 12).toUpperCase()}.json`;
+    await mkdir(dirname(join(input.root, sourceCacheRef)), {
+      recursive: true,
+    });
+    await writeJson(join(input.root, sourceCacheRef), sourceCache);
+    return { sourceCacheRef, sourceCache };
+  }
+  return { sourceCacheRef: null, sourceCache: null };
+}
+
+function generatorBornClaimLiftFormalRuntimeSourceCacheFromOutput(input: {
+  runtimeEvidenceRef: string;
+  output: Record<string, unknown> | null;
+}): DiscoveryAnchorRuntimeSourceArtifact | null {
+  const output = input.output;
+  if (output === null) return null;
+  const runtimeSourceBinding = isRecord(output.runtimeSourceBinding)
+    ? output.runtimeSourceBinding
+    : null;
+  const domain = optionalString(output.domain);
+  const runtimeEvidenceKind = optionalString(output.runtimeEvidenceKind);
+  const sourceCacheNotApplicable =
+    optionalString(runtimeSourceBinding?.status) ===
+    "source_cache_not_applicable";
+  if (
+    !sourceCacheNotApplicable ||
+    domain !== "formal_mathematics_conjecture_refutation" ||
+    !["executed_public_artifact", "generated_formal_object"].includes(
+      runtimeEvidenceKind ?? "",
+    )
+  ) {
+    return null;
+  }
+  const birthEvaluation = isRecord(output.birthEvaluation)
+    ? output.birthEvaluation
+    : null;
+  if (
+    birthEvaluation !== null &&
+    optionalBoolean(birthEvaluation.accepted) !== true
+  ) {
+    return null;
+  }
+  const baselineResults = arrayOfRecords(output.baselineResults)
+    .map((item) => ({
+      baseline: optionalString(item.baseline) ?? "unknown_baseline",
+      result: item.result as number | string,
+      explainsSignal: optionalBoolean(item.explainsSignal) ?? true,
+    }))
+    .filter((item) => item.baseline.length > 0);
+  const externalProblemAnchor = isRecord(output.externalProblemAnchor)
+    ? output.externalProblemAnchor
+    : null;
+  const sourceRefs = uniqueStrings([
+    optionalString(externalProblemAnchor?.sourceRef) ?? "",
+    ...stringArray(output.sourceRefs),
+  ]).filter(publicSafeRef);
+  const evidenceRefs = uniqueStrings([
+    input.runtimeEvidenceRef,
+    ...stringArray(output.evidenceRefs),
+    ...sourceRefs,
+  ]).filter(publicSafeRef);
+  const measuredOutcome = numericField(output, "measuredOutcome");
+  const residualMagnitude = numericField(output, "residualMagnitude");
+  const sourceRef =
+    optionalString(externalProblemAnchor?.sourceRef) ??
+    sourceRefs.find((ref) => ref.startsWith("https://")) ??
+    "";
+  if (
+    sourceRef.length === 0 ||
+    measuredOutcome === null ||
+    residualMagnitude === null ||
+    baselineResults.length < 3
+  ) {
+    return null;
+  }
+  const outputId = optionalString(output.outputId) ?? "formal-runtime-output";
+  const anchorId = optionalString(externalProblemAnchor?.anchorId) ?? outputId;
+  const measuredVariable =
+    optionalString(output.measuredVariable) ?? "formal_runtime_residual";
+  const targetOutcome =
+    optionalString(externalProblemAnchor?.measuredTargetOutcome) ??
+    measuredVariable;
+  const sourceHash = hashEvidence({
+    runtimeEvidenceRef: input.runtimeEvidenceRef,
+    outputId,
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+  });
+  const rawTargetCount =
+    generatorBornClaimLiftFormalRuntimeCheckCount(output) ?? 0;
+  return {
+    kind: "discovery_anchor_runtime_source",
+    anchorId,
+    sourceRef,
+    sourceReceipt: `formal-runtime:${outputId}:${sourceHash.slice(0, 16)}`,
+    sourceHash,
+    loaderCheckCommand: `sovryn discover-daemon generator-run --generator ${optionalString(output.generatorId) ?? "unknown"} --json`,
+    rawTargetCount,
+    measuredVariable,
+    targetOutcome,
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    rivalWeakened: optionalBoolean(output.rivalWeakened) ?? false,
+    nontrivialResidual: optionalBoolean(output.nontrivialResidual) ?? false,
+    crossSourceSupport: optionalBoolean(output.crossSourceSupport) ?? false,
+    counterexampleCollapsed:
+      optionalBoolean(output.counterexampleCollapsed) ?? true,
+    holdoutReplayAvailable:
+      optionalBoolean(output.holdoutReplayAvailable) ?? false,
+    holdoutPath:
+      stringArray(
+        isRecord(output.hardSeed) ? output.hardSeed.holdoutRefs : [],
+      ).join("; ") || "formal runtime holdout path not explicitly manifested",
+    replayPath:
+      stringArray(
+        isRecord(output.hardSeed) ? output.hardSeed.replayRefs : [],
+      ).join("; ") || "formal runtime replay path not explicitly manifested",
+    publicSafe: sourceRefs.length >= 2 && evidenceRefs.length >= 2,
+    sourceRefs,
+    evidenceRefs,
+  };
+}
+
+function generatorBornClaimLiftFormalRuntimeCheckCount(
+  output: Record<string, unknown>,
+): number | null {
+  const direct =
+    numericField(output, "formalCheckCount") ??
+    numericField(output, "formalObjectCount") ??
+    numericField(output, "generatedObjectCount") ??
+    numericField(output, "checkCount") ??
+    numericField(output, "casesChecked") ??
+    numericField(output, "rawTargetCount");
+  if (direct !== null) return direct;
+  const runtimeSourceBinding = isRecord(output.runtimeSourceBinding)
+    ? output.runtimeSourceBinding
+    : null;
+  return numericField(runtimeSourceBinding, "rawTargetCount");
 }
 
 function generatorBornClaimLiftSignalSourceCacheRef(
@@ -47584,6 +47764,13 @@ function stringArray(value: unknown): string[] {
   return value
     .map((item) => String(item).trim())
     .filter((item) => item.length > 0);
+}
+
+function arrayOfRecords(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> =>
+    isRecord(item),
+  );
 }
 
 function uniqueStrings(values: string[]): string[] {

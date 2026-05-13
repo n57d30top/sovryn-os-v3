@@ -1151,6 +1151,32 @@ async function writeClaimLiftSourceSignalCaches(root: string): Promise<void> {
   }
 }
 
+async function addFormalRuntimeCheckCountToBornGraphMinorEvidence(
+  root: string,
+  formalCheckCount: number,
+): Promise<void> {
+  const runtimeRoot = join(
+    root,
+    daemonRoot,
+    "generator-families",
+    "runtime-evidence",
+  );
+  for (const outputId of [
+    "bounded_graph_minor_obstruction_significance_generator-output-01",
+    "bounded_graph_minor_obstruction_significance_generator-output-02",
+  ]) {
+    const evidencePath = join(runtimeRoot, `${outputId}.json`);
+    const payload = JSON.parse(await readFile(evidencePath, "utf8")) as {
+      output?: Record<string, unknown>;
+    };
+    payload.output = {
+      ...(payload.output ?? {}),
+      formalCheckCount,
+    };
+    await writeFile(evidencePath, JSON.stringify(payload, null, 2), "utf8");
+  }
+}
+
 async function rewriteClaimLiftSourceCacheAsOrdinaryKnownSolar(
   root: string,
   sourceCacheRef: string,
@@ -5847,6 +5873,106 @@ test("generator-born claim lift source signal binds forward-only evidence before
     ),
     true,
   );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift source signal classifies formal runtime evidence without explicit depth", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const graphDecision = sourceSignal.decisions.find((decision) =>
+    decision.candidateId.includes("GRAPH-MINOR"),
+  );
+
+  assert.ok(graphDecision);
+  assert.equal(graphDecision.sourceSignalStatus, "blocked");
+  assert.equal(graphDecision.primaryBlocker, "shallow_external_measurement");
+  assert.ok(graphDecision.sourceCacheRef);
+  assert.equal(
+    graphDecision.sourceCacheRef.includes("formal-runtime-source-cache"),
+    true,
+  );
+  assert.equal(
+    graphDecision.failedGates.includes("source_cache_present"),
+    false,
+  );
+  assert.equal(graphDecision.failedGates.includes("source_cache_depth"), true);
+  const bridgedSource = JSON.parse(
+    await readFile(join(root, graphDecision.sourceCacheRef), "utf8"),
+  ) as { rawTargetCount: number; evidenceRefs: string[] };
+  assert.equal(bridgedSource.rawTargetCount, 0);
+  assert.equal(
+    bridgedSource.evidenceRefs.some((ref) =>
+      ref.includes("generator-families/runtime-evidence"),
+    ),
+    true,
+  );
+  assert.equal(sourceSignal.fundFound, false);
+  assert.equal(sourceSignal.packagesMutated, 0);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift source signal can bind depth-backed formal runtime evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await addFormalRuntimeCheckCountToBornGraphMinorEvidence(root, 72);
+
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const graphDecisions = sourceSignal.decisions.filter((decision) =>
+    decision.candidateId.includes("GRAPH-MINOR"),
+  );
+
+  assert.equal(graphDecisions.length, 2);
+  assert.equal(
+    graphDecisions.every(
+      (decision) =>
+        decision.sourceSignalStatus === "source_signal_bound" &&
+        decision.primaryBlocker === "none" &&
+        decision.failedGates.length === 0 &&
+        decision.sourceCacheRef?.includes("formal-runtime-source-cache") ===
+          true &&
+        decision.bindableInsightEvidenceRefs.some((ref) =>
+          ref.includes("generator-families/runtime-evidence"),
+        ),
+    ),
+    true,
+  );
+
+  const novelty = await service.generatorClaimLiftNoveltyPressure();
+  const graphNovelty = novelty.decisions.filter((decision) =>
+    decision.candidateId.includes("GRAPH-MINOR"),
+  );
+
+  assert.equal(graphNovelty.length, 2);
+  assert.equal(
+    graphNovelty.every(
+      (decision) =>
+        decision.noveltyPressureStatus === "novelty_pressure_cleared" &&
+        decision.primaryBlocker === "none" &&
+        decision.sourceFamilyCount >= 2,
+    ),
+    true,
+  );
+  assert.equal(novelty.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

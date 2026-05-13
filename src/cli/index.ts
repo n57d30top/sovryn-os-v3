@@ -173,6 +173,7 @@ Commands:
   sovryn nobel-readiness external-review-handoff [--json]
   sovryn nobel-readiness external-review-bundle [--json]
   sovryn nobel-readiness external-review-dispatch [--json]
+  sovryn nobel-readiness external-review-source-receipt --url <url> [--json]
   sovryn nobel-readiness public-review-url-audit --target-repo <path> [--json]
   sovryn nobel-readiness external-review-intake [--json]
   sovryn nobel-readiness audit [--target-repo <path>] [--json]
@@ -1677,7 +1678,7 @@ async function nobelReadinessCommand(
   if (!subcommand) {
     throw new AppError(
       "NOBEL_READINESS_COMMAND_REQUIRED",
-      "Use: sovryn nobel-readiness <status|criteria|domain-select|candidate-search|freeze|execute|holdout|replay|rival-review|score|package|external-review-handoff|external-review-bundle|external-review-dispatch|public-review-url-audit|external-review-intake|audit>.",
+      "Use: sovryn nobel-readiness <status|criteria|domain-select|candidate-search|freeze|execute|holdout|replay|rival-review|score|package|external-review-handoff|external-review-bundle|external-review-dispatch|external-review-source-receipt|public-review-url-audit|external-review-intake|audit>.",
     );
   }
   const service = new NobelReadinessService(root);
@@ -1710,6 +1711,16 @@ async function nobelReadinessCommand(
       return service.externalReviewBundle();
     case "external-review-dispatch":
       return service.externalReviewDispatch();
+    case "external-review-source-receipt": {
+      const url = flagString(parsed.flags, "--url");
+      if (!url) {
+        throw new AppError(
+          "NOBEL_READINESS_EXTERNAL_REVIEW_SOURCE_URL_REQUIRED",
+          "Use: sovryn nobel-readiness external-review-source-receipt --url <url>.",
+        );
+      }
+      return service.externalReviewSourceReceipt(url);
+    }
     case "public-review-url-audit": {
       const targetRepo = flagString(parsed.flags, "--target-repo");
       if (!targetRepo) {

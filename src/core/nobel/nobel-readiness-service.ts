@@ -427,6 +427,27 @@ export type ExternalReviewDispatchAudit = {
   evidenceHash: string;
 };
 
+export type ExternalReviewSourceReceiptAudit = {
+  kind: "nobel_readiness_external_review_source_receipt";
+  generatedAt: string;
+  passed: boolean;
+  candidateId: string | null;
+  sourceUrl: string;
+  publicSafe: boolean;
+  external: boolean;
+  fetched: boolean;
+  statusCode: number | null;
+  contentType: string | null;
+  contentLength: number;
+  sourceContentSha256: string | null;
+  candidateIdMentioned: boolean;
+  schemaVersionMentioned: boolean;
+  fetchError: string | null;
+  receiptRef: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalReviewPublicUrlAudit = {
   kind: "nobel_readiness_public_review_url_audit";
   generatedAt: string;
@@ -483,9 +504,13 @@ export type ExternalReviewIntakeRecord = {
   reviewerRole: string | null;
   reviewDate: string | null;
   reviewSourceRef: string | null;
+  reviewSourceReceiptRef: string | null;
   reviewSourceResolved: boolean;
   reviewSourcePublicSafe: boolean;
   reviewSourceExternal: boolean;
+  reviewSourceReceiptResolved: boolean;
+  reviewSourceReceiptValid: boolean;
+  reviewSourceReceiptHashValid: boolean;
   decision: ExternalHumanReviewDecision | null;
   independentReproductionStatus: ExternalHumanReviewReproductionStatus | null;
   noveltyAssessment: ExternalHumanReviewNoveltyAssessment | null;
@@ -2746,6 +2771,7 @@ export class NobelReadinessService {
       "reviewerRole",
       "reviewDate",
       "reviewSourceRef",
+      "reviewSourceReceiptRef",
       "decision",
       "independentReproductionStatus",
       "noveltyAssessment",
@@ -2761,6 +2787,8 @@ export class NobelReadinessService {
       reviewDate: "YYYY-MM-DD",
       reviewSourceRef:
         "Provide a public-safe URL or a review report path copied next to the review JSON. Score-impacting supportive reviews require an external public URL.",
+      reviewSourceReceiptRef:
+        "For external URL reviews, first run `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json`, then provide the generated receipt path.",
       decision:
         "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
       independentReproductionStatus:
@@ -2928,6 +2956,88 @@ export class NobelReadinessService {
     return hashedDispatch;
   }
 
+  async externalReviewSourceReceipt(
+    sourceUrl: string,
+  ): Promise<ExternalReviewSourceReceiptAudit> {
+    const handoff = await this.externalReviewHandoff();
+    const receiptDirRel =
+      ".sovryn/nobel-readiness/external-review-source-receipts";
+    const receiptDir = join(this.root, receiptDirRel);
+    await mkdir(receiptDir, { recursive: true });
+    const sourceUrlHash = createHash("sha256")
+      .update(sourceUrl)
+      .digest("hex")
+      .slice(0, 16);
+    const receiptRef = `${receiptDirRel}/external-review-source-${sourceUrlHash}.json`;
+    const publicSafe =
+      isPublicSafeRef(sourceUrl) && isScoreEligibleExternalReviewUrl(sourceUrl);
+    let fetched = false;
+    let statusCode: number | null = null;
+    let contentType: string | null = null;
+    let contentLength = 0;
+    let sourceContentSha256: string | null = null;
+    let candidateIdMentioned = false;
+    let schemaVersionMentioned = false;
+    let fetchError: string | null = null;
+
+    if (publicSafe) {
+      try {
+        const response = await fetch(sourceUrl, { redirect: "follow" });
+        statusCode = response.status;
+        contentType = response.headers.get("content-type");
+        const text = await response.text();
+        fetched = true;
+        contentLength = Buffer.byteLength(text, "utf8");
+        sourceContentSha256 = createHash("sha256").update(text).digest("hex");
+        candidateIdMentioned =
+          handoff.candidateId !== null && text.includes(handoff.candidateId);
+        schemaVersionMentioned = text.includes(
+          EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+        );
+      } catch (error) {
+        fetchError = error instanceof Error ? error.message : String(error);
+      }
+    } else {
+      fetchError = "source_url_not_score_eligible_external_https";
+    }
+
+    const passed =
+      publicSafe &&
+      fetched &&
+      statusCode !== null &&
+      statusCode >= 200 &&
+      statusCode < 300 &&
+      sourceContentSha256 !== null &&
+      candidateIdMentioned &&
+      schemaVersionMentioned;
+    const receipt: ExternalReviewSourceReceiptAudit = {
+      kind: "nobel_readiness_external_review_source_receipt",
+      generatedAt: nowIso(),
+      passed,
+      candidateId: handoff.candidateId,
+      sourceUrl,
+      publicSafe,
+      external: publicSafe,
+      fetched,
+      statusCode,
+      contentType,
+      contentLength,
+      sourceContentSha256,
+      candidateIdMentioned,
+      schemaVersionMentioned,
+      fetchError,
+      receiptRef,
+      artifactRefs: [receiptRef],
+      evidenceHash: "",
+    };
+    const hashedReceipt = {
+      ...receipt,
+      evidenceHash: hashEvidence({ ...receipt, evidenceHash: "" }),
+    };
+    await writeJson(join(this.root, receiptRef), hashedReceipt);
+    return hashedReceipt;
+  }
+
   async publicReviewUrlAudit(
     targetRepo: string,
   ): Promise<ExternalReviewPublicUrlAudit> {
@@ -3043,6 +3153,7 @@ export class NobelReadinessService {
       "reviewerRole",
       "reviewDate",
       "reviewSourceRef",
+      "reviewSourceReceiptRef",
       "decision",
       "independentReproductionStatus",
       "noveltyAssessment",
@@ -3127,6 +3238,22 @@ export class NobelReadinessService {
           /non-external/i.test(intakeInstructionsText),
         message:
           "Public review template and intake instructions must state that score-impacting supportive reviews require an external public URL.",
+      },
+      {
+        code: "public_review_requires_source_receipt",
+        passed:
+          template !== null &&
+          Object.prototype.hasOwnProperty.call(
+            template,
+            "reviewSourceReceiptRef",
+          ) &&
+          /source receipt/i.test(
+            stringValue(template.reviewSourceReceiptRef) ?? "",
+          ) &&
+          /reviewSourceReceiptRef/.test(intakeInstructionsText) &&
+          /source receipt/i.test(intakeInstructionsText),
+        message:
+          "Public review template and intake instructions must require a fetch receipt for external review URLs before score impact.",
       },
       {
         code: "public_review_urls_present",
@@ -3221,6 +3348,9 @@ export class NobelReadinessService {
       const reviewerRole = stringValue(payload?.reviewerRole);
       const reviewDate = stringValue(payload?.reviewDate);
       const reviewSourceRef = stringValue(payload?.reviewSourceRef);
+      const reviewSourceReceiptRef = stringValue(
+        payload?.reviewSourceReceiptRef,
+      );
       const decision = externalReviewDecisionValue(payload?.decision);
       const independentReproductionStatus =
         externalReviewReproductionStatusValue(
@@ -3233,6 +3363,11 @@ export class NobelReadinessService {
       const sourceResolution = await this.resolveExternalReviewSourceRef(
         reviewSourceRef,
         reviewDir,
+      );
+      const sourceReceipt = await this.resolveExternalReviewSourceReceipt(
+        reviewSourceReceiptRef,
+        reviewSourceRef,
+        handoff.candidateId,
       );
       const wouldRaiseScore =
         decision === "accepted_with_caveats" &&
@@ -3257,6 +3392,20 @@ export class NobelReadinessService {
       if (!sourceResolution.resolved) reasons.push("review_source_unresolved");
       if (!sourceResolution.publicSafe) {
         reasons.push("review_source_not_public_safe");
+      }
+      if (sourceResolution.external && !reviewSourceReceiptRef) {
+        reasons.push("missing_review_source_receipt_ref");
+      }
+      if (sourceResolution.external && reviewSourceReceiptRef) {
+        if (!sourceReceipt.resolved) {
+          reasons.push("review_source_receipt_unresolved");
+        }
+        if (!sourceReceipt.valid) {
+          reasons.push("review_source_receipt_invalid");
+        }
+        if (!sourceReceipt.hashValid) {
+          reasons.push("review_source_receipt_hash_invalid");
+        }
       }
       if (!decision) reasons.push("invalid_decision");
       if (!independentReproductionStatus) {
@@ -3295,9 +3444,13 @@ export class NobelReadinessService {
         reviewerRole,
         reviewDate,
         reviewSourceRef,
+        reviewSourceReceiptRef,
         reviewSourceResolved: sourceResolution.resolved,
         reviewSourcePublicSafe: sourceResolution.publicSafe,
         reviewSourceExternal: sourceResolution.external,
+        reviewSourceReceiptResolved: sourceReceipt.resolved,
+        reviewSourceReceiptValid: sourceReceipt.valid,
+        reviewSourceReceiptHashValid: sourceReceipt.hashValid,
         decision,
         independentReproductionStatus,
         noveltyAssessment,
@@ -3377,6 +3530,19 @@ export class NobelReadinessService {
           .filter((record) => record.valid)
           .every((record) => record.reviewSourceResolved),
         message: "Valid review records require public-safe review source refs.",
+      },
+      {
+        code: "external_review_sources_have_valid_receipts",
+        passed: records
+          .filter((record) => record.reviewSourceExternal)
+          .every(
+            (record) =>
+              record.reviewSourceReceiptResolved &&
+              record.reviewSourceReceiptValid &&
+              record.reviewSourceReceiptHashValid,
+          ),
+        message:
+          "External review URL records require a locally fetched source receipt with URL, hash, candidate binding, and current schema binding.",
       },
       {
         code: "no_forbidden_review_claims",
@@ -3508,6 +3674,45 @@ export class NobelReadinessService {
       ? jsonHasAnchor(JSON.parse(text) as unknown, anchor)
       : markdownHasAnchor(text, anchor);
     return { resolved, publicSafe, external: false };
+  }
+
+  private async resolveExternalReviewSourceReceipt(
+    ref: string | null,
+    sourceUrl: string | null,
+    candidateId: string | null,
+  ): Promise<{
+    resolved: boolean;
+    valid: boolean;
+    hashValid: boolean;
+  }> {
+    if (!sourceUrl || !isExternalUrl(sourceUrl)) {
+      return { resolved: false, valid: false, hashValid: false };
+    }
+    if (!ref || !isPublicSafeRef(ref)) {
+      return { resolved: false, valid: false, hashValid: false };
+    }
+    const absolutePath = ref.startsWith(".")
+      ? join(this.root, ref)
+      : join(this.root, ".sovryn", "nobel-readiness", ref);
+    const receipt =
+      await readOptionalJson<ExternalReviewSourceReceiptAudit>(absolutePath);
+    if (!receipt) return { resolved: false, valid: false, hashValid: false };
+    const hashValid =
+      receipt.evidenceHash === hashEvidence({ ...receipt, evidenceHash: "" });
+    const valid =
+      receipt.kind === "nobel_readiness_external_review_source_receipt" &&
+      receipt.passed === true &&
+      receipt.sourceUrl === sourceUrl &&
+      receipt.publicSafe === true &&
+      receipt.external === true &&
+      receipt.fetched === true &&
+      receipt.candidateId === candidateId &&
+      receipt.candidateIdMentioned === true &&
+      receipt.schemaVersionMentioned === true &&
+      typeof receipt.sourceContentSha256 === "string" &&
+      /^[a-f0-9]{64}$/i.test(receipt.sourceContentSha256) &&
+      hashValid;
+    return { resolved: true, valid, hashValid };
   }
 
   private async resolveHandoffRef(
@@ -4489,6 +4694,7 @@ Then run:
 - reviewerRole
 - reviewDate
 - reviewSourceRef
+- reviewSourceReceiptRef
 - decision
 - independentReproductionStatus
 - noveltyAssessment
@@ -4497,7 +4703,7 @@ Then run:
 
 ## Scoring Rule
 
-Invalid, stale-schema, mismatched, unresolved, not-public-safe, non-external, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it declares \`${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\`, matches the active candidate, resolves to an external public URL, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
+Invalid, stale-schema, missing-source-receipt, mismatched, unresolved, not-public-safe, non-external, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it declares \`${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\`, matches the active candidate, resolves to an external public URL, includes a valid source receipt with hash and candidate binding, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
 `;
 }
 

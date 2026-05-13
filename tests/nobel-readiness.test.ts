@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -1067,6 +1068,7 @@ test("nobel-readiness external-review dispatch writes review template without cl
   assert.match(instructions, /cannot increase readiness/);
   assert.match(instructions, /resolves to an external public URL/);
   assert.match(String(template.reviewSourceRef), /external public URL/);
+  assert.match(String(template.reviewSourceReceiptRef), /source-receipt/);
   assert.deepEqual(auditNobelReadinessPublicText(request), []);
   assert.deepEqual(auditNobelReadinessPublicText(instructions), []);
   assert.deepEqual(auditNobelReadinessPublicText(JSON.stringify(template)), []);
@@ -1130,6 +1132,12 @@ test("nobel-readiness public review URL audit verifies public corpus reviewer en
     audit.gates.find(
       (gate) =>
         gate.code === "public_review_scoring_contract_requires_external_url",
+    )?.passed,
+    true,
+  );
+  assert.equal(
+    audit.gates.find(
+      (gate) => gate.code === "public_review_requires_source_receipt",
     )?.passed,
     true,
   );
@@ -1594,11 +1602,13 @@ test("nobel-readiness placeholder external review URL cannot raise score", async
   );
 });
 
-test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
-  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
+test("nobel-readiness supportive external review URL without source receipt cannot raise score", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-missing-source-receipt-"),
+  );
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);
   const reviewRel =
-    ".sovryn/nobel-readiness/external-review-reviews/supportive.json";
+    ".sovryn/nobel-readiness/external-review-reviews/missing-receipt.json";
   const reviewPath = join(root, reviewRel);
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
@@ -1606,10 +1616,61 @@ test("nobel-readiness supportive external review can raise only review readiness
     reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
-    reviewerRole: "independent computational materials reviewer",
+    reviewerRole: "independent formal methods reviewer",
     reviewDate: "2026-05-13",
     reviewSourceRef:
       "https://zenodo.org/records/sovryn-graph-minor-obstruction-boundary-review",
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+    evidenceRefs: ["FORMAL_REPRODUCTION_RESULT.json"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.validReviewCount, 0);
+  assert.equal(intake.supportiveReviewCount, 0);
+  assert.equal(intake.independentReproductionCount, 0);
+  assert.equal(
+    intake.records[0]?.reasons.includes("missing_review_source_receipt_ref"),
+    true,
+  );
+  assert.equal(
+    intake.gates.find(
+      (gate) => gate.code === "external_review_sources_have_valid_receipts",
+    )?.passed,
+    false,
+  );
+  assert.equal(score.totalScore, 72);
+});
+
+test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/supportive.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  const reviewSourceRef =
+    "https://zenodo.org/records/sovryn-graph-minor-obstruction-boundary-review";
+  const reviewSourceReceiptRef = await writeExternalReviewSourceReceipt(
+    root,
+    reviewSourceRef,
+    candidateId,
+  );
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent computational materials reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef,
+    reviewSourceReceiptRef,
     decision: "accepted_with_caveats",
     independentReproductionStatus: "reproduced",
     noveltyAssessment: "nontrivial_and_plausibly_novel",
@@ -1710,6 +1771,7 @@ const helpCommands = [
   "nobel-readiness external-review-handoff",
   "nobel-readiness external-review-bundle",
   "nobel-readiness external-review-dispatch",
+  "nobel-readiness external-review-source-receipt",
   "nobel-readiness public-review-url-audit",
   "nobel-readiness external-review-intake",
   "nobel-readiness audit",
@@ -1754,6 +1816,30 @@ for (const args of [
     assert.equal(response.command, "nobel-readiness");
   });
 }
+
+test("nobel readiness CLI external-review-source-receipt rejects placeholder URLs", async () => {
+  const root = await tempRoot();
+  await writeActiveDiscoveryFundPackage(root);
+
+  const response = await executeCli(
+    [
+      "nobel-readiness",
+      "external-review-source-receipt",
+      "--url",
+      "https://reviews.example.org/fake-review.json",
+      "--json",
+    ],
+    root,
+  );
+
+  assert.equal(response.ok, true);
+  assert.equal(response.command, "nobel-readiness");
+  assert.equal((response.data as Record<string, unknown>).passed, false);
+  assert.equal(
+    (response.data as Record<string, unknown>).fetchError,
+    "source_url_not_score_eligible_external_https",
+  );
+});
 
 test("nobel readiness CLI command works: public-review-url-audit", async () => {
   const root = await tempRoot();
@@ -2102,6 +2188,8 @@ async function writePublicReviewCorpusPackage(
     reviewDate: "YYYY-MM-DD",
     reviewSourceRef:
       "Provide an external public URL for any score-impacting supportive review.",
+    reviewSourceReceiptRef:
+      "Run `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json` and provide the generated source receipt path.",
     decision:
       "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
     independentReproductionStatus:
@@ -2113,10 +2201,49 @@ async function writePublicReviewCorpusPackage(
   });
   await writeFile(
     join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
-    `# External Review Intake Instructions\n\nRun \`sovryn nobel-readiness external-review-intake --json\` after a real review record exists.\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\`.\n\nInvalid, stale-schema, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL.\n`,
+    `# External Review Intake Instructions\n\nRun \`sovryn nobel-readiness external-review-intake --json\` after a real review record exists.\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\` and include \`reviewSourceReceiptRef\` for external URL records. Generate the source receipt with \`sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json\`.\n\nInvalid, stale-schema, missing-source-receipt, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL and has a source receipt.\n`,
     "utf8",
   );
   return resultRoot;
+}
+
+async function writeExternalReviewSourceReceipt(
+  root: string,
+  sourceUrl: string,
+  candidateId: string,
+): Promise<string> {
+  const receiptRef =
+    ".sovryn/nobel-readiness/external-review-source-receipts/source-receipt.json";
+  const sourceText = `${candidateId}\n${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\nindependent review fixture`;
+  const receipt = {
+    kind: "nobel_readiness_external_review_source_receipt",
+    generatedAt: "2026-05-13T00:00:00.000Z",
+    passed: true,
+    candidateId,
+    sourceUrl,
+    publicSafe: true,
+    external: true,
+    fetched: true,
+    statusCode: 200,
+    contentType: "application/json",
+    contentLength: Buffer.byteLength(sourceText, "utf8"),
+    sourceContentSha256: createHash("sha256").update(sourceText).digest("hex"),
+    candidateIdMentioned: true,
+    schemaVersionMentioned: true,
+    fetchError: null,
+    receiptRef,
+    artifactRefs: [receiptRef],
+    evidenceHash: "",
+  };
+  const hashedReceipt = {
+    ...receipt,
+    evidenceHash: createHash("sha256")
+      .update(JSON.stringify(receipt))
+      .digest("hex"),
+  };
+  await mkdir(join(root, dirname(receiptRef)), { recursive: true });
+  await writeJson(join(root, receiptRef), hashedReceipt);
+  return receiptRef;
 }
 
 async function tempRoot(): Promise<string> {

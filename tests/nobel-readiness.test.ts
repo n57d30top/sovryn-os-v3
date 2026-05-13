@@ -729,7 +729,7 @@ test("nobel-readiness score is lowered when public raw replay depends on live so
   assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
 });
 
-test("nobel-readiness consumes public formal counterexample pressure from formal replay package", async () => {
+test("nobel-readiness consumes public formal replay bundle pressure from formal package", async () => {
   const parent = await mkdtemp(
     join(tmpdir(), "sovryn-nobel-formal-counterexample-parent-"),
   );
@@ -763,7 +763,45 @@ test("nobel-readiness consumes public formal counterexample pressure from formal
     candidateId,
     checks: Array.from({ length: 24 }, (_, index) => ({
       objectId: `FORMAL-CHECK-${String(index + 1).padStart(3, "0")}`,
+      sourceFamily:
+        index % 2 === 0 ? "hog_public_family" : "graphclasses_public_family",
+      holdoutSlice: index < 12 ? "development" : "holdout",
+      rivalExplains: index < 6,
       counterexampleCollapsed: false,
+    })),
+  });
+  await writeJson(join(corpusResultRoot, "FORMAL_REPRODUCTION_RESULT.json"), {
+    kind: "formal_reproduction_result",
+    candidateId,
+    replayReady: true,
+    checkedObjectCount: 24,
+    productBaselineResults: [
+      {
+        baseline: "size_density_degree_treewidth_proxy_baseline",
+        result: 0.319,
+        explainsSignal: false,
+      },
+      {
+        baseline: "matched_known_family_negative_control",
+        result: 0.356,
+        explainsSignal: false,
+      },
+      {
+        baseline: "null_or_trivial_structural_rule",
+        result: 0.438,
+        explainsSignal: false,
+      },
+    ],
+  });
+  await writeJson(join(rawBundleRoot, "frozen-prediction-ledger.json"), {
+    kind: "formal_frozen_prediction_ledger",
+    candidateId,
+    predictions: Array.from({ length: 12 }, (_, index) => ({
+      predictionId: `prediction-${String(index + 1).padStart(2, "0")}`,
+      frozenBeforeExecution: true,
+      executed: true,
+      supportedCandidateMechanism: index < 9,
+      nonObvious: index < 3,
     })),
   });
 
@@ -776,13 +814,37 @@ test("nobel-readiness consumes public formal counterexample pressure from formal
   );
 
   assert.equal(score.publicFormalCounterexamplePressureReady, true);
+  assert.equal(score.publicFormalReplayReady, true);
+  assert.equal(score.publicFormalReplayCheckCount, 24);
+  assert.equal(score.publicFormalHoldoutReady, true);
+  assert.equal(score.publicFormalHoldoutCount, 12);
+  assert.equal(score.publicFormalBaselineResistanceReady, true);
+  assert.equal(score.publicFormalBaselineCount, 3);
+  assert.equal(score.publicFormalBaselineExplainsCount, 0);
+  assert.equal(score.publicFormalRivalPressureReady, true);
+  assert.equal(score.publicFormalRivalExplainsRate, 0.25);
+  assert.equal(score.publicFormalPredictionReady, true);
+  assert.equal(score.publicFormalFrozenPredictionCount, 12);
+  assert.equal(score.publicFormalSupportedPredictionCount, 9);
   assert.equal(score.publicFormalCounterexampleCheckCount, 24);
   assert.equal(score.publicFormalCounterexampleCollapsedCount, 0);
+  assert.equal(score.baseline_resistance_score, 70);
+  assert.equal(score.prediction_quality_score, 68);
+  assert.equal(score.rival_theory_score, 62);
+  assert.equal(score.holdout_score, 70);
+  assert.equal(score.replay_score, 70);
   assert.equal(score.counterexample_pressure_score, 70);
+  assert.equal(score.totalScore, 76);
   assert.match(
     score.rationale.join(" "),
-    /Public formal counterexample replay is consumed directly/,
+    /Public formal replay bundle evidence is consumed/,
   );
+  assert.match(report, /Public formal replay ready: true/);
+  assert.match(report, /Public formal replay checks: 24/);
+  assert.match(report, /Public formal holdout checks: 12/);
+  assert.match(report, /Public formal baselines: 3/);
+  assert.match(report, /Public formal rival explains rate: 0.25/);
+  assert.match(report, /Public formal frozen predictions: 12/);
   assert.match(report, /Public formal counterexample pressure ready: true/);
   assert.match(report, /Public formal counterexample checks: 24/);
   assert.deepEqual(auditNobelReadinessPublicText(report), []);

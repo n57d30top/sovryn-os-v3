@@ -8,10 +8,16 @@ A bounded discovery-scored candidate package satisfies the internal external-rev
 
 ## Evidence Summary
 
-- Readiness score: 72/100.
+- Readiness score: 76/100.
 - Outside expert review readiness score: 78/100.
 - Public validation major caveats: 0.
 - Public live-source-only replay caveats: 0.
+- Public formal replay ready: true.
+- Public formal replay checks: 72; replay ready: true.
+- Public formal holdout checks: 24; source families: 2; holdout ready: true.
+- Public formal baselines: 3; signal-explaining baselines: 0; baseline resistance ready: true.
+- Public formal rival explains rate: 0.25; rival pressure ready: true.
+- Public formal frozen predictions: 12; executed: 12; supported: 9; non-obvious: 4; prediction ready: true.
 - Public formal counterexample pressure ready: true.
 - Public formal counterexample checks: 72; collapsed checks: 0.
 - Safety score: 100/100.

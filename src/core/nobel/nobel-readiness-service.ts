@@ -210,6 +210,21 @@ export type NobelReadinessScore = {
   publicValidationCaveats: string[];
   publicReplayLiveSourceOnlyCaveatCount: number;
   publicReplayLiveSourceOnlyCaveats: string[];
+  publicFormalReplayCheckCount: number | null;
+  publicFormalReplayReady: boolean;
+  publicFormalHoldoutCount: number | null;
+  publicFormalHoldoutSourceFamilyCount: number | null;
+  publicFormalHoldoutReady: boolean;
+  publicFormalBaselineCount: number | null;
+  publicFormalBaselineExplainsCount: number | null;
+  publicFormalBaselineResistanceReady: boolean;
+  publicFormalRivalExplainsRate: number | null;
+  publicFormalRivalPressureReady: boolean;
+  publicFormalFrozenPredictionCount: number | null;
+  publicFormalExecutedPredictionCount: number | null;
+  publicFormalSupportedPredictionCount: number | null;
+  publicFormalNonObviousPredictionCount: number | null;
+  publicFormalPredictionReady: boolean;
   publicFormalCounterexampleCheckCount: number | null;
   publicFormalCounterexampleCollapsedCount: number | null;
   publicFormalCounterexamplePressureReady: boolean;
@@ -233,6 +248,21 @@ export type NobelReadinessPublicValidationContext = {
   publicRawScientificReproductionReady: boolean | null;
   publicFormalReproductionReady: boolean | null;
   publicRawOrFormalReproductionReady: boolean | null;
+  publicFormalReplayCheckCount: number | null;
+  publicFormalReplayReady: boolean | null;
+  publicFormalHoldoutCount: number | null;
+  publicFormalHoldoutSourceFamilyCount: number | null;
+  publicFormalHoldoutReady: boolean | null;
+  publicFormalBaselineCount: number | null;
+  publicFormalBaselineExplainsCount: number | null;
+  publicFormalBaselineResistanceReady: boolean | null;
+  publicFormalRivalExplainsRate: number | null;
+  publicFormalRivalPressureReady: boolean | null;
+  publicFormalFrozenPredictionCount: number | null;
+  publicFormalExecutedPredictionCount: number | null;
+  publicFormalSupportedPredictionCount: number | null;
+  publicFormalNonObviousPredictionCount: number | null;
+  publicFormalPredictionReady: boolean | null;
   publicFormalCounterexampleCheckCount: number | null;
   publicFormalCounterexampleCollapsedCount: number | null;
   publicFormalCounterexamplePressureReady: boolean | null;
@@ -1370,6 +1400,61 @@ export class NobelReadinessScorer {
       );
     const publicReplayLiveSourceOnly =
       publicReplayLiveSourceOnlyCaveats.length > 0;
+    const publicFormalReplayCheckCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalReplayCheckCount",
+    );
+    const publicFormalReplayReady = (input.publicValidationContexts ?? []).some(
+      (context) => context.publicFormalReplayReady === true,
+    );
+    const publicFormalHoldoutCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalHoldoutCount",
+    );
+    const publicFormalHoldoutSourceFamilyCount = maxPublicNumber(
+      input.publicValidationContexts,
+      "publicFormalHoldoutSourceFamilyCount",
+    );
+    const publicFormalHoldoutReady = (
+      input.publicValidationContexts ?? []
+    ).some((context) => context.publicFormalHoldoutReady === true);
+    const publicFormalBaselineCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalBaselineCount",
+    );
+    const publicFormalBaselineExplainsCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalBaselineExplainsCount",
+    );
+    const publicFormalBaselineResistanceReady = (
+      input.publicValidationContexts ?? []
+    ).some((context) => context.publicFormalBaselineResistanceReady === true);
+    const publicFormalRivalExplainsRate = maxPublicNumber(
+      input.publicValidationContexts,
+      "publicFormalRivalExplainsRate",
+    );
+    const publicFormalRivalPressureReady = (
+      input.publicValidationContexts ?? []
+    ).some((context) => context.publicFormalRivalPressureReady === true);
+    const publicFormalFrozenPredictionCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalFrozenPredictionCount",
+    );
+    const publicFormalExecutedPredictionCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalExecutedPredictionCount",
+    );
+    const publicFormalSupportedPredictionCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalSupportedPredictionCount",
+    );
+    const publicFormalNonObviousPredictionCount = aggregatePublicNumber(
+      input.publicValidationContexts,
+      "publicFormalNonObviousPredictionCount",
+    );
+    const publicFormalPredictionReady = (
+      input.publicValidationContexts ?? []
+    ).some((context) => context.publicFormalPredictionReady === true);
     const publicFormalCounterexampleCheckCounts = (
       input.publicValidationContexts ?? []
     )
@@ -1404,6 +1489,13 @@ export class NobelReadinessScorer {
       publicFormalCounterexampleCollapsedCount !== null
         ? publicFormalCounterexampleCollapsedCount
         : counterexamplePressure;
+    const publicFormalValidationBundleReady =
+      publicFormalReplayReady &&
+      publicFormalHoldoutReady &&
+      publicFormalBaselineResistanceReady &&
+      publicFormalRivalPressureReady &&
+      publicFormalPredictionReady &&
+      publicFormalCounterexamplePressureReady;
     const discoveryScoringAllowed =
       !publicDiscoveryScoreBlocked &&
       discoveryFundCandidateCount > 0 &&
@@ -1433,7 +1525,23 @@ export class NobelReadinessScorer {
       ? 12
       : majorPublicRivalCaveat
         ? 34
-        : 49;
+        : publicFormalRivalPressureReady
+          ? 62
+          : 49;
+    const baselineResistanceScore =
+      publicFormalBaselineResistanceReady && !publicDiscoveryScoreBlocked
+        ? 70
+        : 54;
+    const predictionQualityScore =
+      publicFormalPredictionReady && !publicDiscoveryScoreBlocked
+        ? 68
+        : Math.max(30, 74 - wrongPartialInconclusive * 3);
+    const holdoutScore =
+      publicFormalHoldoutReady && !publicDiscoveryScoreBlocked
+        ? 70
+        : successfulHoldouts >= 8
+          ? 62
+          : 45;
     const counterexamplePressureScore = Math.max(
       20,
       (majorPublicRivalCaveat ? 58 : 70) - effectiveCounterexamplePressure * 7,
@@ -1459,25 +1567,29 @@ export class NobelReadinessScorer {
           ? majorPublicRivalCaveat
             ? 60
             : 68
-          : majorPublicRivalCaveat
-            ? 63
-            : 72
+          : publicFormalValidationBundleReady
+            ? 76
+            : majorPublicRivalCaveat
+              ? 63
+              : 72
         : 46;
     const replayScore =
       publicReplayLiveSourceOnly && replayCaveats <= 2
         ? 49
-        : replayCaveats <= 2
-          ? 58
-          : 42;
+        : publicFormalReplayReady && !publicDiscoveryScoreBlocked
+          ? 70
+          : replayCaveats <= 2
+            ? 58
+            : 42;
     const result: NobelReadinessScore = {
       kind: "nobel_readiness_score",
       scoredAt: nowIso(),
       scientific_importance_score: 76,
       novelty_risk_score: 48,
-      baseline_resistance_score: 54,
-      prediction_quality_score: Math.max(30, 74 - wrongPartialInconclusive * 3),
+      baseline_resistance_score: baselineResistanceScore,
+      prediction_quality_score: predictionQualityScore,
       rival_theory_score: rivalTheoryScore,
-      holdout_score: successfulHoldouts >= 8 ? 62 : 45,
+      holdout_score: holdoutScore,
       replay_score: replayScore,
       counterexample_pressure_score: counterexamplePressureScore,
       external_review_readiness_score:
@@ -1502,6 +1614,21 @@ export class NobelReadinessScorer {
       publicReplayLiveSourceOnlyCaveatCount:
         publicReplayLiveSourceOnlyCaveats.length,
       publicReplayLiveSourceOnlyCaveats,
+      publicFormalReplayCheckCount,
+      publicFormalReplayReady,
+      publicFormalHoldoutCount,
+      publicFormalHoldoutSourceFamilyCount,
+      publicFormalHoldoutReady,
+      publicFormalBaselineCount,
+      publicFormalBaselineExplainsCount,
+      publicFormalBaselineResistanceReady,
+      publicFormalRivalExplainsRate,
+      publicFormalRivalPressureReady,
+      publicFormalFrozenPredictionCount,
+      publicFormalExecutedPredictionCount,
+      publicFormalSupportedPredictionCount,
+      publicFormalNonObviousPredictionCount,
+      publicFormalPredictionReady,
       publicFormalCounterexampleCheckCount,
       publicFormalCounterexampleCollapsedCount,
       publicFormalCounterexamplePressureReady,
@@ -1531,6 +1658,11 @@ export class NobelReadinessScorer {
               ...(publicFormalCounterexamplePressureReady
                 ? [
                     "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
+                  ]
+                : []),
+              ...(publicFormalValidationBundleReady
+                ? [
+                    "Public formal replay bundle evidence is consumed for replay, holdout, baseline, rival, prediction, and counterexample readiness sub-scores; this remains internal scoring and not outside expert validation.",
                   ]
                 : []),
               "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
@@ -1574,6 +1706,26 @@ export class NobelReadinessPackageBuilder {
       score.publicFormalCounterexampleCheckCount !== null
         ? `\n- Public formal counterexample checks: ${score.publicFormalCounterexampleCheckCount}; collapsed checks: ${score.publicFormalCounterexampleCollapsedCount ?? "unknown"}.`
         : "";
+    const publicFormalReplayText =
+      score.publicFormalReplayCheckCount !== null
+        ? `\n- Public formal replay checks: ${score.publicFormalReplayCheckCount}; replay ready: ${String(score.publicFormalReplayReady)}.`
+        : "";
+    const publicFormalHoldoutText =
+      score.publicFormalHoldoutCount !== null
+        ? `\n- Public formal holdout checks: ${score.publicFormalHoldoutCount}; source families: ${score.publicFormalHoldoutSourceFamilyCount ?? "unknown"}; holdout ready: ${String(score.publicFormalHoldoutReady)}.`
+        : "";
+    const publicFormalBaselineText =
+      score.publicFormalBaselineCount !== null
+        ? `\n- Public formal baselines: ${score.publicFormalBaselineCount}; signal-explaining baselines: ${score.publicFormalBaselineExplainsCount ?? "unknown"}; baseline resistance ready: ${String(score.publicFormalBaselineResistanceReady)}.`
+        : "";
+    const publicFormalRivalText =
+      score.publicFormalRivalExplainsRate !== null
+        ? `\n- Public formal rival explains rate: ${score.publicFormalRivalExplainsRate}; rival pressure ready: ${String(score.publicFormalRivalPressureReady)}.`
+        : "";
+    const publicFormalPredictionText =
+      score.publicFormalFrozenPredictionCount !== null
+        ? `\n- Public formal frozen predictions: ${score.publicFormalFrozenPredictionCount}; executed: ${score.publicFormalExecutedPredictionCount ?? "unknown"}; supported: ${score.publicFormalSupportedPredictionCount ?? "unknown"}; non-obvious: ${score.publicFormalNonObviousPredictionCount ?? "unknown"}; prediction ready: ${String(score.publicFormalPredictionReady)}.`
+        : "";
     const decision = packageReady
       ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
       : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
@@ -1607,6 +1759,7 @@ ${decision}
 - Outside expert review readiness score: ${score.external_review_readiness_score}/100.
 - Public validation major caveats: ${score.publicValidationMajorCaveatCount}.
 - Public live-source-only replay caveats: ${score.publicReplayLiveSourceOnlyCaveatCount}.
+- Public formal replay ready: ${String(score.publicFormalReplayReady)}.${publicFormalReplayText}${publicFormalHoldoutText}${publicFormalBaselineText}${publicFormalRivalText}${publicFormalPredictionText}
 - Public formal counterexample pressure ready: ${String(score.publicFormalCounterexamplePressureReady)}.${publicFormalCounterexampleText}
 - Safety score: ${score.safety_score}/100.
 - Overclaim risk score: ${score.overclaim_risk_score}/100.
@@ -2510,6 +2663,8 @@ export class NobelReadinessService {
       const liveSourceOnlyReplayCaveat =
         publicRawScientificReproductionReady === true &&
         sourceRowsStored === false;
+      const formalReplayPressure =
+        await publicFormalReplayPressureForResult(resultRoot);
       const formalCounterexamplePressure =
         await publicFormalCounterexamplePressureForResult(resultRoot);
       contexts.push({
@@ -2527,6 +2682,28 @@ export class NobelReadinessService {
         publicRawScientificReproductionReady,
         publicFormalReproductionReady,
         publicRawOrFormalReproductionReady,
+        publicFormalReplayCheckCount: formalReplayPressure.replayCheckCount,
+        publicFormalReplayReady: formalReplayPressure.replayReady,
+        publicFormalHoldoutCount: formalReplayPressure.holdoutCount,
+        publicFormalHoldoutSourceFamilyCount:
+          formalReplayPressure.holdoutSourceFamilyCount,
+        publicFormalHoldoutReady: formalReplayPressure.holdoutReady,
+        publicFormalBaselineCount: formalReplayPressure.baselineCount,
+        publicFormalBaselineExplainsCount:
+          formalReplayPressure.baselineExplainsCount,
+        publicFormalBaselineResistanceReady:
+          formalReplayPressure.baselineResistanceReady,
+        publicFormalRivalExplainsRate: formalReplayPressure.rivalExplainsRate,
+        publicFormalRivalPressureReady: formalReplayPressure.rivalPressureReady,
+        publicFormalFrozenPredictionCount:
+          formalReplayPressure.frozenPredictionCount,
+        publicFormalExecutedPredictionCount:
+          formalReplayPressure.executedPredictionCount,
+        publicFormalSupportedPredictionCount:
+          formalReplayPressure.supportedPredictionCount,
+        publicFormalNonObviousPredictionCount:
+          formalReplayPressure.nonObviousPredictionCount,
+        publicFormalPredictionReady: formalReplayPressure.predictionReady,
         publicFormalCounterexampleCheckCount:
           formalCounterexamplePressure.checkCount,
         publicFormalCounterexampleCollapsedCount:
@@ -2555,6 +2732,221 @@ function candidateRecordFromEnvelope(
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function aggregatePublicNumber(
+  contexts: NobelReadinessPublicValidationContext[] | undefined,
+  key: keyof NobelReadinessPublicValidationContext,
+): number | null {
+  const values = (contexts ?? [])
+    .map((context) => context[key])
+    .filter((value): value is number => typeof value === "number");
+  if (values.length === 0) return null;
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function maxPublicNumber(
+  contexts: NobelReadinessPublicValidationContext[] | undefined,
+  key: keyof NobelReadinessPublicValidationContext,
+): number | null {
+  const values = (contexts ?? [])
+    .map((context) => context[key])
+    .filter((value): value is number => typeof value === "number");
+  if (values.length === 0) return null;
+  return Math.max(...values);
+}
+
+async function publicFormalReplayPressureForResult(
+  resultRoot: string,
+): Promise<{
+  replayCheckCount: number | null;
+  replayReady: boolean | null;
+  holdoutCount: number | null;
+  holdoutSourceFamilyCount: number | null;
+  holdoutReady: boolean | null;
+  baselineCount: number | null;
+  baselineExplainsCount: number | null;
+  baselineResistanceReady: boolean | null;
+  rivalExplainsRate: number | null;
+  rivalPressureReady: boolean | null;
+  frozenPredictionCount: number | null;
+  executedPredictionCount: number | null;
+  supportedPredictionCount: number | null;
+  nonObviousPredictionCount: number | null;
+  predictionReady: boolean | null;
+}> {
+  const manifest = await readOptionalJson<Record<string, unknown>>(
+    join(
+      resultRoot,
+      "raw-reproduction-bundle",
+      "formal-object-check-manifest.json",
+    ),
+  );
+  const formalReplay = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "FORMAL_REPRODUCTION_RESULT.json"),
+  );
+  const predictionLedger = await readOptionalJson<Record<string, unknown>>(
+    join(
+      resultRoot,
+      "raw-reproduction-bundle",
+      "frozen-prediction-ledger.json",
+    ),
+  );
+  const checks = Array.isArray(manifest?.checks) ? manifest.checks : [];
+  const replayCheckCount =
+    checks.length > 0
+      ? checks.length
+      : numberValue(formalReplay?.checkedObjectCount);
+  const replayReady =
+    replayCheckCount === null
+      ? null
+      : (booleanValue(formalReplay?.replayReady) === true ||
+          booleanValue(manifest?.publicSafe) === true ||
+          manifest !== null) &&
+        replayCheckCount >= 16;
+  const holdoutChecks = checks.filter((check) => {
+    if (typeof check !== "object" || check === null) return false;
+    return (check as Record<string, unknown>).holdoutSlice === "holdout";
+  });
+  const holdoutCount =
+    holdoutChecks.length > 0
+      ? holdoutChecks.length
+      : numberValue(
+          (formalReplay?.recomputedFromManifestRows as Record<string, unknown>)
+            ?.holdoutCount,
+        );
+  const holdoutSourceFamilies = new Set(
+    holdoutChecks
+      .map((check) =>
+        typeof check === "object" && check !== null
+          ? stringValue((check as Record<string, unknown>).sourceFamily)
+          : null,
+      )
+      .filter((value): value is string => value !== null),
+  );
+  const holdoutSourceFamilyCount =
+    holdoutSourceFamilies.size > 0 ? holdoutSourceFamilies.size : null;
+  const holdoutReady =
+    holdoutCount === null
+      ? null
+      : holdoutCount >= 12 && (holdoutSourceFamilyCount ?? 0) >= 2;
+  const baselineResults = Array.isArray(formalReplay?.productBaselineResults)
+    ? formalReplay.productBaselineResults
+    : Array.isArray(manifest?.baselineResults)
+      ? manifest.baselineResults
+      : [];
+  const baselineCount =
+    baselineResults.length > 0 ? baselineResults.length : null;
+  const baselineExplainsCount =
+    baselineResults.length > 0
+      ? baselineResults.filter((baseline) => {
+          if (typeof baseline !== "object" || baseline === null) return false;
+          return (baseline as Record<string, unknown>).explainsSignal === true;
+        }).length
+      : null;
+  const baselineResistanceReady =
+    baselineCount === null || baselineExplainsCount === null
+      ? null
+      : baselineCount >= 3 && baselineExplainsCount === 0;
+  const sourceFamilies = new Set(
+    checks
+      .map((check) =>
+        typeof check === "object" && check !== null
+          ? stringValue((check as Record<string, unknown>).sourceFamily)
+          : null,
+      )
+      .filter((value): value is string => value !== null),
+  );
+  const rivalExplainsCount = checks.filter((check) => {
+    if (typeof check !== "object" || check === null) return false;
+    return (check as Record<string, unknown>).rivalExplains === true;
+  }).length;
+  const rivalExplainsRate =
+    checks.length > 0
+      ? Number((rivalExplainsCount / checks.length).toFixed(3))
+      : null;
+  const rivalPressureReady =
+    rivalExplainsRate === null
+      ? null
+      : checks.length >= 24 &&
+        sourceFamilies.size >= 2 &&
+        rivalExplainsRate <= 0.25;
+  const predictions = Array.isArray(predictionLedger?.predictions)
+    ? predictionLedger.predictions
+    : [];
+  const frozenPredictionCount =
+    predictions.length > 0
+      ? predictions.filter((prediction) => {
+          if (typeof prediction !== "object" || prediction === null) {
+            return false;
+          }
+          return (
+            (prediction as Record<string, unknown>).frozenBeforeExecution ===
+            true
+          );
+        }).length
+      : null;
+  const executedPredictionCount =
+    predictions.length > 0
+      ? predictions.filter((prediction) => {
+          if (typeof prediction !== "object" || prediction === null) {
+            return false;
+          }
+          return (prediction as Record<string, unknown>).executed === true;
+        }).length
+      : null;
+  const supportedPredictionCount =
+    predictions.length > 0
+      ? predictions.filter((prediction) => {
+          if (typeof prediction !== "object" || prediction === null) {
+            return false;
+          }
+          return (
+            (prediction as Record<string, unknown>)
+              .supportedCandidateMechanism === true
+          );
+        }).length
+      : null;
+  const nonObviousPredictionCount =
+    predictions.length > 0
+      ? predictions.filter((prediction) => {
+          if (typeof prediction !== "object" || prediction === null) {
+            return false;
+          }
+          return (prediction as Record<string, unknown>).nonObvious === true;
+        }).length
+      : null;
+  const predictionReady =
+    frozenPredictionCount === null ||
+    executedPredictionCount === null ||
+    supportedPredictionCount === null ||
+    nonObviousPredictionCount === null
+      ? null
+      : frozenPredictionCount >= 12 &&
+        executedPredictionCount >= 12 &&
+        supportedPredictionCount >= 9 &&
+        nonObviousPredictionCount >= 3;
+  return {
+    replayCheckCount,
+    replayReady,
+    holdoutCount,
+    holdoutSourceFamilyCount,
+    holdoutReady,
+    baselineCount,
+    baselineExplainsCount,
+    baselineResistanceReady,
+    rivalExplainsRate,
+    rivalPressureReady,
+    frozenPredictionCount,
+    executedPredictionCount,
+    supportedPredictionCount,
+    nonObviousPredictionCount,
+    predictionReady,
+  };
 }
 
 async function publicFormalCounterexamplePressureForResult(

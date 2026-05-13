@@ -208,6 +208,8 @@ export type NobelReadinessScore = {
   publicValidationMajorCaveatCount: number;
   publicValidationStatuses: string[];
   publicValidationCaveats: string[];
+  publicReplayLiveSourceOnlyCaveatCount: number;
+  publicReplayLiveSourceOnlyCaveats: string[];
   einsteinNobelDiscoveryScoreEligible: boolean;
   scoringSeparationApplied: true;
   rationale: string[];
@@ -222,6 +224,9 @@ export type NobelReadinessPublicValidationContext = {
   majorRivalCaveat: boolean;
   majorCaveat: boolean;
   publicRawScientificReproductionReady: boolean | null;
+  sourceRowsStored: boolean | null;
+  sourceRowsStoredReason: string | null;
+  liveSourceOnlyReplayCaveat: boolean;
 };
 
 export type NobelReadinessAudit = {
@@ -1332,6 +1337,18 @@ export class NobelReadinessScorer {
     const majorPublicRivalCaveat = publicMajorCaveats.some(
       (context) => context.majorRivalCaveat,
     );
+    const publicReplayLiveSourceOnlyCaveats = (
+      input.publicValidationContexts ?? []
+    )
+      .filter((context) => context.liveSourceOnlyReplayCaveat)
+      .map((context) =>
+        [
+          context.resultSlug,
+          "live_source_only_replay_no_public_raw_rows_snapshot",
+        ].join(":"),
+      );
+    const publicReplayLiveSourceOnly =
+      publicReplayLiveSourceOnlyCaveats.length > 0;
     const discoveryScoringAllowed =
       discoveryFundCandidateCount > 0 &&
       discoveryFundClassifications.some(
@@ -1364,7 +1381,28 @@ export class NobelReadinessScorer {
         ? 64
         : 78
       : 44;
-    const totalScore = hardGatesPass ? (majorPublicRivalCaveat ? 63 : 72) : 46;
+    const caveatAdjustedExternalReviewReadinessScore =
+      publicReplayLiveSourceOnly && hardGatesPass
+        ? Math.min(
+            externalReviewReadinessScore,
+            majorPublicRivalCaveat ? 60 : 70,
+          )
+        : externalReviewReadinessScore;
+    const totalScore = hardGatesPass
+      ? publicReplayLiveSourceOnly
+        ? majorPublicRivalCaveat
+          ? 60
+          : 68
+        : majorPublicRivalCaveat
+          ? 63
+          : 72
+      : 46;
+    const replayScore =
+      publicReplayLiveSourceOnly && replayCaveats <= 2
+        ? 49
+        : replayCaveats <= 2
+          ? 58
+          : 42;
     const result: NobelReadinessScore = {
       kind: "nobel_readiness_score",
       scoredAt: nowIso(),
@@ -1374,9 +1412,10 @@ export class NobelReadinessScorer {
       prediction_quality_score: Math.max(30, 74 - wrongPartialInconclusive * 3),
       rival_theory_score: rivalTheoryScore,
       holdout_score: successfulHoldouts >= 8 ? 62 : 45,
-      replay_score: replayCaveats <= 2 ? 58 : 42,
+      replay_score: replayScore,
       counterexample_pressure_score: counterexamplePressureScore,
-      external_review_readiness_score: externalReviewReadinessScore,
+      external_review_readiness_score:
+        caveatAdjustedExternalReviewReadinessScore,
       safety_score: 100,
       overclaim_risk_score: 22,
       totalScore,
@@ -1392,6 +1431,9 @@ export class NobelReadinessScorer {
       publicValidationMajorCaveatCount: publicMajorCaveats.length,
       publicValidationStatuses,
       publicValidationCaveats,
+      publicReplayLiveSourceOnlyCaveatCount:
+        publicReplayLiveSourceOnlyCaveats.length,
+      publicReplayLiveSourceOnlyCaveats,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
       rationale: packageReadyDiscoveryFund
@@ -1401,6 +1443,11 @@ export class NobelReadinessScorer {
             ...(majorPublicRivalCaveat
               ? [
                   "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
+                ]
+              : []),
+            ...(publicReplayLiveSourceOnly
+              ? [
+                  "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
                 ]
               : []),
             "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
@@ -1436,6 +1483,10 @@ export class NobelReadinessPackageBuilder {
       score.publicValidationCaveats.length > 0
         ? `\n- Public extended validation caveats: ${score.publicValidationCaveats.join(", ")}.`
         : "";
+    const publicReplayCaveatText =
+      score.publicReplayLiveSourceOnlyCaveats.length > 0
+        ? `\n- Public replay caveats: ${score.publicReplayLiveSourceOnlyCaveats.join(", ")}.`
+        : "";
     const decision = packageReady
       ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
       : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
@@ -1447,6 +1498,7 @@ export class NobelReadinessPackageBuilder {
 - The package does not claim prize significance, outside validation, or field uptake.
 - Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.
 ${publicValidationCaveatText}
+${publicReplayCaveatText}
 `
       : `# Limitations
 
@@ -1469,12 +1521,17 @@ ${decision}
 - Readiness score: ${score.totalScore}/100.
 - Outside expert review readiness score: ${score.external_review_readiness_score}/100.
 - Public validation major caveats: ${score.publicValidationMajorCaveatCount}.
+- Public live-source-only replay caveats: ${score.publicReplayLiveSourceOnlyCaveatCount}.
 - Safety score: ${score.safety_score}/100.
 - Overclaim risk score: ${score.overclaim_risk_score}/100.
 
 ## Public Validation Caveats
 
 ${score.publicValidationCaveats.length > 0 ? score.publicValidationCaveats.map((caveat) => `- ${caveat}`).join("\n") : "- None recorded."}
+
+## Public Replay Caveats
+
+${score.publicReplayLiveSourceOnlyCaveats.length > 0 ? score.publicReplayLiveSourceOnlyCaveats.map((caveat) => `- ${caveat}`).join("\n") : "- None recorded."}
 
 ## Claim Boundary
 
@@ -2317,6 +2374,16 @@ export class NobelReadinessService {
         booleanValue(summary?.publicRawScientificReproductionReady) ??
         booleanValue(fundCandidate?.publicRawScientificReproductionReady) ??
         booleanValue(nestedCandidate?.publicRawScientificReproductionReady);
+      const bundleManifest = await readOptionalJson<Record<string, unknown>>(
+        join(resultRoot, "raw-reproduction-bundle", "BUNDLE_MANIFEST.json"),
+      );
+      const sourceRowsStored = booleanValue(bundleManifest?.sourceRowsStored);
+      const sourceRowsStoredReason = stringValue(
+        bundleManifest?.sourceRowsStoredReason,
+      );
+      const liveSourceOnlyReplayCaveat =
+        publicRawScientificReproductionReady === true &&
+        sourceRowsStored === false;
       contexts.push({
         candidateId,
         resultSlug: entry,
@@ -2325,6 +2392,9 @@ export class NobelReadinessService {
         majorRivalCaveat: normalizedStatus.includes("major_rival_caveat"),
         majorCaveat: normalizedStatus.includes("major_caveat"),
         publicRawScientificReproductionReady,
+        sourceRowsStored,
+        sourceRowsStoredReason,
+        liveSourceOnlyReplayCaveat,
       });
     }
     return contexts;

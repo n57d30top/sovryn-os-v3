@@ -575,6 +575,94 @@ test("nobel-readiness score is lowered by public extended validation major rival
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
 });
 
+test("nobel-readiness score is lowered when public raw replay depends on live source only", async () => {
+  const parent = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-live-replay-parent-"),
+  );
+  const root = join(parent, "sovryn-os-v3");
+  const corpusResultRoot = join(
+    parent,
+    "sovryn-open-inventions",
+    "results",
+    "first-discovery-fund-gaia-astrometric-excess-slices",
+  );
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  const rawBundleRoot = join(corpusResultRoot, "raw-reproduction-bundle");
+  await mkdir(daemonRoot, { recursive: true });
+  await mkdir(rawBundleRoot, { recursive: true });
+  const candidateId =
+    "DISCOVERY-LIFT-INSIGHT-HARD-GEN-GAIA-ASTROMETRIC-EXCESS-SIGNIFICANCE-GE-0F9E75E885B6";
+  const assessment = classifyFundCandidate({
+    candidateId,
+    claim:
+      "A nontrivial new insight across real targets has domain scientific significance in astrophysics open catalog anomalies.",
+    domain: "astrophysics_open_catalog_anomalies",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#evidence-summary"],
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    notificationAllowed: true,
+    fundClassAssessment: assessment,
+  });
+  await writeJson(join(corpusResultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    candidateId,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    publicReviewStatus:
+      "external_review_ready_raw_scientific_reproduction_succeeded_caveated_no_external_validation",
+    extendedValidationStatus: "extended_validation_major_rival_caveat",
+    publicRawScientificReproductionReady: true,
+  });
+  await writeJson(join(rawBundleRoot, "BUNDLE_MANIFEST.json"), {
+    kind: "gaia_public_raw_reproduction_bundle_manifest",
+    candidateId,
+    sourceRowsStored: false,
+    sourceRowsStoredReason:
+      "The public replay fetches Gaia TAP rows directly from ESA using exact ADQL queries.",
+    publicSafe: true,
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+  await service.package();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "NOBEL_READINESS_REPORT.md"),
+    "utf8",
+  );
+  const limitations = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "LIMITATIONS.md"),
+    "utf8",
+  );
+
+  assert.equal(score.label, "externally_review_ready_candidate");
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, true);
+  assert.equal(score.publicValidationMajorCaveatCount, 1);
+  assert.equal(score.publicReplayLiveSourceOnlyCaveatCount, 1);
+  assert.deepEqual(score.publicReplayLiveSourceOnlyCaveats, [
+    "first-discovery-fund-gaia-astrometric-excess-slices:live_source_only_replay_no_public_raw_rows_snapshot",
+  ]);
+  assert.equal(score.replay_score, 49);
+  assert.equal(score.external_review_readiness_score, 60);
+  assert.equal(score.totalScore, 60);
+  assert.match(
+    score.rationale.join(" "),
+    /depends on live external source availability/,
+  );
+  assert.match(report, /Public live-source-only replay caveats: 1/);
+  assert.match(limitations, /Public replay caveats:/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+  assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
+});
+
 test("nobel-readiness external-review handoff verifies package refs without claiming external validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-handoff-pass-"));
   await writeActiveDiscoveryFundPackage(root);

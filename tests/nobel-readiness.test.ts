@@ -729,6 +729,65 @@ test("nobel-readiness score is lowered when public raw replay depends on live so
   assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
 });
 
+test("nobel-readiness consumes public formal counterexample pressure from formal replay package", async () => {
+  const parent = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-formal-counterexample-parent-"),
+  );
+  const root = join(parent, "sovryn-os-v3");
+  const corpusResultRoot = join(
+    parent,
+    "sovryn-open-inventions",
+    "results",
+    "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+  );
+  const rawBundleRoot = join(corpusResultRoot, "raw-reproduction-bundle");
+  await mkdir(rawBundleRoot, { recursive: true });
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const fundGate = await readJson<Record<string, unknown>>(
+    join(root, ".sovryn", "discovery-daemon", "fund-gate-results.json"),
+  );
+  const assessment = fundGate.fundClassAssessment as Record<string, unknown>;
+  await writeJson(join(corpusResultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    candidateId,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore: true,
+    publicReviewStatus:
+      "formal_replay_succeeded_caveated_no_external_validation",
+    publicRawScientificReproductionReady: false,
+    publicFormalReproductionReady: true,
+    publicRawOrFormalReproductionReady: true,
+  });
+  await writeJson(join(rawBundleRoot, "formal-object-check-manifest.json"), {
+    kind: "formal_graph_minor_object_check_manifest",
+    candidateId,
+    checks: Array.from({ length: 24 }, (_, index) => ({
+      objectId: `FORMAL-CHECK-${String(index + 1).padStart(3, "0")}`,
+      counterexampleCollapsed: false,
+    })),
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+  await service.package();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "NOBEL_READINESS_REPORT.md"),
+    "utf8",
+  );
+
+  assert.equal(score.publicFormalCounterexamplePressureReady, true);
+  assert.equal(score.publicFormalCounterexampleCheckCount, 24);
+  assert.equal(score.publicFormalCounterexampleCollapsedCount, 0);
+  assert.equal(score.counterexample_pressure_score, 70);
+  assert.match(
+    score.rationale.join(" "),
+    /Public formal counterexample replay is consumed directly/,
+  );
+  assert.match(report, /Public formal counterexample pressure ready: true/);
+  assert.match(report, /Public formal counterexample checks: 24/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
 test("nobel-readiness external-review handoff verifies package refs without claiming external validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-handoff-pass-"));
   await writeActiveDiscoveryFundPackage(root);

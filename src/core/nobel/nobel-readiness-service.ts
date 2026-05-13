@@ -210,6 +210,9 @@ export type NobelReadinessScore = {
   publicValidationCaveats: string[];
   publicReplayLiveSourceOnlyCaveatCount: number;
   publicReplayLiveSourceOnlyCaveats: string[];
+  publicFormalCounterexampleCheckCount: number | null;
+  publicFormalCounterexampleCollapsedCount: number | null;
+  publicFormalCounterexamplePressureReady: boolean;
   einsteinNobelDiscoveryScoreEligible: boolean;
   scoringSeparationApplied: true;
   rationale: string[];
@@ -230,6 +233,9 @@ export type NobelReadinessPublicValidationContext = {
   publicRawScientificReproductionReady: boolean | null;
   publicFormalReproductionReady: boolean | null;
   publicRawOrFormalReproductionReady: boolean | null;
+  publicFormalCounterexampleCheckCount: number | null;
+  publicFormalCounterexampleCollapsedCount: number | null;
+  publicFormalCounterexamplePressureReady: boolean | null;
   sourceRowsStored: boolean | null;
   sourceRowsStoredReason: string | null;
   liveSourceOnlyReplayCaveat: boolean;
@@ -1364,6 +1370,40 @@ export class NobelReadinessScorer {
       );
     const publicReplayLiveSourceOnly =
       publicReplayLiveSourceOnlyCaveats.length > 0;
+    const publicFormalCounterexampleCheckCounts = (
+      input.publicValidationContexts ?? []
+    )
+      .map((context) => context.publicFormalCounterexampleCheckCount)
+      .filter((value): value is number => typeof value === "number");
+    const publicFormalCounterexampleCollapsedCounts = (
+      input.publicValidationContexts ?? []
+    )
+      .map((context) => context.publicFormalCounterexampleCollapsedCount)
+      .filter((value): value is number => typeof value === "number");
+    const publicFormalCounterexampleCheckCount =
+      publicFormalCounterexampleCheckCounts.length > 0
+        ? publicFormalCounterexampleCheckCounts.reduce(
+            (total, value) => total + value,
+            0,
+          )
+        : null;
+    const publicFormalCounterexampleCollapsedCount =
+      publicFormalCounterexampleCollapsedCounts.length > 0
+        ? publicFormalCounterexampleCollapsedCounts.reduce(
+            (total, value) => total + value,
+            0,
+          )
+        : null;
+    const publicFormalCounterexamplePressureReady = (
+      input.publicValidationContexts ?? []
+    ).some(
+      (context) => context.publicFormalCounterexamplePressureReady === true,
+    );
+    const effectiveCounterexamplePressure =
+      publicFormalCounterexamplePressureReady &&
+      publicFormalCounterexampleCollapsedCount !== null
+        ? publicFormalCounterexampleCollapsedCount
+        : counterexamplePressure;
     const discoveryScoringAllowed =
       !publicDiscoveryScoreBlocked &&
       discoveryFundCandidateCount > 0 &&
@@ -1376,13 +1416,13 @@ export class NobelReadinessScorer {
       (packageReadyDiscoveryFund ||
         (successfulHoldouts >= 10 &&
           replayCaveats === 0 &&
-          counterexamplePressure <= 1 &&
+          effectiveCounterexamplePressure <= 1 &&
           input.killWeek.downgradedOrRejectedCount < 5));
     const label: NobelReadinessLabel = publicDiscoveryScoreBlocked
       ? "promising_but_unvalidated"
       : hardGatesPass
         ? "externally_review_ready_candidate"
-        : successfulHoldouts >= 6 && counterexamplePressure <= 6
+        : successfulHoldouts >= 6 && effectiveCounterexamplePressure <= 6
           ? "promising_with_strong_caveats"
           : "promising_but_unvalidated";
     const survivingCandidateId =
@@ -1396,7 +1436,7 @@ export class NobelReadinessScorer {
         : 49;
     const counterexamplePressureScore = Math.max(
       20,
-      (majorPublicRivalCaveat ? 58 : 70) - counterexamplePressure * 7,
+      (majorPublicRivalCaveat ? 58 : 70) - effectiveCounterexamplePressure * 7,
     );
     const externalReviewReadinessScore = publicDiscoveryScoreBlocked
       ? 28
@@ -1462,6 +1502,9 @@ export class NobelReadinessScorer {
       publicReplayLiveSourceOnlyCaveatCount:
         publicReplayLiveSourceOnlyCaveats.length,
       publicReplayLiveSourceOnlyCaveats,
+      publicFormalCounterexampleCheckCount,
+      publicFormalCounterexampleCollapsedCount,
+      publicFormalCounterexamplePressureReady,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
       rationale: publicDiscoveryScoreBlocked
@@ -1483,6 +1526,11 @@ export class NobelReadinessScorer {
               ...(publicReplayLiveSourceOnly
                 ? [
                     "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
+                  ]
+                : []),
+              ...(publicFormalCounterexamplePressureReady
+                ? [
+                    "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
                   ]
                 : []),
               "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
@@ -1522,6 +1570,10 @@ export class NobelReadinessPackageBuilder {
       score.publicReplayLiveSourceOnlyCaveats.length > 0
         ? `\n- Public replay caveats: ${score.publicReplayLiveSourceOnlyCaveats.join(", ")}.`
         : "";
+    const publicFormalCounterexampleText =
+      score.publicFormalCounterexampleCheckCount !== null
+        ? `\n- Public formal counterexample checks: ${score.publicFormalCounterexampleCheckCount}; collapsed checks: ${score.publicFormalCounterexampleCollapsedCount ?? "unknown"}.`
+        : "";
     const decision = packageReady
       ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
       : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
@@ -1531,9 +1583,7 @@ export class NobelReadinessPackageBuilder {
 - No outside expert reviewed this package.
 - The external-review-ready label is an internal package readiness label.
 - The package does not claim prize significance, outside validation, or field uptake.
-- Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.
-${publicValidationCaveatText}
-${publicReplayCaveatText}
+- Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.${publicValidationCaveatText}${publicReplayCaveatText}
 `
       : `# Limitations
 
@@ -1557,6 +1607,7 @@ ${decision}
 - Outside expert review readiness score: ${score.external_review_readiness_score}/100.
 - Public validation major caveats: ${score.publicValidationMajorCaveatCount}.
 - Public live-source-only replay caveats: ${score.publicReplayLiveSourceOnlyCaveatCount}.
+- Public formal counterexample pressure ready: ${String(score.publicFormalCounterexamplePressureReady)}.${publicFormalCounterexampleText}
 - Safety score: ${score.safety_score}/100.
 - Overclaim risk score: ${score.overclaim_risk_score}/100.
 
@@ -2459,6 +2510,8 @@ export class NobelReadinessService {
       const liveSourceOnlyReplayCaveat =
         publicRawScientificReproductionReady === true &&
         sourceRowsStored === false;
+      const formalCounterexamplePressure =
+        await publicFormalCounterexamplePressureForResult(resultRoot);
       contexts.push({
         candidateId,
         resultSlug: entry,
@@ -2474,6 +2527,12 @@ export class NobelReadinessService {
         publicRawScientificReproductionReady,
         publicFormalReproductionReady,
         publicRawOrFormalReproductionReady,
+        publicFormalCounterexampleCheckCount:
+          formalCounterexamplePressure.checkCount,
+        publicFormalCounterexampleCollapsedCount:
+          formalCounterexamplePressure.collapsedCount,
+        publicFormalCounterexamplePressureReady:
+          formalCounterexamplePressure.ready,
         sourceRowsStored,
         sourceRowsStoredReason,
         liveSourceOnlyReplayCaveat,
@@ -2496,6 +2555,36 @@ function candidateRecordFromEnvelope(
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+async function publicFormalCounterexamplePressureForResult(
+  resultRoot: string,
+): Promise<{
+  checkCount: number | null;
+  collapsedCount: number | null;
+  ready: boolean | null;
+}> {
+  const manifest = await readOptionalJson<Record<string, unknown>>(
+    join(
+      resultRoot,
+      "raw-reproduction-bundle",
+      "formal-object-check-manifest.json",
+    ),
+  );
+  const checks = Array.isArray(manifest?.checks) ? manifest.checks : null;
+  if (checks === null) {
+    return { checkCount: null, collapsedCount: null, ready: null };
+  }
+  const collapsedCount = checks.filter((check) => {
+    if (typeof check !== "object" || check === null) return false;
+    return (check as Record<string, unknown>).counterexampleCollapsed === true;
+  }).length;
+  const checkCount = checks.length;
+  return {
+    checkCount,
+    collapsedCount,
+    ready: checkCount >= 16 && collapsedCount === 0,
+  };
 }
 
 function booleanValue(value: unknown): boolean | null {

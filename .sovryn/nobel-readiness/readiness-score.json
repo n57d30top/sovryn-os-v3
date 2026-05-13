@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-13T09:23:38.935Z",
+  "scoredAt": "2026-05-13T09:43:32.053Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -8,7 +8,7 @@
   "rival_theory_score": 49,
   "holdout_score": 62,
   "replay_score": 58,
-  "counterexample_pressure_score": 35,
+  "counterexample_pressure_score": 70,
   "external_review_readiness_score": 78,
   "safety_score": 100,
   "overclaim_risk_score": 22,
@@ -23,13 +23,17 @@
   "publicValidationCaveats": [],
   "publicReplayLiveSourceOnlyCaveatCount": 0,
   "publicReplayLiveSourceOnlyCaveats": [],
+  "publicFormalCounterexampleCheckCount": 72,
+  "publicFormalCounterexampleCollapsedCount": 0,
+  "publicFormalCounterexamplePressureReady": true,
   "einsteinNobelDiscoveryScoreEligible": true,
   "scoringSeparationApplied": true,
   "rationale": [
     "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
     "This is an internal external-review package readiness state, not outside expert validation.",
+    "Public formal counterexample replay is consumed directly for counterexample-pressure scoring; this does not claim external validation.",
     "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
     "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger."
   ],
-  "evidenceHash": "c962204d398b5a7a61d8ecacae77af90a3570becc844a0ccf6666d1cf5b82c02"
+  "evidenceHash": "d6fe1c68f72539f356e3954ba347712de8e27901884760e1733ef3a1d8117146"
 }

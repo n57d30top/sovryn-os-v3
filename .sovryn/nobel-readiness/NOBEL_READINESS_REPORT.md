@@ -12,6 +12,8 @@ A bounded discovery-scored candidate package satisfies the internal external-rev
 - Outside expert review readiness score: 78/100.
 - Public validation major caveats: 0.
 - Public live-source-only replay caveats: 0.
+- Public formal counterexample pressure ready: true.
+- Public formal counterexample checks: 72; collapsed checks: 0.
 - Safety score: 100/100.
 - Overclaim risk score: 22/100.
 

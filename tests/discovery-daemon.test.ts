@@ -97,6 +97,7 @@ const commands = [
   "generator-claim-lift",
   "generator-claim-lift-pressure",
   "generator-claim-lift-experiment",
+  "generator-claim-lift-source-signal",
   "generator-claim-lift-rebind",
   "generator-claim-lift-intake",
   "dimacs-boundary-closure",
@@ -1053,6 +1054,97 @@ async function bindExplicitClaimLiftSourceSignal(root: string): Promise<void> {
       };
     }
     await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+  }
+}
+
+async function writeClaimLiftSourceSignalCaches(root: string): Promise<void> {
+  const cacheRoot = join(
+    root,
+    daemonRoot,
+    "discovery-anchor-run",
+    "source-cache",
+  );
+  await mkdir(cacheRoot, { recursive: true });
+  const cacheSpecs = [
+    {
+      file: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json",
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+      sourceRef: "https://matbench.materialsproject.org/",
+      measuredOutcome: 1.11,
+      residualMagnitude: 0.42,
+      measuredVariable:
+        "public Matbench residual after composition and size controls",
+    },
+    {
+      file: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES.json",
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+      sourceRef: "https://www.cosmos.esa.int/web/gaia/earlydr3",
+      measuredOutcome: 0.44,
+      residualMagnitude: 0.16,
+      measuredVariable:
+        "public Gaia cross-slice astrometric-excess residual after magnitude and color controls",
+    },
+    {
+      file: "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL.json",
+      anchorId: "DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL",
+      sourceRef:
+        "https://power.larc.nasa.gov/docs/services/api/temporal/daily/",
+      measuredOutcome: 1.18,
+      residualMagnitude: 0.66,
+      measuredVariable:
+        "public NASA POWER solar residual after seasonality and clear-sky controls",
+    },
+  ];
+  for (const spec of cacheSpecs) {
+    const ref = `${daemonRoot}/discovery-anchor-run/source-cache/${spec.file}`;
+    await writeFile(
+      join(root, ref),
+      JSON.stringify(
+        {
+          kind: "discovery_anchor_runtime_source",
+          anchorId: spec.anchorId,
+          sourceRef: spec.sourceRef,
+          sourceReceipt: `${spec.anchorId}:fixture-source-receipt`,
+          sourceHash: `${spec.anchorId}:fixture-source-hash`,
+          loaderCheckCommand: `sovryn discover-daemon discovery-anchor-source-load --anchor ${spec.anchorId}`,
+          rawTargetCount: 120,
+          measuredVariable: spec.measuredVariable,
+          targetOutcome: spec.measuredVariable,
+          measuredOutcome: spec.measuredOutcome,
+          residualMagnitude: spec.residualMagnitude,
+          baselineResults: [
+            {
+              baseline: "size_or_maturity_baseline",
+              result: 0.12,
+              explainsSignal: false,
+            },
+            {
+              baseline: "matched_negative_control",
+              result: 0.09,
+              explainsSignal: false,
+            },
+            {
+              baseline: "null_or_trivial_rule",
+              result: 0.07,
+              explainsSignal: false,
+            },
+          ],
+          rivalWeakened: true,
+          nontrivialResidual: true,
+          crossSourceSupport: true,
+          counterexampleCollapsed: false,
+          holdoutReplayAvailable: true,
+          holdoutPath: "fixture independent holdout path after claim freeze",
+          replayPath: "fixture public replay path",
+          publicSafe: true,
+          sourceRefs: [spec.sourceRef],
+          evidenceRefs: [ref, `${spec.sourceRef}#runtime-source`],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
   }
 }
 
@@ -5666,6 +5758,62 @@ test("generator-born claim lift proposal builder blocks package-only lift propos
   ) as { proposals?: unknown[] };
   assert.deepEqual(proposalsPayload.proposals, []);
   assert.equal(build.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift source signal binds forward-only evidence before proposal birth", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+
+  assert.equal(
+    sourceSignal.kind,
+    "generator_born_discovery_claim_lift_source_signal",
+  );
+  assert.equal(sourceSignal.fundFound, false);
+  assert.equal(sourceSignal.packagesMutated, 0);
+  assert.equal(sourceSignal.sourceSignalsBound > 0, true);
+  assert.equal(
+    sourceSignal.decisions
+      .filter(
+        (decision) => decision.sourceSignalStatus === "source_signal_bound",
+      )
+      .every(
+        (decision) =>
+          decision.bindableInsightEvidenceRefs.length >= 2 &&
+          decision.packageMutated === false &&
+          decision.failedGates.length === 0,
+      ),
+    true,
+  );
+
+  const build = await service.generatorClaimLiftPropose();
+  const readyDecisions = build.decisions.filter(
+    (decision) => decision.proposalReady,
+  );
+
+  assert.equal(build.fundFound, false);
+  assert.equal(readyDecisions.length, sourceSignal.sourceSignalsBound);
+  assert.equal(
+    readyDecisions.every(
+      (decision) =>
+        decision.sourceSignal.liftSignalBound === true &&
+        (decision.proposal?.nontrivialInsightEvidenceRefs?.length ?? 0) >= 2 &&
+        (decision.proposal?.domainSignificanceEvidenceRefs?.length ?? 0) >= 2,
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -11009,6 +11157,11 @@ const cliScenarios: {
     name: "generator-claim-lift-experiment",
     args: ["discover-daemon", "generator-claim-lift-experiment", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_signal_experiment",
+  },
+  {
+    name: "generator-claim-lift-source-signal",
+    args: ["discover-daemon", "generator-claim-lift-source-signal", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_source_signal",
   },
   {
     name: "generator-claim-lift-rebind",

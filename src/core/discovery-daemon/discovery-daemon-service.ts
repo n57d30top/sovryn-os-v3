@@ -1796,6 +1796,45 @@ export type GeneratorBornDiscoveryClaimLiftSignalExperimentReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftSourceSignalDecision = {
+  kind: "generator_born_discovery_claim_lift_source_signal_decision";
+  candidateId: string;
+  sourceCandidateId: string | null;
+  domain: DiscoveryDomain | null;
+  packageRef: string | null;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
+  sourceCacheRef: string | null;
+  sourceFundClass: string | null;
+  measuredOutcome: number | null;
+  residualMagnitude: number | null;
+  sourceSignalStatus: "source_signal_bound" | "blocked";
+  primaryBlocker: string;
+  gates: FundGate[];
+  failedGates: string[];
+  bindableInsightEvidenceRefs: string[];
+  packageMutated: false;
+  requiredNextAction: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSourceSignalReport = {
+  kind: "generator_born_discovery_claim_lift_source_signal";
+  status: "source_signal_bound" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  requirementsLoaded: number;
+  packagesEvaluated: number;
+  sourceSignalsBound: number;
+  blockedSourceSignals: number;
+  packagesMutated: 0;
+  decisions: GeneratorBornDiscoveryClaimLiftSourceSignalDecision[];
+  blockerDistribution: Record<string, number>;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornDiscoveryClaimLiftSignalRebindDecision = {
   kind: "generator_born_discovery_claim_lift_signal_rebind_decision";
   candidateId: string;
@@ -15027,6 +15066,290 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftSourceSignalService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    let closure = await this.readFundClosureOrNull();
+    if (closure === null) {
+      await new GeneratorBornFundClosureService(this.root).run();
+      closure = await this.readFundClosure();
+    }
+    const requirements = closure.claimLiftRequirements;
+    const decisions = await Promise.all(
+      requirements.map((requirement) => this.evaluateRequirement(requirement)),
+    );
+    const bound = decisions.filter(
+      (decision) => decision.sourceSignalStatus === "source_signal_bound",
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-source-signal-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftSourceSignalReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_source_signal" as const,
+        status:
+          bound.length > 0
+            ? ("source_signal_bound" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: closure.nextCheckpointRef,
+        nextCheckpointRef,
+        requirementsLoaded: requirements.length,
+        packagesEvaluated: decisions.filter(
+          (decision) => decision.packageRef !== null,
+        ).length,
+        sourceSignalsBound: bound.length,
+        blockedSourceSignals: decisions.filter(
+          (decision) => decision.sourceSignalStatus === "blocked",
+        ).length,
+        packagesMutated: 0 as const,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftSourceSignalBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftSourceSignalArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readFundClosureOrNull(): Promise<GeneratorBornFundClosureReport | null> {
+    return readOptionalJson<GeneratorBornFundClosureReport>(
+      join(
+        this.root,
+        daemonArtifactRoot,
+        generatorFundClosureDir,
+        "latest.json",
+      ),
+    );
+  }
+
+  private async readFundClosure(): Promise<GeneratorBornFundClosureReport> {
+    const report = await this.readFundClosureOrNull();
+    if (report === null) {
+      throw new Error(
+        "Generator claim-lift source-signal requires generator-fund-closure report.",
+      );
+    }
+    return report;
+  }
+
+  private async evaluateRequirement(
+    requirement: GeneratorBornDiscoveryClaimLiftRequirement,
+  ): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalDecision> {
+    const packageRef = requirement.externalReviewPackagePath ?? "";
+    const packageRoot =
+      packageRef.length > 0 && publicSafeRef(packageRef)
+        ? join(this.root, packageRef)
+        : "";
+    const candidatePayload =
+      packageRoot.length > 0
+        ? await readOptionalJson<{
+            candidate?: FundCandidate;
+            fundClass?: string;
+          }>(join(packageRoot, "FUND_CANDIDATE.json"))
+        : null;
+    const bindings =
+      packageRoot.length > 0
+        ? await readOptionalJson<Record<string, unknown>>(
+            join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+          )
+        : null;
+    const candidate =
+      candidatePayload?.candidate ??
+      (isRecord(bindings?.fundCandidate)
+        ? (bindings.fundCandidate as FundCandidate)
+        : null);
+    const sourceText = normalizeWhitespace(
+      [
+        requirement.candidateId,
+        requirement.discoveryCandidateId,
+        requirement.exactClaim,
+        requirement.domain,
+        packageRef,
+        ...stringArray(bindings?.sourceEvidenceRefs),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    const publicCorpusNegativeHistory =
+      await publicCorpusNegativeHistoryForClaimLiftCandidateText(
+        this.root,
+        sourceText,
+      );
+    const sourceCacheRef =
+      generatorBornClaimLiftSourceSignalSourceCacheRef(sourceText);
+    const sourceCache =
+      sourceCacheRef === null
+        ? null
+        : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+            join(this.root, sourceCacheRef),
+          );
+    const baselineExplains =
+      sourceCache?.baselineResults.some((item) => item.explainsSignal) ?? true;
+    const runtimeEvidenceRefs = stringArray(
+      bindings?.sourceEvidenceRefs,
+    ).filter(
+      (ref) =>
+        ref.includes("/runtime-evidence/") ||
+        ref.includes("/generator-families/runtime-evidence/"),
+    );
+    const bindableInsightEvidenceRefs = uniqueStrings([
+      ...(sourceCacheRef === null ? [] : [sourceCacheRef]),
+      ...(sourceCache?.evidenceRefs ?? []),
+      ...(sourceCache?.sourceRefs ?? []),
+      ...runtimeEvidenceRefs,
+    ]).filter(publicSafeRef);
+    const evidenceRefsResolve =
+      bindableInsightEvidenceRefs.length >= 2 &&
+      (await claimLiftEvidenceRefsResolvable(
+        this.root,
+        bindableInsightEvidenceRefs,
+      ));
+    const residualMagnitude = sourceCache?.residualMagnitude ?? null;
+    const gates = [
+      gate(
+        "public_corpus_negative_history_clear",
+        !publicCorpusNegativeHistory.blocksSeedBirth,
+        "Source-signal binding must not reuse a public corpus anchor that was downgraded, rival-explained, or removed from discovery scoring.",
+      ),
+      gate(
+        "source_package_present",
+        candidate !== null && packageRoot.length > 0,
+        "Source-signal binding requires the package-bound FundCandidate source package.",
+      ),
+      gate(
+        "source_cache_present",
+        sourceCache !== null,
+        "Source-signal binding requires external source-cache evidence before proposal birth.",
+      ),
+      gate(
+        "source_cache_public_safe",
+        sourceCache?.publicSafe === true,
+        "Source-cache evidence must be public-safe.",
+      ),
+      gate(
+        "source_cache_depth",
+        (sourceCache?.rawTargetCount ?? 0) >= 60,
+        "Source-signal binding requires at least sixty loaded public/formal target rows or objects.",
+      ),
+      gate(
+        "strong_baselines_non_explanatory",
+        sourceCache !== null && !baselineExplains,
+        "Source signal must survive the strongest simple baselines before proposal birth.",
+      ),
+      gate(
+        "rival_weakened",
+        sourceCache?.rivalWeakened === true,
+        "Source signal must weaken or scope at least one rival mechanism.",
+      ),
+      gate(
+        "nontrivial_residual",
+        sourceCache?.nontrivialResidual === true &&
+          residualMagnitude !== null &&
+          residualMagnitude >= 0.1,
+        "Source signal must bind a nontrivial residual beyond tool, package, or pipeline success.",
+      ),
+      gate(
+        "cross_source_or_slice_support",
+        sourceCache?.crossSourceSupport === true,
+        "Source signal requires cross-source or cross-slice support before proposal birth.",
+      ),
+      gate(
+        "counterexample_pressure_nonfatal",
+        sourceCache?.counterexampleCollapsed === false,
+        "Counterexample or negative-control pressure must not collapse the source signal.",
+      ),
+      gate(
+        "holdout_replay_available",
+        sourceCache?.holdoutReplayAvailable === true,
+        "Source signal requires an independent holdout and replay path or a bounded nonfatal caveat.",
+      ),
+      gate(
+        "bindable_insight_refs_resolve",
+        evidenceRefsResolve,
+        "Every bindable source-signal ref must resolve before the proposal builder may consume it.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const primaryBlocker =
+      generatorBornClaimLiftSourceSignalPrimaryBlocker(failedGates);
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_source_signal_decision" as const,
+      candidateId: requirement.candidateId,
+      sourceCandidateId:
+        typeof candidate?.candidateId === "string"
+          ? candidate.candidateId
+          : null,
+      domain: requirement.domain ?? null,
+      packageRef:
+        candidate !== null && packageRoot.length > 0 ? packageRef : null,
+      publicCorpusNegativeHistory,
+      sourceCacheRef,
+      sourceFundClass:
+        optionalString(candidatePayload?.fundClass) ??
+        (isRecord(candidate) ? optionalString(candidate.fundClass) : null),
+      measuredOutcome: sourceCache?.measuredOutcome ?? null,
+      residualMagnitude,
+      sourceSignalStatus:
+        failedGates.length === 0
+          ? ("source_signal_bound" as const)
+          : ("blocked" as const),
+      primaryBlocker,
+      gates,
+      failedGates,
+      bindableInsightEvidenceRefs:
+        failedGates.length === 0 ? bindableInsightEvidenceRefs : [],
+      packageMutated: false as const,
+      requiredNextAction:
+        failedGates.length === 0
+          ? "Run generator-claim-lift-propose; the proposal builder may consume this forward-only source-signal binding without mutating the source package."
+          : generatorBornClaimLiftSourceSignalRequiredFix(primaryBlocker),
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftSourceSignalReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "SOURCE_SIGNAL_BINDINGS.json"), report);
+    await writeJson(join(root, "SOURCE_SIGNAL_BINDING_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_source_signal_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_source_signal_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      sourceSignalsBound: report.sourceSignalsBound,
+      blockedSourceSignals: report.blockedSourceSignals,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/SOURCE_SIGNAL_BINDINGS.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "SOURCE_SIGNAL_BINDINGS.md"),
+      generatorBornDiscoveryClaimLiftSourceSignalMarkdown(report),
+    );
+    await writeText(
+      join(root, "SOURCE_SIGNAL_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftSourceSignalNextCheckpointMarkdown(report),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
   constructor(private readonly root: string) {}
 
@@ -26770,6 +27093,12 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
     packageBindingsPath.length > 0
       ? await readOptionalJson<Record<string, unknown>>(packageBindingsPath)
       : null;
+  const forwardSourceSignalRefs =
+    await generatorBornClaimLiftForwardSourceSignalRefs({
+      root: input.root,
+      packageRef,
+      candidateId: input.requirement.candidateId,
+    });
   const proposalCandidate = isRecord(bindings?.claimLiftProposalCandidate)
     ? bindings.claimLiftProposalCandidate
     : null;
@@ -26832,10 +27161,12 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
             ...stringArray(proposalCandidate.nontrivialInsightEvidenceRefs),
             ...stringArray(bindings?.nontrivialInsightEvidenceRefs),
             ...stringArray(bindings?.insightEvidenceRefs),
+            ...forwardSourceSignalRefs,
           ]),
           domainSignificanceEvidenceRefs: uniqueStrings([
             ...stringArray(proposalCandidate.domainSignificanceEvidenceRefs),
             ...stringArray(bindings?.domainSignificanceEvidenceRefs),
+            ...forwardSourceSignalRefs,
           ]),
           identityLedgerRefs: uniqueStrings([
             ...stringArray(proposalCandidate.identityLedgerRefs),
@@ -26894,6 +27225,7 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       packageRef,
       bindings,
       proposal,
+      candidateId: input.requirement.candidateId,
     });
   const gates = [
     gate(
@@ -26963,11 +27295,41 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
   });
 }
 
+async function generatorBornClaimLiftForwardSourceSignalRefs(input: {
+  root: string;
+  packageRef: string;
+  candidateId: string | null;
+}): Promise<string[]> {
+  if (input.packageRef.length === 0 && input.candidateId === null) return [];
+  const report =
+    await readOptionalJson<GeneratorBornDiscoveryClaimLiftSourceSignalReport>(
+      join(
+        input.root,
+        daemonArtifactRoot,
+        generatorClaimLiftDir,
+        "SOURCE_SIGNAL_BINDINGS.json",
+      ),
+    );
+  if (report === null) return [];
+  const match = report.decisions.find(
+    (decision) =>
+      decision.sourceSignalStatus === "source_signal_bound" &&
+      ((input.packageRef.length > 0 &&
+        decision.packageRef === input.packageRef) ||
+        (input.candidateId !== null &&
+          decision.candidateId === input.candidateId) ||
+        (input.candidateId !== null &&
+          decision.sourceCandidateId === input.candidateId)),
+  );
+  return match?.bindableInsightEvidenceRefs ?? [];
+}
+
 async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
   root: string;
   packageRef: string;
   bindings: Record<string, unknown> | null;
   proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
+  candidateId?: string;
 }): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalAssessment> {
   const packageCandidatePath =
     input.packageRef.length > 0 && publicSafeRef(input.packageRef)
@@ -26984,6 +27346,16 @@ async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
     ? (input.bindings.fundCandidate as FundCandidate)
     : null;
   const candidate = payload?.candidate ?? boundCandidate;
+  const forwardSourceSignalRefs =
+    await generatorBornClaimLiftForwardSourceSignalRefs({
+      root: input.root,
+      packageRef: input.packageRef,
+      candidateId:
+        input.candidateId ??
+        (typeof candidate?.candidateId === "string"
+          ? candidate.candidateId
+          : null),
+    });
   const insightEvidenceRefs = uniqueStrings([
     ...(candidate?.insightEvidenceRefs ?? []),
     ...stringArray(input.bindings?.insightEvidenceRefs),
@@ -26991,6 +27363,7 @@ async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
     ...stringArray(input.bindings?.domainSignificanceEvidenceRefs),
     ...(input.proposal?.nontrivialInsightEvidenceRefs ?? []),
     ...(input.proposal?.domainSignificanceEvidenceRefs ?? []),
+    ...forwardSourceSignalRefs,
   ]).filter(publicSafeRef);
   const insightEvidenceRefsResolve =
     insightEvidenceRefs.length >= 2 &&
@@ -27003,7 +27376,8 @@ async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
   const domainScientificSignificance =
     candidate?.domainScientificSignificance === true ||
     optionalBoolean(input.bindings?.domainScientificSignificance) === true ||
-    (input.proposal?.domainSignificanceEvidenceRefs ?? []).length > 0;
+    (input.proposal?.domainSignificanceEvidenceRefs ?? []).length > 0 ||
+    forwardSourceSignalRefs.length >= 2;
   const sourceCandidateId =
     typeof candidate?.candidateId === "string" ? candidate.candidateId : null;
   const sourceFundClass =
@@ -27349,23 +27723,36 @@ function generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(
   ].join("\n");
 }
 
+function generatorBornClaimLiftSourceSignalSourceCacheRef(
+  text: string,
+): string | null {
+  const lower = text.toLowerCase();
+  if (lower.includes("matbench") || lower.includes("materials")) {
+    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json`;
+  }
+  if (lower.includes("gaia") || lower.includes("astrometric")) {
+    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES.json`;
+  }
+  if (
+    lower.includes("nasa") ||
+    lower.includes("solar") ||
+    lower.includes("cloud-loss")
+  ) {
+    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-NASA-POWER-SOLAR-RESIDUAL.json`;
+  }
+  return null;
+}
+
 function generatorBornClaimLiftSignalSourceCacheRef(
   proposal: GeneratorBornDiscoveryClaimLiftProposal,
 ): string | null {
-  const text = [
-    proposal.domain ?? "",
-    proposal.mechanismHypothesis,
-    proposal.exactTargetOutcomeClaim,
-  ]
-    .join(" ")
-    .toLowerCase();
-  if (text.includes("matbench") || text.includes("materials")) {
-    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json`;
-  }
-  if (text.includes("gaia") || text.includes("astrometric")) {
-    return `${daemonArtifactRoot}/discovery-anchor-run/source-cache/DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES.json`;
-  }
-  return null;
+  return generatorBornClaimLiftSourceSignalSourceCacheRef(
+    [
+      proposal.domain ?? "",
+      proposal.mechanismHypothesis,
+      proposal.exactTargetOutcomeClaim,
+    ].join(" "),
+  );
 }
 
 function generatorBornClaimLiftBindableSignalEvidenceRefs(input: {
@@ -27653,6 +28040,161 @@ function generatorBornDiscoveryClaimLiftSignalExperimentNextCheckpointMarkdown(
 ): string {
   return [
     "# Signal Experiment Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornClaimLiftSourceSignalPrimaryBlocker(
+  failedGates: string[],
+): string {
+  if (failedGates.length === 0) return "none";
+  if (failedGates.includes("public_corpus_negative_history_clear")) {
+    return "public_corpus_downgrade";
+  }
+  if (failedGates.includes("source_package_present")) {
+    return "missing_source_package_candidate";
+  }
+  if (failedGates.includes("source_cache_present")) {
+    return "missing_external_source_cache";
+  }
+  if (failedGates.includes("source_cache_depth")) {
+    return "shallow_external_measurement";
+  }
+  if (failedGates.includes("strong_baselines_non_explanatory")) {
+    return "baseline_dominated";
+  }
+  if (failedGates.includes("rival_weakened")) {
+    return "rival_theory_stronger";
+  }
+  if (failedGates.includes("nontrivial_residual")) {
+    return "no_nontrivial_residual";
+  }
+  if (failedGates.includes("cross_source_or_slice_support")) {
+    return "no_cross_source_support";
+  }
+  if (failedGates.includes("counterexample_pressure_nonfatal")) {
+    return "counterexample_dense";
+  }
+  if (failedGates.includes("holdout_replay_available")) {
+    return "no_holdout_or_replay_path";
+  }
+  if (failedGates.includes("bindable_insight_refs_resolve")) {
+    return "unresolved_insight_evidence_refs";
+  }
+  return failedGates[0] ?? "unknown_requires_manual_review";
+}
+
+function generatorBornClaimLiftSourceSignalRequiredFix(
+  blocker: string,
+): string {
+  switch (blocker) {
+    case "public_corpus_downgrade":
+      return "Do not create a claim-lift proposal from this source while public corpus negative history blocks discovery scoring.";
+    case "missing_source_package_candidate":
+      return "Repair the source package contract before attempting source-signal binding.";
+    case "missing_external_source_cache":
+      return "Load or generate external source-cache evidence for this exact source package before proposal birth.";
+    case "shallow_external_measurement":
+      return "Rerun the source loader with enough public/formal target rows or objects before source-signal binding.";
+    case "baseline_dominated":
+      return "Redesign the mechanism-first experiment; the source signal is explained by simple baselines.";
+    case "rival_theory_stronger":
+      return "Run a matched rival-discrimination source experiment before proposal birth.";
+    case "no_nontrivial_residual":
+      return "Do not bind source signal until a nontrivial residual beyond pipeline success is measured.";
+    case "no_cross_source_support":
+      return "Acquire independent source or slice recurrence before proposal birth.";
+    case "counterexample_dense":
+      return "Keep the source package non-discovery until negative controls no longer collapse the claim.";
+    case "no_holdout_or_replay_path":
+      return "Register a replay and independent holdout path before source-signal binding.";
+    case "unresolved_insight_evidence_refs":
+      return "Repair source-signal evidence refs before proposal birth.";
+    default:
+      return "Carry the blocker forward and keep the source package out of claim-lift proposal birth.";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftSourceSignalBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftSourceSignalDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No generator-born claim-lift requirements were available for source-signal binding.";
+  }
+  const bound = decisions.filter(
+    (decision) => decision.sourceSignalStatus === "source_signal_bound",
+  );
+  if (bound.length > 0) {
+    return `${bound.length} source package(s) have forward-only source-signal bindings. Run generator-claim-lift-propose; no package was mutated and no Fund state was written.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `No source package produced bindable nontrivial lift-signal evidence. Blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftSourceSignalArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/SOURCE_SIGNAL_BINDINGS.json`,
+    `${root}/SOURCE_SIGNAL_BINDING_DECISIONS.json`,
+    `${root}/SOURCE_SIGNAL_BINDINGS.md`,
+    `${root}/SOURCE_SIGNAL_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftSourceSignalMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSourceSignalReport,
+): string {
+  return [
+    "# Claim Lift Source Signal Bindings",
+    "",
+    `Requirements loaded: ${report.requirementsLoaded}.`,
+    `Packages evaluated: ${report.packagesEvaluated}.`,
+    `Source signals bound: ${report.sourceSignalsBound}.`,
+    `Blocked source signals: ${report.blockedSourceSignals}.`,
+    `Packages mutated: ${report.packagesMutated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Blockers",
+    "",
+    ...Object.entries(report.blockerDistribution).map(
+      ([blocker, count]) => `- ${blocker}: ${count}`,
+    ),
+    ...(Object.keys(report.blockerDistribution).length === 0 ? ["- none"] : []),
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Package | Source cache | Status | Primary blocker | Residual | Failed gates |",
+    "| --- | --- | --- | --- | --- | ---: | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.packageRef ?? "none"} | ${decision.sourceCacheRef ?? "none"} | ${decision.sourceSignalStatus} | ${decision.primaryBlocker} | ${decision.residualMagnitude ?? "n/a"} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | none | none | blocked | none | n/a | none |"]
+      : []),
+    "",
+    "This command writes only forward-only source-signal binding artifacts. It does not mutate source packages, write fund-candidate.json, or write FUND_FOUND.md.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftSourceSignalNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftSourceSignalReport,
+): string {
+  return [
+    "# Source Signal Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -42517,6 +43059,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftExperiment(): Promise<GeneratorBornDiscoveryClaimLiftSignalExperimentReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSignalExperimentService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftSourceSignal(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftSourceSignalService(
       this.root,
     ).run();
   }

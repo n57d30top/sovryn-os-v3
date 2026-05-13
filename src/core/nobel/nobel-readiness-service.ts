@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { AppError } from "../../shared/errors.js";
 import { readJson, writeJson } from "../../shared/fs.js";
 import { nowIso } from "../../shared/time.js";
@@ -205,10 +205,23 @@ export type NobelReadinessScore = {
   externallyReviewReadyCandidateCount: number;
   discoveryFundCandidateCount: number;
   nonDiscoveryFundCandidateCount: number;
+  publicValidationMajorCaveatCount: number;
+  publicValidationStatuses: string[];
+  publicValidationCaveats: string[];
   einsteinNobelDiscoveryScoreEligible: boolean;
   scoringSeparationApplied: true;
   rationale: string[];
   evidenceHash: string;
+};
+
+export type NobelReadinessPublicValidationContext = {
+  candidateId: string;
+  resultSlug: string;
+  publicReviewStatus: string | null;
+  extendedValidationStatus: string | null;
+  majorRivalCaveat: boolean;
+  majorCaveat: boolean;
+  publicRawScientificReproductionReady: boolean | null;
 };
 
 export type NobelReadinessAudit = {
@@ -1255,6 +1268,7 @@ export class NobelReadinessScorer {
     rivals: NobelReadinessRivalReview[];
     killWeek: KillWeekResult;
     fundClassifications?: FundClassAssessment[];
+    publicValidationContexts?: NobelReadinessPublicValidationContext[];
   }): NobelReadinessScore {
     const successfulHoldouts = input.holdouts.filter(
       (holdout) =>
@@ -1299,6 +1313,25 @@ export class NobelReadinessScorer {
       );
     const packageReadyDiscoveryFund =
       externallyReviewReadyFundClassifications.length > 0;
+    const publicMajorCaveats = (input.publicValidationContexts ?? []).filter(
+      (context) => context.majorCaveat || context.majorRivalCaveat,
+    );
+    const publicValidationStatuses = Array.from(
+      new Set(
+        (input.publicValidationContexts ?? [])
+          .map((context) => context.extendedValidationStatus)
+          .filter((status): status is string => Boolean(status)),
+      ),
+    );
+    const publicValidationCaveats = publicMajorCaveats.map((context) =>
+      [
+        context.resultSlug,
+        context.extendedValidationStatus ?? "major_public_validation_caveat",
+      ].join(":"),
+    );
+    const majorPublicRivalCaveat = publicMajorCaveats.some(
+      (context) => context.majorRivalCaveat,
+    );
     const discoveryScoringAllowed =
       discoveryFundCandidateCount > 0 &&
       discoveryFundClassifications.some(
@@ -1321,6 +1354,17 @@ export class NobelReadinessScorer {
       discoveryFundClassifications[0]?.candidateId ??
       input.promoted[1]?.candidateId ??
       null;
+    const rivalTheoryScore = majorPublicRivalCaveat ? 34 : 49;
+    const counterexamplePressureScore = Math.max(
+      20,
+      (majorPublicRivalCaveat ? 58 : 70) - counterexamplePressure * 7,
+    );
+    const externalReviewReadinessScore = hardGatesPass
+      ? majorPublicRivalCaveat
+        ? 64
+        : 78
+      : 44;
+    const totalScore = hardGatesPass ? (majorPublicRivalCaveat ? 63 : 72) : 46;
     const result: NobelReadinessScore = {
       kind: "nobel_readiness_score",
       scoredAt: nowIso(),
@@ -1328,17 +1372,14 @@ export class NobelReadinessScorer {
       novelty_risk_score: 48,
       baseline_resistance_score: 54,
       prediction_quality_score: Math.max(30, 74 - wrongPartialInconclusive * 3),
-      rival_theory_score: 49,
+      rival_theory_score: rivalTheoryScore,
       holdout_score: successfulHoldouts >= 8 ? 62 : 45,
       replay_score: replayCaveats <= 2 ? 58 : 42,
-      counterexample_pressure_score: Math.max(
-        20,
-        70 - counterexamplePressure * 7,
-      ),
-      external_review_readiness_score: hardGatesPass ? 78 : 44,
+      counterexample_pressure_score: counterexamplePressureScore,
+      external_review_readiness_score: externalReviewReadinessScore,
       safety_score: 100,
       overclaim_risk_score: 22,
-      totalScore: hardGatesPass ? 72 : 46,
+      totalScore,
       label,
       survivingCandidateId,
       externallyReviewReadyCandidateCount: packageReadyDiscoveryFund
@@ -1348,12 +1389,20 @@ export class NobelReadinessScorer {
           : 0,
       discoveryFundCandidateCount,
       nonDiscoveryFundCandidateCount,
+      publicValidationMajorCaveatCount: publicMajorCaveats.length,
+      publicValidationStatuses,
+      publicValidationCaveats,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
       rationale: packageReadyDiscoveryFund
         ? [
             "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
             "This is an internal external-review package readiness state, not outside expert validation.",
+            ...(majorPublicRivalCaveat
+              ? [
+                  "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
+                ]
+              : []),
             "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
             "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
           ]
@@ -1383,6 +1432,10 @@ export class NobelReadinessPackageBuilder {
       score.label === "externally_review_ready_candidate" &&
       score.externallyReviewReadyCandidateCount > 0 &&
       score.einsteinNobelDiscoveryScoreEligible;
+    const publicValidationCaveatText =
+      score.publicValidationCaveats.length > 0
+        ? `\n- Public extended validation caveats: ${score.publicValidationCaveats.join(", ")}.`
+        : "";
     const decision = packageReady
       ? "A bounded discovery-scored candidate package satisfies the internal external-review package readiness gates. This remains an internal readiness state and is not outside expert validation."
       : "The run did not produce a candidate that satisfies every hard gate for outside expert review. The strongest surviving direction is a bounded, caveated candidate seed, not a validated discovery.";
@@ -1393,6 +1446,7 @@ export class NobelReadinessPackageBuilder {
 - The external-review-ready label is an internal package readiness label.
 - The package does not claim prize significance, outside validation, or field uptake.
 - Bounded computational evidence remains bounded computational evidence until reviewed and reproduced independently.
+${publicValidationCaveatText}
 `
       : `# Limitations
 
@@ -1414,8 +1468,13 @@ ${decision}
 
 - Readiness score: ${score.totalScore}/100.
 - Outside expert review readiness score: ${score.external_review_readiness_score}/100.
+- Public validation major caveats: ${score.publicValidationMajorCaveatCount}.
 - Safety score: ${score.safety_score}/100.
 - Overclaim risk score: ${score.overclaim_risk_score}/100.
+
+## Public Validation Caveats
+
+${score.publicValidationCaveats.length > 0 ? score.publicValidationCaveats.map((caveat) => `- ${caveat}`).join("\n") : "- None recorded."}
 
 ## Claim Boundary
 
@@ -1641,6 +1700,8 @@ export class NobelReadinessService {
     const rivalReview = await this.rivalReviewOrCreate();
     const killWeek = new NobelReadinessKillWeekRunner().attack(search.promoted);
     const fundClassifications = await this.daemonFundClassifications();
+    const publicValidationContexts =
+      await this.publicValidationContextsForFundClasses(fundClassifications);
     await writeJson(join(this.rootDir, "kill-week-results.json"), killWeek);
     const score = new NobelReadinessScorer().score({
       promoted: search.promoted,
@@ -1651,6 +1712,7 @@ export class NobelReadinessService {
       rivals: rivalReview.results,
       killWeek,
       fundClassifications,
+      publicValidationContexts,
     });
     await writeJson(join(this.rootDir, "readiness-score.json"), score);
     return {
@@ -2201,6 +2263,72 @@ export class NobelReadinessService {
     if (!isFundClassAssessment(assessment)) return [];
     return [assessment];
   }
+
+  private async publicValidationContextsForFundClasses(
+    fundClassifications: FundClassAssessment[],
+  ): Promise<NobelReadinessPublicValidationContext[]> {
+    const candidateIds = new Set(
+      fundClassifications
+        .filter((assessment) =>
+          fundClassCountsForEinsteinNobelDiscoveryScore(assessment.fundClass),
+        )
+        .map((assessment) => assessment.candidateId),
+    );
+    if (candidateIds.size === 0) return [];
+    const corpusResultsRoot = join(
+      dirname(this.root),
+      "sovryn-open-inventions",
+      "results",
+    );
+    let entries: string[] = [];
+    try {
+      entries = await readdir(corpusResultsRoot);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const contexts: NobelReadinessPublicValidationContext[] = [];
+    for (const entry of entries) {
+      const resultRoot = join(corpusResultsRoot, entry);
+      const resultStat = await stat(resultRoot);
+      if (!resultStat.isDirectory()) continue;
+      const summary = await readOptionalJson<Record<string, unknown>>(
+        join(resultRoot, "SUMMARY.json"),
+      );
+      const fundCandidate = await readOptionalJson<Record<string, unknown>>(
+        join(resultRoot, "FUND_CANDIDATE.json"),
+      );
+      const nestedCandidate = candidateRecordFromEnvelope(fundCandidate);
+      const candidateId =
+        stringValue(summary?.candidateId) ??
+        stringValue(fundCandidate?.candidateId) ??
+        stringValue(nestedCandidate?.candidateId);
+      if (!candidateId || !candidateIds.has(candidateId)) continue;
+      const publicReviewStatus =
+        stringValue(summary?.publicReviewStatus) ??
+        stringValue(fundCandidate?.publicReviewStatus) ??
+        stringValue(nestedCandidate?.publicReviewStatus);
+      const extendedValidationStatus =
+        stringValue(summary?.extendedValidationStatus) ??
+        stringValue(fundCandidate?.extendedValidationStatus) ??
+        stringValue(nestedCandidate?.extendedValidationStatus);
+      const normalizedStatus = extendedValidationStatus?.toLowerCase() ?? "";
+      const publicRawScientificReproductionReady =
+        booleanValue(summary?.publicRawScientificReproductionReady) ??
+        booleanValue(fundCandidate?.publicRawScientificReproductionReady) ??
+        booleanValue(nestedCandidate?.publicRawScientificReproductionReady);
+      contexts.push({
+        candidateId,
+        resultSlug: entry,
+        publicReviewStatus,
+        extendedValidationStatus,
+        majorRivalCaveat: normalizedStatus.includes("major_rival_caveat"),
+        majorCaveat: normalizedStatus.includes("major_caveat"),
+        publicRawScientificReproductionReady,
+      });
+    }
+    return contexts;
+  }
 }
 
 function candidateRecordFromEnvelope(
@@ -2216,6 +2344,10 @@ function candidateRecordFromEnvelope(
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function booleanValue(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function externalReviewHandoffMarkdown(

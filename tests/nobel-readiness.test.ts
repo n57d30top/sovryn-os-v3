@@ -499,6 +499,82 @@ test("nobel-readiness score reconciles persisted external-review discovery FundC
   assert.deepEqual(auditNobelReadinessPublicText(limitations), []);
 });
 
+test("nobel-readiness score is lowered by public extended validation major rival caveat", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sovryn-nobel-caveat-parent-"));
+  const root = join(parent, "sovryn-os-v3");
+  const corpusResultRoot = join(
+    parent,
+    "sovryn-open-inventions",
+    "results",
+    "first-discovery-fund-gaia-astrometric-excess-slices",
+  );
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  await mkdir(corpusResultRoot, { recursive: true });
+  await writeFile(
+    join(parent, "sovryn-open-inventions", "results", ".DS_Store"),
+    "ignored by public validation scanner",
+    "utf8",
+  );
+  const candidateId =
+    "DISCOVERY-LIFT-INSIGHT-HARD-GEN-GAIA-ASTROMETRIC-EXCESS-SIGNIFICANCE-GE-0F9E75E885B6";
+  const assessment = classifyFundCandidate({
+    candidateId,
+    claim:
+      "A nontrivial new insight across real targets has domain scientific significance in astrophysics open catalog anomalies.",
+    domain: "astrophysics_open_catalog_anomalies",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#evidence-summary"],
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    notificationAllowed: true,
+    fundClassAssessment: assessment,
+  });
+  await writeJson(join(corpusResultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    candidateId,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    publicReviewStatus:
+      "external_review_ready_raw_scientific_reproduction_succeeded_caveated_no_external_validation",
+    extendedValidationStatus: "extended_validation_major_rival_caveat",
+    publicRawScientificReproductionReady: true,
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+  await service.package();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "NOBEL_READINESS_REPORT.md"),
+    "utf8",
+  );
+
+  assert.equal(score.label, "externally_review_ready_candidate");
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, true);
+  assert.equal(score.publicValidationMajorCaveatCount, 1);
+  assert.deepEqual(score.publicValidationStatuses, [
+    "extended_validation_major_rival_caveat",
+  ]);
+  assert.equal(score.external_review_readiness_score, 64);
+  assert.equal(score.rival_theory_score, 34);
+  assert.equal(score.totalScore, 63);
+  assert.match(
+    score.rationale.join(" "),
+    /major rival caveat; the internal readiness score is caveat-lowered/,
+  );
+  assert.match(report, /Public validation major caveats: 1/);
+  assert.match(report, /extended_validation_major_rival_caveat/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
 test("nobel-readiness external-review handoff verifies package refs without claiming external validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-handoff-pass-"));
   await writeActiveDiscoveryFundPackage(root);

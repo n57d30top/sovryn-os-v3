@@ -8,10 +8,15 @@ A bounded discovery-scored candidate package satisfies the internal external-rev
 
 ## Evidence Summary
 
-- Readiness score: 72/100.
-- Outside expert review readiness score: 78/100.
+- Readiness score: 63/100.
+- Outside expert review readiness score: 64/100.
+- Public validation major caveats: 1.
 - Safety score: 100/100.
 - Overclaim risk score: 22/100.
+
+## Public Validation Caveats
+
+- first-discovery-fund-gaia-astrometric-excess-slices:extended_validation_major_rival_caveat
 
 ## Claim Boundary
 

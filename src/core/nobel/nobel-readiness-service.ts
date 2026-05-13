@@ -481,6 +481,7 @@ export type ExternalReviewIntakeRecord = {
   reviewSourceRef: string | null;
   reviewSourceResolved: boolean;
   reviewSourcePublicSafe: boolean;
+  reviewSourceExternal: boolean;
   decision: ExternalHumanReviewDecision | null;
   independentReproductionStatus: ExternalHumanReviewReproductionStatus | null;
   noveltyAssessment: ExternalHumanReviewNoveltyAssessment | null;
@@ -2718,7 +2719,7 @@ export class NobelReadinessService {
       reviewerRole: "independent_domain_expert",
       reviewDate: "YYYY-MM-DD",
       reviewSourceRef:
-        "Provide a public-safe URL or a review report path copied next to the review JSON.",
+        "Provide a public-safe URL or a review report path copied next to the review JSON. Score-impacting supportive reviews require an external public URL.",
       decision:
         "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
       independentReproductionStatus:
@@ -3157,6 +3158,10 @@ export class NobelReadinessService {
         reviewSourceRef,
         reviewDir,
       );
+      const wouldRaiseScore =
+        decision === "accepted_with_caveats" &&
+        independentReproductionStatus === "reproduced" &&
+        noveltyAssessment === "nontrivial_and_plausibly_novel";
       const overclaimFindings = Array.from(
         new Set([
           ...arrayOfStrings(payload?.overclaimFindings),
@@ -3180,6 +3185,9 @@ export class NobelReadinessService {
       }
       if (!noveltyAssessment) reasons.push("invalid_novelty_assessment");
       if (overclaimFindings.length > 0) reasons.push("forbidden_claim_text");
+      if (wouldRaiseScore && !sourceResolution.external) {
+        reasons.push("supportive_review_source_not_external");
+      }
       const valid = reasons.length === 0;
       const supportive =
         valid &&
@@ -3203,6 +3211,7 @@ export class NobelReadinessService {
         reviewSourceRef,
         reviewSourceResolved: sourceResolution.resolved,
         reviewSourcePublicSafe: sourceResolution.publicSafe,
+        reviewSourceExternal: sourceResolution.external,
         decision,
         independentReproductionStatus,
         noveltyAssessment,
@@ -3300,6 +3309,19 @@ export class NobelReadinessService {
         message:
           "A supportive review can affect scoring only with independent reproduction and bounded novelty assessment.",
       },
+      {
+        code: "supportive_review_requires_external_source",
+        passed: records
+          .filter(
+            (record) =>
+              record.decision === "accepted_with_caveats" &&
+              record.independentReproductionStatus === "reproduced" &&
+              record.noveltyAssessment === "nontrivial_and_plausibly_novel",
+          )
+          .every((record) => record.reviewSourceExternal),
+        message:
+          "A supportive review can affect scoring only when its source ref is an external public URL, not a local self-report.",
+      },
     ];
     const passed =
       handoff.passed && status !== "blocked_invalid_external_review";
@@ -3353,25 +3375,27 @@ export class NobelReadinessService {
   private async resolveExternalReviewSourceRef(
     ref: string | null,
     reviewDir: string,
-  ): Promise<{ resolved: boolean; publicSafe: boolean }> {
-    if (!ref) return { resolved: false, publicSafe: false };
+  ): Promise<{ resolved: boolean; publicSafe: boolean; external: boolean }> {
+    if (!ref) return { resolved: false, publicSafe: false, external: false };
     const publicSafe = isPublicSafeRef(ref);
-    if (isExternalUrl(ref)) return { resolved: publicSafe, publicSafe };
+    if (isExternalUrl(ref)) {
+      return { resolved: publicSafe, publicSafe, external: true };
+    }
     const { pathPart, anchor } = splitRef(ref);
     if (!publicSafe || !pathPart) {
-      return { resolved: false, publicSafe };
+      return { resolved: false, publicSafe, external: false };
     }
     const absolutePath = pathPart.startsWith(".")
       ? join(this.root, pathPart)
       : join(reviewDir, pathPart);
     const exists = await fileExists(absolutePath);
-    if (!exists) return { resolved: false, publicSafe };
-    if (!anchor) return { resolved: true, publicSafe };
+    if (!exists) return { resolved: false, publicSafe, external: false };
+    if (!anchor) return { resolved: true, publicSafe, external: false };
     const text = await readFile(absolutePath, "utf8");
     const resolved = pathPart.toLowerCase().endsWith(".json")
       ? jsonHasAnchor(JSON.parse(text) as unknown, anchor)
       : markdownHasAnchor(text, anchor);
-    return { resolved, publicSafe };
+    return { resolved, publicSafe, external: false };
   }
 
   private async resolveHandoffRef(

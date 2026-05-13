@@ -4,7 +4,7 @@
   "resultSlug": null,
   "reviewerRole": "independent_domain_expert",
   "reviewDate": "YYYY-MM-DD",
-  "reviewSourceRef": "Provide a public-safe URL or a review report path copied next to the review JSON.",
+  "reviewSourceRef": "Provide a public-safe URL or a review report path copied next to the review JSON. Score-impacting supportive reviews require an external public URL.",
   "decision": "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
   "independentReproductionStatus": "reproduced | partially_reproduced | not_reproduced | not_attempted",
   "noveltyAssessment": "nontrivial_and_plausibly_novel | known_or_trivial | unclear",

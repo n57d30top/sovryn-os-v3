@@ -1306,6 +1306,57 @@ test("nobel-readiness rejecting external review blocks external-review-ready sco
   assert.equal(score.totalScore, 38);
 });
 
+test("nobel-readiness local supportive review source cannot raise score", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-local-support-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/local-supportive.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent computational materials reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef: reviewRel,
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+    evidenceRefs: ["PAPER.md#evidence-summary", "METHOD.md#method"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.supportiveReviewCount, 0);
+  assert.equal(intake.scoreImpact, "no_score_change_invalid_review");
+  assert.equal(intake.records[0]?.reviewSourceExternal, false);
+  assert.equal(
+    intake.records[0]?.reasons.includes(
+      "supportive_review_source_not_external",
+    ),
+    true,
+  );
+  assert.equal(
+    intake.gates.find(
+      (gate) => gate.code === "supportive_review_requires_external_source",
+    )?.passed,
+    false,
+  );
+  assert.equal(
+    score.externalHumanReviewStatus,
+    "blocked_invalid_external_review",
+  );
+  assert.equal(score.external_review_readiness_score, 78);
+  assert.equal(score.totalScore, 72);
+});
+
 test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);
@@ -1319,7 +1370,8 @@ test("nobel-readiness supportive external review can raise only review readiness
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent computational materials reviewer",
     reviewDate: "2026-05-13",
-    reviewSourceRef: reviewRel,
+    reviewSourceRef:
+      "https://reviews.example.org/sovryn/graph-minor-obstruction-boundary-review.json",
     decision: "accepted_with_caveats",
     independentReproductionStatus: "reproduced",
     noveltyAssessment: "nontrivial_and_plausibly_novel",
@@ -1340,6 +1392,7 @@ test("nobel-readiness supportive external review can raise only review readiness
   assert.equal(intake.passed, true);
   assert.equal(intake.supportiveReviewCount, 1);
   assert.equal(intake.independentReproductionCount, 1);
+  assert.equal(intake.records[0]?.reviewSourceExternal, true);
   assert.equal(intake.scoreImpact, "supports_higher_external_review_readiness");
   assert.equal(score.label, "externally_review_ready_candidate");
   assert.equal(score.external_review_readiness_score, 88);

@@ -40,6 +40,7 @@ This intake records independent human review files when they exist. It does not 
 | no_forbidden_review_claims | pass | External review records must not contain prohibited overclaim text. |
 | invalid_reviews_do_not_raise_score | pass | Invalid or unverified reviews are recorded but cannot increase readiness scores. |
 | supportive_review_requires_reproduction_and_novelty | pass | A supportive review can affect scoring only with independent reproduction and bounded novelty assessment. |
+| supportive_review_requires_external_source | pass | A supportive review can affect scoring only when its source ref is an external public URL, not a local self-report. |
 
 ## Next Human Action
 

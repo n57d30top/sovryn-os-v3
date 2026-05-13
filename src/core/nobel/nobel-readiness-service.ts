@@ -201,6 +201,15 @@ export type NobelReadinessScore = {
   overclaim_risk_score: number;
   totalScore: number;
   label: NobelReadinessLabel;
+  boundedHundredPercentEligible: boolean;
+  boundedHundredPercentStatus:
+    | "bounded_100_ready_for_human_claim_review"
+    | "blocked_external_review_pending"
+    | "blocked_invalid_external_review"
+    | "blocked_external_review_negative_or_revision"
+    | "blocked_independent_reproduction_pending"
+    | "blocked_internal_score_below_100";
+  boundedHundredPercentBlockers: string[];
   survivingCandidateId: string | null;
   externallyReviewReadyCandidateCount: number;
   discoveryFundCandidateCount: number;
@@ -1774,6 +1783,42 @@ export class NobelReadinessScorer {
           : replayCaveats <= 2
             ? 58
             : 42;
+    const boundedHundredPercentBlockers = [
+      ...(totalScore < 100 ? ["readiness_score_below_100"] : []),
+      ...(!hardGatesPass ? ["discovery_hard_gates_not_all_closed"] : []),
+      ...(publicDiscoveryScoreBlocked
+        ? ["public_validation_blocks_discovery_scoring"]
+        : []),
+      ...(externalHumanReviewBlocksReadiness
+        ? ["external_review_blocks_discovery_readiness"]
+        : []),
+      ...(externalHumanReviewStatus === "blocked_invalid_external_review"
+        ? ["invalid_external_review_record_pending"]
+        : []),
+      ...(validExternalHumanReviewCount === 0
+        ? ["valid_external_human_review_missing"]
+        : []),
+      ...(supportiveExternalHumanReviewCount === 0
+        ? ["supportive_external_human_review_missing"]
+        : []),
+      ...(externalHumanIndependentReproductionCount === 0
+        ? ["independent_external_reproduction_missing"]
+        : []),
+    ];
+    const boundedHundredPercentEligible =
+      boundedHundredPercentBlockers.length === 0 && totalScore === 100;
+    const boundedHundredPercentStatus: NobelReadinessScore["boundedHundredPercentStatus"] =
+      boundedHundredPercentEligible
+        ? "bounded_100_ready_for_human_claim_review"
+        : externalHumanReviewBlocksReadiness
+          ? "blocked_external_review_negative_or_revision"
+          : externalHumanReviewStatus === "blocked_invalid_external_review"
+            ? "blocked_invalid_external_review"
+            : validExternalHumanReviewCount === 0
+              ? "blocked_external_review_pending"
+              : externalHumanIndependentReproductionCount === 0
+                ? "blocked_independent_reproduction_pending"
+                : "blocked_internal_score_below_100";
     const result: NobelReadinessScore = {
       kind: "nobel_readiness_score",
       scoredAt: nowIso(),
@@ -1791,6 +1836,9 @@ export class NobelReadinessScorer {
       overclaim_risk_score: 22,
       totalScore,
       label,
+      boundedHundredPercentEligible,
+      boundedHundredPercentStatus,
+      boundedHundredPercentBlockers,
       survivingCandidateId,
       externallyReviewReadyCandidateCount:
         publicDiscoveryScoreBlocked || externalHumanReviewBlocksReadiness
@@ -1974,6 +2022,9 @@ ${decision}
 
 - Readiness score: ${score.totalScore}/100.
 - Outside expert review readiness score: ${score.external_review_readiness_score}/100.
+- Bounded 100% eligible: ${String(score.boundedHundredPercentEligible)}.
+- Bounded 100% status: ${score.boundedHundredPercentStatus}.
+- Bounded 100% blockers: ${score.boundedHundredPercentBlockers.length > 0 ? score.boundedHundredPercentBlockers.join(", ") : "none"}.
 - Public validation major caveats: ${score.publicValidationMajorCaveatCount}.
 - Public live-source-only replay caveats: ${score.publicReplayLiveSourceOnlyCaveatCount}.
 - Public formal replay ready: ${String(score.publicFormalReplayReady)}.${publicFormalReplayText}${publicFormalHoldoutText}${publicFormalBaselineText}${publicFormalRivalText}${publicFormalPredictionText}

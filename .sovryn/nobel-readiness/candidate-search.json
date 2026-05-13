@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_candidate_search",
-  "generatedAt": "2026-05-13T10:57:01.508Z",
+  "generatedAt": "2026-05-13T11:05:05.049Z",
   "ideas": [
     {
       "candidateId": "NR-CAND-001",
@@ -3057,5 +3057,5 @@
     "not_falsifiable": 8,
     "not_externally_inspectable": 8
   },
-  "evidenceHash": "4d3e201d60becdfe887a58c9f887a530d1e7093bfd1301a3bc71d729a7e4cf61"
+  "evidenceHash": "8453cc63c25bb779adb3375138fedb5822e5412fc2f4a66aaebda3ec4d0717ce"
 }

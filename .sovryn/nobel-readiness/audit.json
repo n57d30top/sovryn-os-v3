@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_audit",
-  "checkedAt": "2026-05-13T10:57:01.649Z",
+  "checkedAt": "2026-05-13T11:05:05.165Z",
   "passed": true,
   "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
   "criteriaCount": 12,
@@ -37,5 +37,5 @@
     ".sovryn/nobel-readiness/public-review-url-audit.json",
     ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
   ],
-  "evidenceHash": "9da42fe4a83d894df43bcc5d4540e307668291b0a429c64640e57a302e29570c"
+  "evidenceHash": "45efdf7d50f04f1cf1ea227f7764b9437473d254a3c0d2c0cdf728ca42a3f408"
 }

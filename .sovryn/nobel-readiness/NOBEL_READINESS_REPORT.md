@@ -10,6 +10,9 @@ A bounded discovery-scored candidate package satisfies the internal external-rev
 
 - Readiness score: 76/100.
 - Outside expert review readiness score: 78/100.
+- Bounded 100% eligible: false.
+- Bounded 100% status: blocked_external_review_pending.
+- Bounded 100% blockers: readiness_score_below_100, valid_external_human_review_missing, supportive_external_human_review_missing, independent_external_reproduction_missing.
 - Public validation major caveats: 0.
 - Public live-source-only replay caveats: 0.
 - Public formal replay ready: true.

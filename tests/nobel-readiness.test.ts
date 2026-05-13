@@ -493,6 +493,23 @@ test("nobel-readiness score reconciles persisted external-review discovery FundC
   assert.equal(score.externallyReviewReadyCandidateCount, 1);
   assert.equal(score.einsteinNobelDiscoveryScoreEligible, true);
   assert.equal(score.totalScore, 72);
+  assert.equal(score.boundedHundredPercentEligible, false);
+  assert.equal(
+    score.boundedHundredPercentStatus,
+    "blocked_external_review_pending",
+  );
+  assert.deepEqual(
+    score.boundedHundredPercentBlockers.includes(
+      "valid_external_human_review_missing",
+    ),
+    true,
+  );
+  assert.deepEqual(
+    score.boundedHundredPercentBlockers.includes(
+      "independent_external_reproduction_missing",
+    ),
+    true,
+  );
   assert.match(report, /internal external-review package readiness/);
   assert.match(limitations, /No outside expert reviewed/);
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
@@ -1190,6 +1207,17 @@ test("nobel-readiness external-review intake records awaiting state without clai
     "none_awaiting_external_review",
   );
   assert.equal(score.totalScore, 72);
+  assert.equal(score.boundedHundredPercentEligible, false);
+  assert.equal(
+    score.boundedHundredPercentStatus,
+    "blocked_external_review_pending",
+  );
+  assert.equal(
+    score.boundedHundredPercentBlockers.includes(
+      "supportive_external_human_review_missing",
+    ),
+    true,
+  );
   assert.match(report, /does not claim prize significance/);
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
 });
@@ -1229,6 +1257,17 @@ test("nobel-readiness invalid external-review intake cannot raise score", async 
   );
   assert.equal(score.totalScore, 72);
   assert.equal(score.external_review_readiness_score, 78);
+  assert.equal(score.boundedHundredPercentEligible, false);
+  assert.equal(
+    score.boundedHundredPercentStatus,
+    "blocked_invalid_external_review",
+  );
+  assert.equal(
+    score.boundedHundredPercentBlockers.includes(
+      "invalid_external_review_record_pending",
+    ),
+    true,
+  );
 });
 
 test("nobel-readiness rejecting external review blocks external-review-ready scoring", async () => {
@@ -1305,6 +1344,15 @@ test("nobel-readiness supportive external review can raise only review readiness
   assert.equal(score.label, "externally_review_ready_candidate");
   assert.equal(score.external_review_readiness_score, 88);
   assert.equal(score.totalScore, 84);
+  assert.equal(score.boundedHundredPercentEligible, false);
+  assert.equal(
+    score.boundedHundredPercentStatus,
+    "blocked_internal_score_below_100",
+  );
+  assert.equal(
+    score.boundedHundredPercentBlockers.includes("readiness_score_below_100"),
+    true,
+  );
   assert.equal(
     score.externalHumanReviewStatus,
     "supportive_external_review_recorded",

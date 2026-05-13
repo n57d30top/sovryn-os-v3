@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_audit",
-  "checkedAt": "2026-05-13T00:04:44.995Z",
+  "checkedAt": "2026-05-13T00:39:04.566Z",
   "passed": true,
   "criteriaCount": 12,
   "domainCount": 10,
@@ -15,7 +15,7 @@
   "replayAttemptCount": 8,
   "killWeekAttackedCount": 40,
   "killWeekDowngradedCount": 12,
-  "finalLabel": "promising_with_strong_caveats",
+  "finalLabel": "externally_review_ready_candidate",
   "forbiddenClaimFindings": [],
   "artifactRefs": [
     ".sovryn/nobel-readiness/status.json",
@@ -30,5 +30,5 @@
     ".sovryn/nobel-readiness/readiness-score.json",
     ".sovryn/nobel-readiness/NOBEL_READINESS_REPORT.md"
   ],
-  "evidenceHash": "39c259fbd2b6a7ebccb9e0d17dbee246e2a331c4f27ac4ea23606d2f36439f2f"
+  "evidenceHash": "a60024585906472199030792b0ff762fedce78c6d902f3cb71c6df3e7aa1c88f"
 }

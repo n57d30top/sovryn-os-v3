@@ -2,8 +2,8 @@
   "kind": "nobel_readiness_status",
   "program": "Nobel Discovery Readiness Layer v0",
   "strongestAllowedLabel": "externally_review_ready_candidate",
-  "currentLabel": "promising_with_strong_caveats",
+  "currentLabel": "externally_review_ready_candidate",
   "noOverclaimRulesActive": true,
   "artifactRoot": ".sovryn/nobel-readiness",
-  "generatedAt": "2026-05-13T00:04:44.994Z"
+  "generatedAt": "2026-05-13T00:39:04.565Z"
 }

@@ -3206,6 +3206,12 @@ export class NobelReadinessService {
       }
       if (!noveltyAssessment) reasons.push("invalid_novelty_assessment");
       if (overclaimFindings.length > 0) reasons.push("forbidden_claim_text");
+      if (
+        independentReproductionStatus === "reproduced" &&
+        !sourceResolution.external
+      ) {
+        reasons.push("independent_reproduction_source_not_external");
+      }
       if (wouldRaiseScore && !sourceResolution.external) {
         reasons.push("supportive_review_source_not_external");
       }
@@ -3250,7 +3256,9 @@ export class NobelReadinessService {
     ).length;
     const independentReproductionCount = records.filter(
       (record) =>
-        record.valid && record.independentReproductionStatus === "reproduced",
+        record.valid &&
+        record.independentReproductionStatus === "reproduced" &&
+        record.reviewSourceExternal,
     ).length;
     const revisionOrRejectionCount = records.filter(
       (record) => record.revisionOrRejection,
@@ -3342,6 +3350,16 @@ export class NobelReadinessService {
           .every((record) => record.reviewSourceExternal),
         message:
           "A supportive review can affect scoring only when its source ref is an external public URL, not a local self-report.",
+      },
+      {
+        code: "independent_reproduction_requires_external_source",
+        passed: records
+          .filter(
+            (record) => record.independentReproductionStatus === "reproduced",
+          )
+          .every((record) => record.reviewSourceExternal),
+        message:
+          "Independent external reproduction can clear bounded-100 blockers only when its review source is an external public URL.",
       },
     ];
     const passed =

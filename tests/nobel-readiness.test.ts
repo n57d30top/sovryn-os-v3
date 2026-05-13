@@ -1405,6 +1405,58 @@ test("nobel-readiness local supportive review source cannot raise score", async 
   assert.equal(score.totalScore, 72);
 });
 
+test("nobel-readiness local reproduced review source cannot clear independent external reproduction blocker", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-local-reproduction-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/local-reproduction.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent formal methods reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef: reviewRel,
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "unclear",
+    overclaimFindings: [],
+    evidenceRefs: ["FORMAL_REPRODUCTION_RESULT.json"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.validReviewCount, 0);
+  assert.equal(intake.independentReproductionCount, 0);
+  assert.equal(intake.records[0]?.reviewSourceExternal, false);
+  assert.equal(
+    intake.records[0]?.reasons.includes(
+      "independent_reproduction_source_not_external",
+    ),
+    true,
+  );
+  assert.equal(
+    intake.gates.find(
+      (gate) =>
+        gate.code === "independent_reproduction_requires_external_source",
+    )?.passed,
+    false,
+  );
+  assert.equal(
+    score.boundedHundredPercentBlockers.includes(
+      "independent_external_reproduction_missing",
+    ),
+    true,
+  );
+});
+
 test("nobel-readiness supportive external review can raise only review readiness in fixture", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-support-"));
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);

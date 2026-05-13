@@ -363,6 +363,77 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+async function writeDiscoveryAnchorRuntimeSourceCacheFixture(
+  root: string,
+  input: {
+    anchorId: string;
+    sourceRef: string;
+    measuredOutcome: number;
+    residualMagnitude: number;
+    baselineName?: string;
+  },
+): Promise<string> {
+  const sourceCacheRef = join(
+    root,
+    daemonRoot,
+    "discovery-anchor-run",
+    "source-cache",
+    `${input.anchorId}.json`,
+  );
+  await mkdir(dirname(sourceCacheRef), { recursive: true });
+  await writeFile(
+    sourceCacheRef,
+    `${JSON.stringify(
+      {
+        kind: "discovery_anchor_runtime_source",
+        anchorId: input.anchorId,
+        sourceRef: input.sourceRef,
+        sourceReceipt: `fixture source receipt for ${input.anchorId}`,
+        sourceHash: "a".repeat(64),
+        loaderCheckCommand: `sovryn discover-daemon discovery-anchor-source-load --anchor ${input.anchorId}`,
+        rawTargetCount: 120,
+        measuredVariable: `fixture measured variable for ${input.anchorId}`,
+        targetOutcome: `fixture target outcome for ${input.anchorId}`,
+        measuredOutcome: input.measuredOutcome,
+        residualMagnitude: input.residualMagnitude,
+        baselineResults: [
+          {
+            baseline: input.baselineName ?? "fixture_source_baseline",
+            result: 0.11,
+            explainsSignal: false,
+          },
+          {
+            baseline: "fixture_matched_negative_control",
+            result: 0.09,
+            explainsSignal: false,
+          },
+          {
+            baseline: "fixture_null_control",
+            result: 0.07,
+            explainsSignal: false,
+          },
+        ],
+        rivalWeakened: true,
+        nontrivialResidual: true,
+        crossSourceSupport: true,
+        counterexampleCollapsed: false,
+        holdoutReplayAvailable: true,
+        holdoutPath: "fixture independent holdout path",
+        replayPath: "fixture replay path",
+        publicSafe: true,
+        sourceRefs: [input.sourceRef, `${input.sourceRef}#fixture-source`],
+        evidenceRefs: [
+          `.sovryn/discovery-daemon/discovery-anchor-run/source-cache/${input.anchorId}.json`,
+          `${input.sourceRef}#fixture-runtime-source`,
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return `.sovryn/discovery-daemon/discovery-anchor-run/source-cache/${input.anchorId}.json`;
+}
+
 function gaiaAstrometricExcessFixtureCsv(): string {
   const rows = Array.from({ length: 24 }, (_, index) => {
     const sourceId = 1000000000000 + index;
@@ -4529,6 +4600,92 @@ test("replacement generator run blocks domain-significance-unsupported outputs b
   assert.equal(audit.pressureYield.pressureRunFound, false);
   assert.equal(audit.pressureYield.insightCandidatesCreated, 0);
   assert.deepEqual(audit.failedGates, []);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("source-bound significance generator uses discovery-anchor source-cache metrics", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const sourceCacheRef = await writeDiscoveryAnchorRuntimeSourceCacheFixture(
+    root,
+    {
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+      sourceRef: "https://matbench.materialsproject.org/",
+      measuredOutcome: 1.2345,
+      residualMagnitude: 0.4567,
+      baselineName: "fixture_composition_formula_size_baseline",
+    },
+  );
+
+  const report = await service.generatorRun({
+    generatorId: "matbench_descriptor_transfer_significance_generator",
+    significanceCandidates: true,
+  });
+
+  assert.equal(report.kind, "mechanism_first_generator_run");
+  assert.equal(report.generatorSet, "significance");
+  assert.equal(report.runtimeChecks, 10);
+  assert.equal(report.hardSeedsBorn, 2);
+  const outputPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      measuredOutcome: number;
+      residualMagnitude: number;
+      runtimeEvidenceKind: string;
+      runtimeSourceBinding: {
+        status: string;
+        sourceCacheRef: string | null;
+        measuredOutcomeSource: string;
+        residualMagnitudeSource: string;
+        baselineSource: string;
+      };
+      baselineResults: Array<{ baseline: string }>;
+      evidenceRefs: string[];
+    }>;
+  };
+  assert.equal(outputPayload.outputs.length, 10);
+  assert.equal(
+    outputPayload.outputs.every(
+      (output) =>
+        output.measuredOutcome === 1.2345 &&
+        output.residualMagnitude === 0.4567 &&
+        output.runtimeEvidenceKind === "loaded_external_data" &&
+        output.runtimeSourceBinding.status === "source_cache_bound" &&
+        output.runtimeSourceBinding.sourceCacheRef === sourceCacheRef &&
+        output.runtimeSourceBinding.measuredOutcomeSource ===
+          "runtime_source_cache" &&
+        output.runtimeSourceBinding.residualMagnitudeSource ===
+          "runtime_source_cache" &&
+        output.runtimeSourceBinding.baselineSource === "runtime_source_cache" &&
+        output.baselineResults[0]?.baseline ===
+          "fixture_composition_formula_size_baseline" &&
+        output.evidenceRefs.includes(sourceCacheRef),
+    ),
+    true,
+  );
+  const runtimePayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "runtime-evidence",
+        "matbench_descriptor_transfer_significance_generator-output-01.json",
+      ),
+      "utf8",
+    ),
+  ) as { output: { measuredOutcome: number; residualMagnitude: number } };
+  assert.equal(runtimePayload.output.measuredOutcome, 1.2345);
+  assert.equal(runtimePayload.output.residualMagnitude, 0.4567);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

@@ -1371,6 +1371,10 @@ export type MechanismFirstGeneratorOutput = {
   measuredVariable: string;
   measuredOutcome: number;
   residualMagnitude: number;
+  runtimeEvidenceKind: NonNullable<
+    HardSeedBirthEvaluationInput["runtimeEvidenceKind"]
+  >;
+  runtimeSourceBinding: MechanismFirstGeneratorRuntimeSourceBinding;
   candidateMechanismPrediction: string;
   rivalMechanismPrediction: string;
   frozenPredictionRef: string;
@@ -1386,6 +1390,25 @@ export type MechanismFirstGeneratorOutput = {
   producedArtifact: string;
   birthEvaluation: HardSeedBirthEvaluation;
   hardSeed: HardSeed | null;
+};
+
+export type MechanismFirstGeneratorRuntimeSourceBinding = {
+  kind: "mechanism_first_generator_runtime_source_binding";
+  status:
+    | "source_cache_bound"
+    | "source_cache_missing"
+    | "source_cache_invalid"
+    | "source_cache_not_applicable";
+  generatorId: MechanismFirstGeneratorFamilyId;
+  anchorId: string | null;
+  sourceCacheRef: string | null;
+  measuredOutcomeSource: "runtime_source_cache" | "generator_profile";
+  residualMagnitudeSource: "runtime_source_cache" | "generator_profile";
+  baselineSource: "runtime_source_cache" | "generator_profile";
+  rawTargetCount: number | null;
+  sourceHash: string | null;
+  reason: string;
+  validationErrors: string[];
 };
 
 export type GeneratorFamilyReplacementRequirement = {
@@ -12223,9 +12246,13 @@ export class MechanismFirstEvidenceGeneratorService {
     if (generatorId && families.length === 0) {
       throw new Error(`Unknown generator family: ${generatorId}`);
     }
-    const outputs = families.flatMap((family) =>
-      mechanismFirstGeneratorOutputs(family),
-    );
+    const outputs = (
+      await Promise.all(
+        families.map((family) =>
+          mechanismFirstGeneratorOutputs(this.root, family),
+        ),
+      )
+    ).flat();
     await mkdir(join(this.generatorRoot(), "runtime-evidence"), {
       recursive: true,
     });
@@ -29503,17 +29530,179 @@ function generatorBirthGateCriteria(): string[] {
   ];
 }
 
-function mechanismFirstGeneratorOutputs(
+type MechanismFirstGeneratorRuntimeSourceContext = {
+  artifact: DiscoveryAnchorRuntimeSourceArtifact | null;
+  binding: MechanismFirstGeneratorRuntimeSourceBinding;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+};
+
+async function mechanismFirstGeneratorRuntimeSourceBinding(
+  root: string,
   family: MechanismFirstGeneratorFamily,
-): MechanismFirstGeneratorOutput[] {
+): Promise<MechanismFirstGeneratorRuntimeSourceContext> {
+  const anchorId = mechanismFirstGeneratorSourceAnchorId(family.generatorId);
+  if (anchorId === null) {
+    return mechanismFirstGeneratorRuntimeSourceContextWithoutCache(
+      family,
+      "source_cache_not_applicable",
+      "This generator family uses generated/checkable runtime evidence rather than a discovery-anchor source cache.",
+      null,
+      [],
+    );
+  }
+  const sourceCacheRef = discoveryAnchorRuntimeSourceArtifactRef(anchorId);
+  const artifact = await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+    join(root, sourceCacheRef),
+  );
+  if (artifact === null) {
+    return mechanismFirstGeneratorRuntimeSourceContextWithoutCache(
+      family,
+      "source_cache_missing",
+      `No discovery-anchor source cache exists at ${sourceCacheRef}; using generator profile metrics for planning evidence only.`,
+      sourceCacheRef,
+      [],
+    );
+  }
+  const validationErrors = validateMechanismFirstGeneratorSourceCacheArtifact(
+    artifact,
+    anchorId,
+  );
+  if (validationErrors.length > 0) {
+    return mechanismFirstGeneratorRuntimeSourceContextWithoutCache(
+      family,
+      "source_cache_invalid",
+      `Discovery-anchor source cache ${sourceCacheRef} is present but invalid for generator runtime binding.`,
+      sourceCacheRef,
+      validationErrors,
+    );
+  }
+  const binding: MechanismFirstGeneratorRuntimeSourceBinding = {
+    kind: "mechanism_first_generator_runtime_source_binding",
+    status: "source_cache_bound",
+    generatorId: family.generatorId,
+    anchorId,
+    sourceCacheRef,
+    measuredOutcomeSource: "runtime_source_cache",
+    residualMagnitudeSource: "runtime_source_cache",
+    baselineSource: "runtime_source_cache",
+    rawTargetCount: artifact.rawTargetCount,
+    sourceHash: artifact.sourceHash,
+    reason:
+      "Generator runtime output metrics are bound to the loaded discovery-anchor source-cache artifact.",
+    validationErrors: [],
+  };
+  return {
+    artifact,
+    binding,
+    sourceRefs: uniqueStrings([
+      artifact.sourceRef,
+      ...(artifact.sourceRefs ?? []),
+    ]),
+    evidenceRefs: uniqueStrings([
+      sourceCacheRef,
+      ...(artifact.evidenceRefs ?? []),
+    ]),
+  };
+}
+
+function mechanismFirstGeneratorSourceAnchorId(
+  generatorId: MechanismFirstGeneratorFamilyId,
+): string | null {
+  if (generatorId === "matbench_descriptor_transfer_significance_generator") {
+    return "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP";
+  }
+  if (generatorId === "gaia_astrometric_excess_significance_generator") {
+    return "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES";
+  }
+  return null;
+}
+
+function mechanismFirstGeneratorRuntimeSourceContextWithoutCache(
+  family: MechanismFirstGeneratorFamily,
+  status: MechanismFirstGeneratorRuntimeSourceBinding["status"],
+  reason: string,
+  sourceCacheRef: string | null,
+  validationErrors: string[],
+): MechanismFirstGeneratorRuntimeSourceContext {
+  return {
+    artifact: null,
+    binding: {
+      kind: "mechanism_first_generator_runtime_source_binding",
+      status,
+      generatorId: family.generatorId,
+      anchorId: mechanismFirstGeneratorSourceAnchorId(family.generatorId),
+      sourceCacheRef,
+      measuredOutcomeSource: "generator_profile",
+      residualMagnitudeSource: "generator_profile",
+      baselineSource: "generator_profile",
+      rawTargetCount: null,
+      sourceHash: null,
+      reason,
+      validationErrors,
+    },
+    sourceRefs: [],
+    evidenceRefs: sourceCacheRef === null ? [] : [sourceCacheRef],
+  };
+}
+
+function validateMechanismFirstGeneratorSourceCacheArtifact(
+  artifact: DiscoveryAnchorRuntimeSourceArtifact,
+  expectedAnchorId: string,
+): string[] {
+  const errors: string[] = [];
+  if (artifact.kind !== "discovery_anchor_runtime_source") {
+    errors.push("wrong_kind");
+  }
+  if (artifact.anchorId !== expectedAnchorId) {
+    errors.push("anchor_id_mismatch");
+  }
+  if (!artifact.sourceRef.startsWith("https://")) {
+    errors.push("invalid_public_source_ref");
+  }
+  if (!Number.isFinite(artifact.measuredOutcome)) {
+    errors.push("invalid_measured_outcome");
+  }
+  if (!Number.isFinite(artifact.residualMagnitude)) {
+    errors.push("invalid_residual_magnitude");
+  }
+  if (
+    !Array.isArray(artifact.baselineResults) ||
+    artifact.baselineResults.length < 3
+  ) {
+    errors.push("insufficient_baseline_results");
+  }
+  if (artifact.publicSafe !== true) {
+    errors.push("not_public_safe");
+  }
+  const refs = [
+    artifact.sourceRef,
+    ...(artifact.sourceRefs ?? []),
+    ...(artifact.evidenceRefs ?? []),
+  ];
+  if (!refs.every(publicSafeRef)) {
+    errors.push("unsafe_refs");
+  }
+  return uniqueStrings(errors);
+}
+
+async function mechanismFirstGeneratorOutputs(
+  root: string,
+  family: MechanismFirstGeneratorFamily,
+): Promise<MechanismFirstGeneratorOutput[]> {
+  const runtimeSource = await mechanismFirstGeneratorRuntimeSourceBinding(
+    root,
+    family,
+  );
   return Array.from({ length: 10 }, (_, index) =>
-    mechanismFirstGeneratorOutput(family, index),
+    mechanismFirstGeneratorOutput(family, index, runtimeSource),
   );
 }
 
 function mechanismFirstGeneratorOutput(
   family: MechanismFirstGeneratorFamily,
   index: number,
+  runtimeSource: MechanismFirstGeneratorRuntimeSourceContext,
 ): MechanismFirstGeneratorOutput {
   const ordinal = index + 1;
   const targetId = `${family.generatorId}-target-${String(ordinal).padStart(2, "0")}`;
@@ -29526,6 +29715,7 @@ function mechanismFirstGeneratorOutput(
     ...family.externalProblemAnchor.significanceEvidenceRefs,
     family.rawTargetSource,
     profile.secondarySourceRef,
+    ...runtimeSource.sourceRefs,
   ]).filter(Boolean);
   const evidenceRefs = uniqueStrings([
     family.externalProblemAnchor.sourceRef,
@@ -29535,8 +29725,9 @@ function mechanismFirstGeneratorOutput(
     profile.secondarySourceRef,
     `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}`,
     producedArtifact,
+    ...runtimeSource.evidenceRefs,
   ]).filter(Boolean);
-  const baselineResults = [
+  const baselineResults = runtimeSource.artifact?.baselineResults ?? [
     {
       baseline: profile.baselineName,
       result: profile.baselineValue,
@@ -29557,6 +29748,28 @@ function mechanismFirstGeneratorOutput(
     family,
     profile,
   );
+  const measuredOutcome =
+    runtimeSource.artifact?.measuredOutcome ?? profile.measuredOutcome;
+  const residualMagnitude =
+    runtimeSource.artifact?.residualMagnitude ?? profile.residualMagnitude;
+  const rivalWeakened =
+    runtimeSource.artifact?.rivalWeakened ?? profile.rivalWeakened;
+  const nontrivialResidual =
+    runtimeSource.artifact?.nontrivialResidual ?? profile.nontrivialResidual;
+  const crossSourceSupport =
+    runtimeSource.artifact?.crossSourceSupport ?? profile.crossSourceSupport;
+  const counterexampleCollapsed =
+    runtimeSource.artifact?.counterexampleCollapsed ??
+    profile.counterexampleCollapsed;
+  const holdoutReplayAvailable =
+    runtimeSource.artifact?.holdoutReplayAvailable ??
+    profile.holdoutReplayAvailable;
+  const measuredVariable =
+    runtimeSource.artifact?.measuredVariable ?? profile.measuredVariable;
+  const runtimeEvidenceKind =
+    runtimeSource.artifact === null
+      ? ("executed_public_artifact" as const)
+      : ("loaded_external_data" as const);
   const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
     generatorId: family.generatorId,
     targetId,
@@ -29569,15 +29782,16 @@ function mechanismFirstGeneratorOutput(
     sourceFamilyDocumentedSignal: profile.sourceFamilyDocumentedSignal,
     knownTrivialSignal: profile.knownTrivialSignal,
     runtimeEvidencePresent: true,
+    runtimeEvidenceKind,
     sourceRefs,
     evidenceRefs,
-    residualMagnitude: profile.residualMagnitude,
+    residualMagnitude,
     baselineResults,
-    rivalWeakened: profile.rivalWeakened,
-    nontrivialResidual: profile.nontrivialResidual,
-    crossSourceSupport: profile.crossSourceSupport,
-    counterexampleCollapsed: profile.counterexampleCollapsed,
-    holdoutReplayAvailable: profile.holdoutReplayAvailable,
+    rivalWeakened,
+    nontrivialResidual,
+    crossSourceSupport,
+    counterexampleCollapsed,
+    holdoutReplayAvailable,
   });
   const hardSeed = birthEvaluation.accepted
     ? generatorBirthEligibleHardSeed({
@@ -29588,8 +29802,8 @@ function mechanismFirstGeneratorOutput(
         domainSignificanceHypothesis,
         sourceRefs,
         evidenceRefs,
-        measuredOutcome: profile.measuredOutcome,
-        residualMagnitude: profile.residualMagnitude,
+        measuredOutcome,
+        residualMagnitude,
       })
     : null;
   return {
@@ -29605,18 +29819,20 @@ function mechanismFirstGeneratorOutput(
     domainSignificanceHypothesis,
     domainSignificanceHypothesisGate:
       birthEvaluation.domainSignificanceHypothesisGate,
-    measuredVariable: profile.measuredVariable,
-    measuredOutcome: profile.measuredOutcome,
-    residualMagnitude: profile.residualMagnitude,
+    measuredVariable,
+    measuredOutcome,
+    residualMagnitude,
+    runtimeEvidenceKind,
+    runtimeSourceBinding: runtimeSource.binding,
     candidateMechanismPrediction: `${family.mechanismHypothesis} Prediction frozen for ${targetId}: ${profile.candidatePrediction}`,
     rivalMechanismPrediction: `${family.rivalHypothesis} Rival prediction for ${targetId}: ${profile.rivalPrediction}`,
     frozenPredictionRef: `${daemonArtifactRoot}/${generatorFamilyDir}/GENERATOR_RUN_RESULTS.md#${outputId}-prediction`,
     baselineResults,
-    rivalWeakened: profile.rivalWeakened,
-    counterexampleCollapsed: profile.counterexampleCollapsed,
-    crossSourceSupport: profile.crossSourceSupport,
-    holdoutReplayAvailable: profile.holdoutReplayAvailable,
-    nontrivialResidual: profile.nontrivialResidual,
+    rivalWeakened,
+    counterexampleCollapsed,
+    crossSourceSupport,
+    holdoutReplayAvailable,
+    nontrivialResidual,
     sourceFamilyDocumentedSignal: profile.sourceFamilyDocumentedSignal,
     knownTrivialSignal: profile.knownTrivialSignal,
     runtimeEvidencePresent: true,
@@ -30265,11 +30481,11 @@ function generatorRunResultsMarkdown(
     `Hard seeds born: ${report.hardSeedsBorn}.`,
     `Generator replacement required: ${String(report.replacementRequired)}.`,
     "",
-    "| Output | Generator | Domain | Target | Outcome | Residual | Birth | Primary blocker | Evidence |",
-    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    "| Output | Generator | Domain | Target | Source binding | Outcome | Residual | Birth | Primary blocker | Evidence |",
+    "| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ...outputs.map(
       (output) =>
-        `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
+        `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.runtimeSourceBinding.status} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
     ),
   ].join("\n");
 }

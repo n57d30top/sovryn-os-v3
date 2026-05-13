@@ -1835,11 +1835,51 @@ export type GeneratorBornDiscoveryClaimLiftSourceSignalReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision = {
+  kind: "generator_born_discovery_claim_lift_novelty_pressure_decision";
+  candidateId: string;
+  packageRef: string | null;
+  sourceSignalStatus: "source_signal_bound" | "blocked" | "missing";
+  sourceCacheRef: string | null;
+  noveltyPressureStatus: "novelty_pressure_cleared" | "blocked";
+  ordinaryMechanismStatus:
+    | "ordinary_known_confirmed"
+    | "not_confirmed"
+    | "not_checked";
+  sourceFamilyCount: number;
+  sourceFamilies: string[];
+  noveltyEvidenceRefs: string[];
+  primaryBlocker: string;
+  gates: FundGate[];
+  failedGates: string[];
+  packageMutated: false;
+  requiredNextAction: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftNoveltyPressureReport = {
+  kind: "generator_born_discovery_claim_lift_novelty_pressure";
+  status: "novelty_pressure_cleared" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  sourceSignalsLoaded: number;
+  noveltyPressureCleared: number;
+  noveltyPressureBlocked: number;
+  packagesMutated: 0;
+  decisions: GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision[];
+  blockerDistribution: Record<string, number>;
+  fundFound: false;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision = {
   kind: "generator_born_discovery_claim_lift_candidate_preflight_decision";
   candidateId: string;
   packageRef: string | null;
   sourceSignalStatus: "source_signal_bound" | "blocked" | "missing";
+  noveltyPressureStatus: "novelty_pressure_cleared" | "blocked" | "missing";
   targetDiscoveryCandidateId: string | null;
   candidateContractStatus: "candidate_contract_ready" | "blocked";
   primaryBlocker: string;
@@ -15387,6 +15427,212 @@ export class GeneratorBornDiscoveryClaimLiftSourceSignalService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftNoveltyPressureService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    const sourceSignals = await this.readSourceSignalsOrRun();
+    const decisions = await Promise.all(
+      sourceSignals.decisions.map((decision) =>
+        this.evaluateSourceSignal(decision),
+      ),
+    );
+    const cleared = decisions.filter(
+      (decision) =>
+        decision.noveltyPressureStatus === "novelty_pressure_cleared",
+    );
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-novelty-pressure-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftNoveltyPressureReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_novelty_pressure" as const,
+        status:
+          cleared.length > 0
+            ? ("novelty_pressure_cleared" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: sourceSignals.nextCheckpointRef,
+        nextCheckpointRef,
+        sourceSignalsLoaded: sourceSignals.decisions.length,
+        noveltyPressureCleared: cleared.length,
+        noveltyPressureBlocked: decisions.filter(
+          (decision) => decision.noveltyPressureStatus === "blocked",
+        ).length,
+        packagesMutated: 0 as const,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        fundFound: false as const,
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftNoveltyPressureBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftNoveltyPressureArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readSourceSignalsOrRun(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
+    const report =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftSourceSignalReport>(
+        join(this.liftRoot(), "SOURCE_SIGNAL_BINDINGS.json"),
+      );
+    if (report !== null) return report;
+    return new GeneratorBornDiscoveryClaimLiftSourceSignalService(
+      this.root,
+    ).run();
+  }
+
+  private async evaluateSourceSignal(
+    sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision,
+  ): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision> {
+    const sourceCache =
+      sourceSignal.sourceCacheRef === null
+        ? null
+        : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+            join(this.root, sourceSignal.sourceCacheRef),
+          );
+    const sourceFamilies = generatorBornClaimLiftPublicSourceFamilies([
+      sourceCache?.sourceRef,
+      ...(sourceCache?.sourceRefs ?? []),
+      ...(sourceCache?.evidenceRefs ?? []),
+      ...sourceSignal.bindableInsightEvidenceRefs,
+    ]);
+    const noveltyEvidenceRefs = uniqueStrings([
+      ...(sourceCache?.evidenceRefs ?? []),
+      ...(sourceCache?.sourceRefs ?? []),
+      ...sourceSignal.bindableInsightEvidenceRefs,
+    ]).filter(publicSafeRef);
+    const ordinaryKnownConfirmed =
+      sourceCache !== null &&
+      generatorBornClaimLiftOrdinaryKnownMechanismConfirmed({
+        sourceSignal,
+        sourceCache,
+        sourceFamilies,
+      });
+    const noveltyRefsResolve =
+      noveltyEvidenceRefs.length >= 2 &&
+      (await claimLiftEvidenceRefsResolvable(this.root, noveltyEvidenceRefs));
+    const gates = [
+      gate(
+        "source_signal_bound",
+        sourceSignal.sourceSignalStatus === "source_signal_bound",
+        "Novelty pressure runs only after a forward-only source signal is bound.",
+      ),
+      gate(
+        "source_cache_present",
+        sourceCache !== null,
+        "Novelty pressure requires loaded external source-cache evidence.",
+      ),
+      gate(
+        "source_cache_public_safe",
+        sourceCache?.publicSafe === true,
+        "Novelty pressure requires public-safe source-cache evidence.",
+      ),
+      gate(
+        "source_cache_depth",
+        (sourceCache?.rawTargetCount ?? 0) >= 60,
+        "Novelty pressure requires at least sixty loaded target rows or objects.",
+      ),
+      gate(
+        "ordinary_known_mechanism_not_confirmed",
+        !ordinaryKnownConfirmed,
+        "Signals explained by ordinary known source-family mechanisms cannot clear not_ordinary_known_mechanism.",
+      ),
+      gate(
+        "independent_source_family_support",
+        sourceFamilies.length >= 2,
+        "Novelty pressure requires at least two public source families before source-family behavior can be scored as non-ordinary.",
+      ),
+      gate(
+        "novelty_evidence_refs_resolve",
+        noveltyRefsResolve,
+        "Novelty pressure evidence refs must resolve before candidate preflight can consume them.",
+      ),
+      gate(
+        "nontrivial_source_signal_survives",
+        sourceCache?.nontrivialResidual === true &&
+          sourceCache?.rivalWeakened === true &&
+          sourceCache?.counterexampleCollapsed === false,
+        "Novelty pressure requires nontrivial residual, rival pressure, and nonfatal counterexample pressure to remain true.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const primaryBlocker = generatorBornClaimLiftNoveltyPressurePrimaryBlocker({
+      sourceSignal,
+      ordinaryKnownConfirmed,
+      failedGates,
+    });
+    const ready = failedGates.length === 0;
+    const decision = {
+      kind: "generator_born_discovery_claim_lift_novelty_pressure_decision" as const,
+      candidateId: sourceSignal.candidateId,
+      packageRef: sourceSignal.packageRef,
+      sourceSignalStatus: sourceSignal.sourceSignalStatus,
+      sourceCacheRef: sourceSignal.sourceCacheRef,
+      noveltyPressureStatus: ready
+        ? ("novelty_pressure_cleared" as const)
+        : ("blocked" as const),
+      ordinaryMechanismStatus:
+        sourceCache === null
+          ? ("not_checked" as const)
+          : ordinaryKnownConfirmed
+            ? ("ordinary_known_confirmed" as const)
+            : ("not_confirmed" as const),
+      sourceFamilyCount: sourceFamilies.length,
+      sourceFamilies,
+      noveltyEvidenceRefs: ready ? noveltyEvidenceRefs : [],
+      primaryBlocker,
+      gates,
+      failedGates,
+      packageMutated: false as const,
+      requiredNextAction: ready
+        ? "Claim-lift candidate preflight may consume this forward-only novelty-pressure clearance; this is not a Fund and does not mutate packages."
+        : generatorBornClaimLiftNoveltyPressureRequiredAction(primaryBlocker),
+    };
+    return { ...decision, evidenceHash: hashEvidence(decision) };
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftNoveltyPressureReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "CLAIM_LIFT_NOVELTY_PRESSURE.json"), report);
+    await writeJson(join(root, "CLAIM_LIFT_NOVELTY_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_novelty_pressure_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_novelty_pressure_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      noveltyPressureCleared: report.noveltyPressureCleared,
+      noveltyPressureBlocked: report.noveltyPressureBlocked,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_NOVELTY_PRESSURE.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "CLAIM_LIFT_NOVELTY_PRESSURE.md"),
+      generatorBornDiscoveryClaimLiftNoveltyPressureMarkdown(report),
+    );
+    await writeText(
+      join(root, "CLAIM_LIFT_NOVELTY_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftNoveltyPressureNextCheckpointMarkdown(
+        report,
+      ),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
   constructor(private readonly root: string) {}
 
@@ -15398,9 +15644,10 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
       closure = await this.readFundClosure();
     }
     const sourceSignals = await this.readSourceSignalsOrRun();
+    const noveltyPressure = await this.readNoveltyPressureOrRun();
     const decisions = await Promise.all(
       closure.claimLiftRequirements.map((requirement) =>
-        this.evaluateRequirement(requirement, sourceSignals),
+        this.evaluateRequirement(requirement, sourceSignals, noveltyPressure),
       ),
     );
     const candidateContracts = decisions
@@ -15483,9 +15730,21 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
     ).run();
   }
 
+  private async readNoveltyPressureOrRun(): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport> {
+    const report =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport>(
+        join(this.liftRoot(), "CLAIM_LIFT_NOVELTY_PRESSURE.json"),
+      );
+    if (report !== null) return report;
+    return new GeneratorBornDiscoveryClaimLiftNoveltyPressureService(
+      this.root,
+    ).run();
+  }
+
   private async evaluateRequirement(
     requirement: GeneratorBornDiscoveryClaimLiftRequirement,
     sourceSignals: GeneratorBornDiscoveryClaimLiftSourceSignalReport,
+    noveltyPressure: GeneratorBornDiscoveryClaimLiftNoveltyPressureReport,
   ): Promise<GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision> {
     const packageRef = requirement.externalReviewPackagePath ?? "";
     const packageBindingsPath =
@@ -15501,12 +15760,17 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
         decision.candidateId === requirement.candidateId ||
         (packageRef.length > 0 && decision.packageRef === packageRef),
     );
+    const noveltyDecision = noveltyPressure.decisions.find(
+      (decision) =>
+        decision.candidateId === requirement.candidateId ||
+        (packageRef.length > 0 && decision.packageRef === packageRef),
+    );
     const domainFailedGates = generatorBornClaimLiftDomainFailedGates({
       requirement,
       bindings,
     });
     const fatalDomainGates = domainFailedGates.filter((gateId) =>
-      generatorBornClaimLiftFatalDomainGate(gateId),
+      generatorBornClaimLiftFatalDomainGate(gateId, noveltyDecision),
     );
     const scaffold = await generatorBornDiscoveryClaimLiftProposalScaffold(
       this.root,
@@ -15547,9 +15811,15 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
       gate(
         "claim_liftable_domain_gate_shape",
         domainFailedGates.every((gateId) =>
-          generatorBornClaimLiftLiftableDomainGate(gateId),
+          generatorBornClaimLiftLiftableDomainGate(gateId, noveltyDecision),
         ),
         "Only liftable domain-significance gates may be repaired by a forward-only candidate contract.",
+      ),
+      gate(
+        "not_ordinary_known_mechanism_novelty_pressure",
+        !domainFailedGates.includes("not_ordinary_known_mechanism") ||
+          noveltyDecision?.noveltyPressureStatus === "novelty_pressure_cleared",
+        "The not_ordinary_known_mechanism gate may be cleared only by explicit novelty pressure, not by claim text.",
       ),
       gate(
         "ordinary_known_mechanism_cleared",
@@ -15579,6 +15849,7 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
     const primaryBlocker =
       generatorBornClaimLiftCandidatePreflightPrimaryBlocker({
         sourceSignal,
+        noveltyPressure: noveltyDecision,
         fatalDomainGates,
         failedGates,
       });
@@ -15593,6 +15864,8 @@ export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
       candidateId: requirement.candidateId,
       packageRef: packageRef.length > 0 ? packageRef : null,
       sourceSignalStatus,
+      noveltyPressureStatus:
+        noveltyDecision?.noveltyPressureStatus ?? ("missing" as const),
       targetDiscoveryCandidateId: ready
         ? candidateContract.targetDiscoveryCandidateId
         : null,
@@ -27681,14 +27954,36 @@ function generatorBornClaimLiftDomainFailedGates(input: {
   ]);
 }
 
-function generatorBornClaimLiftLiftableDomainGate(gateId: string): boolean {
+function generatorBornClaimLiftLiftableDomainGate(
+  gateId: string,
+  noveltyPressure?:
+    | GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision
+    | undefined,
+): boolean {
+  if (
+    gateId === "not_ordinary_known_mechanism" &&
+    noveltyPressure?.noveltyPressureStatus === "novelty_pressure_cleared"
+  ) {
+    return true;
+  }
   return [
     "no_anti_discovery_claim_text",
     "explicit_domain_significance_claim",
   ].includes(gateId);
 }
 
-function generatorBornClaimLiftFatalDomainGate(gateId: string): boolean {
+function generatorBornClaimLiftFatalDomainGate(
+  gateId: string,
+  noveltyPressure?:
+    | GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision
+    | undefined,
+): boolean {
+  if (
+    gateId === "not_ordinary_known_mechanism" &&
+    noveltyPressure?.noveltyPressureStatus === "novelty_pressure_cleared"
+  ) {
+    return false;
+  }
   return [
     "not_ordinary_known_mechanism",
     "known_trivial",
@@ -28170,14 +28465,190 @@ function generatorBornDiscoveryClaimLiftSignalNextCheckpointMarkdown(
   ].join("\n");
 }
 
+function generatorBornClaimLiftPublicSourceFamilies(
+  refs: Array<string | null | undefined>,
+): string[] {
+  return uniqueStrings(
+    refs
+      .filter((ref): ref is string => typeof ref === "string")
+      .map((ref) => {
+        try {
+          const url = new URL(ref);
+          return url.hostname.toLowerCase().replace(/^www\./, "");
+        } catch {
+          return null;
+        }
+      })
+      .filter((family): family is string => family !== null),
+  );
+}
+
+function generatorBornClaimLiftOrdinaryKnownMechanismConfirmed(input: {
+  sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision;
+  sourceCache: DiscoveryAnchorRuntimeSourceArtifact;
+  sourceFamilies: string[];
+}): boolean {
+  const text = normalizeWhitespace(
+    [
+      input.sourceSignal.candidateId,
+      input.sourceSignal.packageRef,
+      input.sourceCache.sourceRef,
+      input.sourceCache.measuredVariable,
+      input.sourceCache.targetOutcome,
+      input.sourceCache.holdoutPath,
+      input.sourceCache.replayPath,
+      ...input.sourceCache.baselineResults.map((item) => item.baseline),
+      ...(input.sourceCache.sourceRefs ?? []),
+    ].join(" "),
+  ).toLowerCase();
+  const solarClearSkyCloudLoss =
+    (text.includes("all-sky") || text.includes("all sky")) &&
+    (text.includes("clear-sky") || text.includes("clear sky")) &&
+    (text.includes("cloud-loss") ||
+      text.includes("cloud loss") ||
+      text.includes("solar residual"));
+  const nasaPowerSolarResidual =
+    text.includes("power.larc.nasa.gov") &&
+    text.includes("solar") &&
+    (text.includes("clear-sky") || text.includes("clear sky"));
+  const sameSourceFamilyOnly = input.sourceFamilies.length <= 1;
+  return (
+    solarClearSkyCloudLoss || (nasaPowerSolarResidual && sameSourceFamilyOnly)
+  );
+}
+
+function generatorBornClaimLiftNoveltyPressurePrimaryBlocker(input: {
+  sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision;
+  ordinaryKnownConfirmed: boolean;
+  failedGates: string[];
+}): string {
+  if (input.sourceSignal.sourceSignalStatus !== "source_signal_bound") {
+    return input.sourceSignal.primaryBlocker || "source_signal_not_bound";
+  }
+  if (input.ordinaryKnownConfirmed) return "ordinary_known_mechanism_confirmed";
+  if (input.failedGates.includes("independent_source_family_support")) {
+    return "same_source_family_only";
+  }
+  if (input.failedGates.includes("novelty_evidence_refs_resolve")) {
+    return "novelty_evidence_refs_missing_or_unresolved";
+  }
+  if (input.failedGates.length > 0) return input.failedGates[0] ?? "blocked";
+  return "none";
+}
+
+function generatorBornClaimLiftNoveltyPressureRequiredAction(
+  primaryBlocker: string,
+): string {
+  switch (primaryBlocker) {
+    case "ordinary_known_mechanism_confirmed":
+      return "Do not create a DiscoveryCandidate contract for this signal; either produce independent source-family novelty evidence that defeats the ordinary mechanism, or kill this claim-lift path.";
+    case "same_source_family_only":
+      return "Add independent source-family or orthogonal measurement support before claiming this is not source-family behavior.";
+    case "novelty_evidence_refs_missing_or_unresolved":
+      return "Bind resolvable public-safe novelty evidence refs before Candidate preflight may clear not_ordinary_known_mechanism.";
+    case "source_signal_not_bound":
+    case "missing_external_source_cache":
+      return "Run source-signal binding from real external source-cache evidence before novelty pressure.";
+    default:
+      return "Run mechanism-specific novelty pressure before claim-lift candidate contract creation.";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftNoveltyPressureBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision[],
+): string {
+  if (decisions.length === 0) {
+    return "No source-signal decisions are available for novelty pressure.";
+  }
+  const cleared = decisions.filter(
+    (decision) => decision.noveltyPressureStatus === "novelty_pressure_cleared",
+  ).length;
+  if (cleared > 0) {
+    return `${cleared} claim-lift source signal(s) cleared novelty pressure. This is not a Fund; rerun candidate preflight.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `All ${decisions.length} claim-lift source signal(s) remain blocked by novelty pressure. Dominant blockers: ${Object.entries(
+    distribution,
+  )
+    .map(([blocker, count]) => `${blocker}=${count}`)
+    .join(", ")}.`;
+}
+
+function generatorBornDiscoveryClaimLiftNoveltyPressureArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/CLAIM_LIFT_NOVELTY_PRESSURE.json`,
+    `${root}/CLAIM_LIFT_NOVELTY_PRESSURE.md`,
+    `${root}/CLAIM_LIFT_NOVELTY_DECISIONS.json`,
+    `${root}/CLAIM_LIFT_NOVELTY_NEXT_CHECKPOINT.md`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftNoveltyPressureMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftNoveltyPressureReport,
+): string {
+  return [
+    "# Claim Lift Novelty Pressure",
+    "",
+    `Source signals loaded: ${report.sourceSignalsLoaded}.`,
+    `Novelty pressure cleared: ${report.noveltyPressureCleared}.`,
+    `Novelty pressure blocked: ${report.noveltyPressureBlocked}.`,
+    `Packages mutated: ${report.packagesMutated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Source signal | Novelty pressure | Ordinary mechanism | Source families | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | ---: | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.sourceSignalStatus} | ${decision.noveltyPressureStatus} | ${decision.ordinaryMechanismStatus} | ${decision.sourceFamilyCount} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | missing | blocked | not_checked | 0 | none | none |"]
+      : []),
+    "",
+    report.remainingBottleneck,
+    "",
+    "This pressure step is fail-closed: it may clear only the not_ordinary_known_mechanism gate for candidate preflight, and it never writes Fund state or mutates packages.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftNoveltyPressureNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftNoveltyPressureReport,
+): string {
+  return [
+    "# Claim Lift Novelty Pressure Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
 function generatorBornClaimLiftCandidatePreflightPrimaryBlocker(input: {
   sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalDecision | undefined;
+  noveltyPressure:
+    | GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision
+    | undefined;
   fatalDomainGates: string[];
   failedGates: string[];
 }): string {
   if (input.sourceSignal === undefined) return "missing_source_signal";
   if (input.sourceSignal.sourceSignalStatus !== "source_signal_bound") {
     return input.sourceSignal.primaryBlocker || "source_signal_not_bound";
+  }
+  if (
+    input.noveltyPressure?.primaryBlocker ===
+    "ordinary_known_mechanism_confirmed"
+  ) {
+    return "ordinary_known_mechanism_confirmed";
   }
   if (input.fatalDomainGates.length > 0) {
     return `fatal_domain_significance_gate:${input.fatalDomainGates[0]}`;
@@ -28197,6 +28668,8 @@ function generatorBornClaimLiftCandidatePreflightRequiredAction(input: {
     return `Do not create a DiscoveryCandidate contract yet; first produce independent novelty or mechanism evidence that clears ${input.fatalDomainGates.join(", ")} without reusing failed frozen claim text.`;
   }
   switch (input.primaryBlocker) {
+    case "ordinary_known_mechanism_confirmed":
+      return "Do not create a DiscoveryCandidate contract; novelty pressure confirmed an ordinary known/source-family mechanism. Kill this path or produce independent orthogonal novelty evidence first.";
     case "claim_liftable_domain_gate_shape":
       return "Only no-anti-discovery-text and explicit-domain-significance wording blockers can be repaired by this forward-only preflight; other domain gates need new evidence first.";
     case "candidate_claim_decision_accepts":
@@ -28260,14 +28733,14 @@ function generatorBornDiscoveryClaimLiftCandidatePreflightMarkdown(
     "",
     "## Decisions",
     "",
-    "| Candidate | Source signal | Contract | Fatal domain gates | Primary blocker | Failed gates |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Candidate | Source signal | Novelty pressure | Contract | Fatal domain gates | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.candidateId} | ${decision.sourceSignalStatus} | ${decision.candidateContractStatus} | ${decision.fatalDomainSignificanceGates.join(", ") || "none"} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
+        `| ${decision.candidateId} | ${decision.sourceSignalStatus} | ${decision.noveltyPressureStatus} | ${decision.candidateContractStatus} | ${decision.fatalDomainSignificanceGates.join(", ") || "none"} | ${decision.primaryBlocker} | ${decision.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.decisions.length === 0
-      ? ["| none | missing | blocked | none | none | none |"]
+      ? ["| none | missing | missing | blocked | none | none | none |"]
       : []),
     "",
     report.remainingBottleneck,
@@ -43634,6 +44107,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftSourceSignal(): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftSourceSignalService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftNoveltyPressure(): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftNoveltyPressureService(
       this.root,
     ).run();
   }

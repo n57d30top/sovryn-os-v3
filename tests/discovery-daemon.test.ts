@@ -98,6 +98,7 @@ const commands = [
   "generator-claim-lift-pressure",
   "generator-claim-lift-experiment",
   "generator-claim-lift-source-signal",
+  "generator-claim-lift-novelty-pressure",
   "generator-claim-lift-candidate",
   "generator-claim-lift-rebind",
   "generator-claim-lift-intake",
@@ -1147,6 +1148,36 @@ async function writeClaimLiftSourceSignalCaches(root: string): Promise<void> {
       "utf8",
     );
   }
+}
+
+async function rewriteClaimLiftSourceCacheAsOrdinaryKnownSolar(
+  root: string,
+  sourceCacheRef: string,
+): Promise<void> {
+  const sourceCachePath = join(root, sourceCacheRef);
+  const sourceCache = JSON.parse(
+    await readFile(sourceCachePath, "utf8"),
+  ) as Record<string, unknown>;
+  const sourceRef =
+    "https://power.larc.nasa.gov/docs/services/api/temporal/daily/";
+  await writeFile(
+    sourceCachePath,
+    JSON.stringify(
+      {
+        ...sourceCache,
+        sourceRef,
+        measuredVariable:
+          "public NASA POWER daily all-sky minus clear-sky cloud-loss solar residual",
+        targetOutcome:
+          "public NASA POWER daily all-sky minus clear-sky cloud-loss solar residual",
+        sourceRefs: [sourceRef],
+        evidenceRefs: [sourceCacheRef, `${sourceRef}#runtime-source`],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
 }
 
 async function writePublicCorpusDiscoveryClearance(
@@ -5822,6 +5853,55 @@ test("generator-born claim lift source signal binds forward-only evidence before
   );
 });
 
+test("generator-born claim lift novelty pressure blocks ordinary-known source-family mechanisms", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const bound = sourceSignal.decisions.find(
+    (decision) =>
+      decision.sourceSignalStatus === "source_signal_bound" &&
+      decision.sourceCacheRef !== null,
+  );
+  assert.ok(bound?.sourceCacheRef);
+  await rewriteClaimLiftSourceCacheAsOrdinaryKnownSolar(
+    root,
+    bound.sourceCacheRef,
+  );
+
+  const novelty = await service.generatorClaimLiftNoveltyPressure();
+  const nasaDecision = novelty.decisions.find(
+    (decision) => decision.sourceCacheRef === bound.sourceCacheRef,
+  );
+
+  assert.equal(
+    novelty.kind,
+    "generator_born_discovery_claim_lift_novelty_pressure",
+  );
+  assert.ok(nasaDecision);
+  assert.equal(nasaDecision.noveltyPressureStatus, "blocked");
+  assert.equal(
+    nasaDecision.ordinaryMechanismStatus,
+    "ordinary_known_confirmed",
+  );
+  assert.equal(
+    nasaDecision.primaryBlocker,
+    "ordinary_known_mechanism_confirmed",
+  );
+  assert.equal(nasaDecision.packageMutated, false);
+  assert.equal(novelty.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift candidate preflight blocks ordinary-known mechanism gates", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -5833,9 +5913,16 @@ test("generator-born claim lift candidate preflight blocks ordinary-known mechan
   await writeClaimLiftSourceSignalCaches(root);
   const sourceSignal = await service.generatorClaimLiftSourceSignal();
   const bound = sourceSignal.decisions.find(
-    (decision) => decision.sourceSignalStatus === "source_signal_bound",
+    (decision) =>
+      decision.sourceSignalStatus === "source_signal_bound" &&
+      decision.sourceCacheRef !== null,
   );
   assert.ok(bound?.packageRef);
+  assert.ok(bound.sourceCacheRef);
+  await rewriteClaimLiftSourceCacheAsOrdinaryKnownSolar(
+    root,
+    bound.sourceCacheRef,
+  );
   const bindingsPath = join(
     root,
     bound.packageRef,
@@ -5866,6 +5953,11 @@ test("generator-born claim lift candidate preflight blocks ordinary-known mechan
     (decision) => decision.packageRef === bound.packageRef,
   );
   assert.equal(editedDecision?.candidateContractStatus, "blocked");
+  assert.equal(
+    editedDecision?.primaryBlocker,
+    "ordinary_known_mechanism_confirmed",
+  );
+  assert.equal(editedDecision?.noveltyPressureStatus, "blocked");
   assert.equal(
     editedDecision?.fatalDomainSignificanceGates.includes(
       "not_ordinary_known_mechanism",
@@ -5934,6 +6026,83 @@ test("generator-born claim lift candidate preflight writes forward-only candidat
   );
   assert.equal(build.proposalsReady >= preflight.candidateContractsReady, true);
   assert.equal(build.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("generator-born claim lift candidate preflight can consume strict novelty-pressure clearance", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const bound = sourceSignal.decisions.find(
+    (decision) => decision.sourceSignalStatus === "source_signal_bound",
+  );
+  assert.ok(bound?.packageRef);
+  assert.ok(bound.sourceCacheRef);
+  const sourceCachePath = join(root, bound.sourceCacheRef);
+  const sourceCache = JSON.parse(
+    await readFile(sourceCachePath, "utf8"),
+  ) as Record<string, unknown>;
+  sourceCache.sourceRef = "https://example.org/public-climate-residual";
+  sourceCache.measuredVariable =
+    "independent cross-instrument climate energy residual after orthogonal measurement controls";
+  sourceCache.targetOutcome =
+    "independent cross-instrument climate energy residual after orthogonal measurement controls";
+  sourceCache.sourceRefs = [
+    "https://example.org/public-climate-residual",
+    "https://example.net/orthogonal-energy-measurements",
+  ];
+  sourceCache.evidenceRefs = [
+    bound.sourceCacheRef,
+    "https://example.org/public-climate-residual#runtime-source",
+    "https://example.net/orthogonal-energy-measurements#novelty-check",
+  ];
+  await writeFile(
+    sourceCachePath,
+    JSON.stringify(sourceCache, null, 2),
+    "utf8",
+  );
+  const bindingsPath = join(
+    root,
+    bound.packageRef,
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  );
+  const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  bindings.claimLiftProposalCandidate = null;
+  bindings.domainSignificanceAssessment = {
+    failedGates: [
+      "explicit_domain_significance_claim",
+      "not_ordinary_known_mechanism",
+    ],
+  };
+  await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+
+  const novelty = await service.generatorClaimLiftNoveltyPressure();
+  const preflight = await service.generatorClaimLiftCandidate();
+  const editedDecision = preflight.decisions.find(
+    (decision) => decision.packageRef === bound.packageRef,
+  );
+
+  assert.equal(novelty.noveltyPressureCleared > 0, true);
+  assert.equal(
+    editedDecision?.noveltyPressureStatus,
+    "novelty_pressure_cleared",
+  );
+  assert.equal(
+    editedDecision?.candidateContractStatus,
+    "candidate_contract_ready",
+  );
+  assert.equal(editedDecision?.fatalDomainSignificanceGates.length, 0);
+  assert.equal(editedDecision?.packageMutated, false);
+  assert.equal(preflight.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });
 
@@ -11278,6 +11447,15 @@ const cliScenarios: {
     name: "generator-claim-lift-source-signal",
     args: ["discover-daemon", "generator-claim-lift-source-signal", "--json"],
     expectedKind: "generator_born_discovery_claim_lift_source_signal",
+  },
+  {
+    name: "generator-claim-lift-novelty-pressure",
+    args: [
+      "discover-daemon",
+      "generator-claim-lift-novelty-pressure",
+      "--json",
+    ],
+    expectedKind: "generator_born_discovery_claim_lift_novelty_pressure",
   },
   {
     name: "generator-claim-lift-candidate",

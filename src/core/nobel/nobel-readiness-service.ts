@@ -221,8 +221,12 @@ export type NobelReadinessPublicValidationContext = {
   resultSlug: string;
   publicReviewStatus: string | null;
   extendedValidationStatus: string | null;
+  publicFundClass: string | null;
+  countsForEinsteinNobelDiscoveryScore: boolean | null;
   majorRivalCaveat: boolean;
   majorCaveat: boolean;
+  blocksDiscoveryScore: boolean;
+  blockReason: string | null;
   publicRawScientificReproductionReady: boolean | null;
   sourceRowsStored: boolean | null;
   sourceRowsStoredReason: string | null;
@@ -1337,6 +1341,15 @@ export class NobelReadinessScorer {
     const majorPublicRivalCaveat = publicMajorCaveats.some(
       (context) => context.majorRivalCaveat,
     );
+    const publicDiscoveryScoreBlocks = (input.publicValidationContexts ?? [])
+      .filter((context) => context.blocksDiscoveryScore)
+      .map((context) =>
+        [
+          context.resultSlug,
+          context.blockReason ?? "public_discovery_score_blocked",
+        ].join(":"),
+      );
+    const publicDiscoveryScoreBlocked = publicDiscoveryScoreBlocks.length > 0;
     const publicReplayLiveSourceOnlyCaveats = (
       input.publicValidationContexts ?? []
     )
@@ -1350,6 +1363,7 @@ export class NobelReadinessScorer {
     const publicReplayLiveSourceOnly =
       publicReplayLiveSourceOnlyCaveats.length > 0;
     const discoveryScoringAllowed =
+      !publicDiscoveryScoreBlocked &&
       discoveryFundCandidateCount > 0 &&
       discoveryFundClassifications.some(
         (assessment) =>
@@ -1362,25 +1376,33 @@ export class NobelReadinessScorer {
           replayCaveats === 0 &&
           counterexamplePressure <= 1 &&
           input.killWeek.downgradedOrRejectedCount < 5));
-    const label: NobelReadinessLabel = hardGatesPass
-      ? "externally_review_ready_candidate"
-      : successfulHoldouts >= 6 && counterexamplePressure <= 6
-        ? "promising_with_strong_caveats"
-        : "promising_but_unvalidated";
+    const label: NobelReadinessLabel = publicDiscoveryScoreBlocked
+      ? "promising_but_unvalidated"
+      : hardGatesPass
+        ? "externally_review_ready_candidate"
+        : successfulHoldouts >= 6 && counterexamplePressure <= 6
+          ? "promising_with_strong_caveats"
+          : "promising_but_unvalidated";
     const survivingCandidateId =
       discoveryFundClassifications[0]?.candidateId ??
       input.promoted[1]?.candidateId ??
       null;
-    const rivalTheoryScore = majorPublicRivalCaveat ? 34 : 49;
+    const rivalTheoryScore = publicDiscoveryScoreBlocked
+      ? 12
+      : majorPublicRivalCaveat
+        ? 34
+        : 49;
     const counterexamplePressureScore = Math.max(
       20,
       (majorPublicRivalCaveat ? 58 : 70) - counterexamplePressure * 7,
     );
-    const externalReviewReadinessScore = hardGatesPass
-      ? majorPublicRivalCaveat
-        ? 64
-        : 78
-      : 44;
+    const externalReviewReadinessScore = publicDiscoveryScoreBlocked
+      ? 28
+      : hardGatesPass
+        ? majorPublicRivalCaveat
+          ? 64
+          : 78
+        : 44;
     const caveatAdjustedExternalReviewReadinessScore =
       publicReplayLiveSourceOnly && hardGatesPass
         ? Math.min(
@@ -1388,15 +1410,17 @@ export class NobelReadinessScorer {
             majorPublicRivalCaveat ? 60 : 70,
           )
         : externalReviewReadinessScore;
-    const totalScore = hardGatesPass
-      ? publicReplayLiveSourceOnly
-        ? majorPublicRivalCaveat
-          ? 60
-          : 68
-        : majorPublicRivalCaveat
-          ? 63
-          : 72
-      : 46;
+    const totalScore = publicDiscoveryScoreBlocked
+      ? 38
+      : hardGatesPass
+        ? publicReplayLiveSourceOnly
+          ? majorPublicRivalCaveat
+            ? 60
+            : 68
+          : majorPublicRivalCaveat
+            ? 63
+            : 72
+        : 46;
     const replayScore =
       publicReplayLiveSourceOnly && replayCaveats <= 2
         ? 49
@@ -1421,11 +1445,13 @@ export class NobelReadinessScorer {
       totalScore,
       label,
       survivingCandidateId,
-      externallyReviewReadyCandidateCount: packageReadyDiscoveryFund
-        ? externallyReviewReadyFundClassifications.length
-        : hardGatesPass
-          ? discoveryFundCandidateCount
-          : 0,
+      externallyReviewReadyCandidateCount: publicDiscoveryScoreBlocked
+        ? 0
+        : packageReadyDiscoveryFund
+          ? externallyReviewReadyFundClassifications.length
+          : hardGatesPass
+            ? discoveryFundCandidateCount
+            : 0,
       discoveryFundCandidateCount,
       nonDiscoveryFundCandidateCount,
       publicValidationMajorCaveatCount: publicMajorCaveats.length,
@@ -1436,29 +1462,36 @@ export class NobelReadinessScorer {
       publicReplayLiveSourceOnlyCaveats,
       einsteinNobelDiscoveryScoreEligible: hardGatesPass,
       scoringSeparationApplied: true,
-      rationale: packageReadyDiscoveryFund
+      rationale: publicDiscoveryScoreBlocked
         ? [
-            "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
-            "This is an internal external-review package readiness state, not outside expert validation.",
-            ...(majorPublicRivalCaveat
-              ? [
-                  "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
-                ]
-              : []),
-            ...(publicReplayLiveSourceOnly
-              ? [
-                  "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
-                ]
-              : []),
+            "A matching public corpus package blocks Einstein/Nobel discovery scoring for the persisted Fund candidate.",
+            "Public extended validation or public package metadata indicates that a rival explanation explains or downgrades the discovery signal.",
+            "The raw replay may remain useful, but the candidate no longer counts as an externally-review-ready discovery-scored Fund until a new public package resolves the blocker.",
             "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
-            "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
           ]
-        : [
-            "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
-            "Counterexample and replay pressure require a caveated classification.",
-            "The layer improves readiness discipline without creating a validated discovery claim.",
-            "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
-          ],
+        : packageReadyDiscoveryFund
+          ? [
+              "The persisted daemon FundClass is discovery-scored and package-ready for bounded outside inspection.",
+              "This is an internal external-review package readiness state, not outside expert validation.",
+              ...(majorPublicRivalCaveat
+                ? [
+                    "Public extended validation exposes a major rival caveat; the internal readiness score is caveat-lowered until independent domain review resolves or bounds it.",
+                  ]
+                : []),
+              ...(publicReplayLiveSourceOnly
+                ? [
+                    "Public raw replay currently depends on live external source availability because no public raw-row snapshot is stored; replay and outside-review readiness are caveat-lowered until an offline public snapshot or equivalent source archive is available.",
+                  ]
+                : []),
+              "The layer reconciles daemon FundClass state without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim.",
+              "Reproduction, pipeline, and tool capability Funds remain excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or stronger.",
+            ]
+          : [
+              "The strongest candidate remains bounded and inspectable but not ready for outside expert review as a strong package.",
+              "Counterexample and replay pressure require a caveated classification.",
+              "The layer improves readiness discipline without creating a validated discovery claim.",
+              "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate.",
+            ],
       evidenceHash: "",
     };
     return {
@@ -2370,10 +2403,35 @@ export class NobelReadinessService {
         stringValue(fundCandidate?.extendedValidationStatus) ??
         stringValue(nestedCandidate?.extendedValidationStatus);
       const normalizedStatus = extendedValidationStatus?.toLowerCase() ?? "";
+      const publicFundClass =
+        stringValue(summary?.fundClass) ??
+        stringValue(fundCandidate?.fundClass) ??
+        stringValue(nestedCandidate?.fundClass);
+      const countsForEinsteinNobelDiscoveryScore =
+        booleanValue(summary?.countsForEinsteinNobelDiscoveryScore) ??
+        booleanValue(fundCandidate?.countsForEinsteinNobelDiscoveryScore) ??
+        booleanValue(nestedCandidate?.countsForEinsteinNobelDiscoveryScore);
       const publicRawScientificReproductionReady =
         booleanValue(summary?.publicRawScientificReproductionReady) ??
         booleanValue(fundCandidate?.publicRawScientificReproductionReady) ??
         booleanValue(nestedCandidate?.publicRawScientificReproductionReady);
+      const extendedValidationBlocksDiscoveryScore =
+        extendedValidationBlocksDiscoveryScoring(extendedValidationStatus);
+      const blocksDiscoveryScore =
+        countsForEinsteinNobelDiscoveryScore === false ||
+        publicFundClass?.startsWith("not_discovery_scored") === true ||
+        publicRawScientificReproductionReady === false ||
+        extendedValidationBlocksDiscoveryScore;
+      const blockReason =
+        countsForEinsteinNobelDiscoveryScore === false
+          ? "public_counts_for_discovery_score_false"
+          : publicFundClass?.startsWith("not_discovery_scored") === true
+            ? "public_not_discovery_scored_fund_class"
+            : publicRawScientificReproductionReady === false
+              ? "public_raw_scientific_reproduction_not_ready"
+              : extendedValidationBlocksDiscoveryScore
+                ? "public_extended_validation_signal_explained"
+                : null;
       const bundleManifest = await readOptionalJson<Record<string, unknown>>(
         join(resultRoot, "raw-reproduction-bundle", "BUNDLE_MANIFEST.json"),
       );
@@ -2389,8 +2447,13 @@ export class NobelReadinessService {
         resultSlug: entry,
         publicReviewStatus,
         extendedValidationStatus,
+        publicFundClass: publicFundClass ?? null,
+        countsForEinsteinNobelDiscoveryScore:
+          countsForEinsteinNobelDiscoveryScore ?? null,
         majorRivalCaveat: normalizedStatus.includes("major_rival_caveat"),
         majorCaveat: normalizedStatus.includes("major_caveat"),
+        blocksDiscoveryScore,
+        blockReason,
         publicRawScientificReproductionReady,
         sourceRowsStored,
         sourceRowsStoredReason,
@@ -2418,6 +2481,20 @@ function stringValue(value: unknown): string | null {
 
 function booleanValue(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function extendedValidationBlocksDiscoveryScoring(
+  status: string | null,
+): boolean {
+  if (status === null) return false;
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("rival_explained") ||
+    normalized.includes("signal_explained") ||
+    normalized.includes("not_discovery_scored") ||
+    normalized.includes("fatal_rival") ||
+    normalized.includes("refuted")
+  );
 }
 
 function externalReviewHandoffMarkdown(

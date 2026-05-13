@@ -41110,7 +41110,15 @@ export class AutonomousDiscoveryDaemonService {
     if (!fund.passed) {
       const staleCandidate = await this.readFundCandidate();
       if (staleCandidate) {
-        await this.tombstoneRejectedFundCandidate(staleCandidate, fund);
+        if (fund.failedGates.includes("public_corpus_downgrade")) {
+          await this.recordNonDiscoveryFundCandidate(
+            staleCandidate,
+            fund,
+            "public_corpus_downgrade",
+          );
+        } else {
+          await this.tombstoneRejectedFundCandidate(staleCandidate, fund);
+        }
       }
     }
     await this.notifyFromFundGateIfPassed(fund);
@@ -42594,17 +42602,31 @@ export class AutonomousDiscoveryDaemonService {
     };
   }
 
-  async fundReconcile(): Promise<Record<string, unknown>> {
+  async fundReconcile(
+    options: { repair?: boolean } = {},
+  ): Promise<Record<string, unknown>> {
     await this.ensureInitialized();
-    const state = await this.readState();
-    const candidate = await this.readFundCandidate();
-    const draftInput = candidate
+    let state = await this.readState();
+    let candidate = await this.readFundCandidate();
+    let draftInput = candidate
       ? null
       : await this.readLatestDraftFundGateInput();
-    const reconciliationCandidate = candidate ?? draftInput?.candidate ?? null;
-    const fundGate = await this.evaluateFundCandidateWithPackage(
+    let reconciliationCandidate = candidate ?? draftInput?.candidate ?? null;
+    let fundGate = await this.evaluateFundCandidateWithPackage(
       reconciliationCandidate,
     );
+    const repair = options.repair
+      ? await this.repairPublicCorpusDowngradedLatestCycle(state)
+      : { applied: false, reason: "repair_not_requested" };
+    if (options.repair === true) {
+      state = await this.readState();
+      candidate = await this.readFundCandidate();
+      draftInput = candidate ? null : await this.readLatestDraftFundGateInput();
+      reconciliationCandidate = candidate ?? draftInput?.candidate ?? null;
+      fundGate = await this.evaluateFundCandidateWithPackage(
+        reconciliationCandidate,
+      );
+    }
     const fundFoundFilePresent = await exists(
       join(this.root, daemonArtifactRoot, "FUND_FOUND.md"),
     );
@@ -42614,7 +42636,9 @@ export class AutonomousDiscoveryDaemonService {
     const packageContract = await this.fundPackageContract();
     return withEvidenceHash({
       kind: "fund_state_reconciliation",
-      readOnly: true,
+      readOnly: options.repair !== true,
+      repairRequested: options.repair === true,
+      repair,
       stateStatus: state.status,
       stateFundFound: state.fundFound,
       fundFoundFilePresent,
@@ -42635,7 +42659,8 @@ export class AutonomousDiscoveryDaemonService {
       fundClassAssessment: fundGate.fundClassAssessment,
       failedGates: fundGate.failedGates,
       packageContractStatus: packageContract,
-      noFundStatusMutation: true,
+      noFundStatusMutation: options.repair !== true,
+      noFundGateLogicChange: true,
       noCandidatePromotion: true,
       noFundFoundCreated: true,
       artifactRefs: [
@@ -42704,6 +42729,15 @@ export class AutonomousDiscoveryDaemonService {
       );
       await this.refreshFundGateFromCandidate();
     } else if (candidate) {
+      if (result.failedGates.includes("public_corpus_downgrade")) {
+        await this.recordNonDiscoveryFundCandidate(
+          candidate,
+          result,
+          "notify_if_fund_public_corpus_downgrade",
+        );
+        await this.refreshFundGateFromCandidate();
+        return notification;
+      }
       await this.tombstoneRejectedFundCandidate(candidate, result);
     }
     return notification;
@@ -42844,21 +42878,43 @@ export class AutonomousDiscoveryDaemonService {
       passed,
       fundClassAssessment,
     );
+    const publicFundReconciliation =
+      candidate === null
+        ? null
+        : await new DiscoveryFrictionHealthService(
+            this.root,
+          ).publicFundReconciliationForCandidate(candidate.candidateId);
+    const publicCorpusBlocksDiscovery =
+      publicFundReconciliation?.blocksDiscoveryScore === true;
+    const effectiveGates = publicCorpusBlocksDiscovery
+      ? [
+          ...gates,
+          gate(
+            "public_corpus_downgrade",
+            false,
+            "Matching public corpus package blocks discovery-scored Fund notification until public evidence restores discovery-score eligibility.",
+          ),
+        ]
+      : gates;
+    const effectivePassed = passed && !publicCorpusBlocksDiscovery;
+    const effectiveNotificationAllowed =
+      notificationAllowed && !publicCorpusBlocksDiscovery;
     const result: FundGateResult = withEvidenceHash({
       kind: "fund_gate_result",
       candidateId: semanticResult.candidateId,
-      passed,
-      status: fundGateStatusForNotification(notificationAllowed),
-      fundLabel: passed ? semanticResult.fundLabel : null,
+      passed: effectivePassed,
+      status: fundGateStatusForNotification(effectiveNotificationAllowed),
+      fundLabel: effectivePassed ? semanticResult.fundLabel : null,
       fundClass: fundClassAssessment?.fundClass ?? null,
-      countsForEinsteinNobelDiscoveryScore:
-        fundClassAssessment?.countsForEinsteinNobelDiscoveryScore ?? false,
+      countsForEinsteinNobelDiscoveryScore: publicCorpusBlocksDiscovery
+        ? false
+        : (fundClassAssessment?.countsForEinsteinNobelDiscoveryScore ?? false),
       fundClassAssessment,
-      gates,
-      failedGates: gates
+      gates: effectiveGates,
+      failedGates: effectiveGates
         .filter((item) => !item.passed)
         .map((item) => item.code),
-      notificationAllowed,
+      notificationAllowed: effectiveNotificationAllowed,
     });
     return result;
   }
@@ -44254,7 +44310,14 @@ export class AutonomousDiscoveryDaemonService {
     result: FundGateResult,
     source: string,
   ): Promise<void> {
-    if (!result.passed || result.notificationAllowed) return;
+    const publicCorpusDowngrade = result.failedGates.includes(
+      "public_corpus_downgrade",
+    );
+    if (
+      (!result.passed && !publicCorpusDowngrade) ||
+      result.notificationAllowed
+    )
+      return;
     const ledgerPath = join(
       this.root,
       daemonArtifactRoot,
@@ -44275,6 +44338,7 @@ export class AutonomousDiscoveryDaemonService {
       countsForEinsteinNobelDiscoveryScore:
         result.countsForEinsteinNobelDiscoveryScore,
       notificationAllowed: false,
+      publicCorpusDowngrade,
       continueSearching: true,
       publicPackagePath: candidate.publicPackagePath ?? null,
       source,
@@ -44308,6 +44372,14 @@ export class AutonomousDiscoveryDaemonService {
         updatedAt: nowIso(),
       }),
     );
+    await this.reconcileLatestFundCycle({
+      candidate,
+      result,
+      source,
+      deathCause: publicCorpusDowngrade
+        ? "rival_theory_stronger"
+        : "no_death_cause",
+    });
   }
 
   private async tombstoneRejectedFundCandidate(
@@ -44357,6 +44429,144 @@ export class AutonomousDiscoveryDaemonService {
         updatedAt: nowIso(),
       }),
     );
+    await this.reconcileLatestFundCycle({
+      candidate,
+      result,
+      source: "tombstone_rejected_fund_candidate",
+      deathCause,
+    });
+  }
+
+  private async repairPublicCorpusDowngradedLatestCycle(
+    state: DiscoveryDaemonState,
+  ): Promise<Record<string, unknown>> {
+    const cycle = await this.readSearchCycleRecord(state.lastCycleId);
+    if (!cycle) {
+      return { applied: false, reason: "latest_cycle_missing" };
+    }
+    const candidate = isFundCandidate(cycle.fundCandidate)
+      ? cycle.fundCandidate
+      : null;
+    if (!candidate) {
+      return { applied: false, reason: "latest_cycle_fund_candidate_missing" };
+    }
+    const publicFundReconciliation = await new DiscoveryFrictionHealthService(
+      this.root,
+    ).publicFundReconciliationForCandidate(candidate.candidateId);
+    if (publicFundReconciliation.blocksDiscoveryScore !== true) {
+      return {
+        applied: false,
+        reason: "public_corpus_does_not_block_discovery_score",
+        candidateId: candidate.candidateId,
+      };
+    }
+    const result = await this.evaluateFundCandidateWithPackage(candidate);
+    if (!result.failedGates.includes("public_corpus_downgrade")) {
+      return {
+        applied: false,
+        reason: "public_corpus_downgrade_gate_missing",
+        candidateId: candidate.candidateId,
+      };
+    }
+    await this.recordNonDiscoveryFundCandidate(
+      candidate,
+      result,
+      "fund_reconcile_public_corpus_downgrade",
+    );
+    await this.refreshFundGateFromCandidate();
+    return {
+      applied: true,
+      reason: "public_corpus_downgrade_reconciled",
+      candidateId: candidate.candidateId,
+      failedGates: result.failedGates,
+      publicFundReconciliation,
+    };
+  }
+
+  private async readSearchCycleRecord(
+    cycleId: string | null,
+  ): Promise<Record<string, unknown> | null> {
+    if (!cycleId) return null;
+    return readOptionalJson<Record<string, unknown>>(
+      join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
+    );
+  }
+
+  private async reconcileLatestFundCycle(input: {
+    candidate: FundCandidate;
+    result: FundGateResult;
+    source: string;
+    deathCause: DeathCause;
+  }): Promise<void> {
+    const state = await this.readState();
+    const cycleId = state.lastCycleId;
+    if (!cycleId) return;
+    const cycle = await this.readSearchCycleRecord(cycleId);
+    if (!cycle) return;
+    if (String(cycle.candidateId ?? "") !== input.candidate.candidateId) {
+      return;
+    }
+    const failedPackageGates = uniqueStrings([
+      ...stringArray(cycle.failedPackageGates),
+      ...input.result.failedGates.filter(
+        (code) =>
+          code.startsWith("external_review_package_") ||
+          code === "public_corpus_downgrade",
+      ),
+    ]);
+    const internalStatus = new DeathCauseClassifier().statusForDeathCause(
+      input.deathCause,
+    );
+    const reconciledAt = nowIso();
+    const reconciledCycle = withEvidenceHash({
+      ...cycle,
+      status: "continue_searching",
+      fundGateEvaluation: input.result,
+      fundGatePassed: input.result.passed,
+      discoveryFundNotificationAllowed: input.result.notificationAllowed,
+      packageGateApplied: true,
+      failedPackageGates,
+      deathCause: input.deathCause,
+      internalStatus,
+      notificationSuppressed: true,
+      nextStatus: "continue_searching",
+      publicCorpusDowngradeReconciled: input.result.failedGates.includes(
+        "public_corpus_downgrade",
+      ),
+      fundCycleReconciliationSource: input.source,
+      reconciledAt,
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "search-cycles", `${cycleId}.json`),
+      reconciledCycle,
+    );
+    const checkpointPath = join(
+      this.root,
+      daemonArtifactRoot,
+      "checkpoints",
+      `${cycleId}.json`,
+    );
+    const checkpoint =
+      await readOptionalJson<Record<string, unknown>>(checkpointPath);
+    if (checkpoint) {
+      await writeJson(
+        checkpointPath,
+        withEvidenceHash({
+          ...checkpoint,
+          state: withEvidenceHash({
+            ...(isRecord(checkpoint.state) ? checkpoint.state : {}),
+            status: "continue_searching",
+            fundFound: false,
+            lastCandidateId: input.candidate.candidateId,
+            currentDomain: input.candidate.domain,
+            updatedAt: reconciledAt,
+          }),
+          cycle: reconciledCycle,
+          fundCycleReconciliationSource: input.source,
+          reconciledAt,
+        }),
+      );
+    }
   }
 }
 
@@ -50710,6 +50920,9 @@ function deathCauseFromRejectedFundCandidate(
   result: FundGateResult,
 ): DeathCause {
   if (result.passed) return "no_death_cause";
+  if (result.failedGates.includes("public_corpus_downgrade")) {
+    return "rival_theory_stronger";
+  }
   return new DeathCauseClassifier().classify({
     identityDrift:
       candidate.identityDriftDetected === true || !candidate.stableIdentity,

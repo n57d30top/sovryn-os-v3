@@ -228,7 +228,7 @@ Commands:
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
   sovryn discover-daemon fund-gate [--json]
-  sovryn discover-daemon fund-reconcile [--json]
+  sovryn discover-daemon fund-reconcile [--repair] [--json]
   sovryn discover-daemon fund-package-contract [--json]
   sovryn discover-daemon notify-if-fund [--json]
   sovryn discover-daemon audit [--json]
@@ -1948,7 +1948,9 @@ async function discoverDaemonCommand(
     case "fund-gate":
       return service.fundGate();
     case "fund-reconcile":
-      return service.fundReconcile();
+      return service.fundReconcile({
+        repair: flagBool(parsed.flags, "--repair"),
+      });
     case "fund-package-contract":
       return service.fundPackageContract();
     case "notify-if-fund":

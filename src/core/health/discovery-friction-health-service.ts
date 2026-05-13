@@ -304,6 +304,7 @@ export type PublicFundReconciliation = {
   publicReviewStatus: string | null;
   publicExtendedValidationStatus: string | null;
   publicExtendedValidationMajorCaveat: boolean;
+  publicExtendedValidationBlocksDiscoveryScore: boolean;
   publicFundClass: string | null;
   countsForEinsteinNobelDiscoveryScore: boolean | null;
   publicRawScientificReproductionReady: boolean | null;
@@ -1138,6 +1139,7 @@ export class DiscoveryFrictionHealthService {
       publicReviewStatus: null,
       publicExtendedValidationStatus: null,
       publicExtendedValidationMajorCaveat: false,
+      publicExtendedValidationBlocksDiscoveryScore: false,
       publicFundClass: null,
       countsForEinsteinNobelDiscoveryScore: null,
       publicRawScientificReproductionReady: null,
@@ -1187,6 +1189,10 @@ export class DiscoveryFrictionHealthService {
         publicExtendedValidationStatus
           ?.toLowerCase()
           .includes("major_caveat") === true;
+      const publicExtendedValidationBlocksDiscoveryScore =
+        extendedValidationBlocksDiscoveryScoring(
+          publicExtendedValidationStatus,
+        );
       const countsForEinsteinNobelDiscoveryScore =
         booleanField(summary, "countsForEinsteinNobelDiscoveryScore") ??
         booleanField(fundCandidate, "countsForEinsteinNobelDiscoveryScore") ??
@@ -1196,7 +1202,8 @@ export class DiscoveryFrictionHealthService {
       const blocksDiscoveryScore =
         countsForEinsteinNobelDiscoveryScore === false ||
         publicFundClass?.startsWith("not_discovery_scored") === true ||
-        publicRawScientificReproductionReady !== true;
+        publicRawScientificReproductionReady !== true ||
+        publicExtendedValidationBlocksDiscoveryScore;
       return {
         matched: true,
         blocksDiscoveryScore,
@@ -1204,12 +1211,13 @@ export class DiscoveryFrictionHealthService {
         publicReviewStatus: publicReviewStatus ?? null,
         publicExtendedValidationStatus: publicExtendedValidationStatus ?? null,
         publicExtendedValidationMajorCaveat,
+        publicExtendedValidationBlocksDiscoveryScore,
         publicFundClass: publicFundClass ?? null,
         countsForEinsteinNobelDiscoveryScore:
           countsForEinsteinNobelDiscoveryScore ?? null,
         publicRawScientificReproductionReady,
         reason: blocksDiscoveryScore
-          ? "public corpus package is missing public raw-scientific reproduction readiness or marks this candidate as not discovery-scored"
+          ? "public corpus package is missing public raw-scientific reproduction readiness, marks this candidate as not discovery-scored, or exposes fatal rival validation"
           : "public corpus package has public raw-scientific reproduction readiness and does not block discovery scoring",
       };
     }
@@ -2509,6 +2517,7 @@ ${bulletList(report.promotionReadinessBlockers)}
 - Public review status: ${report.publicFundReconciliation.publicReviewStatus ?? "none"}
 - Public extended validation status: ${report.publicFundReconciliation.publicExtendedValidationStatus ?? "none"}
 - Public extended validation major caveat: ${String(report.publicFundReconciliation.publicExtendedValidationMajorCaveat)}
+- Public extended validation blocks discovery score: ${String(report.publicFundReconciliation.publicExtendedValidationBlocksDiscoveryScore)}
 - Public FundClass: ${report.publicFundReconciliation.publicFundClass ?? "none"}
 - Counts for Einstein/Nobel discovery score: ${String(report.publicFundReconciliation.countsForEinsteinNobelDiscoveryScore)}
 - Reason: ${report.publicFundReconciliation.reason ?? "none"}
@@ -2867,6 +2876,20 @@ function publicReviewStatusAllowsDiscoveryScoring(
     normalized.includes("raw_scientific_reproduction_succeeded") ||
     normalized.includes("standalone_raw_reproduction_succeeded") ||
     normalized.includes("external_review_ready_raw_reproduction_succeeded")
+  );
+}
+
+function extendedValidationBlocksDiscoveryScoring(
+  status: string | null,
+): boolean {
+  if (status === null) return false;
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("rival_explained") ||
+    normalized.includes("signal_explained") ||
+    normalized.includes("not_discovery_scored") ||
+    normalized.includes("fatal_rival") ||
+    normalized.includes("refuted")
   );
 }
 

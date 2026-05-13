@@ -439,6 +439,41 @@ test("health friction exposes public extended validation caveat without hiding r
   );
 });
 
+test("health friction blocks discovery scoring when public extended validation explains signal by rival", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus: "raw_scientific_reproduction_succeeded",
+    extendedValidationStatus: "extended_validation_rival_explained_signal",
+    fundClass: "not_discovery_scored_rival_explained_signal",
+    countsForEinsteinNobelDiscoveryScore: false,
+  });
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, false);
+  assert.equal(data.fundGateResult.status, "continue_searching");
+  assert.deepEqual(data.fundGateResult.failedGates, [
+    "public_corpus_downgrade",
+  ]);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, true);
+  assert.equal(
+    data.publicFundReconciliation.publicExtendedValidationBlocksDiscoveryScore,
+    true,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicExtendedValidationStatus,
+    "extended_validation_rival_explained_signal",
+  );
+});
+
 test("health friction clears readiness reconciliation blocker when Nobel-readiness score consumed FundClass", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);

@@ -12334,6 +12334,112 @@ test("discover-daemon audit blocks active Fund when public corpus downgrades it"
   assert.ok(gateCodes.includes("no_fake_fund_file"));
 });
 
+test("discover-daemon notify-if-fund tombstones active Fund when public corpus downgrades it", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const publicPackagePath = await writeFundPackage(
+    root,
+    candidate.candidateId,
+    candidate.claim,
+  );
+  await writeFile(
+    join(root, daemonRoot, "fund-candidate.json"),
+    JSON.stringify({
+      ...candidate,
+      publicPackagePath,
+    }),
+    "utf8",
+  );
+  await service.notifyIfFund();
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+
+  await writePublicCorpusDowngrade(root, candidate.candidateId);
+  const notification = await service.notifyIfFund();
+  const status = await service.status();
+  const fundGate = JSON.parse(
+    await readFile(join(root, daemonRoot, "fund-gate-results.json"), "utf8"),
+  ) as { passed: boolean; failedGates: string[]; notificationAllowed: boolean };
+  const ledger = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "classified-non-discovery-funds.json"),
+      "utf8",
+    ),
+  ) as { entries: Array<Record<string, unknown>> };
+
+  assert.equal(notification.status, "continue_searching");
+  assert.equal(status.status, "continue_searching");
+  assert.equal(status.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(fundGate.passed, false);
+  assert.equal(fundGate.notificationAllowed, false);
+  assert.equal(fundGate.failedGates.includes("candidate_present"), true);
+  assert.equal(ledger.entries[0]?.candidateId, candidate.candidateId);
+  assert.equal(ledger.entries[0]?.publicCorpusDowngrade, true);
+});
+
+test("discover-daemon fund-reconcile repair downgrades stale public-corpus Fund cycles", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  const candidate = fundCandidate("externally_review_ready_candidate");
+  const publicPackagePath = await writeFundPackage(
+    root,
+    candidate.candidateId,
+    candidate.claim,
+  );
+  await writeFile(
+    join(root, daemonRoot, "candidate-intake", "001-candidate.json"),
+    JSON.stringify({
+      candidate: {
+        ...candidate,
+        publicPackagePath,
+      },
+    }),
+    "utf8",
+  );
+  const cycle = await service.cycle();
+  assert.equal(cycle.fundGatePassed, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), true);
+  await writePublicCorpusDowngrade(root, candidate.candidateId);
+
+  const reconcile = await service.fundReconcile({ repair: true });
+  const repairedCycle = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "search-cycles", "cycle-0001.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  const repairedCheckpoint = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "checkpoints", "cycle-0001.json"),
+      "utf8",
+    ),
+  ) as Record<string, any>;
+  const audit = await service.audit();
+
+  assert.equal(reconcile.readOnly, false);
+  assert.equal((reconcile.repair as any).applied, true);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+  assert.equal(repairedCycle.fundGatePassed, false);
+  assert.equal(repairedCycle.status, "continue_searching");
+  assert.equal(repairedCycle.nextStatus, "continue_searching");
+  assert.equal(repairedCycle.notificationSuppressed, true);
+  assert.equal(repairedCycle.publicCorpusDowngradeReconciled, true);
+  assert.equal(repairedCheckpoint.state.status, "continue_searching");
+  assert.equal(repairedCheckpoint.state.fundFound, false);
+  assert.equal(audit.passed, true);
+});
+
 test("discover-daemon cycle tombstones package-backed intake when package gates fail", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

@@ -575,6 +575,72 @@ test("nobel-readiness score is lowered by public extended validation major rival
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
 });
 
+test("nobel-readiness excludes public rival-explained packages from Einstein/Nobel discovery scoring", async () => {
+  const parent = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-rival-explained-parent-"),
+  );
+  const root = join(parent, "sovryn-os-v3");
+  const corpusResultRoot = join(
+    parent,
+    "sovryn-open-inventions",
+    "results",
+    "first-discovery-fund-gaia-astrometric-excess-slices",
+  );
+  const daemonRoot = join(root, ".sovryn", "discovery-daemon");
+  await mkdir(daemonRoot, { recursive: true });
+  await mkdir(corpusResultRoot, { recursive: true });
+  const candidateId =
+    "DISCOVERY-LIFT-INSIGHT-HARD-GEN-GAIA-ASTROMETRIC-EXCESS-SIGNIFICANCE-GE-0F9E75E885B6";
+  const assessment = classifyFundCandidate({
+    candidateId,
+    claim:
+      "A nontrivial new insight across real targets has domain scientific significance in astrophysics open catalog anomalies.",
+    domain: "astrophysics_open_catalog_anomalies",
+    fundGatePassed: true,
+    nontrivialNewInsightAcrossRealTargets: true,
+    domainScientificSignificance: true,
+    insightEvidenceRefs: ["PAPER.md#evidence-summary"],
+  });
+  await writeJson(join(daemonRoot, "fund-gate-results.json"), {
+    kind: "fund_gate_result",
+    passed: true,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore:
+      assessment.countsForEinsteinNobelDiscoveryScore,
+    notificationAllowed: true,
+    fundClassAssessment: assessment,
+  });
+  await writeJson(join(corpusResultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    candidateId,
+    fundClass: "not_discovery_scored_rival_explained_signal",
+    productRecordedFundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore: false,
+    publicReviewStatus:
+      "external_review_ready_raw_scientific_reproduction_succeeded_caveated_no_external_validation",
+    extendedValidationStatus: "extended_validation_rival_explained_signal",
+    publicRawScientificReproductionReady: true,
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+
+  assert.equal(score.label, "promising_but_unvalidated");
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, false);
+  assert.equal(score.externallyReviewReadyCandidateCount, 0);
+  assert.equal(score.discoveryFundCandidateCount, 1);
+  assert.equal(score.external_review_readiness_score, 28);
+  assert.equal(score.rival_theory_score, 12);
+  assert.equal(score.totalScore, 38);
+  assert.deepEqual(score.publicValidationStatuses, [
+    "extended_validation_rival_explained_signal",
+  ]);
+  assert.match(
+    score.rationale.join(" "),
+    /blocks Einstein\/Nobel discovery scoring/,
+  );
+});
+
 test("nobel-readiness score is lowered when public raw replay depends on live source only", async () => {
   const parent = await mkdtemp(
     join(tmpdir(), "sovryn-nobel-live-replay-parent-"),

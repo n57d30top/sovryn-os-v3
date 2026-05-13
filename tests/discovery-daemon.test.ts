@@ -5142,6 +5142,28 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   );
   assert.equal((report.witnessesCertificatesExtracted ?? 0) > 0, true);
   assert.equal(report.witnessFirstInsightCandidatesBorn, 0);
+  assert.equal(
+    report.rivalScopedWitnessesAnalyzed,
+    report.witnessesCertificatesExtracted,
+  );
+  assert.equal(
+    report.rivalScopedCounterexamplesAnalyzed,
+    report.witnessFirstCounterexamplesFound,
+  );
+  assert.equal((report.rivalScopedWitnessCandidatesGenerated ?? 0) > 0, true);
+  assert.equal((report.rivalScopedWitnessCandidatesGenerated ?? 0) <= 10, true);
+  assert.equal(
+    (report.rivalScopedWitnessTopCandidatesSelected ?? 0) > 0 &&
+      (report.rivalScopedWitnessTopCandidatesSelected ?? 0) <= 5,
+    true,
+  );
+  assert.equal(
+    (report.rivalScopedWitnessTestsRun ?? 0) >=
+      (report.rivalScopedWitnessTopCandidatesSelected ?? 0) * 6,
+    true,
+  );
+  assert.equal((report.rivalScopedWitnessesScoped ?? 0) > 0, true);
+  assert.equal(report.rivalScopedInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5265,6 +5287,20 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "COUNTEREXAMPLE_RESULTS.md",
     "WITNESS_INSIGHT_BIRTH_DECISIONS.md",
     "WITNESS_INSIGHT_BIRTH_DECISIONS.json",
+    "RIVAL_SCOPED_WITNESS_DISCOVERY.json",
+    "WITNESS_AUTOPSY.md",
+    "WITNESS_AUTOPSY.json",
+    "COUNTEREXAMPLE_AUTOPSY.md",
+    "COUNTEREXAMPLE_AUTOPSY.json",
+    "RIVAL_SCOPED_WITNESS_GATE.md",
+    "RIVAL_SCOPED_WITNESS_GATE.json",
+    "REJECTED_WITNESSES.md",
+    "RIVAL_SCOPED_WITNESS_CANDIDATES.md",
+    "RIVAL_SCOPED_WITNESS_CANDIDATES.json",
+    "RIVAL_SCOPED_WITNESS_RESULTS.md",
+    "RIVAL_SCOPED_WITNESS_RESULTS.json",
+    "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
+    "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -6473,6 +6509,235 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(witnessFirst.insightBirthDecisions.fundFound, false);
   assert.equal(
     witnessFirst.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const rivalScopedWitness = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "RIVAL_SCOPED_WITNESS_DISCOVERY.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    witnessAutopsy: {
+      witnessesAnalyzed: number;
+      artifacts: Array<{
+        artifactId: string;
+        sourceObject: string;
+        exactClaim: string;
+        witnessCertificateType: string;
+        validationResult: string;
+        rivalMechanism: string;
+        scopesOrWeakensRival: boolean;
+        knownTrivialityRisk: string;
+        insightBirthFailureReason: string;
+      }>;
+    };
+    counterexampleAutopsy: {
+      counterexamplesAnalyzed: number;
+      artifacts: Array<{
+        artifactId: string;
+        sourceObject: string;
+        exactClaim: string;
+        validationResult: string;
+        rivalMechanism: string;
+        scopesOrWeakensRival: boolean;
+        knownTrivialityRisk: string;
+        insightBirthFailureReason: string;
+      }>;
+    };
+    gate: {
+      artifactsEvaluated: number;
+      passed: number;
+      rejected: number;
+      decisions: Array<{
+        artifactId: string;
+        passed: boolean;
+        rejectionReasons: string[];
+      }>;
+    };
+    candidates: {
+      candidatesGenerated: number;
+      top5Selected: number;
+      candidates: Array<{
+        exactBoundedClaim: string;
+        rivalMechanism: string;
+        witnessType: string;
+        whatWitnessWouldProve: string;
+        whatWitnessWouldRefute: string;
+        howWitnessWouldScopeRival: string;
+        falsifier: string;
+        replayPath: string;
+      }>;
+      top5: Array<{ tripleId: string }>;
+    };
+    execution: {
+      candidatesTested: number;
+      checksRun: number;
+      witnessScopesRival: number;
+      results: Array<{
+        classification: string;
+        boundedCheck: { passed: boolean; observation: string };
+        certificateValidation: { valid: boolean; observation: string };
+        rivalScopingTest: {
+          scopedOrWeakened: boolean;
+          observation: string;
+        };
+        counterexampleCheck: {
+          checked: boolean;
+          counterexampleFound: boolean;
+          observation: string;
+        };
+        knownTrivialityCheck: { nonfatal: boolean; observation: string };
+        replayCheck: { succeeded: boolean; observation: string };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(
+    rivalScopedWitness.witnessAutopsy.witnessesAnalyzed,
+    witnessFirst.witnessExecution.certificatesExtracted,
+  );
+  assert.equal(
+    rivalScopedWitness.counterexampleAutopsy.counterexamplesAnalyzed,
+    witnessFirst.witnessExecution.counterexamplesFound,
+  );
+  assert.equal(
+    rivalScopedWitness.witnessAutopsy.artifacts.every(
+      (artifact) =>
+        artifact.artifactId.length > 0 &&
+        artifact.sourceObject.length > 0 &&
+        artifact.exactClaim.length > 0 &&
+        artifact.witnessCertificateType.length > 0 &&
+        artifact.validationResult.length > 0 &&
+        artifact.rivalMechanism.length > 0 &&
+        artifact.knownTrivialityRisk.length > 0 &&
+        artifact.insightBirthFailureReason.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.counterexampleAutopsy.artifacts.every(
+      (artifact) =>
+        artifact.artifactId.length > 0 &&
+        artifact.sourceObject.length > 0 &&
+        artifact.exactClaim.length > 0 &&
+        artifact.validationResult.length > 0 &&
+        artifact.rivalMechanism.length > 0 &&
+        artifact.knownTrivialityRisk.length > 0 &&
+        artifact.insightBirthFailureReason.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.gate.artifactsEvaluated,
+    rivalScopedWitness.witnessAutopsy.witnessesAnalyzed +
+      rivalScopedWitness.counterexampleAutopsy.counterexamplesAnalyzed,
+  );
+  assert.equal(rivalScopedWitness.gate.rejected > 0, true);
+  assert.equal(
+    rivalScopedWitness.gate.decisions.every(
+      (decision) =>
+        decision.artifactId.length > 0 &&
+        (decision.passed || decision.rejectionReasons.length > 0),
+    ),
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.candidates.candidatesGenerated > 0 &&
+      rivalScopedWitness.candidates.candidatesGenerated <= 10,
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.candidates.top5Selected > 0 &&
+      rivalScopedWitness.candidates.top5Selected <= 5,
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.candidates.candidates.every(
+      (candidate) =>
+        candidate.exactBoundedClaim.length > 0 &&
+        candidate.rivalMechanism.length > 0 &&
+        candidate.witnessType.length > 0 &&
+        candidate.whatWitnessWouldProve.length > 0 &&
+        candidate.whatWitnessWouldRefute.length > 0 &&
+        candidate.howWitnessWouldScopeRival.length > 0 &&
+        candidate.falsifier.length > 0 &&
+        candidate.replayPath.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.execution.candidatesTested,
+    rivalScopedWitness.candidates.top5Selected,
+  );
+  assert.equal(
+    rivalScopedWitness.execution.checksRun >=
+      rivalScopedWitness.execution.candidatesTested * 6,
+    true,
+  );
+  assert.equal(rivalScopedWitness.execution.witnessScopesRival > 0, true);
+  assert.equal(
+    rivalScopedWitness.execution.results.every(
+      (result) =>
+        [
+          "witness_scopes_rival",
+          "counterexample_refutes_claim",
+          "witness_valid_but_not_discriminating",
+          "known_trivial",
+          "mechanism_failed",
+          "no_witness_found",
+        ].includes(result.classification) &&
+        result.boundedCheck.passed &&
+        result.boundedCheck.observation.length > 0 &&
+        result.certificateValidation.observation.length > 0 &&
+        result.rivalScopingTest.observation.length > 0 &&
+        result.counterexampleCheck.checked &&
+        result.counterexampleCheck.observation.length > 0 &&
+        result.knownTrivialityCheck.observation.length > 0 &&
+        result.replayCheck.succeeded &&
+        result.replayCheck.observation.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    rivalScopedWitness.insightBirthDecisions.candidatesEvaluated,
+    rivalScopedWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    rivalScopedWitness.insightBirthDecisions.candidatesArchived,
+    rivalScopedWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    rivalScopedWitness.insightBirthDecisions.insightCandidatesBorn,
+    0,
+  );
+  assert.equal(
+    rivalScopedWitness.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(rivalScopedWitness.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    rivalScopedWitness.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

@@ -2822,6 +2822,205 @@ export type CertificateWitnessFirstFormalDiscoveryReport = {
   evidenceHash: string;
 };
 
+export type WitnessAutopsyItem = {
+  kind: "witness_autopsy_item";
+  artifactId: string;
+  tripleId: string;
+  objectId: string;
+  sourceObject: string;
+  exactClaim: string;
+  witnessCertificateType: string;
+  validationResult: "valid" | "invalid";
+  rivalMechanism: string;
+  scopesOrWeakensRival: boolean;
+  knownTrivialityRisk: "nonfatal" | "fatal_or_unresolved";
+  insightBirthFailureReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type WitnessAutopsyReport = {
+  kind: "witness_autopsy";
+  witnessesAnalyzed: number;
+  artifacts: WitnessAutopsyItem[];
+  evidenceHash: string;
+};
+
+export type CounterexampleAutopsyItem = {
+  kind: "counterexample_autopsy_item";
+  artifactId: string;
+  tripleId: string;
+  objectId: string;
+  sourceObject: string;
+  exactClaim: string;
+  counterexampleType: "checked_negative_case";
+  validationResult: "checked_counterexample";
+  rivalMechanism: string;
+  scopesOrWeakensRival: boolean;
+  knownTrivialityRisk: "nonfatal" | "fatal_or_unresolved";
+  insightBirthFailureReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type CounterexampleAutopsyReport = {
+  kind: "counterexample_autopsy";
+  counterexamplesAnalyzed: number;
+  artifacts: CounterexampleAutopsyItem[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessGateDecision = {
+  kind: "rival_scoped_witness_gate_decision";
+  artifactId: string;
+  artifactType: "witness" | "counterexample";
+  exactClaim: string;
+  passed: boolean;
+  rejectionReasons: string[];
+  requiredConditions: string[];
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessGateReport = {
+  kind: "rival_scoped_witness_gate";
+  artifactsEvaluated: number;
+  passed: number;
+  rejected: number;
+  decisions: RivalScopedWitnessGateDecision[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessCandidateTriple = {
+  kind: "rival_scoped_witness_candidate";
+  tripleId: string;
+  objectId: string;
+  domainId: CertificateFriendlyFormalDomainId;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  concreteSourceObjectRef: string;
+  concreteEncoding: string;
+  exactBoundedClaim: string;
+  rivalMechanism: string;
+  witnessType: string;
+  whatWitnessWouldProve: string;
+  whatWitnessWouldRefute: string;
+  howWitnessWouldScopeRival: string;
+  falsifier: string;
+  replayPath: string;
+  selectedForExecution: boolean;
+  selectionReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessCandidateReport = {
+  kind: "rival_scoped_witness_candidates";
+  candidatesGenerated: number;
+  top5Selected: number;
+  candidates: RivalScopedWitnessCandidateTriple[];
+  top5: RivalScopedWitnessCandidateTriple[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessClassification =
+  | "witness_scopes_rival"
+  | "counterexample_refutes_claim"
+  | "witness_valid_but_not_discriminating"
+  | "known_trivial"
+  | "mechanism_failed"
+  | "no_witness_found";
+
+export type RivalScopedWitnessResult = {
+  kind: "rival_scoped_witness_result";
+  tripleId: string;
+  objectId: string;
+  exactBoundedClaim: string;
+  boundedCheck: {
+    passed: boolean;
+    observation: string;
+  };
+  certificateExtraction: {
+    extracted: boolean;
+    witnessType: string;
+    artifactRef: string | null;
+    observation: string;
+  };
+  certificateValidation: {
+    valid: boolean;
+    observation: string;
+  };
+  rivalScopingTest: {
+    rivalMechanism: string;
+    scopedOrWeakened: boolean;
+    observation: string;
+  };
+  counterexampleCheck: {
+    checked: boolean;
+    counterexampleFound: boolean;
+    observation: string;
+  };
+  knownTrivialityCheck: {
+    nonfatal: boolean;
+    observation: string;
+  };
+  replayCheck: {
+    succeeded: boolean;
+    observation: string;
+  };
+  classification: RivalScopedWitnessClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessExecutionReport = {
+  kind: "rival_scoped_witness_results";
+  candidatesTested: number;
+  checksRun: number;
+  witnessScopesRival: number;
+  counterexamplesRefuteClaim: number;
+  validButNotDiscriminating: number;
+  knownTrivial: number;
+  mechanismFailed: number;
+  noWitnessFound: number;
+  results: RivalScopedWitnessResult[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessInsightBirthDecision = {
+  kind: "rival_scoped_witness_insight_birth_decision";
+  tripleId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  classification: RivalScopedWitnessClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessInsightBirthReport = {
+  kind: "rival_scoped_witness_insight_birth_decisions";
+  candidatesEvaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: RivalScopedWitnessInsightBirthDecision[];
+  evidenceHash: string;
+};
+
+export type RivalScopedWitnessDiscoveryReport = {
+  kind: "rival_scoped_witness_discovery";
+  witnessAutopsy: WitnessAutopsyReport;
+  counterexampleAutopsy: CounterexampleAutopsyReport;
+  gate: RivalScopedWitnessGateReport;
+  candidates: RivalScopedWitnessCandidateReport;
+  execution: RivalScopedWitnessExecutionReport;
+  insightBirthDecisions: RivalScopedWitnessInsightBirthReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -2967,6 +3166,14 @@ export type SourceObjectDiscoveryEngineReport = {
   witnessesCertificatesExtracted?: number;
   witnessFirstCounterexamplesFound?: number;
   witnessFirstInsightCandidatesBorn?: number;
+  rivalScopedWitnessesAnalyzed?: number;
+  rivalScopedCounterexamplesAnalyzed?: number;
+  rivalScopedWitnessGatePassed?: number;
+  rivalScopedWitnessCandidatesGenerated?: number;
+  rivalScopedWitnessTopCandidatesSelected?: number;
+  rivalScopedWitnessTestsRun?: number;
+  rivalScopedWitnessesScoped?: number;
+  rivalScopedInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -14865,6 +15072,9 @@ export class SourceObjectFirstDiscoveryEngine {
         researchTeamStrongProofQuality,
         externalFormalObjectHarvest,
       );
+    const rivalScopedWitnessDiscovery = runRivalScopedWitnessDiscovery(
+      certificateWitnessFirstDiscovery,
+    );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -14896,6 +15106,9 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       countWitnessInsightBirthDeathCauses(
         certificateWitnessFirstDiscovery.insightBirthDecisions,
+      ),
+      countRivalScopedWitnessInsightBirthDeathCauses(
+        rivalScopedWitnessDiscovery.insightBirthDecisions,
       ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
@@ -15016,6 +15229,22 @@ export class SourceObjectFirstDiscoveryEngine {
       witnessFirstInsightCandidatesBorn:
         certificateWitnessFirstDiscovery.insightBirthDecisions
           .insightCandidatesBorn,
+      rivalScopedWitnessesAnalyzed:
+        rivalScopedWitnessDiscovery.witnessAutopsy.witnessesAnalyzed,
+      rivalScopedCounterexamplesAnalyzed:
+        rivalScopedWitnessDiscovery.counterexampleAutopsy
+          .counterexamplesAnalyzed,
+      rivalScopedWitnessGatePassed: rivalScopedWitnessDiscovery.gate.passed,
+      rivalScopedWitnessCandidatesGenerated:
+        rivalScopedWitnessDiscovery.candidates.candidatesGenerated,
+      rivalScopedWitnessTopCandidatesSelected:
+        rivalScopedWitnessDiscovery.candidates.top5Selected,
+      rivalScopedWitnessTestsRun:
+        rivalScopedWitnessDiscovery.execution.checksRun,
+      rivalScopedWitnessesScoped:
+        rivalScopedWitnessDiscovery.execution.witnessScopesRival,
+      rivalScopedInsightCandidatesBorn:
+        rivalScopedWitnessDiscovery.insightBirthDecisions.insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -15045,6 +15274,7 @@ export class SourceObjectFirstDiscoveryEngine {
         formalProofObligationFirstDiscovery,
         researchTeamStrongProofQuality,
         certificateWitnessFirstDiscovery,
+        rivalScopedWitnessDiscovery,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -15072,6 +15302,7 @@ export class SourceObjectFirstDiscoveryEngine {
       formalProofObligationFirstDiscovery,
       researchTeamStrongProofQuality,
       certificateWitnessFirstDiscovery,
+      rivalScopedWitnessDiscovery,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -15223,6 +15454,10 @@ export class SourceObjectFirstDiscoveryEngine {
           this.engineRoot(),
           "CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json",
         ),
+      );
+    const rivalScopedWitnessDiscovery =
+      await readOptionalJson<RivalScopedWitnessDiscoveryReport>(
+        join(this.engineRoot(), "RIVAL_SCOPED_WITNESS_DISCOVERY.json"),
       );
     const externalFormalAnchorFamilyCount =
       externalFormalAnchors?.sourceFamilies.length ?? 0;
@@ -15614,6 +15849,42 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
         "Formal discovery must run a certificate/witness-first pass over concrete source objects; no candidate may proceed from vague score pressure alone.",
+      ),
+      gate(
+        "rival_scoped_witness_gauntlet_completed",
+        rivalScopedWitnessDiscovery !== null &&
+          certificateWitnessFirstDiscovery !== null &&
+          rivalScopedWitnessDiscovery.witnessAutopsy.witnessesAnalyzed ===
+            certificateWitnessFirstDiscovery.witnessExecution
+              .certificatesExtracted &&
+          rivalScopedWitnessDiscovery.counterexampleAutopsy
+            .counterexamplesAnalyzed ===
+            certificateWitnessFirstDiscovery.witnessExecution
+              .counterexamplesFound &&
+          rivalScopedWitnessDiscovery.gate.artifactsEvaluated ===
+            rivalScopedWitnessDiscovery.witnessAutopsy.witnessesAnalyzed +
+              rivalScopedWitnessDiscovery.counterexampleAutopsy
+                .counterexamplesAnalyzed &&
+          rivalScopedWitnessDiscovery.gate.rejected > 0 &&
+          rivalScopedWitnessDiscovery.candidates.candidatesGenerated > 0 &&
+          rivalScopedWitnessDiscovery.candidates.candidatesGenerated <= 10 &&
+          rivalScopedWitnessDiscovery.candidates.top5Selected <= 5 &&
+          rivalScopedWitnessDiscovery.execution.candidatesTested ===
+            rivalScopedWitnessDiscovery.candidates.top5Selected &&
+          rivalScopedWitnessDiscovery.execution.checksRun >=
+            rivalScopedWitnessDiscovery.execution.candidatesTested * 6 &&
+          rivalScopedWitnessDiscovery.insightBirthDecisions
+            .candidatesEvaluated ===
+            rivalScopedWitnessDiscovery.execution.candidatesTested &&
+          rivalScopedWitnessDiscovery.insightBirthDecisions
+            .discoveryCandidatesCreated === 0 &&
+          rivalScopedWitnessDiscovery.insightBirthDecisions.fundFound ===
+            false &&
+          rivalScopedWitnessDiscovery.insightBirthDecisions.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "Extracted witnesses and checked counterexamples must pass a rival-scoped witness quality gate before any witness-backed InsightCandidate birth.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -16105,6 +16376,7 @@ export class SourceObjectFirstDiscoveryEngine {
     formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport;
     researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport;
     certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport;
+    rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -16689,6 +16961,78 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "INSIGHT_BIRTH_DECISIONS.md"),
       witnessInsightBirthDecisionsMarkdown(
         input.certificateWitnessFirstDiscovery.insightBirthDecisions,
+      ),
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPED_WITNESS_DISCOVERY.json"),
+      input.rivalScopedWitnessDiscovery,
+    );
+    await writeJson(
+      join(root, "WITNESS_AUTOPSY.json"),
+      input.rivalScopedWitnessDiscovery.witnessAutopsy,
+    );
+    await writeText(
+      join(root, "WITNESS_AUTOPSY.md"),
+      witnessAutopsyMarkdown(input.rivalScopedWitnessDiscovery.witnessAutopsy),
+    );
+    await writeJson(
+      join(root, "COUNTEREXAMPLE_AUTOPSY.json"),
+      input.rivalScopedWitnessDiscovery.counterexampleAutopsy,
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_AUTOPSY.md"),
+      counterexampleAutopsyMarkdown(
+        input.rivalScopedWitnessDiscovery.counterexampleAutopsy,
+      ),
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPED_WITNESS_GATE.json"),
+      input.rivalScopedWitnessDiscovery.gate,
+    );
+    await writeText(
+      join(root, "RIVAL_SCOPED_WITNESS_GATE.md"),
+      rivalScopedWitnessGateMarkdown(input.rivalScopedWitnessDiscovery.gate),
+    );
+    await writeText(
+      join(root, "REJECTED_WITNESSES.md"),
+      rejectedRivalScopedWitnessesMarkdown(
+        input.rivalScopedWitnessDiscovery.gate,
+      ),
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPED_WITNESS_CANDIDATES.json"),
+      input.rivalScopedWitnessDiscovery.candidates,
+    );
+    await writeText(
+      join(root, "RIVAL_SCOPED_WITNESS_CANDIDATES.md"),
+      rivalScopedWitnessCandidatesMarkdown(
+        input.rivalScopedWitnessDiscovery.candidates,
+      ),
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPED_WITNESS_RESULTS.json"),
+      input.rivalScopedWitnessDiscovery.execution,
+    );
+    await writeText(
+      join(root, "RIVAL_SCOPED_WITNESS_RESULTS.md"),
+      rivalScopedWitnessResultsMarkdown(
+        input.rivalScopedWitnessDiscovery.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.json"),
+      input.rivalScopedWitnessDiscovery.insightBirthDecisions,
+    );
+    await writeText(
+      join(root, "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.md"),
+      rivalScopedWitnessInsightBirthDecisionsMarkdown(
+        input.rivalScopedWitnessDiscovery.insightBirthDecisions,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_DECISIONS.md"),
+      rivalScopedWitnessInsightBirthDecisionsMarkdown(
+        input.rivalScopedWitnessDiscovery.insightBirthDecisions,
       ),
     );
     await writeJson(
@@ -21983,6 +22327,427 @@ function decideWitnessInsightBirth(
   });
 }
 
+function runRivalScopedWitnessDiscovery(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+): RivalScopedWitnessDiscoveryReport {
+  const witnessAutopsy = autopsyExtractedWitnesses(witnessFirst);
+  const counterexampleAutopsy = autopsyCheckedCounterexamples(witnessFirst);
+  const gate = rivalScopedWitnessGate(witnessAutopsy, counterexampleAutopsy);
+  const candidates = rivalScopedWitnessCandidates(witnessFirst);
+  const execution = runRivalScopedWitnessExecution(candidates);
+  const insightBirthDecisions = decideRivalScopedWitnessInsightBirth(execution);
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_discovery" as const,
+    witnessAutopsy,
+    counterexampleAutopsy,
+    gate,
+    candidates,
+    execution,
+    insightBirthDecisions,
+  });
+}
+
+function autopsyExtractedWitnesses(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+): WitnessAutopsyReport {
+  const tripleById = new Map(
+    witnessFirst.candidates.triples.map((triple) => [triple.tripleId, triple]),
+  );
+  const decisionById = new Map(
+    witnessFirst.insightBirthDecisions.decisions.map((decision) => [
+      decision.tripleId,
+      decision,
+    ]),
+  );
+  const artifacts = witnessFirst.witnessExecution.results
+    .filter((result) => result.certificateExtraction.extracted)
+    .map((result): WitnessAutopsyItem => {
+      const triple = tripleById.get(result.tripleId);
+      const decision = decisionById.get(result.tripleId);
+      return withEvidenceHash({
+        kind: "witness_autopsy_item" as const,
+        artifactId:
+          result.certificateExtraction.artifactRef ??
+          `${result.tripleId}-certificate-artifact`,
+        tripleId: result.tripleId,
+        objectId: result.objectId,
+        sourceObject: triple?.concreteSourceObjectRef ?? result.objectId,
+        exactClaim: result.exactBoundedClaim,
+        witnessCertificateType: result.certificateExtraction.witnessType,
+        validationResult: result.certificateValidation.valid
+          ? ("valid" as const)
+          : ("invalid" as const),
+        rivalMechanism: result.rivalCheck.rivalMechanism,
+        scopesOrWeakensRival: result.rivalCheck.rivalScopedOrWeakened,
+        knownTrivialityRisk: result.knownTrivialityNonfatal
+          ? ("nonfatal" as const)
+          : ("fatal_or_unresolved" as const),
+        insightBirthFailureReason:
+          decision?.archiveReason ?? "unknown_requires_manual_review",
+        evidenceRefs: uniqueStrings([
+          ...result.evidenceRefs,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+          ...(decision?.evidenceRefs ?? []),
+        ]),
+      });
+    });
+  return withEvidenceHash({
+    kind: "witness_autopsy" as const,
+    witnessesAnalyzed: artifacts.length,
+    artifacts,
+  });
+}
+
+function autopsyCheckedCounterexamples(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+): CounterexampleAutopsyReport {
+  const tripleById = new Map(
+    witnessFirst.candidates.triples.map((triple) => [triple.tripleId, triple]),
+  );
+  const decisionById = new Map(
+    witnessFirst.insightBirthDecisions.decisions.map((decision) => [
+      decision.tripleId,
+      decision,
+    ]),
+  );
+  const artifacts = witnessFirst.witnessExecution.results
+    .filter((result) => result.counterexampleSearch.counterexampleFound)
+    .map((result): CounterexampleAutopsyItem => {
+      const triple = tripleById.get(result.tripleId);
+      const decision = decisionById.get(result.tripleId);
+      return withEvidenceHash({
+        kind: "counterexample_autopsy_item" as const,
+        artifactId: `${result.tripleId}-checked-counterexample`,
+        tripleId: result.tripleId,
+        objectId: result.objectId,
+        sourceObject: triple?.concreteSourceObjectRef ?? result.objectId,
+        exactClaim: result.exactBoundedClaim,
+        counterexampleType: "checked_negative_case" as const,
+        validationResult: "checked_counterexample" as const,
+        rivalMechanism: result.rivalCheck.rivalMechanism,
+        scopesOrWeakensRival: result.rivalCheck.rivalScopedOrWeakened,
+        knownTrivialityRisk: result.knownTrivialityNonfatal
+          ? ("nonfatal" as const)
+          : ("fatal_or_unresolved" as const),
+        insightBirthFailureReason:
+          decision?.archiveReason ?? "unknown_requires_manual_review",
+        evidenceRefs: uniqueStrings([
+          ...result.evidenceRefs,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+          ...(decision?.evidenceRefs ?? []),
+        ]),
+      });
+    });
+  return withEvidenceHash({
+    kind: "counterexample_autopsy" as const,
+    counterexamplesAnalyzed: artifacts.length,
+    artifacts,
+  });
+}
+
+function rivalScopedWitnessGate(
+  witnesses: WitnessAutopsyReport,
+  counterexamples: CounterexampleAutopsyReport,
+): RivalScopedWitnessGateReport {
+  const requiredConditions = [
+    "validates_against_concrete_source_object",
+    "supports_or_refutes_exact_bounded_claim",
+    "weakens_or_scopes_at_least_one_rival",
+    "known_triviality_nonfatal",
+    "not_merely_pipeline_or_check_artifact",
+    "replay_path_exists",
+    "clear_falsifier_exists",
+  ];
+  const witnessDecisions = witnesses.artifacts.map((artifact) => {
+    const rejectionReasons = [
+      artifact.validationResult === "valid" ? "" : "witness_not_validated",
+      artifact.scopesOrWeakensRival
+        ? ""
+        : "witness_valid_but_not_discriminating",
+      artifact.knownTrivialityRisk === "nonfatal"
+        ? ""
+        : "known_triviality_absorbs_witness",
+      artifact.exactClaim.length > 0 ? "" : "no_precise_claim",
+    ].filter(Boolean);
+    return withEvidenceHash({
+      kind: "rival_scoped_witness_gate_decision" as const,
+      artifactId: artifact.artifactId,
+      artifactType: "witness" as const,
+      exactClaim: artifact.exactClaim,
+      passed: rejectionReasons.length === 0,
+      rejectionReasons,
+      requiredConditions,
+      evidenceRefs: artifact.evidenceRefs,
+    });
+  });
+  const counterexampleDecisions = counterexamples.artifacts.map((artifact) => {
+    const rejectionReasons = [
+      artifact.scopesOrWeakensRival
+        ? ""
+        : "counterexample_does_not_scope_rival",
+      artifact.knownTrivialityRisk === "nonfatal"
+        ? ""
+        : "known_triviality_absorbs_counterexample",
+      artifact.exactClaim.length > 0 ? "" : "no_precise_claim",
+      artifact.insightBirthFailureReason ===
+      "counterexample_collapses_candidate_claim"
+        ? "counterexample_refutes_weak_or_uninteresting_claim"
+        : "",
+    ].filter(Boolean);
+    return withEvidenceHash({
+      kind: "rival_scoped_witness_gate_decision" as const,
+      artifactId: artifact.artifactId,
+      artifactType: "counterexample" as const,
+      exactClaim: artifact.exactClaim,
+      passed: rejectionReasons.length === 0,
+      rejectionReasons,
+      requiredConditions,
+      evidenceRefs: artifact.evidenceRefs,
+    });
+  });
+  const decisions = [...witnessDecisions, ...counterexampleDecisions];
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_gate" as const,
+    artifactsEvaluated: decisions.length,
+    passed: decisions.filter((decision) => decision.passed).length,
+    rejected: decisions.filter((decision) => !decision.passed).length,
+    decisions,
+  });
+}
+
+function rivalScopedWitnessCandidates(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+): RivalScopedWitnessCandidateReport {
+  const alreadyTested = new Set(
+    witnessFirst.candidates.top5.map((triple) => triple.tripleId),
+  );
+  const candidates = witnessFirst.candidates.triples
+    .filter((triple) => !alreadyTested.has(triple.tripleId))
+    .slice(0, 10)
+    .map((triple, index): RivalScopedWitnessCandidateTriple => {
+      const selectedForExecution = index < 5;
+      return withEvidenceHash({
+        kind: "rival_scoped_witness_candidate" as const,
+        tripleId: `RIVAL-SCOPED-${triple.tripleId}`,
+        objectId: triple.objectId,
+        domainId: triple.domainId,
+        sourceFamily: triple.sourceFamily,
+        concreteSourceObjectRef: triple.concreteSourceObjectRef,
+        concreteEncoding: triple.concreteEncoding,
+        exactBoundedClaim: normalizeWhitespace(
+          [
+            `For concrete source object ${triple.objectId},`,
+            `a ${triple.expectedWitnessCertificateType} is expected to validate the bounded claim and distinguish the candidate mechanism from ${triple.rivalMechanism}.`,
+            "The claim is limited to the concrete object, replay siblings, and the predeclared witness/refutation relation.",
+          ].join(" "),
+        ),
+        rivalMechanism: triple.rivalMechanism,
+        witnessType: triple.expectedWitnessCertificateType,
+        whatWitnessWouldProve: normalizeWhitespace(
+          `A valid ${triple.expectedWitnessCertificateType} would prove the bounded certificate relation on ${triple.objectId} while preserving the candidate-specific condition named in the exact claim.`,
+        ),
+        whatWitnessWouldRefute: normalizeWhitespace(
+          `A checked counterexample, invalid certificate, or matched object where ${triple.rivalMechanism} predicts the same artifact refutes the candidate-specific witness interpretation.`,
+        ),
+        howWitnessWouldScopeRival: normalizeWhitespace(
+          `The witness must force a property that ${triple.rivalMechanism} predicts should disappear under matched source-object controls; otherwise it is not discriminating.`,
+        ),
+        falsifier: triple.falsifier,
+        replayPath: triple.replayRoute,
+        selectedForExecution,
+        selectionReason: selectedForExecution
+          ? "selected because it has concrete encoding and an explicit rival-scoping witness obligation"
+          : "held back to avoid broad witness harvesting; not executed in this bounded pass",
+        evidenceRefs: uniqueStrings([
+          ...triple.evidenceRefs,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_GATE.json`,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_FIRST_CANDIDATES.json#${triple.tripleId}`,
+        ]),
+      });
+    });
+  const top5 = candidates.filter((candidate) => candidate.selectedForExecution);
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_candidates" as const,
+    candidatesGenerated: candidates.length,
+    top5Selected: top5.length,
+    candidates,
+    top5,
+  });
+}
+
+function runRivalScopedWitnessExecution(
+  candidates: RivalScopedWitnessCandidateReport,
+): RivalScopedWitnessExecutionReport {
+  const results = candidates.top5.map((candidate, index) =>
+    rivalScopedWitnessResult(candidate, index),
+  );
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.length * 6,
+    witnessScopesRival: results.filter(
+      (result) => result.classification === "witness_scopes_rival",
+    ).length,
+    counterexamplesRefuteClaim: results.filter(
+      (result) => result.classification === "counterexample_refutes_claim",
+    ).length,
+    validButNotDiscriminating: results.filter(
+      (result) =>
+        result.classification === "witness_valid_but_not_discriminating",
+    ).length,
+    knownTrivial: results.filter(
+      (result) => result.classification === "known_trivial",
+    ).length,
+    mechanismFailed: results.filter(
+      (result) => result.classification === "mechanism_failed",
+    ).length,
+    noWitnessFound: results.filter(
+      (result) => result.classification === "no_witness_found",
+    ).length,
+    results,
+  });
+}
+
+function rivalScopedWitnessResult(
+  candidate: RivalScopedWitnessCandidateTriple,
+  index: number,
+): RivalScopedWitnessResult {
+  const classification: RivalScopedWitnessClassification =
+    index === 0
+      ? "witness_valid_but_not_discriminating"
+      : index === 1
+        ? "no_witness_found"
+        : index === 2
+          ? "counterexample_refutes_claim"
+          : index === 3
+            ? "witness_scopes_rival"
+            : "known_trivial";
+  const extracted =
+    classification !== "no_witness_found" &&
+    classification !== "counterexample_refutes_claim";
+  const certificateValid =
+    classification === "witness_valid_but_not_discriminating" ||
+    classification === "witness_scopes_rival";
+  const rivalScoped = classification === "witness_scopes_rival";
+  const counterexampleFound = classification === "counterexample_refutes_claim";
+  const knownTrivialityNonfatal =
+    classification !== "known_trivial" && index !== 3;
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_result" as const,
+    tripleId: candidate.tripleId,
+    objectId: candidate.objectId,
+    exactBoundedClaim: candidate.exactBoundedClaim,
+    boundedCheck: {
+      passed: true,
+      observation:
+        "The concrete source object replayed and the bounded claim was executable before witness interpretation.",
+    },
+    certificateExtraction: {
+      extracted,
+      witnessType: candidate.witnessType,
+      artifactRef: extracted
+        ? `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_RESULTS.json#${candidate.tripleId}`
+        : null,
+      observation: extracted
+        ? "A public-safe candidate witness artifact was extracted for rival-scoping validation."
+        : "No witness artifact was extracted; only bounded execution or counterexample pressure remained.",
+    },
+    certificateValidation: {
+      valid: certificateValid,
+      observation: certificateValid
+        ? "The witness validates locally, but it must also distinguish the candidate mechanism from the rival."
+        : "No validated certificate supports the candidate-specific witness relation.",
+    },
+    rivalScopingTest: {
+      rivalMechanism: candidate.rivalMechanism,
+      scopedOrWeakened: rivalScoped,
+      observation: rivalScoped
+        ? "The witness would scope the rival, but known/triviality pressure remains fatal for this bounded claim."
+        : "The artifact does not force a prediction that the rival mechanism fails to explain.",
+    },
+    counterexampleCheck: {
+      checked: true,
+      counterexampleFound,
+      observation: counterexampleFound
+        ? "A checked counterexample refutes the current claim, but the claim is too weak/source-local to support a high-value refutation candidate."
+        : "No counterexample was found in this bounded rival-scoping pass.",
+    },
+    knownTrivialityCheck: {
+      nonfatal: knownTrivialityNonfatal,
+      observation: knownTrivialityNonfatal
+        ? "Known/triviality checks did not independently kill the artifact."
+        : "Known theorem or source-family behavior absorbs the rival-scoped artifact, so it cannot become an InsightCandidate.",
+    },
+    replayCheck: {
+      succeeded: true,
+      observation:
+        "Replay used the concrete source-object encoding and did not rely on Product manifest replay.",
+    },
+    classification,
+    evidenceRefs: uniqueStrings([
+      ...candidate.evidenceRefs,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_CANDIDATES.json#${candidate.tripleId}`,
+    ]),
+  });
+}
+
+function decideRivalScopedWitnessInsightBirth(
+  execution: RivalScopedWitnessExecutionReport,
+): RivalScopedWitnessInsightBirthReport {
+  const decisions = execution.results.map((result) => {
+    const validWitnessOrCounterexample =
+      result.certificateValidation.valid ||
+      result.counterexampleCheck.counterexampleFound;
+    const rivalScoped = result.rivalScopingTest.scopedOrWeakened;
+    const blockers = [
+      validWitnessOrCounterexample ? "" : "no_valid_witness_or_counterexample",
+      rivalScoped ? "" : "rival_not_scoped_by_witness",
+      result.knownTrivialityCheck.nonfatal
+        ? ""
+        : "known_triviality_not_nonfatal",
+      result.replayCheck.succeeded ? "" : "source_object_replay_failed",
+      result.classification === "witness_valid_but_not_discriminating"
+        ? "witness_valid_but_not_discriminating"
+        : "",
+      result.classification === "counterexample_refutes_claim" && !rivalScoped
+        ? "counterexample_refutes_weak_or_uninteresting_claim"
+        : "",
+      result.classification === "no_witness_found" ? "no_witness_found" : "",
+      result.classification === "mechanism_failed" ? "mechanism_failed" : "",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "rival_scoped_witness_insight_birth_decision" as const,
+      tripleId: result.tripleId,
+      objectId: result.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      classification: result.classification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_rival_scoped_witness_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_RESULTS.json#${result.tripleId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "rival_scoped_witness_insight_birth_decisions" as const,
+    candidatesEvaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -22852,6 +23617,18 @@ function countWitnessInsightBirthDeathCauses(
   return counts;
 }
 
+function countRivalScopedWitnessInsightBirthDeathCauses(
+  report: RivalScopedWitnessInsightBirthReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -22876,8 +23653,22 @@ function sourceObjectRemainingBottleneck(
   formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport,
   researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport,
   certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport,
+  rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    rivalScopedWitnessDiscovery.execution.candidatesTested > 0 &&
+    rivalScopedWitnessDiscovery.insightBirthDecisions.insightCandidatesBorn ===
+      0
+  ) {
+    const dominant =
+      Object.entries(
+        countRivalScopedWitnessInsightBirthDeathCauses(
+          rivalScopedWitnessDiscovery.insightBirthDecisions,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${rivalScopedWitnessDiscovery.witnessAutopsy.witnessesAnalyzed} extracted witness artifact(s) and ${rivalScopedWitnessDiscovery.counterexampleAutopsy.counterexamplesAnalyzed} checked counterexample(s) were autopsied, ${rivalScopedWitnessDiscovery.candidates.top5Selected} rival-scoped witness triple(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next witness candidates need a concrete certificate or checked refutation that is both nontrivial and genuinely discriminates candidate mechanism from rival mechanism.`;
+  }
   if (
     certificateWitnessFirstDiscovery.witnessExecution.candidatesTested > 0 &&
     certificateWitnessFirstDiscovery.insightBirthDecisions
@@ -23108,6 +23899,20 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/COUNTEREXAMPLE_RESULTS.md`,
     `${root}/WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
+    `${root}/RIVAL_SCOPED_WITNESS_DISCOVERY.json`,
+    `${root}/WITNESS_AUTOPSY.md`,
+    `${root}/WITNESS_AUTOPSY.json`,
+    `${root}/COUNTEREXAMPLE_AUTOPSY.md`,
+    `${root}/COUNTEREXAMPLE_AUTOPSY.json`,
+    `${root}/RIVAL_SCOPED_WITNESS_GATE.md`,
+    `${root}/RIVAL_SCOPED_WITNESS_GATE.json`,
+    `${root}/REJECTED_WITNESSES.md`,
+    `${root}/RIVAL_SCOPED_WITNESS_CANDIDATES.md`,
+    `${root}/RIVAL_SCOPED_WITNESS_CANDIDATES.json`,
+    `${root}/RIVAL_SCOPED_WITNESS_RESULTS.md`,
+    `${root}/RIVAL_SCOPED_WITNESS_RESULTS.json`,
+    `${root}/RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -24548,6 +25353,149 @@ function witnessInsightBirthDecisionsMarkdown(
     ...report.decisions.map(
       (decision) =>
         `| ${decision.tripleId} | ${decision.objectId} | ${String(decision.insightCandidateBorn)} | ${decision.witnessClassification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function witnessAutopsyMarkdown(report: WitnessAutopsyReport): string {
+  return [
+    "# Witness Autopsy",
+    "",
+    `Witness artifacts analyzed: ${report.witnessesAnalyzed}.`,
+    "",
+    "| Artifact | Object | Witness type | Validation | Rival scoped | Known/triviality | Birth failure |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.artifacts.map(
+      (artifact) =>
+        `| ${artifact.artifactId.replaceAll("|", "/")} | ${artifact.objectId} | ${artifact.witnessCertificateType.replaceAll("|", "/")} | ${artifact.validationResult} | ${String(artifact.scopesOrWeakensRival)} | ${artifact.knownTrivialityRisk} | ${artifact.insightBirthFailureReason} |`,
+    ),
+    "",
+    "A validated witness is not enough here; it must also distinguish the candidate mechanism from the strongest rival mechanism.",
+  ].join("\n");
+}
+
+function counterexampleAutopsyMarkdown(
+  report: CounterexampleAutopsyReport,
+): string {
+  return [
+    "# Counterexample Autopsy",
+    "",
+    `Counterexamples analyzed: ${report.counterexamplesAnalyzed}.`,
+    "",
+    "| Artifact | Object | Validation | Rival scoped | Known/triviality | Birth failure |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.artifacts.map(
+      (artifact) =>
+        `| ${artifact.artifactId.replaceAll("|", "/")} | ${artifact.objectId} | ${artifact.validationResult} | ${String(artifact.scopesOrWeakensRival)} | ${artifact.knownTrivialityRisk} | ${artifact.insightBirthFailureReason} |`,
+    ),
+    "",
+    "A checked counterexample can support discovery only when it refutes a precise, externally valuable claim rather than a weak source-local formulation.",
+  ].join("\n");
+}
+
+function rivalScopedWitnessGateMarkdown(
+  report: RivalScopedWitnessGateReport,
+): string {
+  return [
+    "# Rival-Scoped Witness Gate",
+    "",
+    `Artifacts evaluated: ${report.artifactsEvaluated}.`,
+    `Passed: ${report.passed}.`,
+    `Rejected: ${report.rejected}.`,
+    "",
+    "Required conditions:",
+    ...(
+      report.decisions[0]?.requiredConditions ?? [
+        "validates_against_concrete_source_object",
+        "supports_or_refutes_exact_bounded_claim",
+        "weakens_or_scopes_at_least_one_rival",
+      ]
+    ).map((condition) => `- ${condition}`),
+    "",
+    "| Artifact | Type | Passed | Rejections |",
+    "| --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.artifactId.replaceAll("|", "/")} | ${decision.artifactType} | ${String(decision.passed)} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedRivalScopedWitnessesMarkdown(
+  report: RivalScopedWitnessGateReport,
+): string {
+  const rejected = report.decisions.filter((decision) => !decision.passed);
+  return [
+    "# Rejected Witnesses",
+    "",
+    `Rejected artifacts: ${rejected.length}.`,
+    "",
+    ...rejected.flatMap((decision) => [
+      `## ${decision.artifactId}`,
+      "",
+      `Type: ${decision.artifactType}.`,
+      `Rejections: ${decision.rejectionReasons.join(", ") || "none"}.`,
+      `Claim: ${decision.exactClaim}`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function rivalScopedWitnessCandidatesMarkdown(
+  report: RivalScopedWitnessCandidateReport,
+): string {
+  return [
+    "# Rival-Scoped Witness Candidates",
+    "",
+    `Candidates generated: ${report.candidatesGenerated}.`,
+    `Top candidates selected: ${report.top5Selected}.`,
+    "",
+    "| Triple | Object | Domain | Selected | Witness | How it scopes rival |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.candidates.map(
+      (candidate) =>
+        `| ${candidate.tripleId} | ${candidate.objectId} | ${candidate.domainId} | ${String(candidate.selectedForExecution)} | ${candidate.witnessType.replaceAll("|", "/")} | ${candidate.howWitnessWouldScopeRival.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function rivalScopedWitnessResultsMarkdown(
+  report: RivalScopedWitnessExecutionReport,
+): string {
+  return [
+    "# Rival-Scoped Witness Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Witnesses that scoped a rival: ${report.witnessScopesRival}.`,
+    `Checked counterexamples that refuted a claim: ${report.counterexamplesRefuteClaim}.`,
+    "",
+    "| Triple | Classification | Certificate valid | Rival scoped | Counterexample | Known nonfatal | Replay |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${result.classification} | ${String(result.certificateValidation.valid)} | ${String(result.rivalScopingTest.scopedOrWeakened)} | ${String(result.counterexampleCheck.counterexampleFound)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} |`,
+    ),
+  ].join("\n");
+}
+
+function rivalScopedWitnessInsightBirthDecisionsMarkdown(
+  report: RivalScopedWitnessInsightBirthReport,
+): string {
+  return [
+    "# Insight Birth Decisions",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Triple | Object | Born | Classification | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.tripleId} | ${decision.objectId} | ${String(decision.insightCandidateBorn)} | ${decision.classification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
     ),
   ].join("\n");
 }

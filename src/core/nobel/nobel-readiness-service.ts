@@ -471,9 +471,13 @@ export type ExternalHumanReviewNoveltyAssessment =
   | "known_or_trivial"
   | "unclear";
 
+export const EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION =
+  "sovryn_external_human_review_v1";
+
 export type ExternalReviewIntakeRecord = {
   path: string;
   exists: boolean;
+  reviewRecordSchemaVersion: string | null;
   candidateId: string | null;
   resultSlug: string | null;
   reviewerRole: string | null;
@@ -2736,6 +2740,7 @@ export class NobelReadinessService {
     const dispatchRoot = join(this.root, dispatchRel);
     await mkdir(dispatchRoot, { recursive: true });
     const requiredReviewRecordFields = [
+      "reviewRecordSchemaVersion",
       "candidateId",
       "resultSlug",
       "reviewerRole",
@@ -2749,6 +2754,7 @@ export class NobelReadinessService {
     ];
     const template = {
       kind: "external_human_review_record_template",
+      reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
       candidateId: bundle.candidateId,
       resultSlug: null,
       reviewerRole: "independent_domain_expert",
@@ -3031,6 +3037,7 @@ export class NobelReadinessService {
         /^https:\/\/github\.com\/n57d30top\/sovryn-open-inventions\//.test(url),
     }));
     const templateRequiredFields = [
+      "reviewRecordSchemaVersion",
       "candidateId",
       "resultSlug",
       "reviewerRole",
@@ -3099,6 +3106,16 @@ export class NobelReadinessService {
           ),
         message:
           "External review template must match the active candidate and include intake-required fields.",
+      },
+      {
+        code: "review_template_uses_current_schema",
+        passed:
+          template !== null &&
+          stringValue(template.reviewRecordSchemaVersion) ===
+            EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION &&
+          /reviewRecordSchemaVersion/.test(intakeInstructionsText),
+        message:
+          "External review template and intake instructions must require the current review record schema version.",
       },
       {
         code: "public_review_scoring_contract_requires_external_url",
@@ -3197,6 +3214,9 @@ export class NobelReadinessService {
         reasons.push("invalid_json");
       }
       const candidateId = stringValue(payload?.candidateId);
+      const reviewRecordSchemaVersion = stringValue(
+        payload?.reviewRecordSchemaVersion,
+      );
       const resultSlug = stringValue(payload?.resultSlug);
       const reviewerRole = stringValue(payload?.reviewerRole);
       const reviewDate = stringValue(payload?.reviewDate);
@@ -3225,6 +3245,9 @@ export class NobelReadinessService {
         ]),
       );
       if (!candidateId) reasons.push("missing_candidate_id");
+      if (reviewRecordSchemaVersion !== EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION) {
+        reasons.push("invalid_review_record_schema_version");
+      }
       if (candidateId && candidateId !== handoff.candidateId) {
         reasons.push("candidate_id_mismatch");
       }
@@ -3266,6 +3289,7 @@ export class NobelReadinessService {
       records.push({
         path: relPath,
         exists: true,
+        reviewRecordSchemaVersion,
         candidateId,
         resultSlug,
         reviewerRole,
@@ -3329,6 +3353,15 @@ export class NobelReadinessService {
           (record) => !record.reasons.includes("invalid_json"),
         ),
         message: "Review records must be valid JSON.",
+      },
+      {
+        code: "review_records_use_current_schema",
+        passed: records.every(
+          (record) =>
+            !record.reasons.includes("invalid_review_record_schema_version"),
+        ),
+        message:
+          "Review records must declare the current external human review schema version before they can affect readiness.",
       },
       {
         code: "valid_reviews_match_candidate",
@@ -4450,6 +4483,7 @@ Then run:
 
 ## Required Fields
 
+- reviewRecordSchemaVersion
 - candidateId
 - resultSlug
 - reviewerRole
@@ -4463,7 +4497,7 @@ Then run:
 
 ## Scoring Rule
 
-Invalid, mismatched, unresolved, not-public-safe, non-external, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it matches the active candidate, resolves to an external public URL, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
+Invalid, stale-schema, mismatched, unresolved, not-public-safe, non-external, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it declares \`${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\`, matches the active candidate, resolves to an external public URL, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
 `;
 }
 

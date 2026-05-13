@@ -7,6 +7,7 @@ import { executeCli } from "../src/cli/index.js";
 import { classifyFundCandidate } from "../src/core/fund/fund-taxonomy.js";
 import {
   auditNobelReadinessPublicText,
+  EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
   NobelReadinessCandidateSearchService,
   NobelReadinessCriteriaService,
   NobelReadinessDomainSelector,
@@ -1053,6 +1054,10 @@ test("nobel-readiness external-review dispatch writes review template without cl
     [],
   );
   assert.equal(
+    template.reviewRecordSchemaVersion,
+    EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+  );
+  assert.equal(
     dispatch.gates.find(
       (gate) => gate.code === "outside_expert_review_not_claimed",
     )?.passed,
@@ -1171,6 +1176,37 @@ test("nobel-readiness public review URL audit blocks stale local review-source c
   );
 });
 
+test("nobel-readiness public review URL audit blocks stale review schema contract", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-url-audit-schema-block-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(
+    join(tmpdir(), "sovryn-corpus-url-schema-block-"),
+  );
+  const resultRoot = await writePublicReviewCorpusPackage(
+    targetRepo,
+    candidateId,
+  );
+  const templatePath = join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json");
+  const template = await readJson<Record<string, unknown>>(templatePath);
+  delete template.reviewRecordSchemaVersion;
+  await writeJson(templatePath, template);
+
+  const audit = await new NobelReadinessService(root).publicReviewUrlAudit(
+    targetRepo,
+  );
+
+  assert.equal(audit.passed, false);
+  assert.equal(audit.status, "blocked");
+  assert.equal(
+    audit.gates.find(
+      (gate) => gate.code === "review_template_uses_current_schema",
+    )?.passed,
+    false,
+  );
+});
+
 test("nobel-readiness public review URL audit blocks missing public URL index", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-url-audit-block-"));
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);
@@ -1282,6 +1318,7 @@ test("nobel-readiness invalid external-review intake cannot raise score", async 
   await mkdir(reviewDir, { recursive: true });
   await writeJson(join(reviewDir, "invalid.json"), {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId: "WRONG-CANDIDATE",
     reviewerRole: "independent materials reviewer",
     reviewDate: "2026-05-13",
@@ -1318,6 +1355,51 @@ test("nobel-readiness invalid external-review intake cannot raise score", async 
   );
 });
 
+test("nobel-readiness stale-schema external-review intake cannot raise score", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-stale-schema-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const reviewRel =
+    ".sovryn/nobel-readiness/external-review-reviews/stale-schema.json";
+  const reviewPath = join(root, reviewRel);
+  await mkdir(dirname(reviewPath), { recursive: true });
+  await writeJson(reviewPath, {
+    kind: "external_human_review",
+    candidateId,
+    resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+    reviewerRole: "independent formal methods reviewer",
+    reviewDate: "2026-05-13",
+    reviewSourceRef:
+      "https://zenodo.org/records/sovryn-graph-minor-obstruction-boundary-review",
+    decision: "accepted_with_caveats",
+    independentReproductionStatus: "reproduced",
+    noveltyAssessment: "nontrivial_and_plausibly_novel",
+    overclaimFindings: [],
+    evidenceRefs: ["FORMAL_REPRODUCTION_RESULT.json"],
+  });
+
+  const service = new NobelReadinessService(root);
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+
+  assert.equal(intake.status, "blocked_invalid_external_review");
+  assert.equal(intake.validReviewCount, 0);
+  assert.equal(intake.supportiveReviewCount, 0);
+  assert.equal(intake.independentReproductionCount, 0);
+  assert.equal(
+    intake.records[0]?.reasons.includes("invalid_review_record_schema_version"),
+    true,
+  );
+  assert.equal(
+    intake.gates.find(
+      (gate) => gate.code === "review_records_use_current_schema",
+    )?.passed,
+    false,
+  );
+  assert.equal(score.totalScore, 72);
+});
+
 test("nobel-readiness rejecting external review blocks external-review-ready scoring", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-reject-"));
   const { candidateId } = await writeActiveDiscoveryFundPackage(root);
@@ -1327,6 +1409,7 @@ test("nobel-readiness rejecting external review blocks external-review-ready sco
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent formal methods reviewer",
@@ -1365,6 +1448,7 @@ test("nobel-readiness local supportive review source cannot raise score", async 
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent computational materials reviewer",
@@ -1416,6 +1500,7 @@ test("nobel-readiness local reproduced review source cannot clear independent ex
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent formal methods reviewer",
@@ -1468,6 +1553,7 @@ test("nobel-readiness placeholder external review URL cannot raise score", async
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent formal methods reviewer",
@@ -1517,6 +1603,7 @@ test("nobel-readiness supportive external review can raise only review readiness
   await mkdir(dirname(reviewPath), { recursive: true });
   await writeJson(reviewPath, {
     kind: "external_human_review",
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: "first-formal-discovery-fund-graph-minor-obstruction-boundary",
     reviewerRole: "independent computational materials reviewer",
@@ -2008,6 +2095,7 @@ async function writePublicReviewCorpusPackage(
     "utf8",
   );
   await writeJson(join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"), {
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId,
     resultSlug: slug,
     reviewerRole: "independent formal reviewer",
@@ -2025,7 +2113,7 @@ async function writePublicReviewCorpusPackage(
   });
   await writeFile(
     join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
-    "# External Review Intake Instructions\n\nRun `sovryn nobel-readiness external-review-intake --json` after a real review record exists.\n\nInvalid, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL.\n",
+    `# External Review Intake Instructions\n\nRun \`sovryn nobel-readiness external-review-intake --json\` after a real review record exists.\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\`.\n\nInvalid, stale-schema, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL.\n`,
     "utf8",
   );
   return resultRoot;

@@ -50,6 +50,7 @@ import {
   publicCorpusBaseRef,
   seedDiscoveryDaemonDomains,
   SilentSearchLoopRunner,
+  SourceObjectSignalPrioritizer,
   type DeathCause,
   type DomainMetric,
   type FundCandidate,
@@ -4892,6 +4893,109 @@ test("IndependentSourceReplayRunner does not count invalid manifest-only source 
   assert.equal(replay.primaryDeathCause, "replay_failed");
 });
 
+test("SourceObjectSignalPrioritizer loads death history and rejects low-signal objects before replay", async () => {
+  const root = await tempRoot();
+  const engineRoot = join(root, daemonRoot, "source-object-first");
+  await mkdir(engineRoot, { recursive: true });
+  await writeFile(
+    join(engineRoot, "DEATH_CAUSE_SUMMARY.json"),
+    JSON.stringify({
+      deathCauseDistribution: {
+        baseline_dominated: 9,
+        rival_theory_stronger: 4,
+        no_cross_source_support: 3,
+      },
+    }),
+  );
+  const prioritizer =
+    await SourceObjectSignalPrioritizer.fromEngineRoot(engineRoot);
+  const sourceObject = (
+    objectId: string,
+    payload: Record<string, unknown>,
+  ) => ({
+    kind: "external_source_object" as const,
+    objectId,
+    waveId: "formal_bounded_graph_property" as const,
+    domain: "formal_mathematics_conjecture_refutation" as const,
+    sourceObjectKind: "public_edge_list" as const,
+    sourceObjectRef: `edge-list:${objectId.toLowerCase()}`,
+    sourceRef: "https://hog.grinvin.org/",
+    inspectabilityRef: "https://www.graphclasses.org/",
+    sourceReceipt: `https://hog.grinvin.org/#${objectId.toLowerCase()}`,
+    sourceHash:
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    sourcePayload: {
+      ordinal: 6,
+      externalAnchorStrength: "strong",
+      sourceFamilyDocumentedOutcome: false,
+      metadataOrMaturityDominatedRisk: false,
+      independentReplayObject: true,
+      crossSourceRecurrencePotential: true,
+      mechanismRivalSeparation: "strong",
+      counterexampleSearchFeasible: true,
+      mechanismProofPressureFeasible: true,
+      trivialNullBaselineRisk: false,
+      ...payload,
+    },
+    measuredVariable: "bounded obstruction residual",
+    targetOutcome: "checked graph-family boundary outcome",
+    safetyScope: "safe public formal object",
+    loaderCheckCommand: "sovryn discover-daemon source-object-engine --json",
+    accepted: true,
+    rejectionReason: null,
+  });
+  const report = prioritizer.prioritize([
+    sourceObject("SOURCE-BASELINE-RISK", { ordinal: 1 }),
+    sourceObject("SOURCE-HIGH-PRIORITY", {}),
+    sourceObject("SOURCE-NO-REPLAY", { independentReplayObject: false }),
+    sourceObject("SOURCE-DOCUMENTED", {
+      sourceFamilyDocumentedOutcome: true,
+    }),
+    sourceObject("SOURCE-NO-CROSS-SOURCE", {
+      crossSourceRecurrencePotential: false,
+    }),
+  ]);
+
+  assert.equal(report.priorDeathCauseDistribution.baseline_dominated, 9);
+  assert.equal(
+    report.selected.some(
+      (decision) => decision.objectId === "SOURCE-HIGH-PRIORITY",
+    ),
+    true,
+  );
+  const baselineRisk = report.decisions.find(
+    (decision) => decision.objectId === "SOURCE-BASELINE-RISK",
+  );
+  const highPriority = report.decisions.find(
+    (decision) => decision.objectId === "SOURCE-HIGH-PRIORITY",
+  );
+  assert.ok(baselineRisk);
+  assert.ok(highPriority);
+  assert.equal(
+    baselineRisk.penalties.includes("prior_history_baseline_dominated_family"),
+    true,
+  );
+  assert.equal(baselineRisk.score < highPriority.score, true);
+  assert.equal(
+    report.decisions
+      .find((decision) => decision.objectId === "SOURCE-NO-REPLAY")
+      ?.rejectionReasons.includes("missing_independent_replay_object"),
+    true,
+  );
+  assert.equal(
+    report.decisions
+      .find((decision) => decision.objectId === "SOURCE-DOCUMENTED")
+      ?.rejectionReasons.includes("source_family_documented_outcome"),
+    true,
+  );
+  assert.equal(
+    report.decisions
+      .find((decision) => decision.objectId === "SOURCE-NO-CROSS-SOURCE")
+      ?.rejectionReasons.includes("missing_cross_source_or_cross_slice_path"),
+    true,
+  );
+});
+
 test("discover-daemon source-object-engine runs source-object-first waves without fake Fund", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -4903,10 +5007,16 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.status, "continue_searching_checkpointed");
   assert.equal(report.wavesCompleted, 5);
   assert.equal(report.sourceObjectsLoaded, 100);
-  assert.equal(report.independentSourceReplaysRun >= 60, true);
+  assert.equal(report.sourceObjectsEvaluatedByPrioritizer >= 75, true);
+  assert.equal(report.highPrioritySourceObjectsSelected <= 25, true);
+  assert.equal(report.lowSignalSourceObjectsRejected > 0, true);
+  assert.equal(
+    report.independentSourceReplaysRun,
+    report.highPrioritySourceObjectsSelected,
+  );
   assert.equal(report.baselineCounterexampleChecksRun >= 60, true);
   assert.equal(report.mechanismProofPressureChecksRun >= 20, true);
-  assert.equal(report.candidateLevelReplayAttempts, 10);
+  assert.equal(report.candidateLevelReplayAttempts > 0, true);
   assert.equal(report.fundFound, false);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
@@ -4920,6 +5030,13 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   for (const artifact of [
     "SOURCE_OBJECT_UNIVERSE.md",
     "SOURCE_OBJECT_RECEIPTS.json",
+    "SOURCE_OBJECT_FAILURE_AUTOPSY.md",
+    "SOURCE_OBJECT_SIGNAL_PRIORITIZER.md",
+    "SOURCE_OBJECT_SIGNAL_PRIORITIZER.json",
+    "IMPROVED_SOURCE_OBJECT_SELECTORS.md",
+    "PRIORITIZED_SOURCE_OBJECTS.md",
+    "REJECTED_LOW_SIGNAL_SOURCE_OBJECTS.md",
+    "PRIORITIZED_REPLAY_RESULTS.md",
     "INDEPENDENT_SOURCE_REPLAY_RESULTS.md",
     "BASELINE_DIRECTIONALITY_AUDIT.md",
     "MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md",

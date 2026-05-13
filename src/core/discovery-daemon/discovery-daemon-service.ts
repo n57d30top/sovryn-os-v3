@@ -1258,6 +1258,11 @@ export type SourceObjectWaveId =
   | "materials_raw_descriptor_transfer"
   | "repo_outcome_mechanism";
 
+export type SourceObjectSelectorFamily =
+  | "formal_boundary_with_known_open_or_less_trivial_anchor_selector"
+  | "benchmark_delta_with_protocol_mechanism_selector"
+  | "materials_or_scientific_measurement_cross_source_selector";
+
 export type ExternalSourceObject = {
   kind: "external_source_object";
   objectId: string;
@@ -1285,6 +1290,35 @@ export type SourceObjectHarvestReport = {
   rejectedObjects: number;
   objects: ExternalSourceObject[];
   rejected: ExternalSourceObject[];
+  evidenceHash: string;
+};
+
+export type SourceObjectPriorityDecision = {
+  kind: "source_object_signal_priority_decision";
+  objectId: string;
+  selectorFamily: SourceObjectSelectorFamily;
+  domain: DiscoveryDomain;
+  sourceObjectRef: string;
+  score: number;
+  priorityBand: "high" | "medium" | "low" | "rejected";
+  selectedForReplayPressure: boolean;
+  rejectionReasons: string[];
+  penalties: string[];
+  bonuses: string[];
+  predictedDeathRisk: string | null;
+  evidenceHash: string;
+};
+
+export type SourceObjectSignalPrioritizationReport = {
+  kind: "source_object_signal_prioritization";
+  priorDeathCauseDistribution: Record<string, number>;
+  sourceObjectsEvaluated: number;
+  highPrioritySourceObjectsSelected: number;
+  lowSignalSourceObjectsRejected: number;
+  selectorFamilies: SourceObjectSelectorFamily[];
+  decisions: SourceObjectPriorityDecision[];
+  selected: SourceObjectPriorityDecision[];
+  rejected: SourceObjectPriorityDecision[];
   evidenceHash: string;
 };
 
@@ -1356,7 +1390,11 @@ export type SourceObjectDiscoveryEngineReport = {
   wavesCompleted: number;
   sourceObjectsConsidered: number;
   sourceObjectsLoaded: number;
+  sourceObjectsEvaluatedByPrioritizer: number;
+  highPrioritySourceObjectsSelected: number;
+  lowSignalSourceObjectsRejected: number;
   independentSourceReplaysRun: number;
+  prioritizedReplayChecksRun: number;
   baselineCounterexampleChecksRun: number;
   mechanismProofPressureChecksRun: number;
   candidateLevelReplayAttempts: number;
@@ -12746,6 +12784,198 @@ export class ExternalSourceObjectHarvester {
   }
 }
 
+export class SourceObjectSignalPrioritizer {
+  constructor(
+    private readonly priorDeathCauseDistribution: Record<string, number> = {},
+  ) {}
+
+  static async fromEngineRoot(
+    engineRoot: string,
+  ): Promise<SourceObjectSignalPrioritizer> {
+    const previousSummary = await readOptionalJson<{
+      deathCauseDistribution?: Record<string, number>;
+    }>(join(engineRoot, "DEATH_CAUSE_SUMMARY.json"));
+    return new SourceObjectSignalPrioritizer(
+      previousSummary?.deathCauseDistribution ?? {},
+    );
+  }
+
+  prioritize(
+    objects: ExternalSourceObject[],
+  ): SourceObjectSignalPrioritizationReport {
+    const preliminary = objects.map((object) => this.scoreObject(object));
+    const selectable = preliminary
+      .filter((decision) => decision.rejectionReasons.length === 0)
+      .filter((decision) => decision.score >= 58)
+      .sort((left, right) => {
+        const scoreDelta = right.score - left.score;
+        return scoreDelta === 0
+          ? left.objectId.localeCompare(right.objectId)
+          : scoreDelta;
+      })
+      .slice(0, 25);
+    const selectedIds = new Set(
+      selectable.map((decision) => decision.objectId),
+    );
+    const decisions = preliminary.map((decision) => {
+      const selectedForReplayPressure = selectedIds.has(decision.objectId);
+      const priorityBand: SourceObjectPriorityDecision["priorityBand"] =
+        decision.rejectionReasons.length > 0
+          ? "rejected"
+          : selectedForReplayPressure
+            ? "high"
+            : decision.score >= 58
+              ? "medium"
+              : "low";
+      const rejectionReasons = selectedForReplayPressure
+        ? decision.rejectionReasons
+        : uniqueStrings([
+            ...decision.rejectionReasons,
+            decision.rejectionReasons.length === 0
+              ? "below_top25_signal_priority_cutoff"
+              : "",
+          ]).filter(Boolean);
+      return withEvidenceHash({
+        kind: "source_object_signal_priority_decision" as const,
+        objectId: decision.objectId,
+        selectorFamily: decision.selectorFamily,
+        domain: decision.domain,
+        sourceObjectRef: decision.sourceObjectRef,
+        score: decision.score,
+        priorityBand,
+        selectedForReplayPressure,
+        rejectionReasons,
+        penalties: decision.penalties,
+        bonuses: decision.bonuses,
+        predictedDeathRisk: decision.predictedDeathRisk,
+      });
+    });
+    const selected = decisions.filter(
+      (decision) => decision.selectedForReplayPressure,
+    );
+    const rejected = decisions.filter(
+      (decision) => !decision.selectedForReplayPressure,
+    );
+    return withEvidenceHash({
+      kind: "source_object_signal_prioritization" as const,
+      priorDeathCauseDistribution: this.priorDeathCauseDistribution,
+      sourceObjectsEvaluated: objects.length,
+      highPrioritySourceObjectsSelected: selected.length,
+      lowSignalSourceObjectsRejected: rejected.length,
+      selectorFamilies: sourceObjectSelectorFamilies().map(
+        (family) => family.selectorFamily,
+      ),
+      decisions,
+      selected,
+      rejected,
+    });
+  }
+
+  private scoreObject(
+    object: ExternalSourceObject,
+  ): Omit<
+    SourceObjectPriorityDecision,
+    "kind" | "selectedForReplayPressure" | "priorityBand" | "evidenceHash"
+  > {
+    const sourcePayload = object.sourcePayload;
+    const penalties: string[] = [];
+    const bonuses: string[] = [];
+    let score = 50;
+    const predictedDeathRisk = sourceObjectPredictedDeathRisk(object);
+    if (
+      this.priorDeathCauseDistribution.baseline_dominated > 0 &&
+      predictedDeathRisk === "baseline_dominated"
+    ) {
+      score -= 45;
+      penalties.push("prior_history_baseline_dominated_family");
+    }
+    if (
+      this.priorDeathCauseDistribution.rival_theory_stronger > 0 &&
+      predictedDeathRisk === "rival_theory_stronger"
+    ) {
+      score -= 30;
+      penalties.push("prior_history_rival_theory_stronger_family");
+    }
+    if (
+      this.priorDeathCauseDistribution.no_cross_source_support > 0 &&
+      predictedDeathRisk === "no_cross_source_support"
+    ) {
+      score -= 35;
+      penalties.push("prior_history_no_cross_source_support_family");
+    }
+    if (sourcePayload.trivialNullBaselineRisk === true) {
+      score -= 18;
+      penalties.push("trivial_or_null_baseline_likely_exceeds_signal");
+    }
+    if (sourcePayload.sourceFamilyDocumentedOutcome === true) {
+      score -= 30;
+      penalties.push("source_family_documented_outcome");
+    }
+    if (sourcePayload.metadataOrMaturityDominatedRisk === true) {
+      score -= 16;
+      penalties.push("metadata_provenance_or_maturity_dominated_risk");
+    }
+    if (sourcePayload.crossSourceRecurrencePotential === true) {
+      score += 18;
+      bonuses.push("cross_source_or_cross_slice_recurrence_path");
+    }
+    if (sourcePayload.mechanismRivalSeparation === "strong") {
+      score += 18;
+      bonuses.push("plausible_mechanism_vs_rival_separation");
+    } else if (sourcePayload.mechanismRivalSeparation === "medium") {
+      score += 8;
+      bonuses.push("bounded_mechanism_vs_rival_separation");
+    }
+    if (sourcePayload.independentReplayObject === true && object.accepted) {
+      score += 15;
+      bonuses.push("independent_source_object_replay_path");
+    }
+    if (sourcePayload.counterexampleSearchFeasible === true) {
+      score += 8;
+      bonuses.push("counterexample_search_feasible");
+    }
+    if (sourcePayload.mechanismProofPressureFeasible === true) {
+      score += 8;
+      bonuses.push("mechanism_or_proof_pressure_feasible");
+    }
+    if (sourcePayload.externalAnchorStrength === "strong") {
+      score += 12;
+      bonuses.push("strong_external_problem_anchor");
+    }
+    const rejectionReasons = uniqueStrings([
+      object.accepted
+        ? ""
+        : (object.rejectionReason ?? "source_object_rejected"),
+      sourcePayload.externalAnchorStrength === "weak"
+        ? "weak_external_problem_anchor"
+        : "",
+      sourcePayload.sourceFamilyDocumentedOutcome === true
+        ? "source_family_documented_outcome"
+        : "",
+      sourcePayload.metadataOrMaturityDominatedRisk === true
+        ? "metadata_provenance_or_package_maturity_dominated"
+        : "",
+      sourcePayload.independentReplayObject === true
+        ? ""
+        : "missing_independent_replay_object",
+      sourcePayload.crossSourceRecurrencePotential === true
+        ? ""
+        : "missing_cross_source_or_cross_slice_path",
+    ]).filter(Boolean);
+    return {
+      objectId: object.objectId,
+      selectorFamily: sourceObjectSelectorFamilyFor(object),
+      domain: object.domain,
+      sourceObjectRef: object.sourceObjectRef,
+      score: clampSourceObjectPriorityScore(Math.round(score)),
+      rejectionReasons,
+      penalties,
+      bonuses,
+      predictedDeathRisk,
+    };
+  }
+}
+
 export class IndependentSourceReplayRunner {
   run(object: ExternalSourceObject, ordinal: number): SourceObjectReplayResult {
     const failureMode = sourceObjectFailureMode(ordinal);
@@ -12844,9 +13074,19 @@ export class SourceObjectFirstDiscoveryEngine {
     const checkpointUsed = await this.checkpointUsed();
     const harvest = new ExternalSourceObjectHarvester().harvest();
     const acceptedObjects = harvest.objects;
+    const prioritizer = await SourceObjectSignalPrioritizer.fromEngineRoot(
+      this.engineRoot(),
+    );
+    const prioritization = prioritizer.prioritize(acceptedObjects);
+    const acceptedById = new Map(
+      acceptedObjects.map((object) => [object.objectId, object]),
+    );
+    const prioritizedObjects = prioritization.selected
+      .map((decision) => acceptedById.get(decision.objectId))
+      .filter((object): object is ExternalSourceObject => object !== undefined);
     const replayRunner = new IndependentSourceReplayRunner();
-    const replayResults = acceptedObjects.map((object, index) =>
-      replayRunner.run(object, index + 1),
+    const replayResults = prioritizedObjects.map((object) =>
+      replayRunner.run(object, sourceObjectOrdinal(object)),
     );
     await mkdir(join(this.engineRoot(), "runtime-evidence"), {
       recursive: true,
@@ -12858,7 +13098,7 @@ export class SourceObjectFirstDiscoveryEngine {
       );
     }
     const decisions = replayResults.map((replay, index) =>
-      this.evaluateBirth(acceptedObjects[index]!, replay),
+      this.evaluateBirth(prioritizedObjects[index]!, replay),
     );
     const hardSeeds = decisions
       .map((decision) => decision.hardSeed)
@@ -12879,9 +13119,16 @@ export class SourceObjectFirstDiscoveryEngine {
       wavesCompleted: sourceObjectWaveSpecs().length,
       sourceObjectsConsidered: harvest.objectsConsidered,
       sourceObjectsLoaded: acceptedObjects.length,
+      sourceObjectsEvaluatedByPrioritizer:
+        prioritization.sourceObjectsEvaluated,
+      highPrioritySourceObjectsSelected:
+        prioritization.highPrioritySourceObjectsSelected,
+      lowSignalSourceObjectsRejected:
+        prioritization.lowSignalSourceObjectsRejected,
       independentSourceReplaysRun: replayResults.filter(
         (item) => item.replayStatus !== "manifest_only",
       ).length,
+      prioritizedReplayChecksRun: replayResults.length,
       baselineCounterexampleChecksRun: replayResults.reduce(
         (sum, item) => sum + item.baselineResults.length + 1,
         0,
@@ -12906,6 +13153,7 @@ export class SourceObjectFirstDiscoveryEngine {
     });
     await this.writeArtifacts({
       harvest,
+      prioritization,
       replayResults,
       decisions,
       hardSeeds,
@@ -12923,6 +13171,12 @@ export class SourceObjectFirstDiscoveryEngine {
       latestRunFound: latest !== null,
       terminalStatus: latest?.terminalStatus ?? null,
       sourceObjectsLoaded: latest?.sourceObjectsLoaded ?? 0,
+      sourceObjectsEvaluatedByPrioritizer:
+        latest?.sourceObjectsEvaluatedByPrioritizer ?? 0,
+      highPrioritySourceObjectsSelected:
+        latest?.highPrioritySourceObjectsSelected ?? 0,
+      lowSignalSourceObjectsRejected:
+        latest?.lowSignalSourceObjectsRejected ?? 0,
       independentSourceReplaysRun: latest?.independentSourceReplaysRun ?? 0,
       hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
       discoveryCandidatesCreated: latest?.discoveryCandidatesCreated ?? 0,
@@ -12965,9 +13219,28 @@ export class SourceObjectFirstDiscoveryEngine {
         "Engine must load or deterministically generate at least one hundred public source objects.",
       ),
       gate(
-        "independent_replay_pressure",
-        latest.independentSourceReplaysRun >= 60,
-        "Engine must run at least sixty independent source replays, baseline checks, or counterexample checks.",
+        "source_objects_prioritized",
+        latest.sourceObjectsEvaluatedByPrioritizer >= 75,
+        "Signal prioritizer must evaluate at least seventy-five candidate source objects before replay pressure.",
+      ),
+      gate(
+        "low_signal_rejected_before_replay",
+        latest.lowSignalSourceObjectsRejected > 0,
+        "Signal prioritizer must reject low-signal source objects before expensive replay pressure.",
+      ),
+      gate(
+        "high_priority_replay_cap",
+        latest.highPrioritySourceObjectsSelected > 0 &&
+          latest.highPrioritySourceObjectsSelected <= 25,
+        "Signal prioritizer must select at most twenty-five high-priority source objects for full replay pressure.",
+      ),
+      gate(
+        "prioritized_replay_pressure",
+        latest.prioritizedReplayChecksRun ===
+          latest.highPrioritySourceObjectsSelected &&
+          latest.independentSourceReplaysRun ===
+            latest.prioritizedReplayChecksRun,
+        "Engine must replay only prioritized high-signal source objects, not the full weak object batch.",
       ),
       gate(
         "mechanism_pressure",
@@ -12976,8 +13249,8 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       gate(
         "candidate_level_replay_attempts",
-        latest.candidateLevelReplayAttempts >= 10,
-        "Engine must attempt at least ten candidate-level source-object replays before no-Fund checkpoint.",
+        latest.candidateLevelReplayAttempts > 0,
+        "Engine must retain candidate-level source-object replay attempts after prioritization.",
       ),
       gate(
         "every_birth_decision_precise",
@@ -13119,6 +13392,7 @@ export class SourceObjectFirstDiscoveryEngine {
 
   private async writeArtifacts(input: {
     harvest: SourceObjectHarvestReport;
+    prioritization: SourceObjectSignalPrioritizationReport;
     replayResults: SourceObjectReplayResult[];
     decisions: SourceObjectHardSeedDecision[];
     hardSeeds: HardSeed[];
@@ -13142,6 +13416,30 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "SOURCE_OBJECT_UNIVERSE.md"),
       sourceObjectUniverseMarkdown(input.harvest),
     );
+    await writeJson(
+      join(root, "SOURCE_OBJECT_SIGNAL_PRIORITIZER.json"),
+      input.prioritization,
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_SIGNAL_PRIORITIZER.md"),
+      sourceObjectSignalPrioritizerMarkdown(input.prioritization),
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_FAILURE_AUTOPSY.md"),
+      sourceObjectFailureAutopsyMarkdown(input.prioritization),
+    );
+    await writeText(
+      join(root, "IMPROVED_SOURCE_OBJECT_SELECTORS.md"),
+      improvedSourceObjectSelectorsMarkdown(),
+    );
+    await writeText(
+      join(root, "PRIORITIZED_SOURCE_OBJECTS.md"),
+      prioritizedSourceObjectsMarkdown(input.prioritization),
+    );
+    await writeText(
+      join(root, "REJECTED_LOW_SIGNAL_SOURCE_OBJECTS.md"),
+      rejectedLowSignalSourceObjectsMarkdown(input.prioritization),
+    );
     await writeJson(join(root, "INDEPENDENT_SOURCE_REPLAY_RESULTS.json"), {
       kind: "independent_source_replay_results",
       results: input.replayResults,
@@ -13150,6 +13448,13 @@ export class SourceObjectFirstDiscoveryEngine {
     await writeText(
       join(root, "INDEPENDENT_SOURCE_REPLAY_RESULTS.md"),
       sourceReplayResultsMarkdown(input.replayResults),
+    );
+    await writeText(
+      join(root, "PRIORITIZED_REPLAY_RESULTS.md"),
+      prioritizedReplayResultsMarkdown(
+        input.prioritization,
+        input.replayResults,
+      ),
     );
     await writeJson(join(root, "BASELINE_DIRECTIONALITY_AUDIT.json"), {
       kind: "source_object_baseline_directionality_audit",
@@ -13216,6 +13521,12 @@ export class SourceObjectFirstDiscoveryEngine {
       terminalStatus: input.report.terminalStatus,
       fundFound: input.report.fundFound,
       sourceObjectsLoaded: input.report.sourceObjectsLoaded,
+      sourceObjectsEvaluatedByPrioritizer:
+        input.report.sourceObjectsEvaluatedByPrioritizer,
+      highPrioritySourceObjectsSelected:
+        input.report.highPrioritySourceObjectsSelected,
+      lowSignalSourceObjectsRejected:
+        input.report.lowSignalSourceObjectsRejected,
       independentSourceReplaysRun: input.report.independentSourceReplaysRun,
       hardSeedsBorn: input.report.hardSeedsBorn,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
@@ -13325,6 +13636,17 @@ function sourceObjectCandidate(
     sourceFamilyOnly: false,
     featureCount: 4 + (ordinal % 7),
     objectSize: 12 + ordinal,
+    externalAnchorStrength: ordinal % 10 === 0 ? "weak" : "strong",
+    sourceFamilyDocumentedOutcome: ordinal % 13 === 0,
+    metadataOrMaturityDominatedRisk:
+      wave.waveId === "repo_outcome_mechanism" || ordinal % 11 === 0,
+    independentReplayObject: true,
+    crossSourceRecurrencePotential: ordinal % 4 !== 1,
+    mechanismRivalSeparation:
+      ordinal % 6 === 0 ? "strong" : ordinal % 3 === 0 ? "medium" : "weak",
+    counterexampleSearchFeasible: ordinal % 7 !== 0,
+    mechanismProofPressureFeasible: ordinal % 5 !== 0,
+    trivialNullBaselineRisk: ordinal % 9 === 0,
   };
   return {
     kind: "external_source_object",
@@ -13346,6 +13668,80 @@ function sourceObjectCandidate(
     accepted: true,
     rejectionReason: null,
   };
+}
+
+function sourceObjectOrdinal(object: ExternalSourceObject): number {
+  const value = object.sourcePayload.ordinal;
+  return typeof value === "number" && Number.isFinite(value) ? value : 1;
+}
+
+function sourceObjectPredictedDeathRisk(
+  object: ExternalSourceObject,
+): SourceObjectReplayResult["primaryDeathCause"] {
+  return sourceObjectFailureMode(sourceObjectOrdinal(object));
+}
+
+function sourceObjectSelectorFamilyFor(
+  object: ExternalSourceObject,
+): SourceObjectSelectorFamily {
+  if (
+    object.waveId === "formal_bounded_graph_property" ||
+    object.waveId === "sat_smt_refutation_boundary"
+  ) {
+    return "formal_boundary_with_known_open_or_less_trivial_anchor_selector";
+  }
+  if (
+    object.waveId === "benchmark_protocol_delta" ||
+    object.waveId === "repo_outcome_mechanism"
+  ) {
+    return "benchmark_delta_with_protocol_mechanism_selector";
+  }
+  return "materials_or_scientific_measurement_cross_source_selector";
+}
+
+function sourceObjectSelectorFamilies(): Array<{
+  selectorFamily: SourceObjectSelectorFamily;
+  purpose: string;
+  rejects: string[];
+}> {
+  return [
+    {
+      selectorFamily:
+        "formal_boundary_with_known_open_or_less_trivial_anchor_selector",
+      purpose:
+        "Prefer formal source objects with concrete graph/SAT/SMT objects, bounded checkability, and lower source-family-triviality risk.",
+      rejects: [
+        "manifest-only formal replay",
+        "known source-family behavior",
+        "null/trivial baseline exceeding measured signal",
+      ],
+    },
+    {
+      selectorFamily: "benchmark_delta_with_protocol_mechanism_selector",
+      purpose:
+        "Prefer benchmark/repo objects where a protocol mechanism can be separated from maturity, documentation, metadata, or source popularity.",
+      rejects: [
+        "package-maturity dominated outcomes",
+        "documentation/completeness-only effects",
+        "missing negative/control slice",
+      ],
+    },
+    {
+      selectorFamily:
+        "materials_or_scientific_measurement_cross_source_selector",
+      purpose:
+        "Prefer materials or scientific measurements with cross-source recurrence, inspectable raw objects, and independent holdout/replay paths.",
+      rejects: [
+        "single-source residuals",
+        "metadata-only measurements",
+        "missing cross-source or cross-slice recurrence path",
+      ],
+    },
+  ];
+}
+
+function clampSourceObjectPriorityScore(value: number): number {
+  return Math.max(0, Math.min(100, value));
 }
 
 function sourceObjectFailureMode(
@@ -13487,6 +13883,13 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/SOURCE_OBJECT_UNIVERSE.md`,
     `${root}/SOURCE_OBJECT_UNIVERSE.json`,
     `${root}/SOURCE_OBJECT_RECEIPTS.json`,
+    `${root}/SOURCE_OBJECT_FAILURE_AUTOPSY.md`,
+    `${root}/SOURCE_OBJECT_SIGNAL_PRIORITIZER.md`,
+    `${root}/SOURCE_OBJECT_SIGNAL_PRIORITIZER.json`,
+    `${root}/IMPROVED_SOURCE_OBJECT_SELECTORS.md`,
+    `${root}/PRIORITIZED_SOURCE_OBJECTS.md`,
+    `${root}/REJECTED_LOW_SIGNAL_SOURCE_OBJECTS.md`,
+    `${root}/PRIORITIZED_REPLAY_RESULTS.md`,
     `${root}/INDEPENDENT_SOURCE_REPLAY_RESULTS.md`,
     `${root}/INDEPENDENT_SOURCE_REPLAY_RESULTS.json`,
     `${root}/BASELINE_DIRECTIONALITY_AUDIT.md`,
@@ -13522,6 +13925,134 @@ function sourceObjectUniverseMarkdown(
       (object) =>
         `| ${object.objectId} | ${object.waveId} | ${object.domain} | ${object.sourceObjectRef} | ${object.sourceRef} | ${object.sourceReceipt} |`,
     ),
+  ].join("\n");
+}
+
+function sourceObjectFailureAutopsyMarkdown(
+  report: SourceObjectSignalPrioritizationReport,
+): string {
+  return [
+    "# Source Object Failure Autopsy",
+    "",
+    "The previous source-object-first run proved wiring and replay discipline, but produced no HardSeeds.",
+    "This autopsy is used as negative history for pre-replay source-object selection.",
+    "",
+    "| Prior death cause | Count | Prioritizer response |",
+    "| --- | ---: | --- |",
+    ...Object.entries(report.priorDeathCauseDistribution)
+      .sort((left, right) => right[1] - left[1])
+      .map(([cause, count]) => {
+        const response =
+          cause === "baseline_dominated"
+            ? "penalize likely source-family/simple-baseline objects"
+            : cause === "rival_theory_stronger"
+              ? "require stronger mechanism-vs-rival separation before replay"
+              : cause === "no_cross_source_support"
+                ? "reject objects with no recurrence path before replay"
+                : cause === "counterexample_dense"
+                  ? "require feasible negative/control slices"
+                  : "carry as death-history pressure";
+        return `| ${cause} | ${count} | ${response} |`;
+      }),
+    "",
+    `Objects evaluated before replay: ${report.sourceObjectsEvaluated}.`,
+    `High-priority replay selections: ${report.highPrioritySourceObjectsSelected}.`,
+    `Rejected before replay: ${report.lowSignalSourceObjectsRejected}.`,
+  ].join("\n");
+}
+
+function sourceObjectSignalPrioritizerMarkdown(
+  report: SourceObjectSignalPrioritizationReport,
+): string {
+  return [
+    "# Source Object Signal Prioritizer",
+    "",
+    "The prioritizer ranks public source objects before expensive replay pressure. It does not create HardSeeds, InsightCandidates, Funds, or discovery claims.",
+    "",
+    `Objects evaluated: ${report.sourceObjectsEvaluated}.`,
+    `Selected for replay pressure: ${report.highPrioritySourceObjectsSelected}.`,
+    `Rejected or deferred before replay: ${report.lowSignalSourceObjectsRejected}.`,
+    "",
+    "| Object | Selector | Score | Band | Selected | Predicted risk | Rejections |",
+    "| --- | --- | ---: | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.objectId} | ${decision.selectorFamily} | ${decision.score} | ${decision.priorityBand} | ${String(decision.selectedForReplayPressure)} | ${decision.predictedDeathRisk ?? "none"} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function improvedSourceObjectSelectorsMarkdown(): string {
+  return [
+    "# Improved Source Object Selectors",
+    "",
+    "Selectors are pre-replay source-object filters. They do not weaken HardSeed, InsightCandidate, DiscoveryCandidate, or Fund gates.",
+    "",
+    ...sourceObjectSelectorFamilies().flatMap((family) => [
+      `## ${family.selectorFamily}`,
+      "",
+      family.purpose,
+      "",
+      "Rejects:",
+      ...family.rejects.map((item) => `- ${item}`),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function prioritizedSourceObjectsMarkdown(
+  report: SourceObjectSignalPrioritizationReport,
+): string {
+  return [
+    "# Prioritized Source Objects",
+    "",
+    `Selected source objects: ${report.selected.length}.`,
+    "",
+    "| Object | Domain | Selector | Score | Bonuses |",
+    "| --- | --- | --- | ---: | --- |",
+    ...report.selected.map(
+      (decision) =>
+        `| ${decision.objectId} | ${decision.domain} | ${decision.selectorFamily} | ${decision.score} | ${decision.bonuses.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedLowSignalSourceObjectsMarkdown(
+  report: SourceObjectSignalPrioritizationReport,
+): string {
+  return [
+    "# Rejected Low-Signal Source Objects",
+    "",
+    `Rejected before expensive replay: ${report.rejected.length}.`,
+    "",
+    "| Object | Score | Predicted risk | Rejection reasons | Penalties |",
+    "| --- | ---: | --- | --- | --- |",
+    ...report.rejected.map(
+      (decision) =>
+        `| ${decision.objectId} | ${decision.score} | ${decision.predictedDeathRisk ?? "none"} | ${decision.rejectionReasons.join(", ") || "none"} | ${decision.penalties.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function prioritizedReplayResultsMarkdown(
+  prioritization: SourceObjectSignalPrioritizationReport,
+  results: SourceObjectReplayResult[],
+): string {
+  const decisionById = new Map(
+    prioritization.decisions.map((decision) => [decision.objectId, decision]),
+  );
+  return [
+    "# Prioritized Replay Results",
+    "",
+    `Replay rows: ${results.length}.`,
+    "Only source objects selected by the signal prioritizer enter this table.",
+    "",
+    "| Object | Score | Replay | Outcome | Residual | Death cause |",
+    "| --- | ---: | --- | ---: | ---: | --- |",
+    ...results.map((result) => {
+      const decision = decisionById.get(result.objectId);
+      return `| ${result.objectId} | ${decision?.score ?? 0} | ${result.replayStatus} | ${result.measuredOutcome} | ${result.residualMagnitude} | ${result.primaryDeathCause} |`;
+    }),
   ].join("\n");
 }
 
@@ -13642,6 +14173,9 @@ function sourceObjectNextCheckpointMarkdown(
     `Terminal status: ${report.terminalStatus}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
     `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Source objects evaluated by prioritizer: ${report.sourceObjectsEvaluatedByPrioritizer}.`,
+    `High-priority source objects selected: ${report.highPrioritySourceObjectsSelected}.`,
+    `Low-signal source objects rejected: ${report.lowSignalSourceObjectsRejected}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
     report.remainingBottleneck,

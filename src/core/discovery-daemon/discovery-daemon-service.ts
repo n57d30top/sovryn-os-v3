@@ -1616,6 +1616,8 @@ export type GeneratorBornDiscoveryClaimLiftProposal = {
   replayRefs: string[];
   counterexampleRefs: string[];
   mechanismPressureRefs: string[];
+  nontrivialInsightEvidenceRefs?: string[];
+  domainSignificanceEvidenceRefs?: string[];
   identityLedgerRefs?: string[];
   hardSeedRefs?: string[];
   packageRef?: string;
@@ -1624,6 +1626,20 @@ export type GeneratorBornDiscoveryClaimLiftProposal = {
   limitations?: string[];
   createdFromRuntimeEvidence: boolean;
   noOverclaim: boolean;
+};
+
+export type GeneratorBornDiscoveryClaimLiftSourceSignalAssessment = {
+  kind: "generator_born_discovery_claim_lift_source_signal_assessment";
+  packageRef: string | null;
+  sourceCandidateId: string | null;
+  sourceFundClass: string | null;
+  nontrivialNewInsightAcrossRealTargets: boolean;
+  domainScientificSignificance: boolean;
+  insightEvidenceRefs: string[];
+  insightEvidenceRefsResolve: boolean;
+  liftSignalBound: boolean;
+  primaryBlocker: string | null;
+  evidenceHash: string;
 };
 
 export type GeneratorBornDiscoveryClaimLiftDecision = {
@@ -1657,6 +1673,7 @@ export type GeneratorBornDiscoveryClaimLiftProposalBuildDecision = {
   candidateId: string;
   targetDiscoveryCandidateId: string | null;
   publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
+  sourceSignal: GeneratorBornDiscoveryClaimLiftSourceSignalAssessment;
   proposalReady: boolean;
   proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
   gates: FundGate[];
@@ -26811,6 +26828,15 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
             ...stringArray(proposalCandidate.mechanismPressureRefs),
             ...scaffold.mechanismPressureRefs,
           ]),
+          nontrivialInsightEvidenceRefs: uniqueStrings([
+            ...stringArray(proposalCandidate.nontrivialInsightEvidenceRefs),
+            ...stringArray(bindings?.nontrivialInsightEvidenceRefs),
+            ...stringArray(bindings?.insightEvidenceRefs),
+          ]),
+          domainSignificanceEvidenceRefs: uniqueStrings([
+            ...stringArray(proposalCandidate.domainSignificanceEvidenceRefs),
+            ...stringArray(bindings?.domainSignificanceEvidenceRefs),
+          ]),
           identityLedgerRefs: uniqueStrings([
             ...stringArray(proposalCandidate.identityLedgerRefs),
             ...scaffold.identityLedgerRefs,
@@ -26862,6 +26888,13 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
           input.root,
           proposal,
         );
+  const sourceSignal =
+    await generatorBornDiscoveryClaimLiftSourceSignalAssessment({
+      root: input.root,
+      packageRef,
+      bindings,
+      proposal,
+    });
   const gates = [
     gate(
       "package_ref_present",
@@ -26895,6 +26928,11 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       !publicCorpusNegativeHistory.blocksSeedBirth,
       "Proposal builder must not write claim-lift proposals for external anchors already downgraded, rival-explained, or marked non-discovery in the public corpus.",
     ),
+    gate(
+      "source_package_lift_signal_bound",
+      sourceSignal.liftSignalBound,
+      "Proposal builder must not write a claim-lift proposal from a package that lacks explicit nontrivial-insight and domain-significance evidence refs.",
+    ),
   ];
   const failedGates = gates
     .filter((item) => !item.passed)
@@ -26907,6 +26945,7 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       ? (proposal?.targetDiscoveryCandidateId ?? null)
       : null,
     publicCorpusNegativeHistory,
+    sourceSignal,
     proposalReady: ready,
     proposal: ready ? proposal : null,
     gates: claimDecision === null ? gates : [...gates, ...claimDecision.gates],
@@ -26918,8 +26957,85 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       ? "Proposal is evidence-backed and may be consumed by generator-claim-lift; it is not a Fund and does not notify."
       : publicCorpusNegativeHistory.blocksSeedBirth
         ? "Retire this claim-lift proposal source; the public corpus already downgraded, rival-explained, or removed discovery-score eligibility for the matching external anchor."
-        : "Bind an explicit package claimLiftProposalCandidate with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
+        : !sourceSignal.liftSignalBound
+          ? `Run a mechanism-specific lift experiment before proposal birth; current source package blocker is ${sourceSignal.primaryBlocker ?? "missing_lift_signal"}.`
+          : "Bind an explicit package claimLiftProposalCandidate with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
   });
+}
+
+async function generatorBornDiscoveryClaimLiftSourceSignalAssessment(input: {
+  root: string;
+  packageRef: string;
+  bindings: Record<string, unknown> | null;
+  proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
+}): Promise<GeneratorBornDiscoveryClaimLiftSourceSignalAssessment> {
+  const packageCandidatePath =
+    input.packageRef.length > 0 && publicSafeRef(input.packageRef)
+      ? join(input.root, input.packageRef, "FUND_CANDIDATE.json")
+      : "";
+  const payload =
+    packageCandidatePath.length > 0
+      ? await readOptionalJson<{
+          candidate?: FundCandidate;
+          fundClass?: string;
+        }>(packageCandidatePath)
+      : null;
+  const boundCandidate = isRecord(input.bindings?.fundCandidate)
+    ? (input.bindings.fundCandidate as FundCandidate)
+    : null;
+  const candidate = payload?.candidate ?? boundCandidate;
+  const insightEvidenceRefs = uniqueStrings([
+    ...(candidate?.insightEvidenceRefs ?? []),
+    ...stringArray(input.bindings?.insightEvidenceRefs),
+    ...stringArray(input.bindings?.nontrivialInsightEvidenceRefs),
+    ...stringArray(input.bindings?.domainSignificanceEvidenceRefs),
+    ...(input.proposal?.nontrivialInsightEvidenceRefs ?? []),
+    ...(input.proposal?.domainSignificanceEvidenceRefs ?? []),
+  ]).filter(publicSafeRef);
+  const insightEvidenceRefsResolve =
+    insightEvidenceRefs.length >= 2 &&
+    (await claimLiftEvidenceRefsResolvable(input.root, insightEvidenceRefs));
+  const nontrivialNewInsightAcrossRealTargets =
+    candidate?.nontrivialNewInsightAcrossRealTargets === true ||
+    optionalBoolean(input.bindings?.nontrivialNewInsightAcrossRealTargets) ===
+      true ||
+    insightEvidenceRefs.length >= 2;
+  const domainScientificSignificance =
+    candidate?.domainScientificSignificance === true ||
+    optionalBoolean(input.bindings?.domainScientificSignificance) === true ||
+    (input.proposal?.domainSignificanceEvidenceRefs ?? []).length > 0;
+  const sourceCandidateId =
+    typeof candidate?.candidateId === "string" ? candidate.candidateId : null;
+  const sourceFundClass =
+    optionalString(payload?.fundClass) ??
+    (isRecord(candidate) ? optionalString(candidate.fundClass) : null);
+  const primaryBlocker =
+    candidate === null
+      ? "missing_source_package_candidate"
+      : !nontrivialNewInsightAcrossRealTargets
+        ? "missing_nontrivial_new_insight_evidence"
+        : !domainScientificSignificance
+          ? "missing_domain_scientific_significance"
+          : !insightEvidenceRefsResolve
+            ? "unresolved_or_missing_lift_signal_refs"
+            : null;
+  const assessment = {
+    kind: "generator_born_discovery_claim_lift_source_signal_assessment" as const,
+    packageRef:
+      input.packageRef.length > 0 && publicSafeRef(input.packageRef)
+        ? input.packageRef
+        : null,
+    sourceCandidateId,
+    sourceFundClass,
+    nontrivialNewInsightAcrossRealTargets,
+    domainScientificSignificance,
+    insightEvidenceRefs,
+    insightEvidenceRefsResolve,
+    liftSignalBound: primaryBlocker === null,
+    primaryBlocker,
+    evidenceHash: "",
+  };
+  return { ...assessment, evidenceHash: hashEvidence(assessment) };
 }
 
 async function claimLiftEvidenceRefsResolvable(
@@ -27045,6 +27161,8 @@ function generatorBornClaimLiftSignalEvidenceRefs(input: {
     ...stringArray(input.bindings?.insightEvidenceRefs),
     ...stringArray(input.bindings?.nontrivialInsightEvidenceRefs),
     ...stringArray(input.bindings?.domainSignificanceEvidenceRefs),
+    ...(input.proposal.nontrivialInsightEvidenceRefs ?? []),
+    ...(input.proposal.domainSignificanceEvidenceRefs ?? []),
     ...input.proposal.externalSignificanceEvidenceRefs,
   ]).filter(publicSafeRef);
 }
@@ -28164,14 +28282,14 @@ function generatorBornDiscoveryClaimLiftProposalBuildMarkdown(
     `Proposals written: ${report.proposalsWritten}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
-    "| Candidate | Target DiscoveryCandidate | Public corpus history | Ready | Failed gates |",
-    "| --- | --- | --- | --- | --- |",
+    "| Candidate | Target DiscoveryCandidate | Public corpus history | Source lift signal | Ready | Failed gates |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${decision.publicCorpusNegativeHistory?.blocksSeedBirth ? `blocked:${decision.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : (decision.publicCorpusNegativeHistory?.matched ?? false) ? `matched:${decision.publicCorpusNegativeHistory?.resultSlug ?? "unknown"}` : "none"} | ${String(decision.proposalReady)} | ${decision.failedGates.join(", ") || "none"} |`,
+        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${decision.publicCorpusNegativeHistory?.blocksSeedBirth ? `blocked:${decision.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : (decision.publicCorpusNegativeHistory?.matched ?? false) ? `matched:${decision.publicCorpusNegativeHistory?.resultSlug ?? "unknown"}` : "none"} | ${decision.sourceSignal.liftSignalBound ? "bound" : `blocked:${decision.sourceSignal.primaryBlocker ?? "missing"}`} | ${String(decision.proposalReady)} | ${decision.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.decisions.length === 0
-      ? ["| none | none | none | false | none |"]
+      ? ["| none | none | none | none | false | none |"]
       : []),
     "",
     report.remainingBottleneck,

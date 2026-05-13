@@ -968,6 +968,94 @@ async function writePublicCorpusDowngrade(
   );
 }
 
+async function bindExplicitClaimLiftSourceSignal(root: string): Promise<void> {
+  const closure = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-fund-closure", "latest.json"),
+      "utf8",
+    ),
+  ) as {
+    claimLiftRequirements?: Array<{
+      candidateId?: string;
+      discoveryCandidateId?: string;
+      externalReviewPackagePath?: string;
+    }>;
+  };
+  for (const requirement of closure.claimLiftRequirements ?? []) {
+    const packagePath = requirement.externalReviewPackagePath;
+    if (typeof packagePath !== "string") continue;
+    const packageCandidatePath = join(root, packagePath, "FUND_CANDIDATE.json");
+    const candidatePayload = JSON.parse(
+      await readFile(packageCandidatePath, "utf8"),
+    ) as { candidate?: Record<string, unknown> };
+    const sourceCandidateId = String(
+      candidatePayload.candidate?.candidateId ??
+        requirement.discoveryCandidateId ??
+        requirement.candidateId ??
+        "claim-lift-source",
+    );
+    const insightRefs = [
+      `${daemonRoot}/runtime-evidence/${sourceCandidateId}-lift-source-signal-a.json`,
+      `${daemonRoot}/runtime-evidence/${sourceCandidateId}-lift-source-signal-b.json`,
+    ];
+    for (const ref of insightRefs) {
+      await mkdir(dirname(join(root, ref)), { recursive: true });
+      await writeFile(
+        join(root, ref),
+        JSON.stringify(
+          {
+            kind: "claim_lift_source_signal_fixture",
+            sourceCandidateId,
+            ref,
+            claim:
+              "Explicit nontrivial source signal evidence was bound before claim-lift proposal birth.",
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+    }
+    candidatePayload.candidate = {
+      ...(candidatePayload.candidate ?? {}),
+      nontrivialNewInsightAcrossRealTargets: true,
+      domainScientificSignificance: true,
+      insightEvidenceRefs: insightRefs,
+    };
+    await writeFile(
+      packageCandidatePath,
+      JSON.stringify(candidatePayload, null, 2),
+      "utf8",
+    );
+    const bindingsPath = join(
+      root,
+      packagePath,
+      "CLAIM_EVIDENCE_BINDINGS.json",
+    );
+    const bindings = JSON.parse(await readFile(bindingsPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    bindings.nontrivialNewInsightAcrossRealTargets = true;
+    bindings.domainScientificSignificance = true;
+    bindings.insightEvidenceRefs = insightRefs;
+    bindings.nontrivialInsightEvidenceRefs = insightRefs;
+    bindings.domainSignificanceEvidenceRefs = insightRefs;
+    if (
+      typeof bindings.claimLiftProposalCandidate === "object" &&
+      bindings.claimLiftProposalCandidate !== null &&
+      !Array.isArray(bindings.claimLiftProposalCandidate)
+    ) {
+      bindings.claimLiftProposalCandidate = {
+        ...bindings.claimLiftProposalCandidate,
+        nontrivialInsightEvidenceRefs: insightRefs,
+        domainSignificanceEvidenceRefs: insightRefs,
+      };
+    }
+    await writeFile(bindingsPath, JSON.stringify(bindings, null, 2), "utf8");
+  }
+}
+
 async function writePublicCorpusDiscoveryClearance(
   root: string,
   candidateId: string,
@@ -5475,6 +5563,7 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   await service.generatorPressure();
   await service.generatorInsightClosure();
   const closure = await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
 
   const build = await service.generatorClaimLiftPropose();
 
@@ -5525,6 +5614,58 @@ test("generator-born claim lift proposal builder writes only package-backed evid
     false,
   );
   assert.equal(lift.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift proposal builder blocks package-only lift proposals without source signal evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+
+  const build = await service.generatorClaimLiftPropose();
+
+  assert.equal(build.requirementsLoaded, 6);
+  assert.equal(build.proposalCandidatesEvaluated, 6);
+  assert.equal(build.proposalsReady, 0);
+  assert.equal(build.proposalsBlocked, 6);
+  assert.equal(
+    build.decisions.every(
+      (decision) =>
+        decision.proposalReady === false &&
+        decision.sourceSignal.liftSignalBound === false &&
+        decision.failedGates.includes("source_package_lift_signal_bound"),
+    ),
+    true,
+  );
+  assert.equal(
+    build.decisions.some(
+      (decision) =>
+        decision.sourceSignal.primaryBlocker ===
+        "missing_nontrivial_new_insight_evidence",
+    ),
+    true,
+  );
+  const proposalsPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_PROPOSALS.json",
+      ),
+      "utf8",
+    ),
+  ) as { proposals?: unknown[] };
+  assert.deepEqual(proposalsPayload.proposals, []);
+  assert.equal(build.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -5640,6 +5781,7 @@ test("generator-born claim lift signal pressure blocks pipeline-class packages b
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
 
@@ -5690,6 +5832,7 @@ test("generator-born claim lift signal pressure recognizes explicit discovery in
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   const lift = await service.generatorClaimLift();
   const targetId = lift.fundGateEvaluations[0]?.candidateId;
@@ -5775,6 +5918,7 @@ test("generator-born claim lift signal pressure blocks public-downgraded package
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   const lift = await service.generatorClaimLift();
   const targetId = lift.fundGateEvaluations[0]?.candidateId;
@@ -5862,6 +6006,7 @@ test("generator-born claim lift path blocks downgraded public-corpus anchors eve
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   await writePublicCorpusSummaryFixture(
@@ -5956,6 +6101,7 @@ test("generator-born claim lift signal experiment identifies bindable external-s
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6031,6 +6177,7 @@ test("generator-born claim lift rebind blocks raw source reproduction mismatch b
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6105,6 +6252,7 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6218,6 +6366,7 @@ test("generator-born claim lift rebind skips public-downgraded ready package", a
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6289,6 +6438,7 @@ test("generator-born claim lift intake consumes rebound discovery package throug
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6527,6 +6677,7 @@ test("generator-born claim lift intake blocks rebound package after public corpu
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
   const originalFetch = globalThis.fetch;
@@ -6624,6 +6775,7 @@ test("generator-born claim lift intake remains checkpointed without rebound disc
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await bindExplicitClaimLiftSourceSignal(root);
   await service.generatorClaimLiftPropose();
   await service.generatorClaimLift();
 

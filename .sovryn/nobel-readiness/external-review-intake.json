@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_external_review_intake",
-  "generatedAt": "2026-05-13T10:47:20.448Z",
+  "generatedAt": "2026-05-13T10:57:01.635Z",
   "status": "awaiting_external_review",
   "passed": true,
   "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
@@ -58,5 +58,5 @@
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
     ".sovryn/nobel-readiness/external-review-reviews"
   ],
-  "evidenceHash": "8cd2f637414ffe8cc2503c6958f92849c8e32c71c264e048aa61340076a7a266"
+  "evidenceHash": "c3e288366fe97ce16d2f3560e5a4f5c840b97dd0f89b421aeb2c44fe2ed804a6"
 }

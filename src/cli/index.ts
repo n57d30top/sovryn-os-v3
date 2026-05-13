@@ -175,7 +175,7 @@ Commands:
   sovryn nobel-readiness external-review-dispatch [--json]
   sovryn nobel-readiness public-review-url-audit --target-repo <path> [--json]
   sovryn nobel-readiness external-review-intake [--json]
-  sovryn nobel-readiness audit [--json]
+  sovryn nobel-readiness audit [--target-repo <path>] [--json]
   sovryn discover-daemon status [--json]
   sovryn discover-daemon init [--json]
   sovryn discover-daemon run --mode silent --until fund [--max-cycles N] [--json]
@@ -1723,7 +1723,9 @@ async function nobelReadinessCommand(
     case "external-review-intake":
       return service.externalReviewIntake();
     case "audit":
-      return service.audit();
+      return service.audit({
+        targetRepo: flagString(parsed.flags, "--target-repo") ?? undefined,
+      });
     default:
       throw new AppError(
         "UNKNOWN_NOBEL_READINESS_COMMAND",

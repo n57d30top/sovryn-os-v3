@@ -1129,6 +1129,45 @@ test("nobel-readiness public review URL audit blocks missing public URL index", 
   );
 });
 
+test("nobel-readiness audit consumes public review URL audit when target repo is provided", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-audit-url-pass-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-audit-url-corpus-"));
+  await writePublicReviewCorpusPackage(targetRepo, candidateId);
+
+  const audit = await new NobelReadinessService(root).audit({ targetRepo });
+
+  assert.equal(audit.passed, true);
+  assert.equal(audit.targetRepo, targetRepo);
+  assert.equal(audit.publicReviewUrlAuditStatus, "public_review_urls_ready");
+  assert.equal(audit.publicReviewUrlAuditPassed, true);
+  assert.equal(audit.publicReviewUrlCount, 13);
+  assert.equal(audit.rawPublicReviewUrlCount, 11);
+  assert.equal(
+    audit.artifactRefs.includes(
+      ".sovryn/nobel-readiness/public-review-url-audit.json",
+    ),
+    true,
+  );
+});
+
+test("nobel-readiness audit fails when target repo review URL audit is blocked", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-audit-url-block-"));
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-audit-url-block-"));
+  const resultRoot = await writePublicReviewCorpusPackage(
+    targetRepo,
+    candidateId,
+  );
+  await writeFile(join(resultRoot, "PUBLIC_REVIEW_URLS.md"), "", "utf8");
+
+  const audit = await new NobelReadinessService(root).audit({ targetRepo });
+
+  assert.equal(audit.passed, false);
+  assert.equal(audit.publicReviewUrlAuditStatus, "blocked");
+  assert.equal(audit.publicReviewUrlAuditPassed, false);
+});
+
 test("nobel-readiness external-review intake records awaiting state without claiming validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-awaiting-"));
   await writeActiveDiscoveryFundPackage(root);
@@ -1399,6 +1438,24 @@ test("nobel readiness CLI command works: public-review-url-audit", async () => {
   assert.equal(
     (response.data as Record<string, unknown>).status,
     "public_review_urls_ready",
+  );
+});
+
+test("nobel readiness CLI audit consumes --target-repo public review URL gate", async () => {
+  const root = await tempRoot();
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(join(tmpdir(), "sovryn-cli-audit-url-"));
+  await writePublicReviewCorpusPackage(targetRepo, candidateId);
+
+  const response = await executeCli(
+    ["nobel-readiness", "audit", "--target-repo", targetRepo, "--json"],
+    root,
+  );
+
+  assert.equal(response.ok, true);
+  assert.equal(
+    (response.data as Record<string, unknown>).publicReviewUrlAuditPassed,
+    true,
   );
 });
 

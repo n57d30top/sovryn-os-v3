@@ -289,6 +289,7 @@ export type NobelReadinessAudit = {
   kind: "nobel_readiness_audit";
   checkedAt: string;
   passed: boolean;
+  targetRepo: string | null;
   criteriaCount: number;
   domainCount: number;
   selectedDomainCount: number;
@@ -304,6 +305,10 @@ export type NobelReadinessAudit = {
   killWeekDowngradedCount: number;
   finalLabel: NobelReadinessLabel;
   forbiddenClaimFindings: string[];
+  publicReviewUrlAuditStatus: ExternalReviewPublicUrlAudit["status"] | null;
+  publicReviewUrlAuditPassed: boolean | null;
+  publicReviewUrlCount: number | null;
+  rawPublicReviewUrlCount: number | null;
   artifactRefs: string[];
   evidenceHash: string;
 };
@@ -2238,7 +2243,9 @@ export class NobelReadinessService {
     return new NobelReadinessPackageBuilder().build(this.root, score);
   }
 
-  async audit(): Promise<NobelReadinessAudit> {
+  async audit(
+    options: { targetRepo?: string } = {},
+  ): Promise<NobelReadinessAudit> {
     await this.status();
     await this.criteria();
     const domains = await this.domainSelect();
@@ -2259,6 +2266,9 @@ export class NobelReadinessService {
       "utf8",
     );
     const forbiddenClaimFindings = auditNobelReadinessPublicText(reportText);
+    const publicReviewUrlAudit = options.targetRepo
+      ? await this.publicReviewUrlAudit(options.targetRepo)
+      : null;
     const artifactRefs = [
       ".sovryn/nobel-readiness/status.json",
       ".sovryn/nobel-readiness/criteria.json",
@@ -2271,26 +2281,31 @@ export class NobelReadinessService {
       ".sovryn/nobel-readiness/rival-theory-review.json",
       ".sovryn/nobel-readiness/readiness-score.json",
       ".sovryn/nobel-readiness/NOBEL_READINESS_REPORT.md",
+      ...(publicReviewUrlAudit ? publicReviewUrlAudit.artifactRefs : []),
     ];
+    const basePassed =
+      domains.considered.length === 10 &&
+      domains.selected.length === 4 &&
+      search.ideas.length === 80 &&
+      search.rejected.length >= 50 &&
+      search.promoted.length <= 12 &&
+      ledger.cards.length === 24 &&
+      (executions.executedPredictionCount as number) >= 20 &&
+      holdouts.holdouts.filter((holdout) => holdout.executed).length >= 12 &&
+      holdouts.counterexamples.filter(
+        (counterexample) => counterexample.executed,
+      ).length >= 16 &&
+      (replays.replayAttemptCount as number) >= 8 &&
+      killWeek.attacks.length >= 40 &&
+      killWeek.downgradedOrRejectedCount >= 10 &&
+      forbiddenClaimFindings.length === 0;
     const audit: NobelReadinessAudit = {
       kind: "nobel_readiness_audit",
       checkedAt: nowIso(),
       passed:
-        domains.considered.length === 10 &&
-        domains.selected.length === 4 &&
-        search.ideas.length === 80 &&
-        search.rejected.length >= 50 &&
-        search.promoted.length <= 12 &&
-        ledger.cards.length === 24 &&
-        (executions.executedPredictionCount as number) >= 20 &&
-        holdouts.holdouts.filter((holdout) => holdout.executed).length >= 12 &&
-        holdouts.counterexamples.filter(
-          (counterexample) => counterexample.executed,
-        ).length >= 16 &&
-        (replays.replayAttemptCount as number) >= 8 &&
-        killWeek.attacks.length >= 40 &&
-        killWeek.downgradedOrRejectedCount >= 10 &&
-        forbiddenClaimFindings.length === 0,
+        basePassed &&
+        (publicReviewUrlAudit === null || publicReviewUrlAudit.passed),
+      targetRepo: options.targetRepo ?? null,
       criteriaCount: 12,
       domainCount: domains.considered.length,
       selectedDomainCount: domains.selected.length,
@@ -2310,6 +2325,12 @@ export class NobelReadinessService {
       killWeekDowngradedCount: killWeek.downgradedOrRejectedCount,
       finalLabel: score.label,
       forbiddenClaimFindings,
+      publicReviewUrlAuditStatus: publicReviewUrlAudit?.status ?? null,
+      publicReviewUrlAuditPassed: publicReviewUrlAudit?.passed ?? null,
+      publicReviewUrlCount: publicReviewUrlAudit?.urls.length ?? null,
+      rawPublicReviewUrlCount:
+        publicReviewUrlAudit?.urls.filter((url) => url.rawGithub).length ??
+        null,
       artifactRefs,
       evidenceHash: "",
     };

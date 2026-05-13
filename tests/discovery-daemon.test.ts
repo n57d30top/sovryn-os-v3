@@ -5038,7 +5038,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.mechanismProofPressureChecksRun >= 20, true);
   assert.equal(report.candidateLevelReplayAttempts > 0, true);
   assert.equal(report.hardSeedsBorn > 0, true);
-  assert.equal(report.insightCandidatesCreated > 0, true);
+  assert.equal(report.claimFirstBirthGateEligible, 0);
+  assert.equal(report.sourceObjectObservationsCreated, report.hardSeedsBorn);
+  assert.equal(report.claimFirstPilotsRun, 10);
+  assert.equal(report.claimFirstExactClaimsProduced, 10);
+  assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
   assert.equal(report.reviewPackagesBuilt, 0);
@@ -5066,6 +5070,14 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "BASELINE_DIRECTIONALITY_AUDIT.md",
     "MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md",
     "HARD_SEED_BIRTH_DECISIONS.md",
+    "SOURCE_OBJECT_INSIGHT_STATE_AUDIT.md",
+    "SOURCE_OBJECT_INSIGHT_STATE_AUDIT.json",
+    "CLAIM_FIRST_BIRTH_GATE_RULES.md",
+    "CLAIM_FIRST_BIRTH_GATE.json",
+    "SOURCE_OBJECT_RECLASSIFICATION.md",
+    "SOURCE_OBJECT_RECLASSIFICATION.json",
+    "CLAIM_FIRST_PILOT_RESULTS.md",
+    "CLAIM_FIRST_PILOT_RESULTS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -5119,15 +5131,70 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     }>;
   };
   assert.equal(closure.candidatesTested, report.insightCandidatesCreated);
-  assert.equal(closure.testsRun >= report.insightCandidatesCreated * 7, true);
+  assert.equal(closure.testsRun, 0);
   assert.equal(closure.discoveryCandidatesCreated, 0);
   assert.equal(closure.fundCandidateDraftsCreated, 0);
+  const claimFirstGate = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CLAIM_FIRST_BIRTH_GATE.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    hardSeedsEvaluated: number;
+    eligibleForInsightBirth: number;
+    sourceObjectObservationsCreated: number;
+    decisions: Array<{
+      eligibleForInsightBirth: boolean;
+      blockers: string[];
+    }>;
+  };
+  assert.equal(claimFirstGate.hardSeedsEvaluated, report.hardSeedsBorn);
+  assert.equal(claimFirstGate.eligibleForInsightBirth, 0);
   assert.equal(
-    closure.promotionDecisions.some(
+    claimFirstGate.sourceObjectObservationsCreated,
+    report.hardSeedsBorn,
+  );
+  assert.equal(
+    claimFirstGate.decisions.every(
       (decision) =>
-        decision.requiredNextTestsPassed &&
-        decision.decision === "claim_lift_required" &&
-        decision.failedGates.includes("stable_discovery_claim_lift"),
+        !decision.eligibleForInsightBirth &&
+        decision.blockers.includes("missing_exact_bounded_claim") &&
+        decision.blockers.includes("semantic_scope_expansion_required"),
+    ),
+    true,
+  );
+  const pilot = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CLAIM_FIRST_PILOT_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    pilotsRun: number;
+    exactClaimsFrozen: number;
+    concreteSourceObjects: number;
+    insightCandidatesBorn: number;
+    results: Array<{
+      concreteSourceObject: boolean;
+      insightCandidateBorn: boolean;
+    }>;
+  };
+  assert.equal(pilot.pilotsRun, 10);
+  assert.equal(pilot.exactClaimsFrozen, 10);
+  assert.equal(pilot.concreteSourceObjects, 10);
+  assert.equal(pilot.insightCandidatesBorn, 0);
+  assert.equal(
+    pilot.results.every(
+      (result) => result.concreteSourceObject && !result.insightCandidateBorn,
     ),
     true,
   );

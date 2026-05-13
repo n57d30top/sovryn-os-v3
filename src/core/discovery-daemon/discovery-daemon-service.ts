@@ -1589,6 +1589,115 @@ export type SourceObjectClaimLiftGauntletReport = {
   evidenceHash: string;
 };
 
+export type SourceObjectInsightStateAuditItem = {
+  kind: "source_object_insight_state_audit_item";
+  candidateId: string;
+  sourceObjectRef: string | null;
+  checkpointOrSource: string | null;
+  concreteSourceObjectStatus:
+    | "public_concrete_object"
+    | "deterministic_generator_spec"
+    | "placeholder_or_manifest_only";
+  shouldRemainActive: boolean;
+  archiveRecommendation:
+    | "archive_non_liftable_observation"
+    | "keep_as_source_object_observation"
+    | "eligible_for_claim_first_retest";
+  reason: string;
+  evidenceHash: string;
+};
+
+export type SourceObjectInsightStateAuditReport = {
+  kind: "source_object_insight_state_audit";
+  previousInsightCandidatesFound: number;
+  checkpointUsed: string | null;
+  whyCurrentCandidatesExist: string;
+  items: SourceObjectInsightStateAuditItem[];
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimFirstBirthGateDecision = {
+  kind: "source_object_claim_first_birth_gate_decision";
+  seedId: string;
+  candidateId: string;
+  sourceObjectRef: string | null;
+  eligibleForInsightBirth: boolean;
+  status:
+    | "eligible_for_claim_first_insight_birth"
+    | "blocked_to_source_object_observation";
+  blockers: string[];
+  exactClaim: string | null;
+  observationRef: string;
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimFirstBirthGateReport = {
+  kind: "source_object_claim_first_birth_gate";
+  hardSeedsEvaluated: number;
+  eligibleForInsightBirth: number;
+  sourceObjectObservationsCreated: number;
+  decisions: SourceObjectClaimFirstBirthGateDecision[];
+  evidenceHash: string;
+};
+
+export type SourceObjectReclassificationDecision = {
+  kind: "source_object_reclassification_decision";
+  candidateId: string;
+  decision:
+    | "archive_non_liftable_observation"
+    | "keep_as_source_object_observation"
+    | "eligible_for_claim_first_retest";
+  reason: string;
+  evidenceHash: string;
+};
+
+export type SourceObjectReclassificationReport = {
+  kind: "source_object_reclassification";
+  candidatesReviewed: number;
+  archivedNonLiftable: number;
+  keptAsObservation: number;
+  eligibleForClaimFirstRetest: number;
+  decisions: SourceObjectReclassificationDecision[];
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimFirstPilotResult = {
+  kind: "source_object_claim_first_pilot_result";
+  objectId: string;
+  sourceObjectRef: string;
+  concreteSourceObject: boolean;
+  exactClaimBeforeExecution: string;
+  candidateMechanismPrediction: string;
+  rivalMechanismPrediction: string;
+  boundedCheck: string;
+  baselineCheck: string;
+  counterexampleCheck: string;
+  replayCheck: string;
+  replayStatus: IndependentSourceReplayStatus;
+  measuredOutcome: number;
+  residualMagnitude: number;
+  baselineDominated: boolean;
+  rivalWeakened: boolean;
+  counterexampleCollapsed: boolean;
+  insightCandidateBorn: false;
+  deathCause:
+    | SourceObjectReplayResult["primaryDeathCause"]
+    | "claim_first_gate_blocked";
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimFirstPilotReport = {
+  kind: "source_object_claim_first_pilot";
+  pilotsRun: number;
+  exactClaimsFrozen: number;
+  concreteSourceObjects: number;
+  insightCandidatesBorn: 0;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  results: SourceObjectClaimFirstPilotResult[];
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -1609,6 +1718,10 @@ export type SourceObjectDiscoveryEngineReport = {
   hardSeedBirthAttempts: number;
   hardSeedsBorn: number;
   insightCandidatesCreated: number;
+  claimFirstBirthGateEligible?: number;
+  sourceObjectObservationsCreated?: number;
+  claimFirstPilotsRun?: number;
+  claimFirstExactClaimsProduced?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -13389,6 +13502,14 @@ export class SourceObjectFirstDiscoveryEngine {
   async run(): Promise<SourceObjectDiscoveryEngineReport> {
     await mkdir(this.engineRoot(), { recursive: true });
     const checkpointUsed = await this.checkpointUsed();
+    const previousClaimLiftGauntlet =
+      await readOptionalJson<SourceObjectClaimLiftGauntletReport>(
+        join(this.engineRoot(), "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json"),
+      );
+    const stateAudit = sourceObjectInsightStateAudit(
+      previousClaimLiftGauntlet,
+      checkpointUsed,
+    );
     const harvest = new ExternalSourceObjectHarvester().harvest();
     const acceptedObjects = harvest.objects;
     const prioritizer = await SourceObjectSignalPrioritizer.fromEngineRoot(
@@ -13420,10 +13541,27 @@ export class SourceObjectFirstDiscoveryEngine {
     const hardSeeds = decisions
       .map((decision) => decision.hardSeed)
       .filter((seed): seed is HardSeed => seed !== null);
-    const insightClosure =
-      await this.closeHardSeedsIntoInsightCandidates(hardSeeds);
+    const claimFirstBirthGate = sourceObjectClaimFirstBirthGate(hardSeeds);
+    const claimFirstEligibleSeedIds = new Set(
+      claimFirstBirthGate.decisions
+        .filter((decision) => decision.eligibleForInsightBirth)
+        .map((decision) => decision.seedId),
+    );
+    const insightBirthEligibleHardSeeds = hardSeeds.filter((seed) =>
+      claimFirstEligibleSeedIds.has(seed.seedId),
+    );
+    const reclassification = sourceObjectReclassification(stateAudit);
+    const claimFirstPilot = sourceObjectClaimFirstPilotReport(
+      new IndependentSourceReplayRunner(),
+    );
+    const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
+      insightBirthEligibleHardSeeds,
+    );
     const requiredNextTestClosure =
-      await this.closeSourceObjectRequiredNextTests(insightClosure, hardSeeds);
+      await this.closeSourceObjectRequiredNextTests(
+        insightClosure,
+        insightBirthEligibleHardSeeds,
+      );
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
     const claimLiftGauntlet = await this.runSourceObjectClaimLiftGauntlet({
       insightClosure,
@@ -13470,6 +13608,11 @@ export class SourceObjectFirstDiscoveryEngine {
       hardSeedBirthAttempts: decisions.length,
       hardSeedsBorn: hardSeeds.length,
       insightCandidatesCreated: insightClosure.insightCandidatesCreated,
+      claimFirstBirthGateEligible: claimFirstBirthGate.eligibleForInsightBirth,
+      sourceObjectObservationsCreated:
+        claimFirstBirthGate.sourceObjectObservationsCreated,
+      claimFirstPilotsRun: claimFirstPilot.pilotsRun,
+      claimFirstExactClaimsProduced: claimFirstPilot.exactClaimsFrozen,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -13490,6 +13633,7 @@ export class SourceObjectFirstDiscoveryEngine {
       remainingBottleneck: sourceObjectRemainingBottleneck(
         hardSeeds.length,
         insightClosure.insightCandidatesCreated,
+        claimFirstBirthGate,
         requiredNextTestClosure,
         claimLiftGauntlet,
         deathCauseDistribution,
@@ -13502,6 +13646,10 @@ export class SourceObjectFirstDiscoveryEngine {
       replayResults,
       decisions,
       hardSeeds,
+      stateAudit,
+      claimFirstBirthGate,
+      reclassification,
+      claimFirstPilot,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -13554,6 +13702,10 @@ export class SourceObjectFirstDiscoveryEngine {
           this.engineRoot(),
           "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json",
         ),
+      );
+    const claimFirstBirthGate =
+      await readOptionalJson<SourceObjectClaimFirstBirthGateReport>(
+        join(this.engineRoot(), "CLAIM_FIRST_BIRTH_GATE.json"),
       );
     const claimLiftGauntlet =
       await readOptionalJson<SourceObjectClaimLiftGauntletReport>(
@@ -13624,8 +13776,26 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       gate(
         "born_hard_seeds_enter_insight_closure",
-        latest.hardSeedsBorn === 0 || latest.insightCandidatesCreated > 0,
-        "Born source-object HardSeeds must enter InsightCandidate closure instead of remaining inert HardSeed artifacts.",
+        latest.hardSeedsBorn === 0 ||
+          latest.insightCandidatesCreated > 0 ||
+          (claimFirstBirthGate !== null &&
+            claimFirstBirthGate.hardSeedsEvaluated === latest.hardSeedsBorn &&
+            claimFirstBirthGate.sourceObjectObservationsCreated +
+              claimFirstBirthGate.eligibleForInsightBirth ===
+              latest.hardSeedsBorn),
+        "Born source-object HardSeeds must enter InsightCandidate closure or be held as claim-first SourceObjectObservations instead of remaining inert HardSeed artifacts.",
+      ),
+      gate(
+        "claim_first_birth_gate_enforced",
+        latest.hardSeedsBorn === 0 ||
+          (claimFirstBirthGate !== null &&
+            claimFirstBirthGate.hardSeedsEvaluated === latest.hardSeedsBorn &&
+            claimFirstBirthGate.eligibleForInsightBirth ===
+              latest.insightCandidatesCreated &&
+            claimFirstBirthGate.sourceObjectObservationsCreated +
+              claimFirstBirthGate.eligibleForInsightBirth ===
+              latest.hardSeedsBorn),
+        "Source-object InsightCandidates must be born only after exact claim-first source-object gate approval; otherwise they remain observations.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -14100,6 +14270,10 @@ export class SourceObjectFirstDiscoveryEngine {
     replayResults: SourceObjectReplayResult[];
     decisions: SourceObjectHardSeedDecision[];
     hardSeeds: HardSeed[];
+    stateAudit: SourceObjectInsightStateAuditReport;
+    claimFirstBirthGate: SourceObjectClaimFirstBirthGateReport;
+    reclassification: SourceObjectReclassificationReport;
+    claimFirstPilot: SourceObjectClaimFirstPilotReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -14191,6 +14365,38 @@ export class SourceObjectFirstDiscoveryEngine {
     await writeText(
       join(root, "HARD_SEED_BIRTH_DECISIONS.md"),
       sourceObjectHardSeedDecisionMarkdown(input.decisions),
+    );
+    await writeJson(
+      join(root, "SOURCE_OBJECT_INSIGHT_STATE_AUDIT.json"),
+      input.stateAudit,
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_INSIGHT_STATE_AUDIT.md"),
+      sourceObjectInsightStateAuditMarkdown(input.stateAudit),
+    );
+    await writeJson(
+      join(root, "CLAIM_FIRST_BIRTH_GATE.json"),
+      input.claimFirstBirthGate,
+    );
+    await writeText(
+      join(root, "CLAIM_FIRST_BIRTH_GATE_RULES.md"),
+      sourceObjectClaimFirstBirthGateRulesMarkdown(input.claimFirstBirthGate),
+    );
+    await writeJson(
+      join(root, "SOURCE_OBJECT_RECLASSIFICATION.json"),
+      input.reclassification,
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_RECLASSIFICATION.md"),
+      sourceObjectReclassificationMarkdown(input.reclassification),
+    );
+    await writeJson(
+      join(root, "CLAIM_FIRST_PILOT_RESULTS.json"),
+      input.claimFirstPilot,
+    );
+    await writeText(
+      join(root, "CLAIM_FIRST_PILOT_RESULTS.md"),
+      sourceObjectClaimFirstPilotResultsMarkdown(input.claimFirstPilot),
     );
     await writeJson(
       join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.json"),
@@ -14304,6 +14510,11 @@ export class SourceObjectFirstDiscoveryEngine {
       independentSourceReplaysRun: input.report.independentSourceReplaysRun,
       hardSeedsBorn: input.report.hardSeedsBorn,
       insightCandidatesCreated: input.report.insightCandidatesCreated,
+      claimFirstBirthGateEligible:
+        input.report.claimFirstBirthGateEligible ?? 0,
+      sourceObjectObservationsCreated:
+        input.report.sourceObjectObservationsCreated ?? 0,
+      claimFirstPilotsRun: input.report.claimFirstPilotsRun ?? 0,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -14385,6 +14596,87 @@ function sourceObjectCandidates(): ExternalSourceObject[] {
       sourceObjectCandidate(wave, index + 1),
     ),
   );
+}
+
+function sourceObjectClaimFirstPilotObjects(): ExternalSourceObject[] {
+  return Array.from({ length: 10 }, (_, index) => {
+    const ordinal = index + 1;
+    const objectId = `CLAIM-FIRST-PILOT-FORMAL-BOUNDARY-${String(ordinal).padStart(3, "0")}`;
+    const sourceObjectRef =
+      ordinal % 2 === 0
+        ? `formal-generator://claim-first/bounded-graph-family/v1?family=cycle_chord_boundary&n=${8 + ordinal}&seed=deterministic-${ordinal}`
+        : `edge-list:[(${ordinal},${ordinal + 1}),(${ordinal + 1},${ordinal + 2}),(${ordinal + 2},${ordinal + 3})]`;
+    const sourcePayload = {
+      ordinal,
+      waveId: "formal_bounded_graph_property",
+      sourceObjectRef,
+      deterministic: true,
+      sourceFamilyOnly: false,
+      featureCount: 4,
+      objectSize: 8 + ordinal,
+      externalAnchorStrength: "strong",
+      sourceFamilyDocumentedOutcome: ordinal === 9,
+      metadataOrMaturityDominatedRisk: false,
+      independentReplayObject: true,
+      crossSourceRecurrencePotential: ordinal !== 5,
+      mechanismRivalSeparation: ordinal === 3 ? "weak" : "strong",
+      counterexampleSearchFeasible: ordinal !== 4,
+      mechanismProofPressureFeasible: ordinal !== 8,
+      trivialNullBaselineRisk: ordinal === 1 || ordinal === 2,
+      counterexampleResistanceDesign: ordinal === 4 ? "weak" : "strong",
+      residualPlausibility: ordinal === 6 ? "weak" : "strong",
+      holdoutSupportDesign: ordinal === 7 ? "weak" : "independent",
+      mechanismProofFeasibility: ordinal === 8 ? "weak" : "strong",
+      targetedMechanismFirstDesign: false,
+      claimFirstContract: {
+        exactBoundedClaim: `For the concrete bounded source object ${sourceObjectRef}, the chord-boundary obstruction score is predicted to exceed its size-density null by at least 0.08 under the cycle-chord mechanism and not under the degree-sequence rival.`,
+        formalDefinitions:
+          "Object is a finite simple graph encoded by the public edge list or deterministic generator spec; obstruction score is bounded to the replayed source object only.",
+        measuredProperty:
+          "bounded chord-boundary obstruction residual against size-density and degree-sequence controls",
+        candidateMechanism:
+          "cycle-chord boundary mechanism predicts residual structure after size-density control",
+        rivalMechanism:
+          "degree-sequence and size-density null mechanisms explain the same score without a distinct boundary",
+        frozenFalsifiablePrediction:
+          "Measured obstruction score must exceed all comparable baselines and counterexample controls by at least 0.08 before InsightCandidate birth.",
+        expectedBaseline:
+          "simple_size_density_or_metadata_baseline and strongest_rival_mechanism_baseline",
+        falsifier:
+          "Any comparable baseline or counterexample control matching or exceeding measured outcome kills the pilot.",
+        replayPath:
+          "rerun deterministic source-object replay from the edge list or formal-generator spec",
+        knownTrivialityCheckPath:
+          "check source-family documentation, null baseline directionality, and generated counterexample controls before candidate birth",
+      },
+    };
+    const sourceObjectKind: SourceObjectKind = sourceObjectRef.startsWith(
+      "formal-generator://",
+    )
+      ? "deterministic_formal_generator_spec"
+      : "public_edge_list";
+    return {
+      kind: "external_source_object",
+      objectId,
+      waveId: "formal_bounded_graph_property",
+      domain: "formal_mathematics_conjecture_refutation",
+      sourceObjectKind,
+      sourceObjectRef,
+      sourceRef: "https://hog.grinvin.org/",
+      inspectabilityRef: "https://www.graphclasses.org/",
+      sourceReceipt: `https://hog.grinvin.org/#${normalizeCandidateIdPart(sourceObjectRef).toLowerCase()}`,
+      sourceHash: hashEvidence(sourcePayload),
+      sourcePayload,
+      measuredVariable:
+        "claim-first bounded graph obstruction residual against null controls",
+      targetOutcome: "claim-first bounded formal graph property outcome",
+      safetyScope:
+        "safe public formal object; no private, medical, wet-lab, or offensive use",
+      loaderCheckCommand: `sovryn discover-daemon source-object-engine --json # claim-first pilot ${objectId}`,
+      accepted: true,
+      rejectionReason: null,
+    };
+  });
 }
 
 function sourceObjectWaveSpecs(): Array<{
@@ -14704,6 +14996,9 @@ function sourceObjectHardSeed(input: {
   externalProblemAnchor: ExternalProblemAnchor;
   domainSignificanceHypothesis: DomainSignificanceHypothesis;
 }): HardSeed {
+  const claimFirstContract = sourceObjectClaimFirstContractFromObject(
+    input.object,
+  );
   return baseHardSeed({
     seedId: `HARD-SOURCE-OBJECT-${normalizeCandidateIdPart(input.object.objectId)}`,
     candidateId: `SOURCE-OBJECT-CAND-${normalizeCandidateIdPart(input.object.objectId)}`,
@@ -14712,13 +15007,15 @@ function sourceObjectHardSeed(input: {
         ? "checked_refutation_or_formal_boundary"
         : "baseline_resistant_pattern",
     domain: input.object.domain,
-    claim: normalizeWhitespace(
-      [
-        `Source-object-first hard seed for ${input.object.targetOutcome}.`,
-        `The narrow claim is only that ${input.object.sourceObjectRef} deserves downstream InsightCandidate pressure after independent source replay.`,
-        `It is not a discovery candidate, Fund, or external validation.`,
-      ].join(" "),
-    ),
+    claim: claimFirstContract
+      ? claimFirstContract.exactBoundedClaim
+      : normalizeWhitespace(
+          [
+            `Source-object-first hard seed for ${input.object.targetOutcome}.`,
+            `The narrow claim is only that ${input.object.sourceObjectRef} deserves downstream InsightCandidate pressure after independent source replay.`,
+            `It is not a discovery candidate, Fund, or external validation.`,
+          ].join(" "),
+        ),
     observation: `Independent replay measured outcome ${input.replay.measuredOutcome}, residual ${input.replay.residualMagnitude}, and source replay status ${input.replay.replayStatus}.`,
     publicArtifactRef: input.object.sourceRef,
     secondaryRef: input.object.inspectabilityRef,
@@ -14728,6 +15025,7 @@ function sourceObjectHardSeed(input: {
       replay: input.replay,
       externalProblemAnchor: input.externalProblemAnchor,
       domainSignificanceHypothesis: input.domainSignificanceHypothesis,
+      claimFirstContract,
       noFundClaim: true,
     },
     score: 74,
@@ -14773,6 +15071,17 @@ function sourceObjectInsightClaim(
   seed: HardSeed,
   replay: SourceObjectReplayResult | null,
 ): string {
+  const claimFirstContract = sourceObjectClaimFirstContractFromSeed(seed);
+  if (claimFirstContract) {
+    return normalizeWhitespace(
+      [
+        claimFirstContract.exactBoundedClaim,
+        replay
+          ? `Measured outcome ${replay.measuredOutcome}, residual ${replay.residualMagnitude}, expected baseline ${replay.simpleBaseline}, rival baseline ${replay.rivalBaseline}, and counterexample/control ${replay.counterexampleControl} are bound to the frozen claim.`
+          : "Replay evidence must remain bound to the frozen claim.",
+      ].join(" "),
+    );
+  }
   const sourceObjectRef = stringOrNull(
     isRecord(seed.sourceSeed.object)
       ? seed.sourceSeed.object.sourceObjectRef
@@ -15288,6 +15597,294 @@ function sourceObjectClaimLiftRequired(candidate: InsightCandidate): boolean {
   );
 }
 
+function sourceObjectInsightStateAudit(
+  previous: SourceObjectClaimLiftGauntletReport | null,
+  checkpointUsed: string | null,
+): SourceObjectInsightStateAuditReport {
+  const items = (previous?.inventory ?? []).map((item) => {
+    const nonLiftable =
+      item.concreteSourceObjectStatus === "placeholder_or_manifest_only" ||
+      item.exactCurrentInsightStatement
+        .toLowerCase()
+        .includes("only an insightcandidate") ||
+      item.currentBlocker.includes("stable_discovery_claim_lift");
+    const decision: SourceObjectInsightStateAuditItem["archiveRecommendation"] =
+      nonLiftable
+        ? "archive_non_liftable_observation"
+        : item.concreteSourceObjectStatus === "public_concrete_object" ||
+            item.concreteSourceObjectStatus === "deterministic_generator_spec"
+          ? "eligible_for_claim_first_retest"
+          : "keep_as_source_object_observation";
+    return withEvidenceHash({
+      kind: "source_object_insight_state_audit_item" as const,
+      candidateId: item.candidateId,
+      sourceObjectRef: item.sourceObjectRefs[0] ?? null,
+      checkpointOrSource: checkpointUsed,
+      concreteSourceObjectStatus: item.concreteSourceObjectStatus,
+      shouldRemainActive: decision === "eligible_for_claim_first_retest",
+      archiveRecommendation: decision,
+      reason:
+        decision === "archive_non_liftable_observation"
+          ? "The previous InsightCandidate was born before claim-first enforcement and cannot be lifted without semantic expansion or concrete source-object repair."
+          : decision === "eligible_for_claim_first_retest"
+            ? "The candidate has a concrete or deterministic source object but must be retested with the exact claim frozen before birth."
+            : "The candidate remains useful as observation evidence but is not active for discovery promotion.",
+    });
+  });
+  return withEvidenceHash({
+    kind: "source_object_insight_state_audit" as const,
+    previousInsightCandidatesFound: items.length,
+    checkpointUsed,
+    whyCurrentCandidatesExist:
+      items.length > 0
+        ? "They were created by the prior source-object engine before claim-first birth gating; they passed evidence pressure but still carried non-discovery InsightCandidate wording and incomplete external-review package bindings."
+        : "No prior source-object InsightCandidates were found in the current engine root.",
+    items,
+  });
+}
+
+function sourceObjectClaimFirstBirthGate(
+  hardSeeds: HardSeed[],
+): SourceObjectClaimFirstBirthGateReport {
+  const decisions = hardSeeds.map(sourceObjectClaimFirstBirthGateDecision);
+  return withEvidenceHash({
+    kind: "source_object_claim_first_birth_gate" as const,
+    hardSeedsEvaluated: hardSeeds.length,
+    eligibleForInsightBirth: decisions.filter(
+      (decision) => decision.eligibleForInsightBirth,
+    ).length,
+    sourceObjectObservationsCreated: decisions.filter(
+      (decision) => !decision.eligibleForInsightBirth,
+    ).length,
+    decisions,
+  });
+}
+
+function sourceObjectClaimFirstBirthGateDecision(
+  seed: HardSeed,
+): SourceObjectClaimFirstBirthGateDecision {
+  const object = isRecord(seed.sourceSeed.object) ? seed.sourceSeed.object : {};
+  const replay = sourceObjectReplayFromHardSeed(seed);
+  const claimFirstContract = sourceObjectClaimFirstContractFromSeed(seed);
+  const sourceObjectStatus = sourceObjectConcreteSourceStatus(object);
+  const exactClaim = claimFirstContract?.exactBoundedClaim ?? null;
+  const blockers = uniqueStrings([
+    sourceObjectStatus === "placeholder_or_manifest_only"
+      ? "missing_concrete_public_source_object"
+      : "",
+    exactClaim ? "" : "missing_exact_bounded_claim",
+    claimFirstContract?.formalDefinitions ? "" : "missing_formal_definitions",
+    claimFirstContract?.measuredProperty || seed.observation
+      ? ""
+      : "missing_measured_property",
+    claimFirstContract?.candidateMechanism ? "" : "missing_candidate_mechanism",
+    claimFirstContract?.rivalMechanism ? "" : "missing_rival_mechanism",
+    claimFirstContract?.frozenFalsifiablePrediction
+      ? ""
+      : "missing_frozen_falsifiable_prediction",
+    claimFirstContract?.expectedBaseline ? "" : "missing_expected_baseline",
+    claimFirstContract?.falsifier ? "" : "missing_falsifier",
+    replay?.replayStatus === "independent_source_replay_succeeded"
+      ? ""
+      : "missing_replay_path",
+    claimFirstContract?.knownTrivialityCheckPath
+      ? ""
+      : "missing_known_triviality_check_path",
+    sourceObjectSeedRequiresSemanticExpansion(seed)
+      ? "semantic_scope_expansion_required"
+      : "",
+  ]).filter(Boolean);
+  const eligibleForInsightBirth = blockers.length === 0;
+  return withEvidenceHash({
+    kind: "source_object_claim_first_birth_gate_decision" as const,
+    seedId: seed.seedId,
+    candidateId: seed.candidateId,
+    sourceObjectRef: stringOrNull(object.sourceObjectRef),
+    eligibleForInsightBirth,
+    status: eligibleForInsightBirth
+      ? "eligible_for_claim_first_insight_birth"
+      : "blocked_to_source_object_observation",
+    blockers,
+    exactClaim,
+    observationRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_OBSERVATIONS.json#${seed.seedId}`,
+  });
+}
+
+function sourceObjectSeedRequiresSemanticExpansion(seed: HardSeed): boolean {
+  const text = normalizeWhitespace(
+    [
+      seed.claim,
+      seed.observation,
+      sourceObjectInsightMechanism(seed),
+      sourceObjectInsightEvidenceScope(seed),
+    ].join(" "),
+  ).toLowerCase();
+  return (
+    text.includes("deserves downstream") ||
+    text.includes("not a discovery candidate") ||
+    text.includes("not a fund") ||
+    text.includes("not external validation") ||
+    text.includes("insightcandidate pressure")
+  );
+}
+
+function sourceObjectReclassification(
+  audit: SourceObjectInsightStateAuditReport,
+): SourceObjectReclassificationReport {
+  const decisions = audit.items.map((item) =>
+    withEvidenceHash({
+      kind: "source_object_reclassification_decision" as const,
+      candidateId: item.candidateId,
+      decision: item.archiveRecommendation,
+      reason: item.reason,
+    }),
+  );
+  return withEvidenceHash({
+    kind: "source_object_reclassification" as const,
+    candidatesReviewed: decisions.length,
+    archivedNonLiftable: decisions.filter(
+      (decision) => decision.decision === "archive_non_liftable_observation",
+    ).length,
+    keptAsObservation: decisions.filter(
+      (decision) => decision.decision === "keep_as_source_object_observation",
+    ).length,
+    eligibleForClaimFirstRetest: decisions.filter(
+      (decision) => decision.decision === "eligible_for_claim_first_retest",
+    ).length,
+    decisions,
+  });
+}
+
+function sourceObjectClaimFirstPilotReport(
+  replayRunner: IndependentSourceReplayRunner,
+): SourceObjectClaimFirstPilotReport {
+  const results = sourceObjectClaimFirstPilotObjects().map((object) => {
+    const replay = replayRunner.run(object, sourceObjectOrdinal(object));
+    const contract = sourceObjectClaimFirstContractFromObject(object)!;
+    const baselineDominated = sourceObjectBaselineDominates(replay);
+    const survived =
+      replay.primaryDeathCause === "survived_initial_pressure" &&
+      !baselineDominated &&
+      replay.rivalWeakened &&
+      !replay.counterexampleCollapsed &&
+      replay.holdoutReplayAvailable &&
+      replay.mechanismProofPressurePassed;
+    return withEvidenceHash({
+      kind: "source_object_claim_first_pilot_result" as const,
+      objectId: object.objectId,
+      sourceObjectRef: object.sourceObjectRef,
+      concreteSourceObject:
+        sourceObjectConcreteSourceStatus(object) !==
+        "placeholder_or_manifest_only",
+      exactClaimBeforeExecution: contract.exactBoundedClaim,
+      candidateMechanismPrediction: contract.frozenFalsifiablePrediction,
+      rivalMechanismPrediction: contract.rivalMechanism,
+      boundedCheck: contract.formalDefinitions,
+      baselineCheck: contract.expectedBaseline,
+      counterexampleCheck: contract.falsifier,
+      replayCheck: contract.replayPath,
+      replayStatus: replay.replayStatus,
+      measuredOutcome: replay.measuredOutcome,
+      residualMagnitude: replay.residualMagnitude,
+      baselineDominated,
+      rivalWeakened: replay.rivalWeakened,
+      counterexampleCollapsed: replay.counterexampleCollapsed,
+      insightCandidateBorn: false as const,
+      deathCause: survived
+        ? ("claim_first_gate_blocked" as const)
+        : replay.primaryDeathCause,
+    });
+  });
+  return withEvidenceHash({
+    kind: "source_object_claim_first_pilot" as const,
+    pilotsRun: results.length,
+    exactClaimsFrozen: results.length,
+    concreteSourceObjects: results.filter(
+      (result) => result.concreteSourceObject,
+    ).length,
+    insightCandidatesBorn: 0 as const,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    results,
+  });
+}
+
+function sourceObjectClaimFirstContractFromSeed(seed: HardSeed): {
+  exactBoundedClaim: string;
+  formalDefinitions: string;
+  measuredProperty: string;
+  candidateMechanism: string;
+  rivalMechanism: string;
+  frozenFalsifiablePrediction: string;
+  expectedBaseline: string;
+  falsifier: string;
+  replayPath: string;
+  knownTrivialityCheckPath: string;
+} | null {
+  const object = isRecord(seed.sourceSeed.object) ? seed.sourceSeed.object : {};
+  return sourceObjectClaimFirstContractFromObject(object);
+}
+
+function sourceObjectClaimFirstContractFromObject(value: unknown): {
+  exactBoundedClaim: string;
+  formalDefinitions: string;
+  measuredProperty: string;
+  candidateMechanism: string;
+  rivalMechanism: string;
+  frozenFalsifiablePrediction: string;
+  expectedBaseline: string;
+  falsifier: string;
+  replayPath: string;
+  knownTrivialityCheckPath: string;
+} | null {
+  const object = isRecord(value) ? value : {};
+  const payload = isRecord(object.sourcePayload) ? object.sourcePayload : {};
+  const contract = isRecord(payload.claimFirstContract)
+    ? payload.claimFirstContract
+    : null;
+  if (!contract) return null;
+  const exactBoundedClaim = stringOrNull(contract.exactBoundedClaim);
+  const formalDefinitions = stringOrNull(contract.formalDefinitions);
+  const measuredProperty = stringOrNull(contract.measuredProperty);
+  const candidateMechanism = stringOrNull(contract.candidateMechanism);
+  const rivalMechanism = stringOrNull(contract.rivalMechanism);
+  const frozenFalsifiablePrediction = stringOrNull(
+    contract.frozenFalsifiablePrediction,
+  );
+  const expectedBaseline = stringOrNull(contract.expectedBaseline);
+  const falsifier = stringOrNull(contract.falsifier);
+  const replayPath = stringOrNull(contract.replayPath);
+  const knownTrivialityCheckPath = stringOrNull(
+    contract.knownTrivialityCheckPath,
+  );
+  if (
+    !exactBoundedClaim ||
+    !formalDefinitions ||
+    !measuredProperty ||
+    !candidateMechanism ||
+    !rivalMechanism ||
+    !frozenFalsifiablePrediction ||
+    !expectedBaseline ||
+    !falsifier ||
+    !replayPath ||
+    !knownTrivialityCheckPath
+  ) {
+    return null;
+  }
+  return {
+    exactBoundedClaim,
+    formalDefinitions,
+    measuredProperty,
+    candidateMechanism,
+    rivalMechanism,
+    frozenFalsifiablePrediction,
+    expectedBaseline,
+    falsifier,
+    replayPath,
+    knownTrivialityCheckPath,
+  };
+}
+
 function sourceObjectInsightInventoryItem(input: {
   seed: HardSeed;
   candidate: InsightCandidate;
@@ -15640,10 +16237,18 @@ function mergeCountRecords(
 function sourceObjectRemainingBottleneck(
   hardSeedsBorn: number,
   insightCandidatesCreated: number,
+  claimFirstBirthGate: SourceObjectClaimFirstBirthGateReport | null,
   requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport,
   claimLiftGauntlet: SourceObjectClaimLiftGauntletReport | null,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    claimFirstBirthGate &&
+    claimFirstBirthGate.hardSeedsEvaluated > 0 &&
+    claimFirstBirthGate.eligibleForInsightBirth === 0
+  ) {
+    return `${claimFirstBirthGate.hardSeedsEvaluated} source-object HardSeed(s) were rechecked under claim-first birth rules and ${claimFirstBirthGate.sourceObjectObservationsCreated} were kept as SourceObjectObservations. Current blocker is forming precise, bounded claims over concrete reviewer-replayable source objects before InsightCandidate birth.`;
+  }
   if (claimLiftGauntlet && claimLiftGauntlet.candidatesLoaded > 0) {
     if (claimLiftGauntlet.claimLiftEligibleCount > 0) {
       return `${claimLiftGauntlet.claimLiftEligibleCount} source-object InsightCandidate(s) are claim-lift eligible, but ${claimLiftGauntlet.reviewPackagesBuilt} review package(s) are complete and no FundCandidateDraft was created. Next blocker is package-backed DiscoveryCandidate promotion without overclaim.`;
@@ -15708,6 +16313,14 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md`,
     `${root}/HARD_SEED_BIRTH_DECISIONS.md`,
     `${root}/HARD_SEED_BIRTH_DECISIONS.json`,
+    `${root}/SOURCE_OBJECT_INSIGHT_STATE_AUDIT.md`,
+    `${root}/SOURCE_OBJECT_INSIGHT_STATE_AUDIT.json`,
+    `${root}/CLAIM_FIRST_BIRTH_GATE_RULES.md`,
+    `${root}/CLAIM_FIRST_BIRTH_GATE.json`,
+    `${root}/SOURCE_OBJECT_RECLASSIFICATION.md`,
+    `${root}/SOURCE_OBJECT_RECLASSIFICATION.json`,
+    `${root}/CLAIM_FIRST_PILOT_RESULTS.md`,
+    `${root}/CLAIM_FIRST_PILOT_RESULTS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -15945,6 +16558,105 @@ function sourceObjectReviewPackagesIndexMarkdown(
   ]
     .filter((line) => line.length > 0)
     .join("\n");
+}
+
+function sourceObjectInsightStateAuditMarkdown(
+  report: SourceObjectInsightStateAuditReport,
+): string {
+  return [
+    "# Source Object Insight State Audit",
+    "",
+    `Previous InsightCandidates found: ${report.previousInsightCandidatesFound}.`,
+    `Checkpoint/source: ${report.checkpointUsed ?? "none"}.`,
+    "",
+    "## Why They Exist",
+    "",
+    report.whyCurrentCandidatesExist,
+    "",
+    "| Candidate | Source object | Concrete status | Remain active | Recommendation | Reason |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.candidateId} | ${item.sourceObjectRef ?? "none"} | ${item.concreteSourceObjectStatus} | ${String(item.shouldRemainActive)} | ${item.archiveRecommendation} | ${item.reason} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectClaimFirstBirthGateRulesMarkdown(
+  report: SourceObjectClaimFirstBirthGateReport,
+): string {
+  return [
+    "# Claim-First Birth Gate Rules",
+    "",
+    "No Source-Object InsightCandidate may be born unless the upstream HardSeed already contains all of:",
+    "",
+    "- concrete public source object: graph6, edge list, adjacency matrix, public object ID, or deterministic generator spec",
+    "- exact bounded claim",
+    "- formal definitions",
+    "- measured property",
+    "- candidate mechanism",
+    "- rival mechanism",
+    "- frozen falsifiable prediction",
+    "- expected baseline",
+    "- falsifier",
+    "- replay path",
+    "- known/triviality check path",
+    "",
+    "If any field is missing, the output remains a SourceObjectObservation and cannot enter InsightCandidate birth.",
+    "",
+    `HardSeeds evaluated: ${report.hardSeedsEvaluated}.`,
+    `Eligible for InsightCandidate birth: ${report.eligibleForInsightBirth}.`,
+    `SourceObjectObservations created: ${report.sourceObjectObservationsCreated}.`,
+    "",
+    "| Seed | Source object | Status | Blockers |",
+    "| --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.seedId} | ${decision.sourceObjectRef ?? "none"} | ${decision.status} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectReclassificationMarkdown(
+  report: SourceObjectReclassificationReport,
+): string {
+  return [
+    "# Source Object Reclassification",
+    "",
+    `Candidates reviewed: ${report.candidatesReviewed}.`,
+    `Archived non-liftable observations: ${report.archivedNonLiftable}.`,
+    `Kept as SourceObjectObservation: ${report.keptAsObservation}.`,
+    `Eligible for claim-first retest: ${report.eligibleForClaimFirstRetest}.`,
+    "",
+    "| Candidate | Decision | Reason |",
+    "| --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.decision} | ${decision.reason} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectClaimFirstPilotResultsMarkdown(
+  report: SourceObjectClaimFirstPilotReport,
+): string {
+  return [
+    "# Claim-First Pilot Results",
+    "",
+    `Pilots run: ${report.pilotsRun}.`,
+    `Exact claims frozen before execution: ${report.exactClaimsFrozen}.`,
+    `Concrete source objects: ${report.concreteSourceObjects}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    "",
+    "| Object | Source object | Death cause | Outcome | Residual | Replay | Claim |",
+    "| --- | --- | --- | ---: | ---: | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.objectId} | ${result.sourceObjectRef} | ${result.deathCause} | ${result.measuredOutcome} | ${result.residualMagnitude} | ${result.replayStatus} | ${result.exactClaimBeforeExecution} |`,
+    ),
+    "",
+    "No pilot produces an InsightCandidate unless the exact pre-execution claim survives baseline, rival, counterexample, replay, and reviewer-replayable source-object checks.",
+  ].join("\n");
 }
 
 function sourceObjectUniverseMarkdown(

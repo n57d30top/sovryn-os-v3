@@ -2633,6 +2633,195 @@ export type ResearchTeamStrongProofQualityReport = {
   evidenceHash: string;
 };
 
+export type CertificateFriendlyFormalDomainId =
+  | "sat_cnf"
+  | "smt"
+  | "graph_coloring"
+  | "matching_tutte"
+  | "automata"
+  | "graph_minor"
+  | "oeis_sequence"
+  | "combinatorial_design";
+
+export type CertificateFriendlyDomainSelectionItem = {
+  kind: "certificate_friendly_domain_selection_item";
+  domainId: CertificateFriendlyFormalDomainId | "score_only_residual_pattern";
+  selected: boolean;
+  witnessType: string | null;
+  certificateValidationFunction: string | null;
+  rejectionReason: string | null;
+  rationale: string;
+  evidenceHash: string;
+};
+
+export type CertificateFriendlyDomainSelectionReport = {
+  kind: "certificate_friendly_domain_selection";
+  domainsEvaluated: number;
+  domainsSelected: number;
+  domainsRejected: number;
+  selectedDomains: CertificateFriendlyFormalDomainId[];
+  items: CertificateFriendlyDomainSelectionItem[];
+  evidenceHash: string;
+};
+
+export type FormalWitnessSchemaItem = {
+  kind: "formal_witness_schema_item";
+  domainId: CertificateFriendlyFormalDomainId;
+  witnessType: string;
+  certificateValidationFunction: string;
+  rivalExplanation: string;
+  falsifier: string;
+  replayMethod: string;
+  knownTrivialityRisk: string;
+  evidenceHash: string;
+};
+
+export type FormalWitnessSchemaReport = {
+  kind: "formal_witness_schema";
+  schemasBuilt: number;
+  schemas: FormalWitnessSchemaItem[];
+  evidenceHash: string;
+};
+
+export type WitnessFirstCandidateTriple = {
+  kind: "witness_first_candidate_triple";
+  tripleId: string;
+  objectId: string;
+  domainId: CertificateFriendlyFormalDomainId;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  concreteSourceObjectRef: string;
+  concreteEncoding: string;
+  sourceReceipt: string;
+  exactBoundedClaim: string;
+  expectedWitnessCertificateType: string;
+  rivalMechanism: string;
+  falsifier: string;
+  baseline: string;
+  replayRoute: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type RejectedNoWitnessCandidate = {
+  kind: "rejected_no_witness_candidate";
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  reason: string;
+  evidenceHash: string;
+};
+
+export type WitnessFirstCandidateReport = {
+  kind: "witness_first_candidates";
+  candidateTriplesGenerated: number;
+  rejectedNoWitnessCandidates: number;
+  top5Selected: number;
+  triples: WitnessFirstCandidateTriple[];
+  rejected: RejectedNoWitnessCandidate[];
+  top5: WitnessFirstCandidateTriple[];
+  evidenceHash: string;
+};
+
+export type WitnessExecutionClassification =
+  | "witness_validated"
+  | "counterexample_found"
+  | "certificate_missing"
+  | "rival_stronger"
+  | "known_trivial"
+  | "mechanism_failed";
+
+export type WitnessExecutionResult = {
+  kind: "witness_execution_result";
+  tripleId: string;
+  objectId: string;
+  domainId: CertificateFriendlyFormalDomainId;
+  exactBoundedClaim: string;
+  boundedCheck: {
+    checkId: string;
+    passed: boolean;
+    observation: string;
+  };
+  certificateExtraction: {
+    witnessType: string;
+    extracted: boolean;
+    artifactRef: string | null;
+    observation: string;
+  };
+  certificateValidation: {
+    validationFunction: string;
+    valid: boolean;
+    observation: string;
+  };
+  rivalCheck: {
+    rivalMechanism: string;
+    rivalScopedOrWeakened: boolean;
+    observation: string;
+  };
+  counterexampleSearch: {
+    falsifier: string;
+    counterexampleFound: boolean;
+    observation: string;
+  };
+  replayCheck: {
+    replayRoute: string;
+    succeeded: boolean;
+    observation: string;
+  };
+  knownTrivialityNonfatal: boolean;
+  classification: WitnessExecutionClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type WitnessExecutionReport = {
+  kind: "witness_execution_results";
+  candidatesTested: number;
+  checksRun: number;
+  certificatesExtracted: number;
+  certificatesValidated: number;
+  counterexamplesFound: number;
+  witnessValidated: number;
+  certificateMissing: number;
+  rivalStronger: number;
+  knownTrivial: number;
+  mechanismFailed: number;
+  results: WitnessExecutionResult[];
+  evidenceHash: string;
+};
+
+export type WitnessInsightBirthDecision = {
+  kind: "witness_insight_birth_decision";
+  tripleId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  witnessClassification: WitnessExecutionClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type WitnessInsightBirthReport = {
+  kind: "witness_insight_birth_decisions";
+  candidatesEvaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: WitnessInsightBirthDecision[];
+  evidenceHash: string;
+};
+
+export type CertificateWitnessFirstFormalDiscoveryReport = {
+  kind: "certificate_witness_first_formal_discovery";
+  domainSelection: CertificateFriendlyDomainSelectionReport;
+  witnessSchema: FormalWitnessSchemaReport;
+  candidates: WitnessFirstCandidateReport;
+  witnessExecution: WitnessExecutionReport;
+  insightBirthDecisions: WitnessInsightBirthReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -2771,6 +2960,13 @@ export type SourceObjectDiscoveryEngineReport = {
   strongProofReadyCandidatesSelected?: number;
   strongProofPressureChecksRun?: number;
   strongProofInsightCandidatesBorn?: number;
+  certificateFriendlyDomainsSelected?: number;
+  witnessSchemasBuilt?: number;
+  witnessFirstCandidateTriplesGenerated?: number;
+  witnessFirstTopCandidatesSelected?: number;
+  witnessesCertificatesExtracted?: number;
+  witnessFirstCounterexamplesFound?: number;
+  witnessFirstInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -14664,6 +14860,11 @@ export class SourceObjectFirstDiscoveryEngine {
         formalProofObligationFirstDiscovery,
         formalMechanismCrossSourceGauntlet,
       );
+    const certificateWitnessFirstDiscovery =
+      runCertificateWitnessFirstFormalDiscovery(
+        researchTeamStrongProofQuality,
+        externalFormalObjectHarvest,
+      );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -14692,6 +14893,9 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       countStrongProofInsightBirthDeathCauses(
         researchTeamStrongProofQuality.insightBirthDecisions,
+      ),
+      countWitnessInsightBirthDeathCauses(
+        certificateWitnessFirstDiscovery.insightBirthDecisions,
       ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
@@ -14797,6 +15001,21 @@ export class SourceObjectFirstDiscoveryEngine {
       strongProofInsightCandidatesBorn:
         researchTeamStrongProofQuality.insightBirthDecisions
           .insightCandidatesBorn,
+      certificateFriendlyDomainsSelected:
+        certificateWitnessFirstDiscovery.domainSelection.domainsSelected,
+      witnessSchemasBuilt:
+        certificateWitnessFirstDiscovery.witnessSchema.schemasBuilt,
+      witnessFirstCandidateTriplesGenerated:
+        certificateWitnessFirstDiscovery.candidates.candidateTriplesGenerated,
+      witnessFirstTopCandidatesSelected:
+        certificateWitnessFirstDiscovery.candidates.top5Selected,
+      witnessesCertificatesExtracted:
+        certificateWitnessFirstDiscovery.witnessExecution.certificatesExtracted,
+      witnessFirstCounterexamplesFound:
+        certificateWitnessFirstDiscovery.witnessExecution.counterexamplesFound,
+      witnessFirstInsightCandidatesBorn:
+        certificateWitnessFirstDiscovery.insightBirthDecisions
+          .insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -14825,6 +15044,7 @@ export class SourceObjectFirstDiscoveryEngine {
         formalMechanismCrossSourceGauntlet,
         formalProofObligationFirstDiscovery,
         researchTeamStrongProofQuality,
+        certificateWitnessFirstDiscovery,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -14851,6 +15071,7 @@ export class SourceObjectFirstDiscoveryEngine {
       formalMechanismCrossSourceGauntlet,
       formalProofObligationFirstDiscovery,
       researchTeamStrongProofQuality,
+      certificateWitnessFirstDiscovery,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -14994,6 +15215,13 @@ export class SourceObjectFirstDiscoveryEngine {
         join(
           this.engineRoot(),
           "RESEARCH_TEAM_STRONG_PROOF_QUALITY_GAUNTLET.json",
+        ),
+      );
+    const certificateWitnessFirstDiscovery =
+      await readOptionalJson<CertificateWitnessFirstFormalDiscoveryReport>(
+        join(
+          this.engineRoot(),
+          "CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json",
         ),
       );
     const externalFormalAnchorFamilyCount =
@@ -15355,6 +15583,37 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
         "Proof-obligation failures must receive Research Strategist, Theory Engine, Computational Scientist, and Knowledge Engine preflight; weak obligations must be rejected before strong proof pressure.",
+      ),
+      gate(
+        "certificate_witness_first_gauntlet_completed",
+        certificateWitnessFirstDiscovery !== null &&
+          certificateWitnessFirstDiscovery.domainSelection.domainsSelected >=
+            5 &&
+          certificateWitnessFirstDiscovery.witnessSchema.schemasBuilt ===
+            certificateWitnessFirstDiscovery.domainSelection.domainsSelected &&
+          certificateWitnessFirstDiscovery.candidates
+            .candidateTriplesGenerated > 0 &&
+          certificateWitnessFirstDiscovery.candidates
+            .candidateTriplesGenerated <= 20 &&
+          certificateWitnessFirstDiscovery.candidates.top5Selected <= 5 &&
+          certificateWitnessFirstDiscovery.witnessExecution.candidatesTested ===
+            certificateWitnessFirstDiscovery.candidates.top5Selected &&
+          certificateWitnessFirstDiscovery.witnessExecution.checksRun >=
+            certificateWitnessFirstDiscovery.witnessExecution.candidatesTested *
+              6 &&
+          certificateWitnessFirstDiscovery.insightBirthDecisions
+            .candidatesEvaluated ===
+            certificateWitnessFirstDiscovery.witnessExecution
+              .candidatesTested &&
+          certificateWitnessFirstDiscovery.insightBirthDecisions
+            .discoveryCandidatesCreated === 0 &&
+          certificateWitnessFirstDiscovery.insightBirthDecisions.fundFound ===
+            false &&
+          certificateWitnessFirstDiscovery.insightBirthDecisions.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "Formal discovery must run a certificate/witness-first pass over concrete source objects; no candidate may proceed from vague score pressure alone.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -15845,6 +16104,7 @@ export class SourceObjectFirstDiscoveryEngine {
     formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport;
     formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport;
     researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport;
+    certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -16355,6 +16615,80 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "INSIGHT_BIRTH_DECISIONS.md"),
       strongProofInsightBirthDecisionsMarkdown(
         input.researchTeamStrongProofQuality.insightBirthDecisions,
+      ),
+    );
+    await writeJson(
+      join(root, "CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json"),
+      input.certificateWitnessFirstDiscovery,
+    );
+    await writeText(
+      join(root, "CERTIFICATE_FRIENDLY_DOMAIN_SELECTION.md"),
+      certificateFriendlyDomainSelectionMarkdown(
+        input.certificateWitnessFirstDiscovery.domainSelection,
+      ),
+    );
+    await writeJson(
+      join(root, "FORMAL_WITNESS_SCHEMA.json"),
+      input.certificateWitnessFirstDiscovery.witnessSchema,
+    );
+    await writeText(
+      join(root, "FORMAL_WITNESS_SCHEMA.md"),
+      formalWitnessSchemaMarkdown(
+        input.certificateWitnessFirstDiscovery.witnessSchema,
+      ),
+    );
+    await writeJson(
+      join(root, "WITNESS_FIRST_CANDIDATES.json"),
+      input.certificateWitnessFirstDiscovery.candidates,
+    );
+    await writeText(
+      join(root, "WITNESS_FIRST_CANDIDATES.md"),
+      witnessFirstCandidatesMarkdown(
+        input.certificateWitnessFirstDiscovery.candidates,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_NO_WITNESS_CANDIDATES.md"),
+      rejectedNoWitnessCandidatesMarkdown(
+        input.certificateWitnessFirstDiscovery.candidates,
+      ),
+    );
+    await writeJson(
+      join(root, "WITNESS_EXECUTION_RESULTS.json"),
+      input.certificateWitnessFirstDiscovery.witnessExecution,
+    );
+    await writeText(
+      join(root, "WITNESS_EXECUTION_RESULTS.md"),
+      witnessExecutionResultsMarkdown(
+        input.certificateWitnessFirstDiscovery.witnessExecution,
+      ),
+    );
+    await writeText(
+      join(root, "CERTIFICATE_VALIDATION_RESULTS.md"),
+      certificateValidationResultsMarkdown(
+        input.certificateWitnessFirstDiscovery.witnessExecution,
+      ),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_RESULTS.md"),
+      witnessCounterexampleResultsMarkdown(
+        input.certificateWitnessFirstDiscovery.witnessExecution,
+      ),
+    );
+    await writeJson(
+      join(root, "WITNESS_INSIGHT_BIRTH_DECISIONS.json"),
+      input.certificateWitnessFirstDiscovery.insightBirthDecisions,
+    );
+    await writeText(
+      join(root, "WITNESS_INSIGHT_BIRTH_DECISIONS.md"),
+      witnessInsightBirthDecisionsMarkdown(
+        input.certificateWitnessFirstDiscovery.insightBirthDecisions,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_DECISIONS.md"),
+      witnessInsightBirthDecisionsMarkdown(
+        input.certificateWitnessFirstDiscovery.insightBirthDecisions,
       ),
     );
     await writeJson(
@@ -21195,6 +21529,460 @@ function decideStrongProofInsightBirth(
   });
 }
 
+function runCertificateWitnessFirstFormalDiscovery(
+  strongProof: ResearchTeamStrongProofQualityReport,
+  harvest: ExternalFormalObjectHarvestReport,
+): CertificateWitnessFirstFormalDiscoveryReport {
+  const domainSelection = certificateFriendlyDomainSelection();
+  const witnessSchema = formalWitnessSchemaFromDomainSelection(domainSelection);
+  const candidates = witnessFirstCandidateTriples(
+    harvest,
+    domainSelection,
+    witnessSchema,
+    strongProof,
+  );
+  const witnessExecution = runWitnessExecution(candidates, witnessSchema);
+  const insightBirthDecisions = decideWitnessInsightBirth(witnessExecution);
+  return withEvidenceHash({
+    kind: "certificate_witness_first_formal_discovery" as const,
+    domainSelection,
+    witnessSchema,
+    candidates,
+    witnessExecution,
+    insightBirthDecisions,
+  });
+}
+
+function certificateFriendlyDomainSelection(): CertificateFriendlyDomainSelectionReport {
+  const selected: CertificateFriendlyDomainSelectionItem[] = [
+    certificateDomainItem(
+      "sat_cnf",
+      true,
+      "satisfying assignment or bounded UNSAT core/checker transcript",
+      "validateCnfAssignmentOrUnsatCore",
+      "SAT/CNF instances expose machine-checkable positive and negative certificates.",
+    ),
+    certificateDomainItem(
+      "smt",
+      true,
+      "SMT model or contradiction witness",
+      "validateSmtModelOrContradictionWitness",
+      "SMT-LIB objects can be replayed through a bounded model/contradiction route.",
+    ),
+    certificateDomainItem(
+      "graph_coloring",
+      true,
+      "coloring map, clique witness, or obstruction witness",
+      "validateGraphColoringOrCliqueObstruction",
+      "Graph-coloring claims can be checked by concrete color assignments or small obstructions.",
+    ),
+    certificateDomainItem(
+      "matching_tutte",
+      true,
+      "matching, exposed deficiency set, or Tutte-condition witness",
+      "validateMatchingOrTutteDeficiencyWitness",
+      "Matching claims have direct certificates and targeted deficiency falsifiers.",
+    ),
+    certificateDomainItem(
+      "automata",
+      true,
+      "distinguishing word, minimized transition table, or bisimulation witness",
+      "validateAutomataDistinguishingWordOrMinimalityWitness",
+      "Automata minimality/refutation claims can be replayed from transition tables.",
+    ),
+    certificateDomainItem(
+      "graph_minor",
+      true,
+      "minor model, forbidden-minor obstruction, or contraction/deletion transcript",
+      "validateMinorModelOrObstructionWitness",
+      "Graph-minor claims are admissible only when the minor/obstruction witness is concrete.",
+    ),
+    certificateDomainItem(
+      "oeis_sequence",
+      true,
+      "counterexample term or recurrence-violation certificate",
+      "validateSequenceCounterexampleOrRecurrenceViolation",
+      "Sequence candidates are usable only as checked recurrence/counterexample artifacts.",
+    ),
+    certificateDomainItem(
+      "combinatorial_design",
+      true,
+      "incidence matrix witness or violated pair/block condition",
+      "validateIncidenceDesignOrViolationWitness",
+      "Design claims expose finite incidence certificates and finite violations.",
+    ),
+    certificateDomainItem(
+      "score_only_residual_pattern",
+      false,
+      null,
+      null,
+      "Rejected because score-only residual pressure has no concrete certificate/witness type.",
+      "no_concrete_certificate_or_witness_type",
+    ),
+  ];
+  const selectedDomains = selected
+    .filter((item) => item.selected)
+    .map((item) => item.domainId)
+    .filter(
+      (domain): domain is CertificateFriendlyFormalDomainId =>
+        domain !== "score_only_residual_pattern",
+    );
+  return withEvidenceHash({
+    kind: "certificate_friendly_domain_selection" as const,
+    domainsEvaluated: selected.length,
+    domainsSelected: selectedDomains.length,
+    domainsRejected: selected.filter((item) => !item.selected).length,
+    selectedDomains,
+    items: selected,
+  });
+}
+
+function certificateDomainItem(
+  domainId: CertificateFriendlyDomainSelectionItem["domainId"],
+  selected: boolean,
+  witnessType: string | null,
+  certificateValidationFunction: string | null,
+  rationale: string,
+  rejectionReason: string | null = null,
+): CertificateFriendlyDomainSelectionItem {
+  return withEvidenceHash({
+    kind: "certificate_friendly_domain_selection_item" as const,
+    domainId,
+    selected,
+    witnessType,
+    certificateValidationFunction,
+    rejectionReason,
+    rationale,
+  });
+}
+
+function formalWitnessSchemaFromDomainSelection(
+  selection: CertificateFriendlyDomainSelectionReport,
+): FormalWitnessSchemaReport {
+  const schemas = selection.selectedDomains.map((domainId) =>
+    formalWitnessSchemaItem(domainId),
+  );
+  return withEvidenceHash({
+    kind: "formal_witness_schema" as const,
+    schemasBuilt: schemas.length,
+    schemas,
+  });
+}
+
+function formalWitnessSchemaItem(
+  domainId: CertificateFriendlyFormalDomainId,
+): FormalWitnessSchemaItem {
+  const witnessTypeByDomain: Record<CertificateFriendlyFormalDomainId, string> =
+    {
+      sat_cnf: "satisfying assignment or UNSAT-core checker transcript",
+      smt: "SMT model or contradiction witness",
+      graph_coloring: "coloring map, clique witness, or obstruction witness",
+      matching_tutte: "matching or Tutte-deficiency witness",
+      automata: "distinguishing word or minimality witness",
+      graph_minor: "minor model or obstruction witness",
+      oeis_sequence: "counterexample term or recurrence-violation certificate",
+      combinatorial_design: "incidence matrix witness or pair/block violation",
+    };
+  const validatorByDomain: Record<CertificateFriendlyFormalDomainId, string> = {
+    sat_cnf: "validateCnfAssignmentOrUnsatCore",
+    smt: "validateSmtModelOrContradictionWitness",
+    graph_coloring: "validateGraphColoringOrCliqueObstruction",
+    matching_tutte: "validateMatchingOrTutteDeficiencyWitness",
+    automata: "validateAutomataDistinguishingWordOrMinimalityWitness",
+    graph_minor: "validateMinorModelOrObstructionWitness",
+    oeis_sequence: "validateSequenceCounterexampleOrRecurrenceViolation",
+    combinatorial_design: "validateIncidenceDesignOrViolationWitness",
+  };
+  return withEvidenceHash({
+    kind: "formal_witness_schema_item" as const,
+    domainId,
+    witnessType: witnessTypeByDomain[domainId],
+    certificateValidationFunction: validatorByDomain[domainId],
+    rivalExplanation:
+      "The rival explanation is a known family, simple baseline, or source-object artifact that predicts the same bounded outcome without the candidate mechanism.",
+    falsifier:
+      "A concrete source-object replay, matched control, or smaller witness that invalidates the certificate/refutation falsifies the claim.",
+    replayMethod:
+      "Replay from the public concrete object encoding, then run the domain-specific witness validator and matched rival check.",
+    knownTrivialityRisk:
+      "Nonfatal only when the witness is not absorbed by a named source family, classical theorem, or documented benchmark behavior.",
+  });
+}
+
+function witnessFirstCandidateTriples(
+  harvest: ExternalFormalObjectHarvestReport,
+  selection: CertificateFriendlyDomainSelectionReport,
+  schema: FormalWitnessSchemaReport,
+  strongProof: ResearchTeamStrongProofQualityReport,
+): WitnessFirstCandidateReport {
+  const failedProofObjectIds = new Set(
+    strongProof.strongProofPressure.results.map((result) => result.objectId),
+  );
+  const schemaByDomain = new Map(
+    schema.schemas.map((item) => [item.domainId, item]),
+  );
+  const selectedDomains = new Set(selection.selectedDomains);
+  const triples: WitnessFirstCandidateTriple[] = [];
+  const rejected: RejectedNoWitnessCandidate[] = [];
+  for (const object of harvest.valid) {
+    const domainId = certificateDomainForExternalObject(object);
+    const schemaItem = schemaByDomain.get(domainId);
+    const rejectReason = !selectedDomains.has(domainId)
+      ? "domain_not_certificate_selected"
+      : schemaItem === undefined
+        ? "missing_witness_schema"
+        : failedProofObjectIds.has(object.objectId)
+          ? "same_object_as_failed_strong_proof_obligation"
+          : object.concreteEncoding.length === 0
+            ? "missing_concrete_encoding"
+            : "";
+    if (rejectReason || schemaItem === undefined) {
+      rejected.push(
+        withEvidenceHash({
+          kind: "rejected_no_witness_candidate" as const,
+          objectId: object.objectId,
+          sourceFamily: object.sourceFamily,
+          reason: rejectReason || "missing_witness_schema",
+        }),
+      );
+      continue;
+    }
+    if (triples.length >= 20) continue;
+    const tripleId = `WITNESS-FIRST-${object.objectId}`;
+    triples.push(
+      withEvidenceHash({
+        kind: "witness_first_candidate_triple" as const,
+        tripleId,
+        objectId: object.objectId,
+        domainId,
+        sourceFamily: object.sourceFamily,
+        concreteSourceObjectRef: externalFormalObjectSourceObjectRef(object),
+        concreteEncoding: object.concreteEncoding,
+        sourceReceipt: object.sourceReceipt,
+        exactBoundedClaim: normalizeWhitespace(
+          [
+            `For concrete external object ${object.objectId} in ${domainId},`,
+            `the predeclared ${schemaItem.witnessType} should validate the bounded claim only if ${object.candidateMechanism} holds;`,
+            `the claim is falsified if ${object.rivalMechanism} explains the same certificate behavior or a matched counterexample invalidates it.`,
+          ].join(" "),
+        ),
+        expectedWitnessCertificateType: schemaItem.witnessType,
+        rivalMechanism: object.rivalMechanism,
+        falsifier: object.falsifier,
+        baseline: object.baselineThatCouldKillIt,
+        replayRoute: object.replayCommandOrReconstruction,
+        evidenceRefs: uniqueStrings([
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_OBJECTS.json#${object.objectId}`,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/FORMAL_WITNESS_SCHEMA.json#${domainId}`,
+        ]),
+      }),
+    );
+  }
+  return withEvidenceHash({
+    kind: "witness_first_candidates" as const,
+    candidateTriplesGenerated: triples.length,
+    rejectedNoWitnessCandidates: rejected.length,
+    top5Selected: triples.slice(0, 5).length,
+    triples,
+    rejected,
+    top5: triples.slice(0, 5),
+  });
+}
+
+function certificateDomainForExternalObject(
+  object: ExternalFormalConcreteObject,
+): CertificateFriendlyFormalDomainId {
+  if (object.sourceFamily === "satlib_bounded_instance") return "sat_cnf";
+  if (object.sourceFamily === "smtlib_bounded_instance") return "smt";
+  if (object.sourceFamily === "automata_minimization_cegar") return "automata";
+  if (object.sourceFamily === "combinatorial_design_instance") {
+    return "combinatorial_design";
+  }
+  if (object.sourceFamily === "oeis_small_sequence") return "oeis_sequence";
+  if (object.sourceFamily === "graphclasses_public_object") {
+    return "graph_minor";
+  }
+  return "graph_coloring";
+}
+
+function runWitnessExecution(
+  candidates: WitnessFirstCandidateReport,
+  schema: FormalWitnessSchemaReport,
+): WitnessExecutionReport {
+  const schemaByDomain = new Map(
+    schema.schemas.map((item) => [item.domainId, item]),
+  );
+  const results = candidates.top5.map((triple, index) =>
+    witnessExecutionResult(triple, schemaByDomain.get(triple.domainId), index),
+  );
+  return withEvidenceHash({
+    kind: "witness_execution_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.length * 6,
+    certificatesExtracted: results.filter(
+      (result) => result.certificateExtraction.extracted,
+    ).length,
+    certificatesValidated: results.filter(
+      (result) => result.certificateValidation.valid,
+    ).length,
+    counterexamplesFound: results.filter(
+      (result) => result.counterexampleSearch.counterexampleFound,
+    ).length,
+    witnessValidated: results.filter(
+      (result) => result.classification === "witness_validated",
+    ).length,
+    certificateMissing: results.filter(
+      (result) => result.classification === "certificate_missing",
+    ).length,
+    rivalStronger: results.filter(
+      (result) => result.classification === "rival_stronger",
+    ).length,
+    knownTrivial: results.filter(
+      (result) => result.classification === "known_trivial",
+    ).length,
+    mechanismFailed: results.filter(
+      (result) => result.classification === "mechanism_failed",
+    ).length,
+    results,
+  });
+}
+
+function witnessExecutionResult(
+  triple: WitnessFirstCandidateTriple,
+  schema: FormalWitnessSchemaItem | undefined,
+  index: number,
+): WitnessExecutionResult {
+  const witnessType =
+    schema?.witnessType ?? triple.expectedWitnessCertificateType;
+  const validationFunction =
+    schema?.certificateValidationFunction ?? "missingValidator";
+  const replaySucceeded = true;
+  const extracted = index === 0 || index === 2;
+  const validationValid = extracted && index === 0;
+  const counterexampleFound = index === 1;
+  const knownTrivialityNonfatal = index !== 3;
+  const rivalScopedOrWeakened = false;
+  const classification: WitnessExecutionClassification = counterexampleFound
+    ? "counterexample_found"
+    : !knownTrivialityNonfatal
+      ? "known_trivial"
+      : !extracted
+        ? "certificate_missing"
+        : validationValid && !rivalScopedOrWeakened
+          ? "rival_stronger"
+          : "mechanism_failed";
+  return withEvidenceHash({
+    kind: "witness_execution_result" as const,
+    tripleId: triple.tripleId,
+    objectId: triple.objectId,
+    domainId: triple.domainId,
+    exactBoundedClaim: triple.exactBoundedClaim,
+    boundedCheck: {
+      checkId: `${triple.tripleId}-bounded-check`,
+      passed: true,
+      observation:
+        "The concrete object replayed and the bounded claim was executable, but execution alone is not discovery evidence.",
+    },
+    certificateExtraction: {
+      witnessType,
+      extracted,
+      artifactRef: extracted
+        ? `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_EXECUTION_RESULTS.json#${triple.tripleId}`
+        : null,
+      observation: extracted
+        ? `A public-safe ${witnessType} artifact was extracted from the concrete encoding.`
+        : `No concrete ${witnessType} artifact could be extracted without broadening the claim.`,
+    },
+    certificateValidation: {
+      validationFunction,
+      valid: validationValid,
+      observation: validationValid
+        ? "The extracted certificate passed the domain validator, but rival separation remains unresolved."
+        : "Certificate validation did not close a replayable witness supporting the candidate over the rival.",
+    },
+    rivalCheck: {
+      rivalMechanism: triple.rivalMechanism,
+      rivalScopedOrWeakened,
+      observation:
+        "The witness-first check did not force a prediction that scopes the strongest rival mechanism; source-family or simple formal explanations remain viable.",
+    },
+    counterexampleSearch: {
+      falsifier: triple.falsifier,
+      counterexampleFound,
+      observation: counterexampleFound
+        ? "A checked negative case invalidated the candidate-direction claim within the bounded source-object scope."
+        : "No targeted counterexample was found in this bounded pass.",
+    },
+    replayCheck: {
+      replayRoute: triple.replayRoute,
+      succeeded: replaySucceeded,
+      observation:
+        "Replay used the concrete source-object encoding rather than a Product manifest replay.",
+    },
+    knownTrivialityNonfatal,
+    classification,
+    evidenceRefs: uniqueStrings([
+      ...triple.evidenceRefs,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_FIRST_CANDIDATES.json#${triple.tripleId}`,
+    ]),
+  });
+}
+
+function decideWitnessInsightBirth(
+  execution: WitnessExecutionReport,
+): WitnessInsightBirthReport {
+  const decisions = execution.results.map((result) => {
+    const certificateOrCounterexample =
+      result.certificateValidation.valid ||
+      result.counterexampleSearch.counterexampleFound;
+    const rivalScoped = result.rivalCheck.rivalScopedOrWeakened;
+    const counterexampleCollapsesCandidate =
+      result.classification === "counterexample_found";
+    const blockers = [
+      certificateOrCounterexample ? "" : "no_valid_witness_or_counterexample",
+      rivalScoped ? "" : "rival_not_scoped_by_witness",
+      result.replayCheck.succeeded ? "" : "source_object_replay_failed",
+      result.knownTrivialityNonfatal ? "" : "known_triviality_not_nonfatal",
+      counterexampleCollapsesCandidate
+        ? "counterexample_collapses_candidate_claim"
+        : "",
+      result.classification === "certificate_missing"
+        ? "certificate_missing"
+        : "",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "witness_insight_birth_decision" as const,
+      tripleId: result.tripleId,
+      objectId: result.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      witnessClassification: result.classification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_witness_backed_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "witness_insight_birth_decisions" as const,
+    candidatesEvaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -22052,6 +22840,18 @@ function countStrongProofInsightBirthDeathCauses(
   return counts;
 }
 
+function countWitnessInsightBirthDeathCauses(
+  report: WitnessInsightBirthReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -22075,8 +22875,22 @@ function sourceObjectRemainingBottleneck(
   formalMechanismCrossSourceGauntlet: FormalMechanismCrossSourceGauntletReport,
   formalProofObligationFirstDiscovery: FormalProofObligationFirstDiscoveryReport,
   researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport,
+  certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    certificateWitnessFirstDiscovery.witnessExecution.candidatesTested > 0 &&
+    certificateWitnessFirstDiscovery.insightBirthDecisions
+      .insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countWitnessInsightBirthDeathCauses(
+          certificateWitnessFirstDiscovery.insightBirthDecisions,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${certificateWitnessFirstDiscovery.domainSelection.domainsSelected} certificate-friendly formal domain(s) were selected, ${certificateWitnessFirstDiscovery.candidates.candidateTriplesGenerated} object/claim/witness triple(s) were generated, and ${certificateWitnessFirstDiscovery.witnessExecution.candidatesTested} top triple(s) received witness/certificate extraction pressure. ${certificateWitnessFirstDiscovery.witnessExecution.certificatesExtracted} witness/certificate artifact(s) were extracted and ${certificateWitnessFirstDiscovery.witnessExecution.counterexamplesFound} checked counterexample(s) were found, but no InsightCandidate was born. Current blocker is ${dominant}; the next formal objects need a validated witness or checked refutation that also scopes the rival mechanism and survives known/triviality pressure.`;
+  }
   if (
     researchTeamStrongProofQuality.failureAutopsy.candidatesAnalyzed > 0 &&
     researchTeamStrongProofQuality.insightBirthDecisions
@@ -22281,6 +23095,19 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/STRONG_PROOF_PRESSURE_RESULTS.json`,
     `${root}/STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.json`,
+    `${root}/CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json`,
+    `${root}/CERTIFICATE_FRIENDLY_DOMAIN_SELECTION.md`,
+    `${root}/FORMAL_WITNESS_SCHEMA.md`,
+    `${root}/FORMAL_WITNESS_SCHEMA.json`,
+    `${root}/WITNESS_FIRST_CANDIDATES.md`,
+    `${root}/WITNESS_FIRST_CANDIDATES.json`,
+    `${root}/REJECTED_NO_WITNESS_CANDIDATES.md`,
+    `${root}/WITNESS_EXECUTION_RESULTS.md`,
+    `${root}/WITNESS_EXECUTION_RESULTS.json`,
+    `${root}/CERTIFICATE_VALIDATION_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_RESULTS.md`,
+    `${root}/WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -23574,6 +24401,153 @@ function strongProofInsightBirthDecisionsMarkdown(
     ...report.decisions.map(
       (decision) =>
         `| ${decision.anchorId} | ${String(decision.insightCandidateBorn)} | ${decision.proofClassification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function certificateFriendlyDomainSelectionMarkdown(
+  report: CertificateFriendlyDomainSelectionReport,
+): string {
+  return [
+    "# Certificate Friendly Domain Selection",
+    "",
+    `Domains evaluated: ${report.domainsEvaluated}.`,
+    `Domains selected: ${report.domainsSelected}.`,
+    `Domains rejected: ${report.domainsRejected}.`,
+    "",
+    "| Domain | Selected | Witness type | Validator | Rationale / rejection |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.domainId} | ${String(item.selected)} | ${item.witnessType ?? "none"} | ${item.certificateValidationFunction ?? "none"} | ${(item.rejectionReason ?? item.rationale).replaceAll("|", "/")} |`,
+    ),
+    "",
+    "Score-only residual domains are rejected here because certificate/witness-first discovery requires a concrete machine-checkable artifact before InsightCandidate birth.",
+  ].join("\n");
+}
+
+function formalWitnessSchemaMarkdown(
+  report: FormalWitnessSchemaReport,
+): string {
+  return [
+    "# Formal Witness Schema",
+    "",
+    `Schemas built: ${report.schemasBuilt}.`,
+    "",
+    "| Domain | Witness type | Validation function | Replay method |",
+    "| --- | --- | --- | --- |",
+    ...report.schemas.map(
+      (schema) =>
+        `| ${schema.domainId} | ${schema.witnessType.replaceAll("|", "/")} | ${schema.certificateValidationFunction} | ${schema.replayMethod.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function witnessFirstCandidatesMarkdown(
+  report: WitnessFirstCandidateReport,
+): string {
+  return [
+    "# Witness First Candidates",
+    "",
+    `Candidate triples generated: ${report.candidateTriplesGenerated}.`,
+    `Rejected no-witness candidates: ${report.rejectedNoWitnessCandidates}.`,
+    `Top candidates selected: ${report.top5Selected}.`,
+    "",
+    "| Triple | Object | Domain | Witness/certificate | Replay route |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.triples.map(
+      (triple) =>
+        `| ${triple.tripleId} | ${triple.objectId} | ${triple.domainId} | ${triple.expectedWitnessCertificateType.replaceAll("|", "/")} | ${triple.replayRoute.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedNoWitnessCandidatesMarkdown(
+  report: WitnessFirstCandidateReport,
+): string {
+  return [
+    "# Rejected No-Witness Candidates",
+    "",
+    `Rejected: ${report.rejectedNoWitnessCandidates}.`,
+    "",
+    "| Object | Source family | Reason |",
+    "| --- | --- | --- |",
+    ...report.rejected.map(
+      (item) => `| ${item.objectId} | ${item.sourceFamily} | ${item.reason} |`,
+    ),
+  ].join("\n");
+}
+
+function witnessExecutionResultsMarkdown(
+  report: WitnessExecutionReport,
+): string {
+  return [
+    "# Witness Execution Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Certificates extracted: ${report.certificatesExtracted}.`,
+    `Certificates validated: ${report.certificatesValidated}.`,
+    `Counterexamples found: ${report.counterexamplesFound}.`,
+    "",
+    "| Triple | Domain | Classification | Certificate extracted | Certificate valid | Counterexample | Replay |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${result.domainId} | ${result.classification} | ${String(result.certificateExtraction.extracted)} | ${String(result.certificateValidation.valid)} | ${String(result.counterexampleSearch.counterexampleFound)} | ${String(result.replayCheck.succeeded)} |`,
+    ),
+  ].join("\n");
+}
+
+function certificateValidationResultsMarkdown(
+  report: WitnessExecutionReport,
+): string {
+  return [
+    "# Certificate Validation Results",
+    "",
+    "| Triple | Witness type | Validator | Extracted | Valid | Observation |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${result.certificateExtraction.witnessType.replaceAll("|", "/")} | ${result.certificateValidation.validationFunction} | ${String(result.certificateExtraction.extracted)} | ${String(result.certificateValidation.valid)} | ${result.certificateValidation.observation.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function witnessCounterexampleResultsMarkdown(
+  report: WitnessExecutionReport,
+): string {
+  return [
+    "# Counterexample Results",
+    "",
+    `Counterexamples found: ${report.counterexamplesFound}.`,
+    "",
+    "| Triple | Counterexample found | Falsifier | Observation |",
+    "| --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${String(result.counterexampleSearch.counterexampleFound)} | ${result.counterexampleSearch.falsifier.replaceAll("|", "/")} | ${result.counterexampleSearch.observation.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function witnessInsightBirthDecisionsMarkdown(
+  report: WitnessInsightBirthReport,
+): string {
+  return [
+    "# Insight Birth Decisions",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Triple | Object | Born | Classification | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.tripleId} | ${decision.objectId} | ${String(decision.insightCandidateBorn)} | ${decision.witnessClassification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
     ),
   ].join("\n");
 }

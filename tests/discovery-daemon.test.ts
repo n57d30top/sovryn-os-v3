@@ -5125,6 +5125,23 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   );
   assert.equal((report.strongProofPressureChecksRun ?? 0) >= 5, true);
   assert.equal(report.strongProofInsightCandidatesBorn, 0);
+  assert.equal((report.certificateFriendlyDomainsSelected ?? 0) >= 5, true);
+  assert.equal(
+    report.witnessSchemasBuilt,
+    report.certificateFriendlyDomainsSelected,
+  );
+  assert.equal(
+    (report.witnessFirstCandidateTriplesGenerated ?? 0) > 0 &&
+      (report.witnessFirstCandidateTriplesGenerated ?? 0) <= 20,
+    true,
+  );
+  assert.equal(
+    (report.witnessFirstTopCandidatesSelected ?? 0) > 0 &&
+      (report.witnessFirstTopCandidatesSelected ?? 0) <= 5,
+    true,
+  );
+  assert.equal((report.witnessesCertificatesExtracted ?? 0) > 0, true);
+  assert.equal(report.witnessFirstInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5235,6 +5252,19 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "STRONG_PROOF_PRESSURE_RESULTS.json",
     "STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.md",
     "STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.json",
+    "CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json",
+    "CERTIFICATE_FRIENDLY_DOMAIN_SELECTION.md",
+    "FORMAL_WITNESS_SCHEMA.md",
+    "FORMAL_WITNESS_SCHEMA.json",
+    "WITNESS_FIRST_CANDIDATES.md",
+    "WITNESS_FIRST_CANDIDATES.json",
+    "REJECTED_NO_WITNESS_CANDIDATES.md",
+    "WITNESS_EXECUTION_RESULTS.md",
+    "WITNESS_EXECUTION_RESULTS.json",
+    "CERTIFICATE_VALIDATION_RESULTS.md",
+    "COUNTEREXAMPLE_RESULTS.md",
+    "WITNESS_INSIGHT_BIRTH_DECISIONS.md",
+    "WITNESS_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -6299,6 +6329,150 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(strongProof.insightBirthDecisions.fundFound, false);
   assert.equal(
     strongProof.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const witnessFirst = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CERTIFICATE_WITNESS_FIRST_FORMAL_DISCOVERY.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    domainSelection: {
+      domainsEvaluated: number;
+      domainsSelected: number;
+      domainsRejected: number;
+      selectedDomains: string[];
+    };
+    witnessSchema: {
+      schemasBuilt: number;
+      schemas: Array<{
+        domainId: string;
+        witnessType: string;
+        certificateValidationFunction: string;
+      }>;
+    };
+    candidates: {
+      candidateTriplesGenerated: number;
+      rejectedNoWitnessCandidates: number;
+      top5Selected: number;
+      triples: Array<{
+        tripleId: string;
+        objectId: string;
+        expectedWitnessCertificateType: string;
+        concreteEncoding: string;
+      }>;
+      top5: Array<{ tripleId: string }>;
+    };
+    witnessExecution: {
+      candidatesTested: number;
+      checksRun: number;
+      certificatesExtracted: number;
+      certificatesValidated: number;
+      counterexamplesFound: number;
+      results: Array<{
+        classification: string;
+        certificateExtraction: { extracted: boolean; witnessType: string };
+        certificateValidation: { valid: boolean };
+        rivalCheck: { rivalScopedOrWeakened: boolean };
+        counterexampleSearch: { counterexampleFound: boolean };
+        replayCheck: { succeeded: boolean };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(witnessFirst.domainSelection.domainsSelected >= 5, true);
+  assert.equal(witnessFirst.domainSelection.domainsRejected > 0, true);
+  assert.equal(
+    witnessFirst.witnessSchema.schemasBuilt,
+    witnessFirst.domainSelection.domainsSelected,
+  );
+  assert.equal(
+    witnessFirst.witnessSchema.schemas.every(
+      (schema) =>
+        schema.domainId.length > 0 &&
+        schema.witnessType.length > 0 &&
+        schema.certificateValidationFunction.length > 0,
+    ),
+    true,
+  );
+  assert.equal(witnessFirst.candidates.candidateTriplesGenerated > 0, true);
+  assert.equal(witnessFirst.candidates.candidateTriplesGenerated <= 20, true);
+  assert.equal(witnessFirst.candidates.rejectedNoWitnessCandidates > 0, true);
+  assert.equal(witnessFirst.candidates.top5Selected <= 5, true);
+  assert.equal(
+    witnessFirst.candidates.triples.every(
+      (triple) =>
+        triple.tripleId.length > 0 &&
+        triple.objectId.length > 0 &&
+        triple.expectedWitnessCertificateType.length > 0 &&
+        triple.concreteEncoding.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    witnessFirst.witnessExecution.candidatesTested,
+    witnessFirst.candidates.top5Selected,
+  );
+  assert.equal(
+    witnessFirst.witnessExecution.checksRun >=
+      witnessFirst.witnessExecution.candidatesTested * 6,
+    true,
+  );
+  assert.equal(witnessFirst.witnessExecution.certificatesExtracted > 0, true);
+  assert.equal(witnessFirst.witnessExecution.counterexamplesFound > 0, true);
+  assert.equal(
+    witnessFirst.witnessExecution.results.every(
+      (result) =>
+        [
+          "witness_validated",
+          "counterexample_found",
+          "certificate_missing",
+          "rival_stronger",
+          "known_trivial",
+          "mechanism_failed",
+        ].includes(result.classification) &&
+        result.certificateExtraction.witnessType.length > 0 &&
+        result.replayCheck.succeeded,
+    ),
+    true,
+  );
+  assert.equal(
+    witnessFirst.insightBirthDecisions.candidatesEvaluated,
+    witnessFirst.witnessExecution.candidatesTested,
+  );
+  assert.equal(
+    witnessFirst.insightBirthDecisions.candidatesArchived,
+    witnessFirst.witnessExecution.candidatesTested,
+  );
+  assert.equal(witnessFirst.insightBirthDecisions.insightCandidatesBorn, 0);
+  assert.equal(
+    witnessFirst.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(witnessFirst.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    witnessFirst.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

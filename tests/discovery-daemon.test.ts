@@ -5532,6 +5532,106 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   );
 });
 
+test("generator-born claim lift proposal builder blocks downgraded public-corpus anchors before proposal birth", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writePublicCorpusSummaryFixture(
+    root,
+    "first-discovery-fund-matbench-descriptor-transfer",
+    {
+      title: "Matbench descriptor-transfer public downgrade fixture",
+      candidateId: "PUBLIC-MATBENCH-DIFFERENT-ID",
+      claim:
+        "Public Matbench descriptor-transfer package was downgraded after raw scientific reproduction failed.",
+      resultKind:
+        "internal_runtime_replay_candidate_raw_scientific_reproduction_failed",
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: false,
+      publicDowngradeOverridesDiscoveryScoring: true,
+    },
+  );
+  await writePublicCorpusSummaryFixture(
+    root,
+    "first-discovery-fund-gaia-astrometric-excess-slices",
+    {
+      title: "Gaia astrometric excess public downgrade fixture",
+      candidateId: "PUBLIC-GAIA-DIFFERENT-ID",
+      claim:
+        "Gaia astrometric excess slice signal was reproduced but rival catalog and population-bias mechanisms explained the effect.",
+      resultKind: "not_discovery_scored_rival_explained_signal",
+      fundClass: "not_discovery_scored_rival_explained_signal",
+      publicReviewStatus:
+        "raw_scientific_reproduction_succeeded_but_rival_explained_signal_no_external_validation",
+      extendedValidationStatus: "extended_validation_rival_explained_signal",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: true,
+      publicDowngradeOverridesDiscoveryScoring: true,
+    },
+  );
+
+  const build = await service.generatorClaimLiftPropose();
+  const downgradedDecisions = build.decisions.filter(
+    (decision) =>
+      decision.candidateId.includes("MATBENCH") ||
+      decision.candidateId.includes("GAIA"),
+  );
+
+  assert.equal(downgradedDecisions.length > 0, true);
+  assert.equal(
+    downgradedDecisions.every(
+      (decision) =>
+        decision.proposalReady === false &&
+        decision.publicCorpusNegativeHistory?.matched === true &&
+        decision.publicCorpusNegativeHistory.blocksSeedBirth === true &&
+        decision.failedGates.includes("public_corpus_negative_history_clear"),
+    ),
+    true,
+  );
+  assert.equal(build.proposalsReady < build.requirementsLoaded, true);
+  assert.equal(build.proposalsBlocked > 0, true);
+  assert.equal(build.fundFound, false);
+
+  const proposalsPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-claim-lift",
+        "CLAIM_LIFT_PROPOSALS.json",
+      ),
+      "utf8",
+    ),
+  ) as { proposals?: Array<Record<string, unknown>> };
+  assert.equal(
+    (proposalsPayload.proposals ?? []).some((proposal) =>
+      String(proposal.targetDiscoveryCandidateId ?? "").match(/MATBENCH|GAIA/),
+    ),
+    false,
+  );
+
+  const lift = await service.generatorClaimLift();
+  assert.equal(
+    lift.decisions.some((decision) =>
+      String(decision.targetDiscoveryCandidateId ?? "").match(/MATBENCH|GAIA/),
+    ),
+    false,
+  );
+  assert.equal(lift.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift signal pressure blocks pipeline-class packages before discovery scoring", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);

@@ -1656,6 +1656,7 @@ export type GeneratorBornDiscoveryClaimLiftProposalBuildDecision = {
   kind: "generator_born_discovery_claim_lift_proposal_build_decision";
   candidateId: string;
   targetDiscoveryCandidateId: string | null;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
   proposalReady: boolean;
   proposal: GeneratorBornDiscoveryClaimLiftProposal | null;
   gates: FundGate[];
@@ -26844,6 +26845,23 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
           proposal,
           proposalRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_BUILT_PROPOSALS.json#${input.requirement.candidateId}`,
         });
+  const publicCorpusNegativeHistory =
+    proposal === null
+      ? await publicCorpusNegativeHistoryForClaimLiftCandidateText(
+          input.root,
+          normalizeWhitespace(
+            [
+              input.requirement.candidateId,
+              input.requirement.discoveryCandidateId,
+              input.requirement.exactClaim,
+              input.requirement.externalReviewPackagePath,
+            ].join(" "),
+          ),
+        )
+      : await publicCorpusNegativeHistoryForClaimLiftProposal(
+          input.root,
+          proposal,
+        );
   const gates = [
     gate(
       "package_ref_present",
@@ -26872,6 +26890,11 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
       claimDecision?.accepted === true,
       "The generated proposal must pass the full claim-lift decision gate before it can be written for DiscoveryCandidate creation.",
     ),
+    gate(
+      "public_corpus_negative_history_clear",
+      !publicCorpusNegativeHistory.blocksSeedBirth,
+      "Proposal builder must not write claim-lift proposals for external anchors already downgraded, rival-explained, or marked non-discovery in the public corpus.",
+    ),
   ];
   const failedGates = gates
     .filter((item) => !item.passed)
@@ -26883,6 +26906,7 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
     targetDiscoveryCandidateId: ready
       ? (proposal?.targetDiscoveryCandidateId ?? null)
       : null,
+    publicCorpusNegativeHistory,
     proposalReady: ready,
     proposal: ready ? proposal : null,
     gates: claimDecision === null ? gates : [...gates, ...claimDecision.gates],
@@ -26892,7 +26916,9 @@ async function generatorBornDiscoveryClaimLiftProposalBuildDecision(input: {
     ]),
     requiredChange: ready
       ? "Proposal is evidence-backed and may be consumed by generator-claim-lift; it is not a Fund and does not notify."
-      : "Bind an explicit package claimLiftProposalCandidate with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
+      : publicCorpusNegativeHistory.blocksSeedBirth
+        ? "Retire this claim-lift proposal source; the public corpus already downgraded, rival-explained, or removed discovery-score eligibility for the matching external anchor."
+        : "Bind an explicit package claimLiftProposalCandidate with a new stable DiscoveryCandidate ID, exact target-outcome claim, real external significance refs, runtime/source refs, and downstream gate refs. The builder must not infer this from failed frozen claim text.",
   });
 }
 
@@ -28138,14 +28164,14 @@ function generatorBornDiscoveryClaimLiftProposalBuildMarkdown(
     `Proposals written: ${report.proposalsWritten}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
-    "| Candidate | Target DiscoveryCandidate | Ready | Failed gates |",
-    "| --- | --- | --- | --- |",
+    "| Candidate | Target DiscoveryCandidate | Public corpus history | Ready | Failed gates |",
+    "| --- | --- | --- | --- | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${String(decision.proposalReady)} | ${decision.failedGates.join(", ") || "none"} |`,
+        `| ${decision.candidateId} | ${decision.targetDiscoveryCandidateId ?? "none"} | ${decision.publicCorpusNegativeHistory?.blocksSeedBirth ? `blocked:${decision.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : (decision.publicCorpusNegativeHistory?.matched ?? false) ? `matched:${decision.publicCorpusNegativeHistory?.resultSlug ?? "unknown"}` : "none"} | ${String(decision.proposalReady)} | ${decision.failedGates.join(", ") || "none"} |`,
     ),
     ...(report.decisions.length === 0
-      ? ["| none | none | false | none |"]
+      ? ["| none | none | none | false | none |"]
       : []),
     "",
     report.remainingBottleneck,

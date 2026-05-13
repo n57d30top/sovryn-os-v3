@@ -3937,7 +3937,7 @@ export class NobelReadinessService {
         booleanValue(summary?.publicRawScientificReproductionReady) ??
         booleanValue(fundCandidate?.publicRawScientificReproductionReady) ??
         booleanValue(nestedCandidate?.publicRawScientificReproductionReady);
-      const publicFormalReproductionReady =
+      const claimedPublicFormalReproductionReady =
         booleanValue(summary?.publicFormalReproductionReady) ??
         booleanValue(fundCandidate?.publicFormalReproductionReady) ??
         booleanValue(nestedCandidate?.publicFormalReproductionReady) ??
@@ -3945,13 +3945,27 @@ export class NobelReadinessService {
       const publicRawScientificReproductionReady =
         explicitRawScientificReproductionReady ??
         publicReviewStatusAllowsRawScientificReproduction(publicReviewStatus);
-      const publicRawOrFormalReproductionReady =
+      const claimedPublicRawOrFormalReproductionReady =
         booleanValue(summary?.publicRawOrFormalReproductionReady) ??
         booleanValue(fundCandidate?.publicRawOrFormalReproductionReady) ??
         booleanValue(nestedCandidate?.publicRawOrFormalReproductionReady) ??
         (publicRawScientificReproductionReady === true ||
-          publicFormalReproductionReady === true ||
+          claimedPublicFormalReproductionReady === true ||
           publicReviewStatusAllowsRawOrFormalReproduction(publicReviewStatus));
+      const formalReplayPressure =
+        await publicFormalReplayPressureForResult(resultRoot);
+      const publicFormalReproductionReady =
+        claimedPublicFormalReproductionReady === true
+          ? formalReplayPressure.replayReady === true
+          : claimedPublicFormalReproductionReady;
+      const publicRawOrFormalReproductionReady =
+        publicRawScientificReproductionReady === true ||
+        publicFormalReproductionReady === true
+          ? true
+          : claimedPublicRawOrFormalReproductionReady === true &&
+              claimedPublicFormalReproductionReady === true
+            ? formalReplayPressure.replayReady === true
+            : claimedPublicRawOrFormalReproductionReady;
       const extendedValidationBlocksDiscoveryScore =
         extendedValidationBlocksDiscoveryScoring(extendedValidationStatus);
       const blocksDiscoveryScore =
@@ -3979,8 +3993,6 @@ export class NobelReadinessService {
       const liveSourceOnlyReplayCaveat =
         publicRawScientificReproductionReady === true &&
         sourceRowsStored === false;
-      const formalReplayPressure =
-        await publicFormalReplayPressureForResult(resultRoot);
       const formalCounterexamplePressure =
         await publicFormalCounterexamplePressureForResult(resultRoot);
       contexts.push({
@@ -4117,13 +4129,14 @@ async function publicFormalReplayPressureForResult(
     checks.length > 0
       ? checks.length
       : numberValue(formalReplay?.checkedObjectCount);
+  const formalSourceReplayReady = formalSourceReplayReadiness(
+    manifest,
+    formalReplay,
+  );
   const replayReady =
     replayCheckCount === null
       ? null
-      : (booleanValue(formalReplay?.replayReady) === true ||
-          booleanValue(manifest?.publicSafe) === true ||
-          manifest !== null) &&
-        replayCheckCount >= 16;
+      : formalSourceReplayReady && replayCheckCount >= 16;
   const holdoutChecks = checks.filter((check) => {
     if (typeof check !== "object" || check === null) return false;
     return (check as Record<string, unknown>).holdoutSlice === "holdout";
@@ -4164,10 +4177,16 @@ async function publicFormalReplayPressureForResult(
           return (baseline as Record<string, unknown>).explainsSignal === true;
         }).length
       : null;
+  const baselineDirectionalityBlocked = formalBaselineDirectionalityBlocked(
+    manifest,
+    formalReplay,
+  );
   const baselineResistanceReady =
     baselineCount === null || baselineExplainsCount === null
       ? null
-      : baselineCount >= 3 && baselineExplainsCount === 0;
+      : baselineCount >= 3 &&
+        baselineExplainsCount === 0 &&
+        !baselineDirectionalityBlocked;
   const sourceFamilies = new Set(
     checks
       .map((check) =>
@@ -4263,6 +4282,191 @@ async function publicFormalReplayPressureForResult(
     nonObviousPredictionCount,
     predictionReady,
   };
+}
+
+function formalSourceReplayReadiness(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): boolean {
+  return (
+    formalBundleSourceObjectRefs(manifest, formalReplay).length > 0 &&
+    formalBundleIndependentSourceReplaySucceeded(manifest, formalReplay) &&
+    !formalBaselineDirectionalityBlocked(manifest, formalReplay)
+  );
+}
+
+function formalBundleSourceObjectRefs(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): string[] {
+  const refs = new Set<string>();
+  for (const record of [manifest, formalReplay]) {
+    collectFormalSourceObjectRefs(record, refs);
+  }
+  return [...refs].sort();
+}
+
+function collectFormalSourceObjectRefs(
+  record: Record<string, unknown> | null,
+  refs: Set<string>,
+): void {
+  if (record === null) return;
+  for (const field of [
+    "sourceObjectRefs",
+    "concreteSourceObjectRefs",
+    "publicSourceObjectRefs",
+    "formalSourceObjectRefs",
+  ]) {
+    for (const ref of arrayOfStrings(record[field])) {
+      if (formalSourceObjectRef(ref)) refs.add(ref);
+    }
+  }
+  const checks = Array.isArray(record.checks) ? record.checks : [];
+  for (const check of checks) {
+    if (typeof check !== "object" || check === null) continue;
+    collectFormalCheckSourceObjectRefs(check as Record<string, unknown>, refs);
+  }
+}
+
+function collectFormalCheckSourceObjectRefs(
+  check: Record<string, unknown>,
+  refs: Set<string>,
+): void {
+  for (const field of [
+    "graph6",
+    "graph6String",
+    "edgeList",
+    "edgelist",
+    "adjacencyMatrix",
+    "hogObjectId",
+    "graphClassesObjectId",
+    "formalGeneratorSpec",
+    "deterministicGeneratorSpec",
+  ]) {
+    const value = check[field];
+    if (typeof value === "string" && value.trim().length > 0) {
+      refs.add(`${field}:${value.trim()}`);
+    } else if (Array.isArray(value) && value.length > 0) {
+      refs.add(`${field}:inline`);
+    }
+  }
+  for (const ref of arrayOfStrings(check.sourceObjectRefs)) {
+    if (formalSourceObjectRef(ref)) refs.add(ref);
+  }
+}
+
+function formalBundleIndependentSourceReplaySucceeded(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): boolean {
+  const status = (
+    stringValue(formalReplay?.independentSourceReplayStatus) ??
+    stringValue(manifest?.independentSourceReplayStatus) ??
+    ""
+  ).toLowerCase();
+  return (
+    status.includes("succeeded") &&
+    !status.includes("failed") &&
+    !status.includes("manifest_only")
+  );
+}
+
+function formalBaselineDirectionalityBlocked(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): boolean {
+  const decisionStatus =
+    stringValue(formalReplay?.baselineDecisionStatus) ??
+    stringValue(
+      (formalReplay?.baselineDecision as Record<string, unknown> | undefined)
+        ?.status,
+    ) ??
+    stringValue(manifest?.baselineDecisionStatus) ??
+    stringValue(
+      (manifest?.baselineDecision as Record<string, unknown> | undefined)
+        ?.status,
+    );
+  const normalizedDecision = decisionStatus?.toLowerCase() ?? "";
+  if (
+    normalizedDecision.includes("baseline_dominated") ||
+    normalizedDecision.includes("signal_explained")
+  ) {
+    return true;
+  }
+  const measuredOutcome =
+    numberValue(formalReplay?.productMeasuredOutcome) ??
+    numberValue(formalReplay?.measuredOutcome) ??
+    numberValue(manifest?.productMeasuredOutcome) ??
+    numberValue(manifest?.measuredOutcome);
+  if (measuredOutcome === null) return false;
+  const baselineResults = Array.isArray(formalReplay?.productBaselineResults)
+    ? formalReplay.productBaselineResults
+    : Array.isArray(manifest?.baselineResults)
+      ? manifest.baselineResults
+      : [];
+  return baselineResults.some((baseline) => {
+    if (typeof baseline !== "object" || baseline === null) return false;
+    const row = baseline as Record<string, unknown>;
+    const result = numberValue(row.result);
+    const name = stringValue(row.baseline) ?? "";
+    const higherIsStronger = booleanValue(row.higherIsStronger) ?? true;
+    const comparable =
+      booleanValue(row.comparableToCandidateSignal) ??
+      formalBaselineComparableByDefault(name);
+    const justified = booleanValue(row.formallyJustified) === true;
+    return (
+      result !== null &&
+      higherIsStronger &&
+      comparable &&
+      result > measuredOutcome &&
+      !justified
+    );
+  });
+}
+
+function formalBaselineComparableByDefault(baseline: string): boolean {
+  const normalized = baseline.toLowerCase();
+  return (
+    normalized.includes("size") ||
+    normalized.includes("density") ||
+    normalized.includes("degree") ||
+    normalized.includes("treewidth") ||
+    normalized.includes("known") ||
+    normalized.includes("family") ||
+    normalized.includes("null") ||
+    normalized.includes("trivial") ||
+    normalized.includes("control")
+  );
+}
+
+function formalSourceObjectRef(ref: string): boolean {
+  const normalized = ref.trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    normalized.startsWith("graph6:") ||
+    normalized.startsWith("edge-list:") ||
+    normalized.startsWith("edgelist:") ||
+    normalized.startsWith("adjacency-matrix:") ||
+    normalized.startsWith("adjacency:") ||
+    normalized.startsWith("hog-object:") ||
+    normalized.startsWith("graphclasses-object:") ||
+    normalized.startsWith("formal-generator://")
+  ) {
+    return true;
+  }
+  if (/\.(g6|graph6|edgelist|edges|adj|mtx|cnf)(#.*)?$/i.test(normalized)) {
+    return true;
+  }
+  if (
+    normalized.includes("houseofgraphs") ||
+    normalized.includes("hog.grinvin")
+  ) {
+    return /(?:object|graph|id|hog)[=/:-]?[a-z0-9_-]+/i.test(normalized);
+  }
+  if (normalized.includes("graphclasses")) {
+    return /(?:class|graph|id|gc)[=/:-]?[a-z0-9_-]+/i.test(normalized);
+  }
+  return false;
 }
 
 async function publicFormalCounterexamplePressureForResult(

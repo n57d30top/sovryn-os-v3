@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_external_review_intake",
-  "generatedAt": "2026-05-13T12:49:30.258Z",
+  "generatedAt": "2026-05-13T13:34:47.584Z",
   "status": "awaiting_external_review",
   "passed": false,
   "candidateId": null,
@@ -78,5 +78,5 @@
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
     ".sovryn/nobel-readiness/external-review-reviews"
   ],
-  "evidenceHash": "f341c05445429b1a10aeb6028e8b3107911908b3011e92bc6968207ba5fabe05"
+  "evidenceHash": "d3af2d1db53b6182109ac704bf51e71e4bfbf4ee0c37faa820485be48ccb70b6"
 }

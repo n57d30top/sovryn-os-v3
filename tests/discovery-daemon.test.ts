@@ -4490,10 +4490,10 @@ test("mechanism-first graph-minor generator binds a formal object check manifest
   const sourceCacheRef = firstOutput.runtimeSourceBinding.sourceCacheRef;
 
   assert.equal(report.runtimeChecks, 10);
-  assert.equal(report.hardSeedsBorn, 2);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(
     outputs.filter((output) => output.birthEvaluation.accepted).length,
-    2,
+    0,
   );
   assert.equal(firstOutput.runtimeSourceBinding.status, "source_cache_bound");
   assert.equal(firstOutput.runtimeSourceBinding.rawTargetCount, 72);
@@ -4747,6 +4747,76 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     evaluator.evaluate({ ...baseInput, counterexampleCollapsed: true })
       .primaryBlocker,
     "counterexample_dense",
+  );
+  const downgradedGraphMinor = evaluator.evaluate({
+    ...baseInput,
+    generatorId: "bounded_graph_minor_obstruction_significance_generator",
+    targetId: "graph-minor-downgraded",
+    externalProblemAnchor: {
+      ...baseInput.externalProblemAnchor,
+      sourceRef: "https://hog.grinvin.org/",
+      inspectabilityRef: "https://www.graphclasses.org/",
+      significanceEvidenceRefs: [
+        "https://hog.grinvin.org/",
+        "https://www.graphclasses.org/",
+      ],
+    },
+    domainSignificanceHypothesis: {
+      ...baseInput.domainSignificanceHypothesis,
+      evidenceRefs: [
+        "https://hog.grinvin.org/",
+        "https://www.graphclasses.org/",
+      ],
+    },
+    sourceRefs: ["https://hog.grinvin.org/", "https://www.graphclasses.org/"],
+    evidenceRefs: [
+      "https://hog.grinvin.org/",
+      "https://www.graphclasses.org/",
+      ".sovryn/discovery-daemon/generator-families/GENERATOR_RUN_RESULTS.md#graph-minor-downgraded",
+    ],
+    measuredOutcome: 0.424,
+    residualMagnitude: 0.128,
+    baselineResults: [
+      {
+        baseline: "size_density_degree_treewidth_proxy_baseline",
+        result: 0.319,
+        explainsSignal: false,
+      },
+      {
+        baseline: "matched_known_family_negative_control",
+        result: 0.356,
+        explainsSignal: false,
+      },
+      {
+        baseline: "null_or_trivial_structural_rule",
+        result: 0.438,
+        explainsSignal: false,
+      },
+    ],
+    baselineDirectionalityAudit: [
+      {
+        baseline: "null_or_trivial_structural_rule",
+        result: 0.438,
+        higherIsStronger: true,
+        comparableToCandidateSignal: true,
+        formallyJustified: false,
+      },
+    ],
+  });
+  assert.equal(downgradedGraphMinor.accepted, false);
+  assert.equal(
+    downgradedGraphMinor.primaryBlocker,
+    "formal_source_object_missing",
+  );
+  assert.equal(
+    downgradedGraphMinor.failedGates.includes("formal_source_object_first"),
+    true,
+  );
+  assert.equal(
+    downgradedGraphMinor.failedGates.includes(
+      "formal_baseline_directionality_nonfatal",
+    ),
+    true,
   );
 });
 
@@ -5201,7 +5271,7 @@ test("significance generator blocks public-corpus downgraded anchors before hard
   assert.equal(report.kind, "mechanism_first_generator_run");
   assert.equal(report.generatorSet, "significance");
   assert.equal(report.hardSeedBirthAttempts, 30);
-  assert.equal(report.hardSeedsBorn, 2);
+  assert.equal(report.hardSeedsBorn, 0);
   assert.equal(report.seedsBlockedByExternalValueGate >= 20, true);
   assert.equal(report.replacementRequired, true);
   const publicBlockedRequirements = report.replacementRequirements.filter(
@@ -5265,16 +5335,7 @@ test("significance generator blocks public-corpus downgraded anchors before hard
   const bornOutputs = outputPayload.outputs.filter(
     (output) => output.hardSeed !== null,
   );
-  assert.equal(bornOutputs.length, 2);
-  assert.equal(
-    bornOutputs.every(
-      (output) =>
-        output.generatorId ===
-          "bounded_graph_minor_obstruction_significance_generator" &&
-        output.birthEvaluation.accepted === true,
-    ),
-    true,
-  );
+  assert.equal(bornOutputs.length, 0);
 
   const birthPayload = JSON.parse(
     await readFile(
@@ -5287,65 +5348,7 @@ test("significance generator blocks public-corpus downgraded anchors before hard
       "utf8",
     ),
   ) as { hardSeeds: HardSeed[] };
-  const staleMatbenchSeed: HardSeed = {
-    ...birthPayload.hardSeeds[0]!,
-    seedId:
-      "HARD-DISC-ANCHOR-DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP-RUNTIME-CHECK-01",
-    candidateId:
-      "DISC-ANCHOR-CAND-DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP-RUNTIME-CHECK-01",
-    claim:
-      "Discovery-grade external anchor DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP produced a stale birth-eligible HardSeed.",
-    sourceSeed: {
-      kind: "discovery_grade_anchor_runtime_check",
-      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
-      externalProblemAnchor: {
-        anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
-        anchorType: "public_measurement_residual",
-        sourceRef: "https://matbench.materialsproject.org/",
-        problemStatement:
-          "Public Matbench fixture anchor for negative-history filtering.",
-        measuredTargetOutcome:
-          "materials property residual after descriptor transfer controls",
-        knownBaselineOrPrior:
-          "composition formula size and target-family rivals explain many residuals",
-        externalValueRationale:
-          "External value requires a public raw scientific reproduction path.",
-        domainScientificSignificance:
-          "A materials descriptor transfer residual would have scientific significance only if public raw-data reproduction survives rival controls.",
-        discoveryScoredOutcome:
-          "Discovery-scored evidence would be a public raw-data materials mechanism claim rather than runtime scalar replay.",
-        significanceEvidenceRefs: [
-          "https://matbench.materialsproject.org/",
-          "https://materialsproject.org/",
-        ],
-        inspectabilityRef: "https://matbench.materialsproject.org/",
-      },
-      noFundClaim: true,
-    },
-  };
-  await mkdir(join(root, daemonRoot, "discovery-anchor-run"), {
-    recursive: true,
-  });
-  await writeFile(
-    join(
-      root,
-      daemonRoot,
-      "discovery-anchor-run",
-      "BIRTH_ELIGIBLE_HARD_SEEDS.json",
-    ),
-    `${JSON.stringify(
-      {
-        kind: "birth_eligible_hard_seeds",
-        hardSeeds: [staleMatbenchSeed],
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
-  );
-
-  const pressure = await service.generatorPressure();
-  assert.equal(pressure.seedsLoaded, 2);
+  assert.equal(birthPayload.hardSeeds.length, 0);
 });
 
 test("significance generator run can birth hard seeds from supported domain-significance evidence", async () => {
@@ -5365,15 +5368,24 @@ test("significance generator run can birth hard seeds from supported domain-sign
   assert.equal(report.familiesRun, 3);
   assert.equal(report.runtimeChecks, 30);
   assert.equal(report.hardSeedBirthAttempts, 30);
-  assert.equal(report.hardSeedsBorn, 6);
-  assert.equal(report.replacementRequired, false);
+  assert.equal(report.hardSeedsBorn, 4);
+  assert.equal(report.replacementRequired, true);
   assert.equal(
-    report.replacementRequirements.every(
+    report.replacementRequirements.filter(
+      (item) => item.status === "productive_or_not_run",
+    ).length,
+    2,
+  );
+  assert.equal(
+    report.replacementRequirements.some(
       (item) =>
-        item.status === "productive_or_not_run" &&
-        item.runtimeChecks === 10 &&
-        item.hardSeedsBorn === 2 &&
-        item.blockedOutputs === 8,
+        item.generatorId ===
+          "bounded_graph_minor_obstruction_significance_generator" &&
+        item.status === "replacement_required" &&
+        item.hardSeedsBorn === 0 &&
+        item.blockerCounts[
+          "baseline_dominated:null_or_trivial_structural_rule"
+        ] === 2,
     ),
     true,
   );
@@ -5403,7 +5415,7 @@ test("significance generator run can birth hard seeds from supported domain-sign
     }>;
     validations: Array<{ accepted: boolean }>;
   };
-  assert.equal(seedPayload.hardSeeds.length, 6);
+  assert.equal(seedPayload.hardSeeds.length, 4);
   assert.equal(
     seedPayload.hardSeeds.every(
       (seed) =>
@@ -5414,7 +5426,6 @@ test("significance generator run can birth hard seeds from supported domain-sign
         [
           "matbench_descriptor_transfer_significance_generator",
           "gaia_astrometric_excess_significance_generator",
-          "bounded_graph_minor_obstruction_significance_generator",
         ].includes(seed.sourceSeed.generatorId),
     ),
     true,
@@ -5445,7 +5456,7 @@ test("significance generator run can birth hard seeds from supported domain-sign
   const bornOutputs = outputPayload.outputs.filter(
     (output) => output.hardSeed !== null,
   );
-  assert.equal(bornOutputs.length, 6);
+  assert.equal(bornOutputs.length, 4);
   assert.equal(
     bornOutputs.every(
       (output) =>
@@ -5463,8 +5474,8 @@ test("significance generator run can birth hard seeds from supported domain-sign
   const audit = await service.generatorAudit();
   assert.equal(audit.passed, true);
   assert.equal(audit.generatorSet, "significance");
-  assert.equal(audit.replacementRequired, false);
-  assert.equal(audit.hardSeedsBorn, 6);
+  assert.equal(audit.replacementRequired, true);
+  assert.equal(audit.hardSeedsBorn, 4);
   assert.deepEqual(audit.failedGates, []);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
@@ -5483,13 +5494,13 @@ test("significance generator-born hard seeds enter pressure as InsightCandidates
 
   assert.equal(pressure.kind, "generator_born_hard_seed_pressure");
   assert.equal(pressure.status, "continue_searching_checkpointed");
-  assert.equal(pressure.seedsLoaded, 6);
-  assert.equal(pressure.testsRun, 42);
+  assert.equal(pressure.seedsLoaded, 4);
+  assert.equal(pressure.testsRun, 28);
   assert.equal(pressure.seedsKilledByBaseline, 0);
   assert.equal(pressure.seedsKilledByRival, 0);
   assert.equal(pressure.seedsKilledByCounterexample, 0);
   assert.equal(pressure.seedsKilledByLackOfRecurrence, 0);
-  assert.equal(pressure.insightCandidatesCreated, 6);
+  assert.equal(pressure.insightCandidatesCreated, 4);
   assert.equal(pressure.discoveryCandidatesCreated, 0);
   assert.equal(pressure.fundFound, false);
   assert.deepEqual(pressure.fundGateResult.failedGates, ["candidate_present"]);
@@ -5506,7 +5517,7 @@ test("significance generator-born hard seeds enter pressure as InsightCandidates
       runtimeEvidenceRef: string | null;
     }>;
   };
-  assert.equal(rowsPayload.rows.length, 6);
+  assert.equal(rowsPayload.rows.length, 4);
   assert.equal(
     rowsPayload.rows.every(
       (row) =>
@@ -5535,7 +5546,7 @@ test("significance generator-born InsightCandidates preserve domain significance
   assert.equal(closure.kind, "generator_born_insight_closure");
   assert.equal(closure.status, "continue_searching_checkpointed");
   assert.equal(closure.fundFound, false);
-  assert.equal(closure.promotionDecisions.length >= 6, true);
+  assert.equal(closure.promotionDecisions.length >= 4, true);
   assert.equal(
     closure.promotionDecisions.every(
       (decision) =>
@@ -5574,14 +5585,14 @@ test("significance generator-born fund closure remains silent until not-claimed 
 
   assert.equal(closure.kind, "generator_born_fund_closure");
   assert.equal(closure.status, "continue_searching_checkpointed");
-  assert.equal(closure.closureCandidateCount, 6);
+  assert.equal(closure.closureCandidateCount, 4);
   assert.equal(closure.discoveryScoredCandidates, 0);
-  assert.equal(closure.nonDiscoveryClassifiedCandidates, 6);
+  assert.equal(closure.nonDiscoveryClassifiedCandidates, 4);
   assert.deepEqual(closure.fundClassDistribution, {
-    pipeline_fund_candidate: 6,
+    pipeline_fund_candidate: 4,
   });
   assert.equal(closure.claimLiftRequired, true);
-  assert.equal(closure.claimLiftRequirements.length, 6);
+  assert.equal(closure.claimLiftRequirements.length, 4);
   assert.equal(
     closure.claimLiftRequirements.every(
       (requirement) =>
@@ -5708,10 +5719,10 @@ test("generator-born discovery claim lift blocks text-only closure candidates be
 
   assert.equal(lift.kind, "generator_born_discovery_claim_lift");
   assert.equal(lift.status, "continue_searching_checkpointed");
-  assert.equal(lift.requirementsLoaded, 6);
+  assert.equal(lift.requirementsLoaded, 4);
   assert.equal(lift.proposalsLoaded, 0);
   assert.equal(lift.acceptedClaimLifts, 0);
-  assert.equal(lift.blockedClaimLifts, 6);
+  assert.equal(lift.blockedClaimLifts, 4);
   assert.equal(lift.discoveryCandidatesCreated, 0);
   assert.equal(lift.fundCandidateDraftsCreated, 0);
   assert.equal(lift.fundFound, false);
@@ -5836,10 +5847,10 @@ test("generator-born claim lift proposal builder blocks packages without explici
     "generator_born_discovery_claim_lift_proposal_builder",
   );
   assert.equal(build.status, "continue_searching_checkpointed");
-  assert.equal(build.requirementsLoaded, 6);
-  assert.equal(build.proposalCandidatesEvaluated, 6);
+  assert.equal(build.requirementsLoaded, 4);
+  assert.equal(build.proposalCandidatesEvaluated, 4);
   assert.equal(build.proposalsReady, 0);
-  assert.equal(build.proposalsBlocked, 6);
+  assert.equal(build.proposalsBlocked, 4);
   assert.equal(build.proposalsWritten, 0);
   assert.equal(build.fundFound, false);
   assert.equal(
@@ -5886,11 +5897,11 @@ test("generator-born claim lift proposal builder writes only package-backed evid
 
   const build = await service.generatorClaimLiftPropose();
 
-  assert.equal(build.requirementsLoaded, 6);
-  assert.equal(build.proposalCandidatesEvaluated, 6);
-  assert.equal(build.proposalsReady, 6);
+  assert.equal(build.requirementsLoaded, 4);
+  assert.equal(build.proposalCandidatesEvaluated, 4);
+  assert.equal(build.proposalsReady, 4);
   assert.equal(build.proposalsBlocked, 0);
-  assert.equal(build.proposalsWritten, 6);
+  assert.equal(build.proposalsWritten, 4);
   assert.equal(build.fundFound, false);
   assert.equal(
     build.decisions.every(
@@ -5909,7 +5920,7 @@ test("generator-born claim lift proposal builder writes only package-backed evid
       "utf8",
     ),
   ) as { proposals?: Array<Record<string, unknown>> };
-  assert.equal(proposalsPayload.proposals?.length, 6);
+  assert.equal(proposalsPayload.proposals?.length, 4);
   assert.equal(
     proposalsPayload.proposals?.every(
       (proposal) =>
@@ -5920,10 +5931,10 @@ test("generator-born claim lift proposal builder writes only package-backed evid
   );
 
   const lift = await service.generatorClaimLift();
-  assert.equal(lift.acceptedClaimLifts, 6);
-  assert.equal(lift.discoveryCandidatesCreated, 6);
-  assert.equal(lift.fundCandidateDraftsCreated, 6);
-  assert.equal(lift.fundGateEvaluations.length, 6);
+  assert.equal(lift.acceptedClaimLifts, 4);
+  assert.equal(lift.discoveryCandidatesCreated, 4);
+  assert.equal(lift.fundCandidateDraftsCreated, 4);
+  assert.equal(lift.fundGateEvaluations.length, 4);
   assert.equal(lift.fundGateResult.passed, true);
   assert.equal(lift.fundGateResult.fundClass, "pipeline_fund_candidate");
   assert.equal(lift.fundGateResult.countsForEinsteinNobelDiscoveryScore, false);
@@ -5951,10 +5962,10 @@ test("generator-born claim lift proposal builder blocks package-only lift propos
 
   const build = await service.generatorClaimLiftPropose();
 
-  assert.equal(build.requirementsLoaded, 6);
-  assert.equal(build.proposalCandidatesEvaluated, 6);
+  assert.equal(build.requirementsLoaded, 4);
+  assert.equal(build.proposalCandidatesEvaluated, 4);
   assert.equal(build.proposalsReady, 0);
-  assert.equal(build.proposalsBlocked, 6);
+  assert.equal(build.proposalsBlocked, 4);
   assert.equal(
     build.decisions.every(
       (decision) =>
@@ -6048,7 +6059,7 @@ test("generator-born claim lift source signal binds forward-only evidence before
   );
 });
 
-test("generator-born claim lift source signal classifies formal runtime evidence without explicit depth", async () => {
+test("generator-born claim lift source signal does not expose graph-minor packages after formal gate blocks birth", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -6056,36 +6067,14 @@ test("generator-born claim lift source signal classifies formal runtime evidence
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
-  await stripGraphMinorRuntimeSourceDepth(root);
+  await writeClaimLiftSourceSignalCaches(root);
 
   const sourceSignal = await service.generatorClaimLiftSourceSignal();
-  const graphDecision = sourceSignal.decisions.find((decision) =>
+  const graphDecisions = sourceSignal.decisions.filter((decision) =>
     decision.candidateId.includes("GRAPH-MINOR"),
   );
 
-  assert.ok(graphDecision);
-  assert.equal(graphDecision.sourceSignalStatus, "blocked");
-  assert.equal(graphDecision.primaryBlocker, "shallow_external_measurement");
-  assert.ok(graphDecision.sourceCacheRef);
-  assert.equal(
-    graphDecision.sourceCacheRef.includes("formal-runtime-source-cache"),
-    true,
-  );
-  assert.equal(
-    graphDecision.failedGates.includes("source_cache_present"),
-    false,
-  );
-  assert.equal(graphDecision.failedGates.includes("source_cache_depth"), true);
-  const bridgedSource = JSON.parse(
-    await readFile(join(root, graphDecision.sourceCacheRef), "utf8"),
-  ) as { rawTargetCount: number; evidenceRefs: string[] };
-  assert.equal(bridgedSource.rawTargetCount, 0);
-  assert.equal(
-    bridgedSource.evidenceRefs.some((ref) =>
-      ref.includes("generator-families/runtime-evidence"),
-    ),
-    true,
-  );
+  assert.equal(graphDecisions.length, 0);
   assert.equal(sourceSignal.fundFound, false);
   assert.equal(sourceSignal.packagesMutated, 0);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
@@ -6095,7 +6084,7 @@ test("generator-born claim lift source signal classifies formal runtime evidence
   );
 });
 
-test("generator-born claim lift source signal can bind depth-backed formal runtime evidence", async () => {
+test("generator-born claim lift source signal binds non-formal source evidence but keeps same-source novelty blocked", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -6103,20 +6092,21 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
 
   const sourceSignal = await service.generatorClaimLiftSourceSignal();
   const graphDecisions = sourceSignal.decisions.filter((decision) =>
     decision.candidateId.includes("GRAPH-MINOR"),
   );
 
-  assert.equal(graphDecisions.length, 2);
+  assert.equal(graphDecisions.length, 0);
   assert.equal(
-    graphDecisions.every(
+    sourceSignal.decisions.every(
       (decision) =>
         decision.sourceSignalStatus === "source_signal_bound" &&
         decision.primaryBlocker === "none" &&
         decision.failedGates.length === 0 &&
-        decision.sourceCacheRef?.includes("formal-source-cache") === true &&
+        typeof decision.sourceCacheRef === "string" &&
         decision.bindableInsightEvidenceRefs.some((ref) =>
           ref.includes("generator-families/runtime-evidence"),
         ),
@@ -6129,13 +6119,13 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
     decision.candidateId.includes("GRAPH-MINOR"),
   );
 
-  assert.equal(graphNovelty.length, 2);
+  assert.equal(graphNovelty.length, 0);
   assert.equal(
-    graphNovelty.every(
+    novelty.decisions.every(
       (decision) =>
-        decision.noveltyPressureStatus === "novelty_pressure_cleared" &&
-        decision.primaryBlocker === "none" &&
-        decision.sourceFamilyCount >= 2,
+        decision.noveltyPressureStatus === "blocked" &&
+        decision.primaryBlocker === "same_source_family_only" &&
+        decision.sourceFamilyCount === 1,
     ),
     true,
   );
@@ -6147,7 +6137,7 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
   );
 });
 
-test("generator-born claim lift rebind consumes depth-backed formal source-cache evidence", async () => {
+test("generator-born claim lift rebind excludes graph-minor packages blocked before source-cache evidence", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -6155,6 +6145,7 @@ test("generator-born claim lift rebind consumes depth-backed formal source-cache
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
   await service.generatorClaimLiftSourceSignal();
   await service.generatorClaimLiftNoveltyPressure();
   const preflight = await service.generatorClaimLiftCandidate();
@@ -6170,15 +6161,10 @@ test("generator-born claim lift rebind consumes depth-backed formal source-cache
     decision.candidateId.includes("GRAPH-MINOR"),
   );
 
-  assert.equal(graphExperiments.length, 2);
+  assert.equal(graphExperiments.length, 0);
   assert.equal(
-    graphExperiments.every(
-      (decision) =>
-        decision.experimentStatus === "insight_evidence_ready" &&
-        decision.sourceCacheRef?.includes("formal-source-cache") === true &&
-        decision.bindableInsightEvidenceRefs.some((ref) =>
-          ref.includes("generator-families/runtime-evidence"),
-        ),
+    experiment.decisions.every(
+      (decision) => !decision.candidateId.includes("GRAPH-MINOR"),
     ),
     true,
   );
@@ -6188,14 +6174,10 @@ test("generator-born claim lift rebind consumes depth-backed formal source-cache
     decision.candidateId.includes("GRAPH-MINOR"),
   );
 
-  assert.equal(graphRebinds.length, 2);
+  assert.equal(graphRebinds.length, 0);
   assert.equal(
-    graphRebinds.every(
-      (decision) =>
-        decision.rebindStatus === "rebound" &&
-        decision.rawSourceReproductionConsistency.checked === true &&
-        decision.rawSourceReproductionConsistency.passed === true &&
-        decision.packageRef?.includes("DISCOVERY-LIFT") === true,
+    rebind.decisions.every(
+      (decision) => !decision.candidateId.includes("GRAPH-MINOR"),
     ),
     true,
   );
@@ -6647,12 +6629,12 @@ test("generator-born claim lift signal pressure blocks pipeline-class packages b
     "generator_born_discovery_claim_lift_signal_pressure",
   );
   assert.equal(pressure.status, "continue_searching_checkpointed");
-  assert.equal(pressure.liftedCandidatesLoaded, 6);
-  assert.equal(pressure.packagesEvaluated, 6);
+  assert.equal(pressure.liftedCandidatesLoaded, 4);
+  assert.equal(pressure.packagesEvaluated, 4);
   assert.equal(pressure.discoverySignalReady, 0);
-  assert.equal(pressure.blockedSignals, 6);
+  assert.equal(pressure.blockedSignals, 4);
   assert.deepEqual(pressure.blockerDistribution, {
-    missing_nontrivial_new_insight_evidence: 6,
+    missing_nontrivial_new_insight_evidence: 4,
   });
   assert.equal(pressure.fundGateResult.passed, true);
   assert.equal(pressure.fundGateResult.fundClass, "pipeline_fund_candidate");
@@ -6939,8 +6921,8 @@ test("generator-born claim lift path blocks downgraded public-corpus anchors eve
     true,
   );
   assert.equal(pressure.discoverySignalReady, 0);
-  assert.equal(experiment.insightEvidenceReady, 2);
-  assert.equal(rebind.discoveryScoredPackages, 2);
+  assert.equal(experiment.insightEvidenceReady, 0);
+  assert.equal(rebind.discoveryScoredPackages, 0);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -6998,9 +6980,9 @@ test("generator-born claim lift signal experiment identifies bindable external-s
     "generator_born_discovery_claim_lift_signal_experiment",
   );
   assert.equal(experiment.status, "insight_evidence_ready");
-  assert.equal(experiment.liftedCandidatesLoaded, 6);
-  assert.equal(experiment.experimentsRun, 6);
-  assert.equal(experiment.insightEvidenceReady, 6);
+  assert.equal(experiment.liftedCandidatesLoaded, 4);
+  assert.equal(experiment.experimentsRun, 4);
+  assert.equal(experiment.insightEvidenceReady, 4);
   assert.equal(experiment.blockedExperiments, 0);
   assert.equal(
     experiment.blockerDistribution.missing_external_source_cache ?? 0,
@@ -7073,9 +7055,9 @@ test("generator-born claim lift rebind blocks raw source reproduction mismatch b
 
   const rebind = await service.generatorClaimLiftRebind();
 
-  assert.equal(rebind.status, "discovery_package_rebound");
-  assert.equal(rebind.packagesRebound, 2);
-  assert.equal(rebind.discoveryScoredPackages, 2);
+  assert.equal(rebind.status, "continue_searching_checkpointed");
+  assert.equal(rebind.packagesRebound, 0);
+  assert.equal(rebind.discoveryScoredPackages, 0);
   assert.equal(
     rebind.blockerDistribution.raw_source_reproduction_mismatch > 0,
     true,
@@ -7157,9 +7139,9 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
     "generator_born_discovery_claim_lift_signal_rebind",
   );
   assert.equal(rebind.status, "discovery_package_rebound");
-  assert.equal(rebind.packagesRebound, 6);
+  assert.equal(rebind.packagesRebound, 4);
   assert.equal(rebind.packagesSkipped, 0);
-  assert.equal(rebind.discoveryScoredPackages, 6);
+  assert.equal(rebind.discoveryScoredPackages, 4);
   assert.equal(rebind.fundFound, false);
   assert.equal(rebind.fundGateResult.notificationAllowed, true);
   assert.equal(
@@ -7278,9 +7260,9 @@ test("generator-born claim lift rebind skips public-downgraded ready package", a
   assert.equal(decision?.primaryBlocker, "public_corpus_downgrade");
   assert.equal(decision?.packageMutated, false);
   assert.equal(decision?.countsForEinsteinNobelDiscoveryScoreAfter, false);
-  assert.equal(rebind.packagesRebound, 5);
+  assert.equal(rebind.packagesRebound, 3);
   assert.equal(rebind.packagesSkipped, 1);
-  assert.equal(rebind.discoveryScoredPackages, 5);
+  assert.equal(rebind.discoveryScoredPackages, 3);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -7782,10 +7764,10 @@ test("generator-born discovery claim lift accepts only fully evidenced new Disco
 
   const lift = await service.generatorClaimLift();
 
-  assert.equal(lift.requirementsLoaded, 6);
+  assert.equal(lift.requirementsLoaded, 4);
   assert.equal(lift.proposalsLoaded, 1);
   assert.equal(lift.acceptedClaimLifts, 1);
-  assert.equal(lift.blockedClaimLifts, 5);
+  assert.equal(lift.blockedClaimLifts, 3);
   assert.equal(lift.discoveryCandidatesCreated, 1);
   assert.equal(lift.fundCandidateDraftsCreated, 0);
   assert.deepEqual(lift.fundCandidateDraftRefs, []);

@@ -1203,23 +1203,36 @@ export class DiscoveryFrictionHealthService {
         booleanField(nestedCandidate, "countsForEinsteinNobelDiscoveryScore");
       const statusReadiness =
         publicReviewStatusReproductionReadiness(publicReviewStatus);
+      const formalSourceReplayReadiness =
+        await publicFormalSourceReplayReadiness(resultRoot);
       const publicRawScientificReproductionReady =
         booleanField(summary, "publicRawScientificReproductionReady") ??
         booleanField(fundCandidate, "publicRawScientificReproductionReady") ??
         booleanField(nestedCandidate, "publicRawScientificReproductionReady") ??
         statusReadiness.raw;
-      const publicFormalReproductionReady =
+      const formalStatusClaimed =
         booleanField(summary, "publicFormalReproductionReady") ??
         booleanField(fundCandidate, "publicFormalReproductionReady") ??
         booleanField(nestedCandidate, "publicFormalReproductionReady") ??
         statusReadiness.formal;
-      const publicRawOrFormalReproductionReady =
+      const publicFormalReproductionReady =
+        formalStatusClaimed === true
+          ? formalSourceReplayReadiness.ready
+          : formalStatusClaimed;
+      const rawOrFormalStatusClaimed =
         booleanField(summary, "publicRawOrFormalReproductionReady") ??
         booleanField(fundCandidate, "publicRawOrFormalReproductionReady") ??
         booleanField(nestedCandidate, "publicRawOrFormalReproductionReady") ??
         (publicRawScientificReproductionReady === true ||
           publicFormalReproductionReady === true ||
           statusReadiness.rawOrFormal);
+      const publicRawOrFormalReproductionReady =
+        publicRawScientificReproductionReady === true ||
+        publicFormalReproductionReady === true
+          ? true
+          : rawOrFormalStatusClaimed === true && formalStatusClaimed === true
+            ? formalSourceReplayReadiness.ready
+            : rawOrFormalStatusClaimed;
       const blocksDiscoveryScore =
         countsForEinsteinNobelDiscoveryScore === false ||
         publicFundClass?.startsWith("not_discovery_scored") === true ||
@@ -2917,6 +2930,224 @@ function publicReviewStatusReproductionReadiness(status: string | null): {
     formal ||
     normalized.includes("raw_or_formal_reproduction_succeeded");
   return { raw, formal, rawOrFormal };
+}
+
+async function publicFormalSourceReplayReadiness(
+  resultRoot: string,
+): Promise<{ ready: boolean; reason: string }> {
+  const manifest = await readJsonIfExists<Record<string, unknown>>(
+    join(
+      resultRoot,
+      "raw-reproduction-bundle",
+      "formal-object-check-manifest.json",
+    ),
+  );
+  const formalReplay = await readJsonIfExists<Record<string, unknown>>(
+    join(resultRoot, "FORMAL_REPRODUCTION_RESULT.json"),
+  );
+  if (manifest === null && formalReplay === null) {
+    return { ready: false, reason: "formal_replay_package_missing" };
+  }
+  const sourceObjectRefs = formalBundleSourceObjectRefs(manifest, formalReplay);
+  if (sourceObjectRefs.length === 0) {
+    return { ready: false, reason: "formal_source_object_missing" };
+  }
+  if (!formalBundleIndependentSourceReplaySucceeded(manifest, formalReplay)) {
+    return { ready: false, reason: "independent_source_replay_missing" };
+  }
+  if (formalBundleBaselineDirectionalityBlocked(manifest, formalReplay)) {
+    return {
+      ready: false,
+      reason: "baseline_directionality_blocks_formal_replay",
+    };
+  }
+  return { ready: true, reason: "independent_formal_source_replay_ready" };
+}
+
+function formalBundleSourceObjectRefs(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): string[] {
+  const refs = new Set<string>();
+  for (const record of [manifest, formalReplay]) {
+    collectFormalSourceObjectRefs(record, refs);
+  }
+  return [...refs].sort();
+}
+
+function collectFormalSourceObjectRefs(
+  record: Record<string, unknown> | null,
+  refs: Set<string>,
+): void {
+  if (record === null) return;
+  for (const field of [
+    "sourceObjectRefs",
+    "concreteSourceObjectRefs",
+    "publicSourceObjectRefs",
+    "formalSourceObjectRefs",
+  ]) {
+    for (const ref of stringArrayField(record, field)) {
+      if (formalSourceObjectRef(ref)) refs.add(ref);
+    }
+  }
+  const checks = Array.isArray(record.checks) ? record.checks : [];
+  for (const check of checks) {
+    if (typeof check !== "object" || check === null) continue;
+    collectFormalCheckSourceObjectRefs(check as Record<string, unknown>, refs);
+  }
+}
+
+function collectFormalCheckSourceObjectRefs(
+  check: Record<string, unknown>,
+  refs: Set<string>,
+): void {
+  for (const field of [
+    "graph6",
+    "graph6String",
+    "edgeList",
+    "edgelist",
+    "adjacencyMatrix",
+    "hogObjectId",
+    "graphClassesObjectId",
+    "formalGeneratorSpec",
+    "deterministicGeneratorSpec",
+  ]) {
+    const value = check[field];
+    if (typeof value === "string" && value.trim().length > 0) {
+      refs.add(`${field}:${value.trim()}`);
+    } else if (Array.isArray(value) && value.length > 0) {
+      refs.add(`${field}:inline`);
+    }
+  }
+  for (const ref of stringArrayField(check, "sourceObjectRefs")) {
+    if (formalSourceObjectRef(ref)) refs.add(ref);
+  }
+}
+
+function formalBundleIndependentSourceReplaySucceeded(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): boolean {
+  const status = (
+    stringField(formalReplay, "independentSourceReplayStatus") ??
+    stringField(manifest, "independentSourceReplayStatus") ??
+    ""
+  ).toLowerCase();
+  return (
+    status.includes("succeeded") &&
+    !status.includes("failed") &&
+    !status.includes("manifest_only")
+  );
+}
+
+function formalBundleBaselineDirectionalityBlocked(
+  manifest: Record<string, unknown> | null,
+  formalReplay: Record<string, unknown> | null,
+): boolean {
+  const decisionStatus =
+    stringField(formalReplay, "baselineDecisionStatus") ??
+    stringField(objectField(formalReplay, "baselineDecision"), "status") ??
+    stringField(manifest, "baselineDecisionStatus") ??
+    stringField(objectField(manifest, "baselineDecision"), "status");
+  const normalizedDecision = decisionStatus?.toLowerCase() ?? "";
+  if (
+    normalizedDecision.includes("baseline_dominated") ||
+    normalizedDecision.includes("signal_explained")
+  ) {
+    return true;
+  }
+  const measuredOutcome =
+    numericField(formalReplay, "productMeasuredOutcome") ??
+    numericField(formalReplay, "measuredOutcome") ??
+    numericField(manifest, "productMeasuredOutcome") ??
+    numericField(manifest, "measuredOutcome");
+  if (measuredOutcome === null) return false;
+  const baselineResults = Array.isArray(formalReplay?.productBaselineResults)
+    ? formalReplay.productBaselineResults
+    : Array.isArray(manifest?.baselineResults)
+      ? manifest.baselineResults
+      : [];
+  return baselineResults.some((baseline) => {
+    if (typeof baseline !== "object" || baseline === null) return false;
+    const row = baseline as Record<string, unknown>;
+    const result = numericField(row, "result");
+    const name = stringField(row, "baseline") ?? "";
+    const higherIsStronger = booleanField(row, "higherIsStronger") ?? true;
+    const comparable =
+      booleanField(row, "comparableToCandidateSignal") ??
+      formalBaselineComparableByDefault(name);
+    const justified = booleanField(row, "formallyJustified") === true;
+    return (
+      result !== null &&
+      higherIsStronger &&
+      comparable &&
+      result > measuredOutcome &&
+      !justified
+    );
+  });
+}
+
+function stringArrayField(
+  object: Record<string, unknown>,
+  field: string,
+): string[] {
+  const value = object[field];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function numericField(
+  object: Record<string, unknown> | null,
+  field: string,
+): number | null {
+  const value = object?.[field];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formalBaselineComparableByDefault(baseline: string): boolean {
+  const normalized = baseline.toLowerCase();
+  return (
+    normalized.includes("size") ||
+    normalized.includes("density") ||
+    normalized.includes("degree") ||
+    normalized.includes("treewidth") ||
+    normalized.includes("known") ||
+    normalized.includes("family") ||
+    normalized.includes("null") ||
+    normalized.includes("trivial") ||
+    normalized.includes("control")
+  );
+}
+
+function formalSourceObjectRef(ref: string): boolean {
+  const normalized = ref.trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    normalized.startsWith("graph6:") ||
+    normalized.startsWith("edge-list:") ||
+    normalized.startsWith("edgelist:") ||
+    normalized.startsWith("adjacency-matrix:") ||
+    normalized.startsWith("adjacency:") ||
+    normalized.startsWith("hog-object:") ||
+    normalized.startsWith("graphclasses-object:") ||
+    normalized.startsWith("formal-generator://")
+  ) {
+    return true;
+  }
+  if (/\.(g6|graph6|edgelist|edges|adj|mtx|cnf)(#.*)?$/i.test(normalized)) {
+    return true;
+  }
+  if (
+    normalized.includes("houseofgraphs") ||
+    normalized.includes("hog.grinvin")
+  ) {
+    return /(?:object|graph|id|hog)[=/:-]?[a-z0-9_-]+/i.test(normalized);
+  }
+  if (normalized.includes("graphclasses")) {
+    return /(?:class|graph|id|gc)[=/:-]?[a-z0-9_-]+/i.test(normalized);
+  }
+  return false;
 }
 
 function extendedValidationBlocksDiscoveryScoring(

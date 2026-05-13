@@ -1294,6 +1294,15 @@ export type HardSeedBirthEvaluationInput = {
     | "executed_public_artifact"
     | "generated_formal_object"
     | "deterministic_design_profile";
+  formalSourceObjectRefs?: string[];
+  measuredOutcome?: number;
+  baselineDirectionalityAudit?: Array<{
+    baseline: string;
+    result: number;
+    higherIsStronger?: boolean;
+    comparableToCandidateSignal?: boolean;
+    formallyJustified?: boolean;
+  }>;
   sourceRefs: string[];
   evidenceRefs: string[];
   residualMagnitude?: number;
@@ -2405,6 +2414,7 @@ export type DiscoveryAnchorRuntimeSourceArtifact = {
   holdoutPath: string;
   replayPath: string;
   publicSafe: boolean;
+  sourceObjectRefs?: string[];
   sourceRefs?: string[];
   evidenceRefs?: string[];
 };
@@ -12291,6 +12301,45 @@ export class HardSeedBirthEvaluator {
       typeof input.residualMagnitude === "number" &&
       input.residualMagnitude < generatorBirthResidualFloor;
     const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
+    const formalSourceObjectRefs = uniqueStrings([
+      ...(input.formalSourceObjectRefs ?? []),
+      ...allRefs.filter(formalSourceObjectRef),
+    ]);
+    const formalSourceObjectFirstRequired =
+      input.domain === "formal_mathematics_conjecture_refutation";
+    const formalSourceObjectFirstPassed =
+      !formalSourceObjectFirstRequired || formalSourceObjectRefs.length > 0;
+    const directionalityBaselines =
+      input.baselineDirectionalityAudit ??
+      (typeof input.measuredOutcome === "number"
+        ? input.baselineResults
+            .map((baseline) =>
+              typeof baseline.result === "number"
+                ? {
+                    baseline: baseline.baseline,
+                    result: baseline.result,
+                    higherIsStronger: true,
+                    comparableToCandidateSignal:
+                      formalBaselineComparableByDefault(baseline.baseline),
+                    formallyJustified: false,
+                  }
+                : null,
+            )
+            .filter((baseline): baseline is NonNullable<typeof baseline> =>
+              Boolean(baseline),
+            )
+        : []);
+    const directionalityDominatingBaselines =
+      input.domain === "formal_mathematics_conjecture_refutation" &&
+      typeof input.measuredOutcome === "number"
+        ? directionalityBaselines.filter(
+            (baseline) =>
+              baseline.comparableToCandidateSignal !== false &&
+              baseline.higherIsStronger !== false &&
+              baseline.result > input.measuredOutcome! &&
+              baseline.formallyJustified !== true,
+          )
+        : [];
     const externalValueGate = new ExternalValueGate().evaluate({
       anchor: input.externalProblemAnchor ?? null,
       sourceRefs: input.sourceRefs,
@@ -12336,6 +12385,16 @@ export class HardSeedBirthEvaluator {
           input.evidenceRefs.some((ref) => ref.startsWith("https://")) &&
           allRefs.every(publicSafeRef),
         "HardSeed birth requires public-safe source and evidence refs, including a concrete public URL.",
+      ),
+      gate(
+        "formal_source_object_first",
+        formalSourceObjectFirstPassed,
+        "Formal HardSeed birth requires a concrete public source object first: graph6, edge list, adjacency matrix, HOG/GraphClasses object ID, or deterministic formal generator spec.",
+      ),
+      gate(
+        "formal_baseline_directionality_nonfatal",
+        directionalityDominatingBaselines.length === 0,
+        "Formal HardSeed birth is blocked when a simple directionally comparable baseline exceeds the candidate signal without formal justification.",
       ),
       gate(
         "baseline_resistance",
@@ -12389,6 +12448,10 @@ export class HardSeedBirthEvaluator {
       !allRefs.every(publicSafeRef)
         ? "unresolved_evidence_refs"
         : "",
+      formalSourceObjectFirstPassed ? "" : "formal_source_object_missing",
+      directionalityDominatingBaselines.length > 0
+        ? `baseline_dominated:${directionalityDominatingBaselines.map((baseline) => baseline.baseline).join(",")}`
+        : "",
       explanatoryBaselines.length > 0
         ? `baseline_dominated:${explanatoryBaselines.join(",")}`
         : "",
@@ -12417,6 +12480,51 @@ export class HardSeedBirthEvaluator {
       failedGates,
     });
   }
+}
+
+function formalBaselineComparableByDefault(baseline: string): boolean {
+  const normalized = baseline.toLowerCase();
+  return (
+    normalized.includes("baseline") ||
+    normalized.includes("null") ||
+    normalized.includes("trivial") ||
+    normalized.includes("control") ||
+    normalized.includes("known")
+  );
+}
+
+function formalSourceObjectRef(ref: string): boolean {
+  const normalized = ref.trim().toLowerCase();
+  if (normalized.length === 0) return false;
+  if (
+    normalized.startsWith("graph6:") ||
+    normalized.startsWith("edge-list:") ||
+    normalized.startsWith("edgelist:") ||
+    normalized.startsWith("adjacency-matrix:") ||
+    normalized.startsWith("adjacency:") ||
+    normalized.startsWith("hog-object:") ||
+    normalized.startsWith("graphclasses-object:") ||
+    normalized.startsWith("formal-generator://")
+  ) {
+    return true;
+  }
+  if (/\.(g6|graph6|edgelist|edges|adj|mtx|cnf)(#|$|\?)/.test(normalized)) {
+    return true;
+  }
+  if (
+    (normalized.includes("hog.grinvin.org") ||
+      normalized.includes("houseofgraphs.org")) &&
+    /(?:object|graph|id|hog)[-_=/#:][a-z0-9]+/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    normalized.includes("graphclasses.org") &&
+    /(?:class|graph|id|gc)[-_=/#:][a-z0-9]+/.test(normalized)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export class MechanismFirstEvidenceGeneratorService {
@@ -19147,9 +19255,26 @@ async function discoveryGradeAnchorRuntimeCheck(
     publicCorpusNegativeHistory,
     runtimeEvidencePresent,
     runtimeEvidenceKind,
+    formalSourceObjectRefs: runtimeSource.artifact?.sourceObjectRefs ?? [],
     sourceRefs,
     evidenceRefs,
+    measuredOutcome,
     residualMagnitude,
+    baselineDirectionalityAudit: baselineResults.flatMap((baseline) =>
+      typeof baseline.result === "number"
+        ? [
+            {
+              baseline: baseline.baseline,
+              result: baseline.result,
+              higherIsStronger: true,
+              comparableToCandidateSignal: formalBaselineComparableByDefault(
+                baseline.baseline,
+              ),
+              formallyJustified: false,
+            },
+          ]
+        : [],
+    ),
     baselineResults,
     rivalWeakened,
     nontrivialResidual,
@@ -32369,11 +32494,15 @@ async function boundedGraphMinorFormalRuntimeSourceContext(
     family.rawTargetSource,
     "https://www.graphclasses.org/",
   ]).filter(publicSafeRef);
+  const sourceObjectRefs = [
+    "formal-generator://bounded-graph-minor-obstruction-significance/v1?families=cycle,wheel,complete_bipartite,grid,ladder,complete&objects=72&seed=deterministic",
+  ];
   const manifest = withEvidenceHash({
     kind: "formal_graph_minor_object_check_manifest" as const,
     anchorId,
     generatorId: family.generatorId,
     sourceRefs,
+    sourceObjectRefs,
     loaderCheckCommand: `sovryn discover-daemon generator-run --generator ${family.generatorId} --significance-candidates --json`,
     formalCheckCount: checks.length,
     checkedObjectCount: checks.length,
@@ -32424,6 +32553,7 @@ async function boundedGraphMinorFormalRuntimeSourceContext(
     holdoutPath: `${checkManifestRef}#holdout-slice`,
     replayPath: `${checkManifestRef}#replay-keys`,
     publicSafe: true,
+    sourceObjectRefs,
     sourceRefs,
     evidenceRefs: uniqueStrings([
       checkManifestRef,
@@ -33352,6 +33482,23 @@ function mechanismFirstGeneratorOutput(
     evidenceRefs,
     residualMagnitude,
     baselineResults,
+    formalSourceObjectRefs: runtimeSource.artifact?.sourceObjectRefs ?? [],
+    measuredOutcome,
+    baselineDirectionalityAudit: baselineResults.flatMap((baseline) =>
+      typeof baseline.result === "number"
+        ? [
+            {
+              baseline: baseline.baseline,
+              result: baseline.result,
+              higherIsStronger: true,
+              comparableToCandidateSignal: formalBaselineComparableByDefault(
+                baseline.baseline,
+              ),
+              formallyJustified: false,
+            },
+          ]
+        : [],
+    ),
     rivalWeakened,
     nontrivialResidual,
     crossSourceSupport,

@@ -780,8 +780,11 @@ test("nobel-readiness consumes public formal replay bundle pressure from formal 
   await writeJson(join(rawBundleRoot, "formal-object-check-manifest.json"), {
     kind: "formal_graph_minor_object_check_manifest",
     candidateId,
+    sourceObjectRefs: ["hog-object:HOG-0001", "graphclasses-object:GC-0001"],
+    independentSourceReplayStatus: "independent_source_replay_succeeded",
     checks: Array.from({ length: 24 }, (_, index) => ({
       objectId: `FORMAL-CHECK-${String(index + 1).padStart(3, "0")}`,
+      graph6: `D?${String(index).padStart(2, "0")}`,
       sourceFamily:
         index % 2 === 0 ? "hog_public_family" : "graphclasses_public_family",
       holdoutSlice: index < 12 ? "development" : "holdout",
@@ -793,7 +796,9 @@ test("nobel-readiness consumes public formal replay bundle pressure from formal 
     kind: "formal_reproduction_result",
     candidateId,
     replayReady: true,
+    independentSourceReplayStatus: "independent_source_replay_succeeded",
     checkedObjectCount: 24,
+    productMeasuredOutcome: 0.524,
     productBaselineResults: [
       {
         baseline: "size_density_degree_treewidth_proxy_baseline",
@@ -867,6 +872,91 @@ test("nobel-readiness consumes public formal replay bundle pressure from formal 
   assert.match(report, /Public formal counterexample pressure ready: true/);
   assert.match(report, /Public formal counterexample checks: 24/);
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
+test("nobel-readiness blocks manifest-only graph-minor replay when a null baseline dominates", async () => {
+  const parent = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-formal-manifest-only-parent-"),
+  );
+  const root = join(parent, "sovryn-os-v3");
+  const corpusResultRoot = join(
+    parent,
+    "sovryn-open-inventions",
+    "results",
+    "first-formal-discovery-fund-graph-minor-obstruction-boundary",
+  );
+  const rawBundleRoot = join(corpusResultRoot, "raw-reproduction-bundle");
+  await mkdir(rawBundleRoot, { recursive: true });
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const fundGate = await readJson<Record<string, unknown>>(
+    join(root, ".sovryn", "discovery-daemon", "fund-gate-results.json"),
+  );
+  const assessment = fundGate.fundClassAssessment as Record<string, unknown>;
+  await writeJson(join(corpusResultRoot, "SUMMARY.json"), {
+    kind: "public_result_summary",
+    candidateId,
+    fundClass: assessment.fundClass,
+    countsForEinsteinNobelDiscoveryScore: true,
+    publicReviewStatus:
+      "formal_replay_succeeded_caveated_no_external_validation",
+    publicRawScientificReproductionReady: false,
+    publicFormalReproductionReady: true,
+    publicRawOrFormalReproductionReady: true,
+  });
+  await writeJson(join(rawBundleRoot, "formal-object-check-manifest.json"), {
+    kind: "formal_graph_minor_object_check_manifest",
+    candidateId,
+    checks: Array.from({ length: 24 }, (_, index) => ({
+      objectId: `MANIFEST-ONLY-${String(index + 1).padStart(3, "0")}`,
+      sourceFamily:
+        index % 2 === 0
+          ? "hog_manifest_family"
+          : "graphclasses_manifest_family",
+      holdoutSlice: index < 12 ? "development" : "holdout",
+      rivalExplains: index < 6,
+      counterexampleCollapsed: false,
+    })),
+  });
+  await writeJson(join(corpusResultRoot, "FORMAL_REPRODUCTION_RESULT.json"), {
+    kind: "formal_reproduction_result",
+    candidateId,
+    replayReady: true,
+    independentSourceReplayStatus: "failed_manifest_only_replay_available",
+    checkedObjectCount: 24,
+    productMeasuredOutcome: 0.424,
+    baselineDecision: {
+      status: "baseline_dominated_for_public_discovery_scoring",
+    },
+    productBaselineResults: [
+      {
+        baseline: "size_density_degree_treewidth_proxy_baseline",
+        result: 0.319,
+        explainsSignal: false,
+      },
+      {
+        baseline: "matched_known_family_negative_control",
+        result: 0.356,
+        explainsSignal: false,
+      },
+      {
+        baseline: "null_or_trivial_structural_rule",
+        result: 0.438,
+        explainsSignal: false,
+      },
+    ],
+  });
+
+  const service = new NobelReadinessService(root);
+  const score = await service.score();
+
+  assert.equal(score.publicFormalReplayCheckCount, 24);
+  assert.equal(score.publicFormalReplayReady, false);
+  assert.equal(score.publicFormalBaselineResistanceReady, false);
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, false);
+  assert.doesNotMatch(
+    score.rationale.join(" "),
+    /Public formal replay bundle evidence is consumed/,
+  );
 });
 
 test("nobel-readiness external-review handoff verifies package refs without claiming external validation", async () => {

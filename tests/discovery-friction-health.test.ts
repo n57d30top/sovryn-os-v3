@@ -460,6 +460,93 @@ test("health friction allows public formal reproduction readiness for formal can
   );
 });
 
+test("health friction blocks manifest-only formal replay with a dominating null baseline", async () => {
+  const root = await tempRoot();
+  await writeFrictionFixture(root);
+  await writeActiveDiscoveryFundState(root);
+  await writePublicCorpusDiscoveryPackage(root, "DISCOVERY-LIFT-DEMO", {
+    publicReviewStatus:
+      "formal_reproduction_succeeded_caveated_no_external_validation",
+    fundClass: "externally_review_ready_discovery_candidate",
+    countsForEinsteinNobelDiscoveryScore: true,
+  });
+  const corpusResultRoot = join(
+    root,
+    "..",
+    "sovryn-open-inventions",
+    "results",
+    "first-discovery-fund-matbench-descriptor-transfer",
+  );
+  const bundleRoot = join(corpusResultRoot, "raw-reproduction-bundle");
+  await writeFile(
+    join(bundleRoot, "formal-object-check-manifest.json"),
+    JSON.stringify({
+      kind: "formal_graph_minor_object_check_manifest",
+      candidateId: "DISCOVERY-LIFT-DEMO",
+      checks: Array.from({ length: 24 }, (_, index) => ({
+        objectId: `MANIFEST-ONLY-${String(index + 1).padStart(3, "0")}`,
+        sourceFamily:
+          index % 2 === 0
+            ? "hog_manifest_family"
+            : "graphclasses_manifest_family",
+        holdoutSlice: index < 12 ? "development" : "holdout",
+      })),
+    }),
+  );
+  await writeFile(
+    join(corpusResultRoot, "FORMAL_REPRODUCTION_RESULT.json"),
+    JSON.stringify({
+      kind: "formal_reproduction_result",
+      candidateId: "DISCOVERY-LIFT-DEMO",
+      replayReady: true,
+      independentSourceReplayStatus: "failed_manifest_only_replay_available",
+      checkedObjectCount: 24,
+      productMeasuredOutcome: 0.424,
+      baselineDecision: {
+        status: "baseline_dominated_for_public_discovery_scoring",
+      },
+      productBaselineResults: [
+        {
+          baseline: "size_density_degree_treewidth_proxy_baseline",
+          result: 0.319,
+          explainsSignal: false,
+        },
+        {
+          baseline: "matched_known_family_negative_control",
+          result: 0.356,
+          explainsSignal: false,
+        },
+        {
+          baseline: "null_or_trivial_structural_rule",
+          result: 0.438,
+          explainsSignal: false,
+        },
+      ],
+    }),
+  );
+
+  const response = await executeCli(["health", "friction", "--json"], root);
+
+  assert.equal(response.ok, true, JSON.stringify(response.errors));
+  const data = response.data as {
+    fundFound: boolean;
+    publicFundReconciliation: Record<string, unknown>;
+    fundGateResult: Record<string, unknown>;
+  };
+  assert.equal(data.fundFound, false);
+  assert.equal(data.fundGateResult.status, "continue_searching");
+  assert.equal(data.publicFundReconciliation.matched, true);
+  assert.equal(data.publicFundReconciliation.blocksDiscoveryScore, true);
+  assert.equal(
+    data.publicFundReconciliation.publicFormalReproductionReady,
+    false,
+  );
+  assert.equal(
+    data.publicFundReconciliation.publicRawOrFormalReproductionReady,
+    false,
+  );
+});
+
 test("health friction exposes public extended validation caveat without hiding raw replay readiness", async () => {
   const root = await tempRoot();
   await writeFrictionFixture(root);
@@ -916,6 +1003,56 @@ async function writePublicCorpusDiscoveryPackage(
         input.countsForEinsteinNobelDiscoveryScore,
     }),
   );
+  if (input.publicReviewStatus.includes("formal_reproduction_succeeded")) {
+    const bundleRoot = join(corpusResultRoot, "raw-reproduction-bundle");
+    await mkdir(bundleRoot, { recursive: true });
+    await writeFile(
+      join(bundleRoot, "formal-object-check-manifest.json"),
+      JSON.stringify({
+        kind: "formal_graph_minor_object_check_manifest",
+        candidateId,
+        sourceObjectRefs: ["hog-object:HOG-0001"],
+        independentSourceReplayStatus: "independent_source_replay_succeeded",
+        checks: Array.from({ length: 24 }, (_, index) => ({
+          objectId: `FORMAL-CHECK-${String(index + 1).padStart(3, "0")}`,
+          graph6: `D?${String(index).padStart(2, "0")}`,
+          sourceFamily:
+            index % 2 === 0
+              ? "hog_public_family"
+              : "graphclasses_public_family",
+          holdoutSlice: index < 12 ? "development" : "holdout",
+        })),
+      }),
+    );
+    await writeFile(
+      join(corpusResultRoot, "FORMAL_REPRODUCTION_RESULT.json"),
+      JSON.stringify({
+        kind: "formal_reproduction_result",
+        candidateId,
+        replayReady: true,
+        independentSourceReplayStatus: "independent_source_replay_succeeded",
+        checkedObjectCount: 24,
+        productMeasuredOutcome: 0.524,
+        productBaselineResults: [
+          {
+            baseline: "size_density_degree_treewidth_proxy_baseline",
+            result: 0.319,
+            explainsSignal: false,
+          },
+          {
+            baseline: "matched_known_family_negative_control",
+            result: 0.356,
+            explainsSignal: false,
+          },
+          {
+            baseline: "null_or_trivial_structural_rule",
+            result: 0.438,
+            explainsSignal: false,
+          },
+        ],
+      }),
+    );
+  }
 }
 
 async function writeFrictionFixture(root: string): Promise<void> {

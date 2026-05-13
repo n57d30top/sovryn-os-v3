@@ -1121,8 +1121,54 @@ test("nobel-readiness public review URL audit verifies public corpus reviewer en
       ?.passed,
     true,
   );
+  assert.equal(
+    audit.gates.find(
+      (gate) =>
+        gate.code === "public_review_scoring_contract_requires_external_url",
+    )?.passed,
+    true,
+  );
   assert.match(report, /does not claim external human review/);
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
+test("nobel-readiness public review URL audit blocks stale local review-source contract", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-url-audit-contract-block-"),
+  );
+  const { candidateId } = await writeActiveDiscoveryFundPackage(root);
+  const targetRepo = await mkdtemp(
+    join(tmpdir(), "sovryn-corpus-url-contract-block-"),
+  );
+  const resultRoot = await writePublicReviewCorpusPackage(
+    targetRepo,
+    candidateId,
+  );
+  const templatePath = join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json");
+  const template = await readJson<Record<string, unknown>>(templatePath);
+  await writeJson(templatePath, {
+    ...template,
+    reviewSourceRef: "public-safe URL or attached report",
+  });
+  await writeFile(
+    join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+    "# External Review Intake Instructions\n\nA supportive record can affect readiness when it resolves to a public-safe source.\n",
+    "utf8",
+  );
+
+  const audit = await new NobelReadinessService(root).publicReviewUrlAudit(
+    targetRepo,
+  );
+
+  assert.equal(audit.passed, false);
+  assert.equal(audit.status, "blocked");
+  assert.equal(
+    audit.gates.find(
+      (gate) =>
+        gate.code === "public_review_scoring_contract_requires_external_url",
+    )?.passed,
+    false,
+  );
 });
 
 test("nobel-readiness public review URL audit blocks missing public URL index", async () => {
@@ -1863,7 +1909,8 @@ async function writePublicReviewCorpusPackage(
     resultSlug: slug,
     reviewerRole: "independent formal reviewer",
     reviewDate: "YYYY-MM-DD",
-    reviewSourceRef: "public-safe URL or attached report",
+    reviewSourceRef:
+      "Provide an external public URL for any score-impacting supportive review.",
     decision:
       "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
     independentReproductionStatus:
@@ -1875,7 +1922,7 @@ async function writePublicReviewCorpusPackage(
   });
   await writeFile(
     join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
-    "# External Review Intake Instructions\n\nRun `sovryn nobel-readiness external-review-intake --json` after a real review record exists.\n",
+    "# External Review Intake Instructions\n\nRun `sovryn nobel-readiness external-review-intake --json` after a real review record exists.\n\nInvalid, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL.\n",
     "utf8",
   );
   return resultRoot;

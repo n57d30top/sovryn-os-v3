@@ -2970,6 +2970,16 @@ export class NobelReadinessService {
           join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"),
         )
       : null;
+    const intakeInstructionsText =
+      resultRoot &&
+      (await fileExists(
+        join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+      ))
+        ? await readFile(
+            join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+            "utf8",
+          )
+        : "";
     const publicUrlText =
       resultRoot &&
       (await fileExists(join(resultRoot, "PUBLIC_REVIEW_URLS.md")))
@@ -3054,6 +3064,17 @@ export class NobelReadinessService {
           ),
         message:
           "External review template must match the active candidate and include intake-required fields.",
+      },
+      {
+        code: "public_review_scoring_contract_requires_external_url",
+        passed:
+          /external public URL/i.test(
+            stringValue(template?.reviewSourceRef) ?? "",
+          ) &&
+          /external public URL/i.test(intakeInstructionsText) &&
+          /non-external/i.test(intakeInstructionsText),
+        message:
+          "Public review template and intake instructions must state that score-impacting supportive reviews require an external public URL.",
       },
       {
         code: "public_review_urls_present",

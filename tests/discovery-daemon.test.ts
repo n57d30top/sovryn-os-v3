@@ -5112,6 +5112,19 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.proofObligationPressureCandidates, 5);
   assert.equal((report.proofObligationPressureChecksRun ?? 0) >= 25, true);
   assert.equal(report.proofObligationInsightCandidatesBorn, 0);
+  assert.equal(report.proofFailuresAnalyzed, 5);
+  assert.equal(report.researchStrategistProofPlans, 5);
+  assert.equal(report.theoryEngineProofPlans, 5);
+  assert.equal(report.computationalScientistProofPlans, 5);
+  assert.equal(report.knowledgeEngineProofReviews, 5);
+  assert.equal((report.weakProofObligationsRejected ?? 0) > 0, true);
+  assert.equal(
+    (report.strongProofReadyCandidatesSelected ?? 0) > 0 &&
+      (report.strongProofReadyCandidatesSelected ?? 0) <= 5,
+    true,
+  );
+  assert.equal((report.strongProofPressureChecksRun ?? 0) >= 5, true);
+  assert.equal(report.strongProofInsightCandidatesBorn, 0);
   assert.equal(report.insightCandidatesCreated, 0);
   assert.equal(report.claimLiftEligibleCount, 0);
   assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
@@ -5206,6 +5219,22 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "TARGETED_COUNTEREXAMPLE_RESULTS.md",
     "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.md",
     "PROOF_OBLIGATION_INSIGHT_BIRTH_DECISIONS.json",
+    "RESEARCH_TEAM_STRONG_PROOF_QUALITY_GAUNTLET.json",
+    "PROOF_OBLIGATION_FAILURE_AUTOPSY.md",
+    "PROOF_OBLIGATION_FAILURE_AUTOPSY.json",
+    "PROOF_FAILURE_CAUSE_MATRIX.json",
+    "RESEARCH_STRATEGIST_PREFLIGHT.md",
+    "THEORY_ENGINE_PROOF_PLANS.md",
+    "COMPUTATIONAL_SCIENTIST_CHECK_PLANS.md",
+    "KNOWLEDGE_ENGINE_PRIOR_FAILURE_REVIEW.md",
+    "STRONG_PROOF_READINESS_GATE.md",
+    "REJECTED_WEAK_PROOF_OBLIGATIONS.md",
+    "SELECTED_STRONG_PROOF_CANDIDATES.md",
+    "FROZEN_PROOF_PREDICTIONS.md",
+    "STRONG_PROOF_PRESSURE_RESULTS.md",
+    "STRONG_PROOF_PRESSURE_RESULTS.json",
+    "STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.md",
+    "STRONG_PROOF_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -6086,6 +6115,193 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         !decision.insightCandidateBorn &&
         decision.proofClassification === "mechanism_failed" &&
         decision.blockers.includes("proof_obligation_not_supported") &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const strongProof = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "RESEARCH_TEAM_STRONG_PROOF_QUALITY_GAUNTLET.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    failureAutopsy: {
+      candidatesAnalyzed: number;
+      items: Array<{
+        primaryFailureCause: string;
+        failureCauses: string[];
+        lemmaNeeded: string;
+      }>;
+    };
+    failureCauseMatrix: {
+      candidatesAnalyzed: number;
+      rows: Array<{ causes: string[]; primaryCause: string }>;
+    };
+    researchStrategistPreflight: { plansCreated: number };
+    theoryEngineProofPlans: {
+      plansCreated: number;
+      materiallyChangedPlans: number;
+      plans: Array<{
+        materiallyChangedFromPriorObligation: boolean;
+        structuralInvariant: string | null;
+      }>;
+    };
+    computationalScientistCheckPlans: { plansCreated: number };
+    knowledgeEnginePriorFailureReview: {
+      reviewsCompleted: number;
+      rejectedAsPriorFailureRepeat: number;
+    };
+    strongProofReadinessGate: {
+      obligationsEvaluated: number;
+      selectedForPressure: number;
+      weakProofObligationsRejected: number;
+      selected: Array<{
+        materiallyChangedFromPriorObligation: boolean;
+        structuralInvariant: string;
+      }>;
+      rejections: Array<{ reasons: string[] }>;
+    };
+    strongProofPressure: {
+      candidatesTested: number;
+      checksRun: number;
+      supported: number;
+      counterexamplesFound: number;
+      results: Array<{
+        classification: string;
+        boundedProofRefutationChecks: Array<{ observation: string }>;
+        invariantChecks: Array<{ observation: string }>;
+        targetedCounterexampleSearch: Array<{
+          counterexampleFound: boolean;
+        }>;
+        rivalMechanismChecks: Array<{
+          rivalScopedOrWeakened: boolean;
+        }>;
+        replayCheck: { observation: string };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(strongProof.failureAutopsy.candidatesAnalyzed, 5);
+  assert.equal(
+    strongProof.failureAutopsy.items.every(
+      (item) =>
+        item.primaryFailureCause.length > 0 &&
+        item.failureCauses.length > 0 &&
+        item.lemmaNeeded.length > 0,
+    ),
+    true,
+  );
+  assert.equal(strongProof.failureCauseMatrix.candidatesAnalyzed, 5);
+  assert.equal(
+    strongProof.failureCauseMatrix.rows.every(
+      (row) => row.primaryCause.length > 0 && row.causes.length > 0,
+    ),
+    true,
+  );
+  assert.equal(strongProof.researchStrategistPreflight.plansCreated, 5);
+  assert.equal(strongProof.theoryEngineProofPlans.plansCreated, 5);
+  assert.equal(
+    strongProof.theoryEngineProofPlans.materiallyChangedPlans > 0,
+    true,
+  );
+  assert.equal(strongProof.computationalScientistCheckPlans.plansCreated, 5);
+  assert.equal(
+    strongProof.knowledgeEnginePriorFailureReview.reviewsCompleted,
+    5,
+  );
+  assert.equal(
+    strongProof.knowledgeEnginePriorFailureReview.rejectedAsPriorFailureRepeat >
+      0,
+    true,
+  );
+  assert.equal(strongProof.strongProofReadinessGate.obligationsEvaluated, 5);
+  assert.equal(
+    strongProof.strongProofReadinessGate.weakProofObligationsRejected > 0,
+    true,
+  );
+  assert.equal(
+    strongProof.strongProofReadinessGate.selectedForPressure > 0 &&
+      strongProof.strongProofReadinessGate.selectedForPressure <= 5,
+    true,
+  );
+  assert.equal(
+    strongProof.strongProofReadinessGate.selected.every(
+      (candidate) =>
+        candidate.materiallyChangedFromPriorObligation &&
+        candidate.structuralInvariant.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    strongProof.strongProofReadinessGate.rejections.every(
+      (rejection) => rejection.reasons.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    strongProof.strongProofPressure.candidatesTested,
+    strongProof.strongProofReadinessGate.selectedForPressure,
+  );
+  assert.equal(
+    strongProof.strongProofPressure.checksRun >=
+      strongProof.strongProofPressure.candidatesTested * 5,
+    true,
+  );
+  assert.equal(strongProof.strongProofPressure.supported, 0);
+  assert.equal(strongProof.strongProofPressure.counterexamplesFound, 0);
+  assert.equal(
+    strongProof.strongProofPressure.results.every(
+      (result) =>
+        result.boundedProofRefutationChecks.length >= 3 &&
+        result.boundedProofRefutationChecks.every(
+          (check) => check.observation.length > 0,
+        ) &&
+        result.invariantChecks.length >= 2 &&
+        result.invariantChecks.every((check) => check.observation.length > 0) &&
+        result.targetedCounterexampleSearch.every(
+          (search) => !search.counterexampleFound,
+        ) &&
+        result.rivalMechanismChecks.length >= 1 &&
+        result.replayCheck.observation.length > 0 &&
+        [
+          "proof_obligation_supported",
+          "proof_obligation_partially_supported",
+          "counterexample_found",
+          "rival_mechanism_stronger",
+          "known_trivial",
+          "mechanism_failed",
+          "inconclusive_requires_human_review",
+        ].includes(result.classification),
+    ),
+    true,
+  );
+  assert.equal(
+    strongProof.insightBirthDecisions.candidatesEvaluated,
+    strongProof.strongProofPressure.candidatesTested,
+  );
+  assert.equal(strongProof.insightBirthDecisions.insightCandidatesBorn, 0);
+  assert.equal(strongProof.insightBirthDecisions.discoveryCandidatesCreated, 0);
+  assert.equal(strongProof.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    strongProof.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
         decision.archiveReason.length > 0,
     ),
     true,

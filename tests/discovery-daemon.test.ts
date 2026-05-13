@@ -434,6 +434,25 @@ async function writeDiscoveryAnchorRuntimeSourceCacheFixture(
   return `.sovryn/discovery-daemon/discovery-anchor-run/source-cache/${input.anchorId}.json`;
 }
 
+async function writePublicCorpusSummaryFixture(
+  root: string,
+  slug: string,
+  summary: Record<string, unknown>,
+): Promise<void> {
+  const resultRoot = join(
+    dirname(root),
+    "sovryn-open-inventions",
+    "results",
+    slug,
+  );
+  await mkdir(resultRoot, { recursive: true });
+  await writeFile(
+    join(resultRoot, "SUMMARY.json"),
+    `${JSON.stringify({ kind: "public_corpus_result", slug, ...summary }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
 function gaiaAstrometricExcessFixtureCsv(): string {
   const rows = Array.from({ length: 24 }, (_, index) => {
     const sourceId = 1000000000000 + index;
@@ -4252,6 +4271,37 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
       .primaryBlocker,
     "known_trivial_signal",
   );
+  const publicDowngradeBlocked = evaluator.evaluate({
+    ...baseInput,
+    publicCorpusNegativeHistory: {
+      kind: "public_corpus_negative_history_assessment",
+      checked: true,
+      matched: true,
+      blocksSeedBirth: true,
+      resultSlug: "first-discovery-fund-fixture",
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      publicExtendedValidationStatus: null,
+      publicFundClass: "not_discovery_scored_raw_reproduction_failed",
+      resultKind:
+        "internal_runtime_replay_candidate_raw_scientific_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: false,
+      reason: "fixture public downgrade",
+      evidenceHash: "fixture",
+    },
+  });
+  assert.equal(
+    publicDowngradeBlocked.primaryBlocker,
+    "public_corpus_downgraded_anchor",
+  );
+  assert.equal(publicDowngradeBlocked.externalValueGate.accepted, false);
+  assert.equal(
+    publicDowngradeBlocked.externalValueGate.failedGates.includes(
+      "not_public_corpus_downgraded_anchor",
+    ),
+    true,
+  );
   assert.equal(
     evaluator.evaluate({ ...baseInput, runtimeEvidencePresent: false })
       .primaryBlocker,
@@ -4691,6 +4741,204 @@ test("source-bound significance generator uses discovery-anchor source-cache met
     await exists(join(root, daemonRoot, "fund-candidate.json")),
     false,
   );
+});
+
+test("significance generator blocks public-corpus downgraded anchors before hard-seed birth", async () => {
+  const root = await tempRoot();
+  await writePublicCorpusSummaryFixture(
+    root,
+    "first-discovery-fund-matbench-descriptor-transfer",
+    {
+      title: "Matbench descriptor transfer candidate",
+      sourcePackagePath:
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER",
+      exactClaim:
+        "HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICANCE-GENERATOR-OUTPUT-01 had a descriptor transfer residual.",
+      resultKind:
+        "internal_runtime_replay_candidate_raw_scientific_reproduction_failed",
+      fundClass: "not_discovery_scored_raw_reproduction_failed",
+      publicReviewStatus:
+        "not_external_review_ready_raw_scientific_reproduction_failed",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: false,
+      domainScientificSignificance: false,
+      nontrivialNewInsightAcrossRealTargets: false,
+    },
+  );
+  await writePublicCorpusSummaryFixture(
+    root,
+    "first-discovery-fund-gaia-astrometric-excess-slices",
+    {
+      title: "Gaia astrometric excess slices candidate",
+      sourcePackagePath:
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-GAIA-ASTROMETRIC-EXCESS",
+      exactClaim:
+        "HARD-GEN-GAIA-ASTROMETRIC-EXCESS-SIGNIFICANCE-GENERATOR-OUTPUT-01 had an astrometric residual.",
+      resultKind: "not_discovery_scored_rival_explained_signal",
+      fundClass: "not_discovery_scored_rival_explained_signal",
+      publicReviewStatus:
+        "raw_scientific_reproduction_succeeded_but_rival_explained_signal_no_external_validation",
+      extendedValidationStatus: "extended_validation_rival_explained_signal",
+      countsForEinsteinNobelDiscoveryScore: false,
+      publicRawScientificReproductionReady: true,
+      publicDiscoveryScoreBlockedReason: "ruwe_rival_explains_primary_signal",
+      domainScientificSignificance: false,
+      nontrivialNewInsightAcrossRealTargets: false,
+    },
+  );
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorRun({ significanceCandidates: true });
+
+  assert.equal(report.kind, "mechanism_first_generator_run");
+  assert.equal(report.generatorSet, "significance");
+  assert.equal(report.hardSeedBirthAttempts, 30);
+  assert.equal(report.hardSeedsBorn, 2);
+  assert.equal(report.seedsBlockedByExternalValueGate >= 20, true);
+  assert.equal(report.replacementRequired, true);
+  const publicBlockedRequirements = report.replacementRequirements.filter(
+    (requirement) =>
+      [
+        "matbench_descriptor_transfer_significance_generator",
+        "gaia_astrometric_excess_significance_generator",
+      ].includes(requirement.generatorId),
+  );
+  assert.equal(publicBlockedRequirements.length, 2);
+  assert.equal(
+    publicBlockedRequirements.every(
+      (requirement) =>
+        requirement.status === "replacement_required" &&
+        requirement.hardSeedsBorn === 0 &&
+        requirement.dominantBlocker === "public_corpus_downgraded_anchor",
+    ),
+    true,
+  );
+
+  const outputPayload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      generatorId: string;
+      hardSeed: unknown | null;
+      publicCorpusNegativeHistory: {
+        matched: boolean;
+        blocksSeedBirth: boolean;
+        resultSlug: string | null;
+      };
+      externalValueGate: { failedGates: string[]; accepted: boolean };
+      birthEvaluation: { primaryBlocker: string | null; accepted: boolean };
+    }>;
+  };
+  const matbenchAndGaia = outputPayload.outputs.filter((output) =>
+    [
+      "matbench_descriptor_transfer_significance_generator",
+      "gaia_astrometric_excess_significance_generator",
+    ].includes(output.generatorId),
+  );
+  assert.equal(matbenchAndGaia.length, 20);
+  assert.equal(
+    matbenchAndGaia.every(
+      (output) =>
+        output.hardSeed === null &&
+        output.publicCorpusNegativeHistory.matched === true &&
+        output.publicCorpusNegativeHistory.blocksSeedBirth === true &&
+        output.externalValueGate.accepted === false &&
+        output.externalValueGate.failedGates.includes(
+          "not_public_corpus_downgraded_anchor",
+        ) &&
+        output.birthEvaluation.primaryBlocker ===
+          "public_corpus_downgraded_anchor",
+    ),
+    true,
+  );
+  const bornOutputs = outputPayload.outputs.filter(
+    (output) => output.hardSeed !== null,
+  );
+  assert.equal(bornOutputs.length, 2);
+  assert.equal(
+    bornOutputs.every(
+      (output) =>
+        output.generatorId ===
+          "bounded_graph_minor_obstruction_significance_generator" &&
+        output.birthEvaluation.accepted === true,
+    ),
+    true,
+  );
+
+  const birthPayload = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "generator-families",
+        "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+      ),
+      "utf8",
+    ),
+  ) as { hardSeeds: HardSeed[] };
+  const staleMatbenchSeed: HardSeed = {
+    ...birthPayload.hardSeeds[0]!,
+    seedId:
+      "HARD-DISC-ANCHOR-DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP-RUNTIME-CHECK-01",
+    candidateId:
+      "DISC-ANCHOR-CAND-DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP-RUNTIME-CHECK-01",
+    claim:
+      "Discovery-grade external anchor DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP produced a stale birth-eligible HardSeed.",
+    sourceSeed: {
+      kind: "discovery_grade_anchor_runtime_check",
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+      externalProblemAnchor: {
+        anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+        anchorType: "public_measurement_residual",
+        sourceRef: "https://matbench.materialsproject.org/",
+        problemStatement:
+          "Public Matbench fixture anchor for negative-history filtering.",
+        measuredTargetOutcome:
+          "materials property residual after descriptor transfer controls",
+        knownBaselineOrPrior:
+          "composition formula size and target-family rivals explain many residuals",
+        externalValueRationale:
+          "External value requires a public raw scientific reproduction path.",
+        domainScientificSignificance:
+          "A materials descriptor transfer residual would have scientific significance only if public raw-data reproduction survives rival controls.",
+        discoveryScoredOutcome:
+          "Discovery-scored evidence would be a public raw-data materials mechanism claim rather than runtime scalar replay.",
+        significanceEvidenceRefs: [
+          "https://matbench.materialsproject.org/",
+          "https://materialsproject.org/",
+        ],
+        inspectabilityRef: "https://matbench.materialsproject.org/",
+      },
+      noFundClaim: true,
+    },
+  };
+  await mkdir(join(root, daemonRoot, "discovery-anchor-run"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(
+      root,
+      daemonRoot,
+      "discovery-anchor-run",
+      "BIRTH_ELIGIBLE_HARD_SEEDS.json",
+    ),
+    `${JSON.stringify(
+      {
+        kind: "birth_eligible_hard_seeds",
+        hardSeeds: [staleMatbenchSeed],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const pressure = await service.generatorPressure();
+  assert.equal(pressure.seedsLoaded, 2);
 });
 
 test("significance generator run can birth hard seeds from supported domain-significance evidence", async () => {

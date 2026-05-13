@@ -1282,6 +1282,7 @@ export type HardSeedBirthEvaluationInput = {
   domain: DiscoveryDomain;
   externalProblemAnchor?: ExternalProblemAnchor | null;
   domainSignificanceHypothesis?: DomainSignificanceHypothesis | null;
+  publicCorpusNegativeHistory?: PublicCorpusNegativeHistoryAssessment | null;
   generatorOnlySignal?: boolean;
   packageOnlySignal?: boolean;
   internallyInterestingOnly?: boolean;
@@ -1350,9 +1351,26 @@ export type ExternalValueGateAssessment = {
   accepted: boolean;
   anchorId: string | null;
   anchorType: ExternalProblemAnchor["anchorType"] | null;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment | null;
   gates: FundGate[];
   failedGates: string[];
   blockers: string[];
+  evidenceHash: string;
+};
+
+export type PublicCorpusNegativeHistoryAssessment = {
+  kind: "public_corpus_negative_history_assessment";
+  checked: boolean;
+  matched: boolean;
+  blocksSeedBirth: boolean;
+  resultSlug: string | null;
+  publicReviewStatus: string | null;
+  publicExtendedValidationStatus: string | null;
+  publicFundClass: string | null;
+  resultKind: string | null;
+  countsForEinsteinNobelDiscoveryScore: boolean | null;
+  publicRawScientificReproductionReady: boolean | null;
+  reason: string;
   evidenceHash: string;
 };
 
@@ -1365,6 +1383,7 @@ export type MechanismFirstGeneratorOutput = {
   sourceRefs: string[];
   evidenceRefs: string[];
   externalProblemAnchor: ExternalProblemAnchor;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment;
   externalValueGate: ExternalValueGateAssessment;
   domainSignificanceHypothesis: DomainSignificanceHypothesis;
   domainSignificanceHypothesisGate: DomainSignificanceHypothesisGateAssessment;
@@ -2243,6 +2262,7 @@ export type DiscoveryGradeAnchorRuntimeCheck = {
   sourceRefs: string[];
   evidenceRefs: string[];
   producedArtifact: string;
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment;
   measuredVariable: string;
   measuredOutcome: number;
   residualMagnitude: number;
@@ -11708,6 +11728,7 @@ export class ExternalValueGate {
     anchor?: ExternalProblemAnchor | null;
     sourceRefs: string[];
     evidenceRefs: string[];
+    publicCorpusNegativeHistory?: PublicCorpusNegativeHistoryAssessment | null;
     generatorOnlySignal?: boolean;
     packageOnlySignal?: boolean;
     internallyInterestingOnly?: boolean;
@@ -11715,6 +11736,8 @@ export class ExternalValueGate {
     knownTrivialSignal?: boolean;
   }): ExternalValueGateAssessment {
     const anchor = input.anchor ?? null;
+    const publicCorpusNegativeHistory =
+      input.publicCorpusNegativeHistory ?? null;
     const allRefs = [...input.sourceRefs, ...input.evidenceRefs];
     const gates = [
       gate(
@@ -11765,6 +11788,11 @@ export class ExternalValueGate {
           allRefs.includes(anchor.sourceRef) &&
           allRefs.some((ref) => ref === anchor.inspectabilityRef),
         "External problem anchor must be inspectable through the evidence refs.",
+      ),
+      gate(
+        "not_public_corpus_downgraded_anchor",
+        publicCorpusNegativeHistory?.blocksSeedBirth !== true,
+        "HardSeed birth is blocked when the public corpus already downgraded or rival-explained this external anchor.",
       ),
       gate(
         "not_generator_only_signal",
@@ -11839,6 +11867,9 @@ export class ExternalValueGate {
       )
         ? "external_anchor_not_inspectable"
         : "",
+      publicCorpusNegativeHistory?.blocksSeedBirth === true
+        ? "public_corpus_downgraded_anchor"
+        : "",
       input.generatorOnlySignal === true ? "generator_only_signal" : "",
       input.packageOnlySignal === true ? "package_only_signal" : "",
       input.internallyInterestingOnly === true
@@ -11854,6 +11885,7 @@ export class ExternalValueGate {
       accepted: failedGates.length === 0,
       anchorId: anchor?.anchorId ?? null,
       anchorType: anchor?.anchorType ?? null,
+      publicCorpusNegativeHistory,
       gates,
       failedGates,
       blockers,
@@ -12067,6 +12099,7 @@ export class HardSeedBirthEvaluator {
       anchor: input.externalProblemAnchor ?? null,
       sourceRefs: input.sourceRefs,
       evidenceRefs: input.evidenceRefs,
+      publicCorpusNegativeHistory: input.publicCorpusNegativeHistory ?? null,
       generatorOnlySignal: input.generatorOnlySignal,
       packageOnlySignal: input.packageOnlySignal,
       internallyInterestingOnly: input.internallyInterestingOnly,
@@ -12822,7 +12855,24 @@ export class GeneratorBornHardSeedPressureService {
       ...(outputPayload?.outputs ?? []),
       ...(discoveryAnchorCheckPayload?.checks ?? []),
     ];
-    return { hardSeeds, outputs };
+    const blockedSeedIds = new Set<string>();
+    const filteredHardSeeds: HardSeed[] = [];
+    for (const seed of hardSeeds) {
+      const negativeHistory = await publicCorpusNegativeHistoryForHardSeed(
+        this.root,
+        seed,
+      );
+      if (negativeHistory.blocksSeedBirth) {
+        blockedSeedIds.add(seed.seedId);
+        continue;
+      }
+      filteredHardSeeds.push(seed);
+    }
+    const filteredOutputs = outputs.filter((output) => {
+      const seedId = generatorBornSourceOutputSeedId(output);
+      return seedId === null || !blockedSeedIds.has(seedId);
+    });
+    return { hardSeeds: filteredHardSeeds, outputs: filteredOutputs };
   }
 
   private async checkpointUsed(): Promise<string | null> {
@@ -17825,12 +17875,19 @@ async function discoveryGradeAnchorRuntimeCheck(
         !counterexampleCollapsed &&
         holdoutReplayAvailable,
     });
+  const publicCorpusNegativeHistory =
+    await publicCorpusNegativeHistoryForExternalProblemAnchor(
+      root,
+      externalProblemAnchor,
+      anchor.recommendedGeneratorDesign,
+    );
   const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
     generatorId: anchor.recommendedGeneratorDesign,
     targetId: checkId,
     domain: anchor.domain,
     externalProblemAnchor,
     domainSignificanceHypothesis,
+    publicCorpusNegativeHistory,
     runtimeEvidencePresent,
     runtimeEvidenceKind,
     sourceRefs,
@@ -17870,6 +17927,7 @@ async function discoveryGradeAnchorRuntimeCheck(
     sourceRefs,
     evidenceRefs,
     producedArtifact,
+    publicCorpusNegativeHistory,
     measuredVariable,
     measuredOutcome,
     residualMagnitude,
@@ -28578,6 +28636,12 @@ function isDiscoveryAnchorRuntimeCheck(
   return output !== null && "checkId" in output && "anchorId" in output;
 }
 
+function generatorBornSourceOutputSeedId(
+  output: GeneratorBornSourceOutput | null,
+): string | null {
+  return output?.hardSeed?.seedId ?? null;
+}
+
 function generatorBornOutputId(
   output: GeneratorBornSourceOutput | null,
 ): string | null {
@@ -29686,6 +29750,343 @@ function validateMechanismFirstGeneratorSourceCacheArtifact(
   return uniqueStrings(errors);
 }
 
+async function publicCorpusNegativeHistoryForGenerator(
+  root: string,
+  family: MechanismFirstGeneratorFamily,
+): Promise<PublicCorpusNegativeHistoryAssessment> {
+  return publicCorpusNegativeHistoryForExternalProblemAnchor(
+    root,
+    family.externalProblemAnchor,
+    family.generatorId,
+  );
+}
+
+async function publicCorpusNegativeHistoryForExternalProblemAnchor(
+  root: string,
+  anchor: ExternalProblemAnchor,
+  generatorId?: string | null,
+): Promise<PublicCorpusNegativeHistoryAssessment> {
+  const resultsRoot = join(dirname(root), "sovryn-open-inventions", "results");
+  if (!(await exists(resultsRoot))) {
+    return publicCorpusNegativeHistoryAssessment({
+      checked: false,
+      matched: false,
+      blocksSeedBirth: false,
+      resultSlug: null,
+      publicReviewStatus: null,
+      publicExtendedValidationStatus: null,
+      publicFundClass: null,
+      resultKind: null,
+      countsForEinsteinNobelDiscoveryScore: null,
+      publicRawScientificReproductionReady: null,
+      reason:
+        "public corpus sibling repository was not found; no negative-history match was applied",
+    });
+  }
+
+  const entries = await readdir(resultsRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const resultRoot = join(resultsRoot, entry.name);
+    const summary = await readOptionalJson<Record<string, unknown>>(
+      join(resultRoot, "SUMMARY.json"),
+    );
+    if (
+      summary === null ||
+      !publicCorpusSummaryMatchesExternalProblemAnchor(
+        summary,
+        entry.name,
+        anchor,
+        generatorId,
+      )
+    ) {
+      continue;
+    }
+    const publicReviewStatus = optionalString(summary.publicReviewStatus);
+    const publicExtendedValidationStatus = optionalString(
+      summary.extendedValidationStatus,
+    );
+    const publicFundClass = optionalString(summary.fundClass);
+    const resultKind = optionalString(summary.resultKind);
+    const countsForEinsteinNobelDiscoveryScore = optionalBoolean(
+      summary.countsForEinsteinNobelDiscoveryScore,
+    );
+    const publicRawScientificReproductionReady = optionalBoolean(
+      summary.publicRawScientificReproductionReady,
+    );
+    const blocksSeedBirth =
+      countsForEinsteinNobelDiscoveryScore === false ||
+      publicRawScientificReproductionReady === false ||
+      optionalBoolean(summary.publicDowngradeOverridesDiscoveryScoring) ===
+        true ||
+      optionalBoolean(summary.domainScientificSignificance) === false ||
+      optionalBoolean(summary.nontrivialNewInsightAcrossRealTargets) ===
+        false ||
+      publicCorpusFundClassBlocksSeedBirth(publicFundClass) ||
+      publicCorpusResultKindBlocksSeedBirth(resultKind) ||
+      publicReviewStatusBlocksSeedBirth(publicReviewStatus) ||
+      extendedValidationBlocksSeedBirth(publicExtendedValidationStatus) ||
+      optionalString(summary.publicDiscoveryScoreBlockedReason) !== null ||
+      optionalString(summary.publicDowngradeStatus) !== null;
+    return publicCorpusNegativeHistoryAssessment({
+      checked: true,
+      matched: true,
+      blocksSeedBirth,
+      resultSlug: entry.name,
+      publicReviewStatus,
+      publicExtendedValidationStatus,
+      publicFundClass,
+      resultKind,
+      countsForEinsteinNobelDiscoveryScore,
+      publicRawScientificReproductionReady,
+      reason: blocksSeedBirth
+        ? "public corpus negative history blocks reusing this external anchor for HardSeed birth"
+        : "matched public corpus package does not block seed birth",
+    });
+  }
+
+  return publicCorpusNegativeHistoryAssessment({
+    checked: true,
+    matched: false,
+    blocksSeedBirth: false,
+    resultSlug: null,
+    publicReviewStatus: null,
+    publicExtendedValidationStatus: null,
+    publicFundClass: null,
+    resultKind: null,
+    countsForEinsteinNobelDiscoveryScore: null,
+    publicRawScientificReproductionReady: null,
+    reason: "no public corpus result matched this generator anchor",
+  });
+}
+
+function publicCorpusNegativeHistoryAssessment(
+  input: Omit<PublicCorpusNegativeHistoryAssessment, "kind" | "evidenceHash">,
+): PublicCorpusNegativeHistoryAssessment {
+  return withEvidenceHash({
+    kind: "public_corpus_negative_history_assessment" as const,
+    ...input,
+  });
+}
+
+function publicCorpusSummaryMatchesGenerator(
+  summary: Record<string, unknown>,
+  slug: string,
+  family: MechanismFirstGeneratorFamily,
+): boolean {
+  return publicCorpusSummaryMatchesExternalProblemAnchor(
+    summary,
+    slug,
+    family.externalProblemAnchor,
+    family.generatorId,
+  );
+}
+
+function publicCorpusSummaryMatchesExternalProblemAnchor(
+  summary: Record<string, unknown>,
+  slug: string,
+  anchor: ExternalProblemAnchor,
+  generatorId?: string | null,
+): boolean {
+  const haystack = normalizeWhitespace(
+    [
+      slug,
+      summary.slug,
+      summary.title,
+      summary.candidateId,
+      summary.sourceCandidateId,
+      summary.sourcePackagePath,
+      summary.claim,
+      summary.exactClaim,
+      summary.reviewerFacingBoundedClaim,
+      summary.domain,
+      summary.resultKind,
+      summary.fundClass,
+      summary.publicReviewStatus,
+    ]
+      .filter((value) => typeof value === "string")
+      .join(" "),
+  ).toLowerCase();
+  return publicCorpusGeneratorMatchTokens(anchor, generatorId).some((token) =>
+    haystack.includes(token),
+  );
+}
+
+function publicCorpusGeneratorMatchTokens(
+  anchor: ExternalProblemAnchor,
+  generatorId?: string | null,
+): string[] {
+  const id = generatorId ?? "";
+  if (id.includes("matbench")) return ["matbench"];
+  if (id.includes("gaia")) return ["gaia", "astrometric"];
+  if (id.includes("satlib")) return ["satlib"];
+  if (id.includes("snap")) return ["snap"];
+  if (id.includes("openml")) return ["openml"];
+  if (id.includes("pvdaq")) return ["pvdaq", "nrel"];
+  if (id.includes("dimacs")) return ["dimacs"];
+  if (id.includes("bounded_graph_minor")) {
+    return ["bounded_graph_minor", "graph minor", "minor obstruction"];
+  }
+  const text = `${anchor.anchorId} ${anchor.sourceRef}`.toLowerCase();
+  if (text.includes("matbench")) return ["matbench"];
+  if (text.includes("gaia") || text.includes("gea.esac.esa.int")) {
+    return ["gaia", "astrometric"];
+  }
+  if (text.includes("satlib")) return ["satlib"];
+  if (text.includes("snap.stanford")) return ["snap"];
+  if (text.includes("openml")) return ["openml"];
+  if (text.includes("pvdaq") || text.includes("nrel")) return ["pvdaq", "nrel"];
+  if (text.includes("dimacs") || text.includes("color/instances")) {
+    return ["dimacs"];
+  }
+  return [];
+}
+
+function publicCorpusFundClassBlocksSeedBirth(value: string | null): boolean {
+  if (value === null) return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.startsWith("not_discovery_scored") ||
+    normalized.includes("raw_reproduction_failed") ||
+    normalized.includes("rival_explained") ||
+    normalized.includes("pipeline_fund_candidate") ||
+    normalized.includes("reproduction_fund_candidate")
+  );
+}
+
+function publicCorpusResultKindBlocksSeedBirth(value: string | null): boolean {
+  if (value === null) return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.startsWith("not_discovery_scored") ||
+    normalized.includes("raw_scientific_reproduction_failed") ||
+    normalized.includes("rival_explained") ||
+    normalized.includes("package_repair_required")
+  );
+}
+
+function publicReviewStatusBlocksSeedBirth(value: string | null): boolean {
+  if (value === null) return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("raw_scientific_reproduction_failed") ||
+    normalized.includes("not_external_review_ready") ||
+    normalized.includes("package_repair_required") ||
+    normalized.includes("needs_package_repair") ||
+    normalized.includes("rival_explained") ||
+    normalized.includes("with_major_caveats")
+  );
+}
+
+function extendedValidationBlocksSeedBirth(value: string | null): boolean {
+  if (value === null) return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("rival_explained") ||
+    normalized.includes("signal_explained") ||
+    normalized.includes("not_discovery_scored") ||
+    normalized.includes("fatal_rival") ||
+    normalized.includes("refuted")
+  );
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function optionalBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+async function publicCorpusNegativeHistoryForHardSeed(
+  root: string,
+  seed: HardSeed,
+): Promise<PublicCorpusNegativeHistoryAssessment> {
+  const anchor = externalProblemAnchorFromUnknown(
+    seed.sourceSeed.externalProblemAnchor,
+  );
+  if (anchor === null) {
+    return publicCorpusNegativeHistoryAssessment({
+      checked: false,
+      matched: false,
+      blocksSeedBirth: false,
+      resultSlug: null,
+      publicReviewStatus: null,
+      publicExtendedValidationStatus: null,
+      publicFundClass: null,
+      resultKind: null,
+      countsForEinsteinNobelDiscoveryScore: null,
+      publicRawScientificReproductionReady: null,
+      reason: "hard seed has no external problem anchor in sourceSeed",
+    });
+  }
+  const generatorId =
+    optionalString(seed.sourceSeed.generatorId) ??
+    optionalString(seed.sourceSeed.recommendedGeneratorDesign) ??
+    optionalString(seed.sourceSeed.anchorId);
+  return publicCorpusNegativeHistoryForExternalProblemAnchor(
+    root,
+    anchor,
+    generatorId,
+  );
+}
+
+function externalProblemAnchorFromUnknown(
+  value: unknown,
+): ExternalProblemAnchor | null {
+  if (!isRecord(value)) return null;
+  const anchorId = optionalString(value.anchorId);
+  const anchorType = optionalString(value.anchorType);
+  const sourceRef = optionalString(value.sourceRef);
+  const problemStatement = optionalString(value.problemStatement);
+  const measuredTargetOutcome = optionalString(value.measuredTargetOutcome);
+  const knownBaselineOrPrior = optionalString(value.knownBaselineOrPrior);
+  const externalValueRationale = optionalString(value.externalValueRationale);
+  const domainScientificSignificance = optionalString(
+    value.domainScientificSignificance,
+  );
+  const discoveryScoredOutcome = optionalString(value.discoveryScoredOutcome);
+  const inspectabilityRef = optionalString(value.inspectabilityRef);
+  const significanceEvidenceRefs = Array.isArray(value.significanceEvidenceRefs)
+    ? value.significanceEvidenceRefs.filter(
+        (ref): ref is string => typeof ref === "string" && ref.length > 0,
+      )
+    : [];
+  if (
+    anchorId === null ||
+    anchorType === null ||
+    ![
+      "known_formal_question",
+      "public_benchmark",
+      "public_measurement_residual",
+      "documented_repo_failure",
+    ].includes(anchorType) ||
+    sourceRef === null ||
+    problemStatement === null ||
+    measuredTargetOutcome === null ||
+    knownBaselineOrPrior === null ||
+    externalValueRationale === null ||
+    domainScientificSignificance === null ||
+    discoveryScoredOutcome === null ||
+    inspectabilityRef === null
+  ) {
+    return null;
+  }
+  return {
+    anchorId,
+    anchorType: anchorType as ExternalProblemAnchor["anchorType"],
+    sourceRef,
+    problemStatement,
+    measuredTargetOutcome,
+    knownBaselineOrPrior,
+    externalValueRationale,
+    domainScientificSignificance,
+    discoveryScoredOutcome,
+    significanceEvidenceRefs,
+    inspectabilityRef,
+  };
+}
+
 async function mechanismFirstGeneratorOutputs(
   root: string,
   family: MechanismFirstGeneratorFamily,
@@ -29694,8 +30095,15 @@ async function mechanismFirstGeneratorOutputs(
     root,
     family,
   );
+  const publicCorpusNegativeHistory =
+    await publicCorpusNegativeHistoryForGenerator(root, family);
   return Array.from({ length: 10 }, (_, index) =>
-    mechanismFirstGeneratorOutput(family, index, runtimeSource),
+    mechanismFirstGeneratorOutput(
+      family,
+      index,
+      runtimeSource,
+      publicCorpusNegativeHistory,
+    ),
   );
 }
 
@@ -29703,6 +30111,7 @@ function mechanismFirstGeneratorOutput(
   family: MechanismFirstGeneratorFamily,
   index: number,
   runtimeSource: MechanismFirstGeneratorRuntimeSourceContext,
+  publicCorpusNegativeHistory: PublicCorpusNegativeHistoryAssessment,
 ): MechanismFirstGeneratorOutput {
   const ordinal = index + 1;
   const targetId = `${family.generatorId}-target-${String(ordinal).padStart(2, "0")}`;
@@ -29776,6 +30185,7 @@ function mechanismFirstGeneratorOutput(
     domain: family.domain,
     externalProblemAnchor: family.externalProblemAnchor,
     domainSignificanceHypothesis,
+    publicCorpusNegativeHistory,
     generatorOnlySignal: profile.generatorOnlySignal,
     packageOnlySignal: profile.packageOnlySignal,
     internallyInterestingOnly: profile.internallyInterestingOnly,
@@ -29815,6 +30225,7 @@ function mechanismFirstGeneratorOutput(
     sourceRefs,
     evidenceRefs,
     externalProblemAnchor: family.externalProblemAnchor,
+    publicCorpusNegativeHistory,
     externalValueGate: birthEvaluation.externalValueGate,
     domainSignificanceHypothesis,
     domainSignificanceHypothesisGate:
@@ -30353,6 +30764,9 @@ function generatorReplacementRequiredChange(
   ) {
     return "Replace the external problem anchor or target family; the current signal is source-family documented or known-trivial before birth.";
   }
+  if (dominantBlocker === "public_corpus_downgraded_anchor") {
+    return "Retire or replace this external anchor; the public corpus already downgraded, rival-explained, or marked the matched result as not discovery-scored.";
+  }
   if (dominantBlocker?.startsWith("baseline_dominated")) {
     return "Redesign the measurement so the mechanism prediction produces a residual above the second-stage pressure floor before HardSeed birth.";
   }
@@ -30481,11 +30895,11 @@ function generatorRunResultsMarkdown(
     `Hard seeds born: ${report.hardSeedsBorn}.`,
     `Generator replacement required: ${String(report.replacementRequired)}.`,
     "",
-    "| Output | Generator | Domain | Target | Source binding | Outcome | Residual | Birth | Primary blocker | Evidence |",
-    "| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
+    "| Output | Generator | Domain | Target | Source binding | Public negative history | Outcome | Residual | Birth | Primary blocker | Evidence |",
+    "| --- | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ...outputs.map(
       (output) =>
-        `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.runtimeSourceBinding.status} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
+        `| ${output.outputId} | ${output.generatorId} | ${output.domain} | ${output.targetId} | ${output.runtimeSourceBinding.status} | ${output.publicCorpusNegativeHistory.blocksSeedBirth ? `blocked:${output.publicCorpusNegativeHistory.resultSlug ?? "matched"}` : output.publicCorpusNegativeHistory.matched ? `matched:${output.publicCorpusNegativeHistory.resultSlug ?? "unknown"}` : "none"} | ${output.measuredOutcome} | ${output.residualMagnitude} | ${output.birthEvaluation.status} | ${output.birthEvaluation.primaryBlocker ?? "none"} | ${output.producedArtifact} |`,
     ),
   ].join("\n");
 }
@@ -30515,11 +30929,11 @@ function externalValueGateResultsMarkdown(
   return [
     "# External Value Gate Results",
     "",
-    "| Output | Anchor | Accepted | Failed gates | Blockers |",
-    "| --- | --- | --- | --- | --- |",
+    "| Output | Anchor | Accepted | Public corpus match | Failed gates | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...outputs.map(
       (output) =>
-        `| ${output.outputId} | ${output.externalProblemAnchor.anchorId} | ${String(output.externalValueGate.accepted)} | ${output.externalValueGate.failedGates.join(", ") || "none"} | ${output.externalValueGate.blockers.join("; ") || "none"} |`,
+        `| ${output.outputId} | ${output.externalProblemAnchor.anchorId} | ${String(output.externalValueGate.accepted)} | ${output.publicCorpusNegativeHistory.matched ? `${output.publicCorpusNegativeHistory.resultSlug ?? "matched"}:${output.publicCorpusNegativeHistory.blocksSeedBirth ? "blocks" : "clear"}` : "none"} | ${output.externalValueGate.failedGates.join(", ") || "none"} | ${output.externalValueGate.blockers.join("; ") || "none"} |`,
     ),
     "",
     "A generator output cannot become a HardSeed unless this gate passes before the ordinary runtime, baseline, rival, counterexample, holdout, replay, and recurrence gates.",

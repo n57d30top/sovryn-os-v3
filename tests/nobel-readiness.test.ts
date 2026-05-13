@@ -985,6 +985,99 @@ test("nobel-readiness external-review bundle blocks when handoff refs are unreso
   );
 });
 
+test("nobel-readiness external-review dispatch writes review template without claiming outside review", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-dispatch-pass-"));
+  await writeActiveDiscoveryFundPackage(root);
+
+  const dispatch = await new NobelReadinessService(
+    root,
+  ).externalReviewDispatch();
+  const request = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-dispatch",
+      "SUBMISSION_REQUEST.md",
+    ),
+    "utf8",
+  );
+  const instructions = await readFile(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-dispatch",
+      "REVIEW_INTAKE_INSTRUCTIONS.md",
+    ),
+    "utf8",
+  );
+  const template = await readJson<Record<string, unknown>>(
+    join(
+      root,
+      ".sovryn",
+      "nobel-readiness",
+      "external-review-dispatch",
+      "REVIEW_RECORD_TEMPLATE.json",
+    ),
+  );
+
+  assert.equal(dispatch.passed, true);
+  assert.equal(dispatch.status, "ready_to_request_external_review");
+  assert.equal(dispatch.externalExpertValidationClaimed, false);
+  assert.equal(
+    dispatch.files.every((file) => file.exists),
+    true,
+  );
+  assert.deepEqual(
+    dispatch.requiredReviewRecordFields.filter(
+      (field) => !Object.prototype.hasOwnProperty.call(template, field),
+    ),
+    [],
+  );
+  assert.equal(
+    dispatch.gates.find(
+      (gate) => gate.code === "outside_expert_review_not_claimed",
+    )?.passed,
+    true,
+  );
+  assert.match(request, /does not assert that independent review/);
+  assert.match(instructions, /cannot increase readiness/);
+  assert.deepEqual(auditNobelReadinessPublicText(request), []);
+  assert.deepEqual(auditNobelReadinessPublicText(instructions), []);
+  assert.deepEqual(auditNobelReadinessPublicText(JSON.stringify(template)), []);
+});
+
+test("nobel-readiness external-review dispatch blocks invalid pending review records", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-dispatch-invalid-"));
+  await writeActiveDiscoveryFundPackage(root);
+  const reviewDir = join(
+    root,
+    ".sovryn",
+    "nobel-readiness",
+    "external-review-reviews",
+  );
+  await mkdir(reviewDir, { recursive: true });
+  await writeFile(
+    join(reviewDir, "invalid.json"),
+    JSON.stringify({ candidateId: "WRONG" }, null, 2),
+    "utf8",
+  );
+
+  const dispatch = await new NobelReadinessService(
+    root,
+  ).externalReviewDispatch();
+
+  assert.equal(dispatch.passed, false);
+  assert.equal(dispatch.status, "blocked_invalid_external_review_record");
+  assert.equal(
+    dispatch.gates.find(
+      (gate) => gate.code === "no_invalid_review_records_pending",
+    )?.passed,
+    false,
+  );
+});
+
 test("nobel-readiness external-review intake records awaiting state without claiming validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-intake-awaiting-"));
   await writeActiveDiscoveryFundPackage(root);
@@ -1187,6 +1280,7 @@ const helpCommands = [
   "nobel-readiness package",
   "nobel-readiness external-review-handoff",
   "nobel-readiness external-review-bundle",
+  "nobel-readiness external-review-dispatch",
   "nobel-readiness external-review-intake",
   "nobel-readiness audit",
 ];
@@ -1216,6 +1310,7 @@ for (const args of [
   ["package"],
   ["external-review-handoff"],
   ["external-review-bundle"],
+  ["external-review-dispatch"],
   ["external-review-intake"],
   ["audit"],
 ]) {

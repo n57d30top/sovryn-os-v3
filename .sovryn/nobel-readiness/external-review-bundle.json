@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_bundle",
-  "generatedAt": "2026-05-12T11:13:51.075Z",
+  "generatedAt": "2026-05-13T10:33:40.265Z",
   "status": "ready_for_human_review_dispatch",
   "passed": true,
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
+  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
   "fundClass": "externally_review_ready_discovery_candidate",
-  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
   "externalExpertValidationClaimed": false,
@@ -46,7 +46,7 @@
       "gate": "claim_identity",
       "question": "Does the package preserve the exact candidate identity and claim without scope drift?",
       "evidenceRefs": [
-        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
         "CLAIM_EVIDENCE_BINDINGS.json#candidateId"
       ],
       "requiredOutcome": "Reviewer confirms the reviewed claim is the same bounded package claim or requests revision."
@@ -95,7 +95,7 @@
       "stepId": "review-package-inventory",
       "action": "Open the package directory and verify required artifacts are present.",
       "inputRefs": [
-        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45"
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843"
       ],
       "expectedEvidence": "Artifact inventory matches the handoff required-artifact table.",
       "status": "queued_for_human_review"
@@ -166,5 +166,5 @@
     ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
     ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
   ],
-  "evidenceHash": "5e4a9d9020c2cdba3fc83cee78044073b304c0d8aa1eeafb759ce0ebaac44bcf"
+  "evidenceHash": "3ce11487d75b0e0df1e096f2aab7b1a77f20ad663f41bf4dc45078fd851c90d0"
 }

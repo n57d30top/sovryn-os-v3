@@ -1,0 +1,92 @@
+{
+  "kind": "nobel_readiness_external_review_dispatch",
+  "generatedAt": "2026-05-13T10:33:40.273Z",
+  "status": "ready_to_request_external_review",
+  "passed": true,
+  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
+  "fundClass": "externally_review_ready_discovery_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
+  "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
+  "dispatchPath": ".sovryn/nobel-readiness/external-review-dispatch",
+  "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
+  "externalExpertValidationClaimed": false,
+  "files": [
+    {
+      "path": ".sovryn/nobel-readiness/external-review-dispatch/DISPATCH_MANIFEST.json",
+      "purpose": "Machine-readable dispatch manifest linking bundle, intake, and review record requirements.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-dispatch/SUBMISSION_REQUEST.md",
+      "purpose": "Bounded request text for sending the package to independent human reviewers.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_RECORD_TEMPLATE.json",
+      "purpose": "Schema-shaped JSON template for recording a later independent human review.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    },
+    {
+      "path": ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_INTAKE_INSTRUCTIONS.md",
+      "purpose": "Instructions for placing returned review records where the intake command can verify them.",
+      "exists": true,
+      "forbiddenClaimFindings": []
+    }
+  ],
+  "requiredReviewRecordFields": [
+    "candidateId",
+    "resultSlug",
+    "reviewerRole",
+    "reviewDate",
+    "reviewSourceRef",
+    "decision",
+    "independentReproductionStatus",
+    "noveltyAssessment",
+    "evidenceRefs",
+    "overclaimFindings"
+  ],
+  "gates": [
+    {
+      "code": "bundle_ready",
+      "passed": true,
+      "message": "Dispatch requires a complete external review bundle with resolved refs."
+    },
+    {
+      "code": "dispatch_files_written",
+      "passed": true,
+      "message": "Dispatch must include request text, manifest, review template, and intake instructions."
+    },
+    {
+      "code": "review_record_template_complete",
+      "passed": true,
+      "message": "Review template must include every field required by external review intake."
+    },
+    {
+      "code": "no_invalid_review_records_pending",
+      "passed": true,
+      "message": "Invalid review records must be repaired before dispatch readiness can be clean."
+    },
+    {
+      "code": "no_forbidden_public_claims",
+      "passed": true,
+      "message": "Dispatch text and templates must avoid prohibited overclaim categories."
+    },
+    {
+      "code": "outside_expert_review_not_claimed",
+      "passed": true,
+      "message": "Dispatch requests independent review but does not claim that such review has occurred."
+    }
+  ],
+  "nextHumanAction": "Send the bundle and dispatch request to independent domain reviewers; store returned review JSON in the review directory and rerun external-review-intake.",
+  "artifactRefs": [
+    ".sovryn/nobel-readiness/external-review-dispatch.json",
+    ".sovryn/nobel-readiness/external-review-dispatch/DISPATCH_MANIFEST.json",
+    ".sovryn/nobel-readiness/external-review-dispatch/SUBMISSION_REQUEST.md",
+    ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_RECORD_TEMPLATE.json",
+    ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_INTAKE_INSTRUCTIONS.md"
+  ],
+  "evidenceHash": "41df32e1ac7c7c2e30845d9d20b3f0af830a566e887c50bacf667eaa1ad38a56"
+}

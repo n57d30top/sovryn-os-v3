@@ -1,9 +1,9 @@
 {
   "kind": "external_review_bundle_manifest",
-  "generatedAt": "2026-05-12T11:13:51.073Z",
-  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB",
+  "generatedAt": "2026-05-13T10:33:40.264Z",
+  "candidateId": "DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316",
   "fundClass": "externally_review_ready_discovery_candidate",
-  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
   "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
   "externalExpertValidationClaimed": false,
   "requiredPackageArtifacts": [
@@ -39,271 +39,278 @@
     }
   ],
   "evidenceRefSummary": {
-    "totalRefs": 62,
-    "resolvedRefs": 62,
+    "totalRefs": 61,
+    "resolvedRefs": 61,
     "unresolvedRefs": [],
     "refs": [
       {
-        "ref": ".sovryn/discovery-daemon/candidate-identity-ledger.json#DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4",
+        "ref": ".sovryn/discovery-daemon/candidate-identity-ledger.json#DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/discovery-anchor-run/source-cache/DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP.json",
-        "kind": "local_file",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "local artifact exists"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#baseline",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#baseline",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#counterexampleEvidenceRefs",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#holdoutEvidenceRefs",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#killWeek",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#killWeek",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#predictionLedger",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#predictionLedger",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#replayEvidenceRefs",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/CLAIM_EVIDENCE_BINDINGS.json#rival",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/CLAIM_EVIDENCE_BINDINGS.json#rival",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/METHOD.md#mechanism-pressure",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/METHOD.md#mechanism-pressure",
         "kind": "markdown_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/REPRODUCE.md#replay",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/REPRODUCE.md#replay",
         "kind": "markdown_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45",
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843",
         "kind": "local_file",
         "resolved": true,
         "publicSafe": true,
         "reason": "local artifact exists"
       },
       {
-        "ref": ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-LIFT-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45.json",
+        "ref": ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-LIFT-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B843.json",
         "kind": "local_file",
         "resolved": true,
         "publicSafe": true,
         "reason": "local artifact exists"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-families/runtime-evidence/matbench_descriptor_transfer_significance_generator-output-01.json",
+        "ref": ".sovryn/discovery-daemon/generator-families/formal-object-checks/EXT-GRAPH-MINOR-OBSTRUCTION-SIGNIFICANCE.json",
         "kind": "local_file",
         "resolved": true,
         "publicSafe": true,
         "reason": "local artifact exists"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json",
+        "ref": ".sovryn/discovery-daemon/generator-families/formal-source-cache/EXT-GRAPH-MINOR-OBSTRUCTION-SIGNIFICANCE.json",
         "kind": "local_file",
         "resolved": true,
         "publicSafe": true,
         "reason": "local artifact exists"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-01",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-02",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-03",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-04",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-05",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-06",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-07",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-08",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-09",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-10",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-11",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#prediction-12",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/FROZEN_PREDICTION_LEDGER.json#predictions",
-        "kind": "json_anchor",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "anchor resolved"
-      },
-      {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/KILL_WEEK_RESULTS.json",
+        "ref": ".sovryn/discovery-daemon/generator-families/runtime-evidence/bounded_graph_minor_obstruction_significance_generator-output-01.json",
         "kind": "local_file",
         "resolved": true,
         "publicSafe": true,
         "reason": "local artifact exists"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C4/KILL_WEEK_RESULTS.json#killWeek",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-01",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#baseline_resistance_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-02",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#counterexample_search",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-03",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#holdout_feasibility_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-04",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#nontrivial_pattern_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-05",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#proof_or_mechanism_pressure_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-06",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#replay_feasibility_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-07",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICAN-74933C45D6DB.json#rival_discrimination_test",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-08",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
         "reason": "anchor resolved"
       },
       {
-        "ref": ".sovryn/discovery-daemon/generator-pressure/PRESSURE_ROWS.json#HARD-GEN-MATBENCH-DESCRIPTOR-TRANSFER-SIGNIFICANCE-GENERATOR-OUTPUT-01",
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-09",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-10",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-11",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#prediction-12",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/FROZEN_PREDICTION_LEDGER.json#predictions",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/KILL_WEEK_RESULTS.json",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-fund-closure/candidates/DISCOVERY-INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B84/KILL_WEEK_RESULTS.json#killWeek",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#baseline_resistance_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#counterexample_search",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#holdout_feasibility_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#nontrivial_pattern_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#proof_or_mechanism_pressure_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#replay_feasibility_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-insight-closure/INSIGHT-HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFI-4E76B8436316.json#rival_discrimination_test",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/generator-pressure/PRESSURE_ROWS.json#HARD-GEN-BOUNDED-GRAPH-MINOR-OBSTRUCTION-SIGNIFICANCE-GENERATOR-OUTPUT-01",
         "kind": "json_anchor",
         "resolved": true,
         "publicSafe": true,
@@ -408,70 +415,56 @@
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json",
+        "ref": "https://hog.grinvin.org/",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://huggingface.co/datasets/smgjch/Matbench/resolve/main/matbench_expt_gap.json#matbench-expt-gap-runtime-source",
+        "ref": "https://hog.grinvin.org/#baseline",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/",
+        "ref": "https://hog.grinvin.org/#counterexample",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/#baseline",
+        "ref": "https://hog.grinvin.org/#holdout",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/#counterexample",
+        "ref": "https://hog.grinvin.org/#minor-obstruction-anchor-1",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/#descriptor-transfer-anchor-1",
+        "ref": "https://hog.grinvin.org/#replay",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/#holdout",
+        "ref": "https://hog.grinvin.org/#rival-theory",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,
         "reason": "external public URL recorded for human review"
       },
       {
-        "ref": "https://matbench.materialsproject.org/#matbench-expt-gap",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#replay",
-        "kind": "external_url",
-        "resolved": true,
-        "publicSafe": true,
-        "reason": "external public URL recorded for human review"
-      },
-      {
-        "ref": "https://matbench.materialsproject.org/#rival-theory",
+        "ref": "https://www.graphclasses.org/",
         "kind": "external_url",
         "resolved": true,
         "publicSafe": true,

@@ -383,6 +383,36 @@ export type ExternalReviewBundleAudit = {
   evidenceHash: string;
 };
 
+export type ExternalReviewDispatchAudit = {
+  kind: "nobel_readiness_external_review_dispatch";
+  generatedAt: string;
+  status:
+    | "ready_to_request_external_review"
+    | "blocked"
+    | "blocked_invalid_external_review_record"
+    | "external_review_recorded"
+    | "external_review_requires_revision_or_rejects";
+  passed: boolean;
+  candidateId: string | null;
+  fundClass: string | null;
+  packagePath: string | null;
+  bundlePath: string;
+  dispatchPath: string;
+  reviewDirectory: string;
+  externalExpertValidationClaimed: false;
+  files: Array<{
+    path: string;
+    purpose: string;
+    exists: boolean;
+    forbiddenClaimFindings: string[];
+  }>;
+  requiredReviewRecordFields: string[];
+  gates: Array<{ code: string; passed: boolean; message: string }>;
+  nextHumanAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalHumanReviewDecision =
   | "accepted_with_caveats"
   | "major_revision"
@@ -2551,6 +2581,199 @@ export class NobelReadinessService {
     return hashedBundle;
   }
 
+  async externalReviewDispatch(): Promise<ExternalReviewDispatchAudit> {
+    const bundle = await this.externalReviewBundle();
+    const intake = await this.externalReviewIntake();
+    const dispatchRel = ".sovryn/nobel-readiness/external-review-dispatch";
+    const dispatchRoot = join(this.root, dispatchRel);
+    await mkdir(dispatchRoot, { recursive: true });
+    const requiredReviewRecordFields = [
+      "candidateId",
+      "resultSlug",
+      "reviewerRole",
+      "reviewDate",
+      "reviewSourceRef",
+      "decision",
+      "independentReproductionStatus",
+      "noveltyAssessment",
+      "evidenceRefs",
+      "overclaimFindings",
+    ];
+    const template = {
+      kind: "external_human_review_record_template",
+      candidateId: bundle.candidateId,
+      resultSlug: null,
+      reviewerRole: "independent_domain_expert",
+      reviewDate: "YYYY-MM-DD",
+      reviewSourceRef:
+        "Provide a public-safe URL or a review report path copied next to the review JSON.",
+      decision:
+        "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
+      independentReproductionStatus:
+        "reproduced | partially_reproduced | not_reproduced | not_attempted",
+      noveltyAssessment:
+        "nontrivial_and_plausibly_novel | known_or_trivial | unclear",
+      evidenceRefs: bundle.files.map((file) => file.path),
+      overclaimFindings: [],
+      reviewerNotes:
+        "Summarize method, evidence-binding, reproduction, novelty, limitation, and overclaim findings.",
+    };
+    const manifest = {
+      kind: "external_review_dispatch_manifest",
+      generatedAt: nowIso(),
+      candidateId: bundle.candidateId,
+      fundClass: bundle.fundClass,
+      packagePath: bundle.packagePath,
+      bundlePath: bundle.bundlePath,
+      reviewDirectory: intake.reviewDirectory,
+      externalExpertValidationClaimed: false,
+      bundleArtifactRefs: bundle.artifactRefs,
+      intakeArtifactRefs: intake.artifactRefs,
+      requiredReviewRecordFields,
+    };
+    const artifactPayloads = [
+      {
+        file: "DISPATCH_MANIFEST.json",
+        purpose:
+          "Machine-readable dispatch manifest linking bundle, intake, and review record requirements.",
+        text: JSON.stringify(manifest, null, 2),
+      },
+      {
+        file: "SUBMISSION_REQUEST.md",
+        purpose:
+          "Bounded request text for sending the package to independent human reviewers.",
+        text: externalReviewDispatchRequestMarkdown(bundle, intake),
+      },
+      {
+        file: "REVIEW_RECORD_TEMPLATE.json",
+        purpose:
+          "Schema-shaped JSON template for recording a later independent human review.",
+        text: JSON.stringify(template, null, 2),
+      },
+      {
+        file: "REVIEW_INTAKE_INSTRUCTIONS.md",
+        purpose:
+          "Instructions for placing returned review records where the intake command can verify them.",
+        text: externalReviewDispatchIntakeInstructionsMarkdown(intake),
+      },
+    ];
+    for (const payload of artifactPayloads) {
+      await writeFile(join(dispatchRoot, payload.file), payload.text, "utf8");
+    }
+    const files = [];
+    for (const payload of artifactPayloads) {
+      const path = join(dispatchRoot, payload.file);
+      const exists = await fileExists(path);
+      const text = exists ? await readFile(path, "utf8") : "";
+      files.push({
+        path: `${dispatchRel}/${payload.file}`,
+        purpose: payload.purpose,
+        exists,
+        forbiddenClaimFindings: exists
+          ? auditNobelReadinessPublicText(text)
+          : [],
+      });
+    }
+    const allFilesWritten = files.every((file) => file.exists);
+    const noForbiddenClaims = files.every(
+      (file) => file.forbiddenClaimFindings.length === 0,
+    );
+    const status: ExternalReviewDispatchAudit["status"] = !bundle.passed
+      ? "blocked"
+      : intake.status === "blocked_invalid_external_review"
+        ? "blocked_invalid_external_review_record"
+        : intake.status === "external_review_requires_revision_or_rejects"
+          ? "external_review_requires_revision_or_rejects"
+          : intake.status === "supportive_external_review_recorded"
+            ? "external_review_recorded"
+            : "ready_to_request_external_review";
+    const gates = [
+      {
+        code: "bundle_ready",
+        passed: bundle.passed,
+        message:
+          "Dispatch requires a complete external review bundle with resolved refs.",
+      },
+      {
+        code: "dispatch_files_written",
+        passed: allFilesWritten,
+        message:
+          "Dispatch must include request text, manifest, review template, and intake instructions.",
+      },
+      {
+        code: "review_record_template_complete",
+        passed: requiredReviewRecordFields.every((field) =>
+          Object.prototype.hasOwnProperty.call(template, field),
+        ),
+        message:
+          "Review template must include every field required by external review intake.",
+      },
+      {
+        code: "no_invalid_review_records_pending",
+        passed: intake.status !== "blocked_invalid_external_review",
+        message:
+          "Invalid review records must be repaired before dispatch readiness can be clean.",
+      },
+      {
+        code: "no_forbidden_public_claims",
+        passed: noForbiddenClaims,
+        message:
+          "Dispatch text and templates must avoid prohibited overclaim categories.",
+      },
+      {
+        code: "outside_expert_review_not_claimed",
+        passed: true,
+        message:
+          "Dispatch requests independent review but does not claim that such review has occurred.",
+      },
+    ];
+    const passed =
+      gates.every((gate) => gate.passed) &&
+      status !== "blocked" &&
+      status !== "blocked_invalid_external_review_record";
+    const dispatch: ExternalReviewDispatchAudit = {
+      kind: "nobel_readiness_external_review_dispatch",
+      generatedAt: nowIso(),
+      status,
+      passed,
+      candidateId: bundle.candidateId,
+      fundClass: bundle.fundClass,
+      packagePath: bundle.packagePath,
+      bundlePath: bundle.bundlePath,
+      dispatchPath: dispatchRel,
+      reviewDirectory: intake.reviewDirectory,
+      externalExpertValidationClaimed: false,
+      files,
+      requiredReviewRecordFields,
+      gates,
+      nextHumanAction:
+        status === "ready_to_request_external_review"
+          ? "Send the bundle and dispatch request to independent domain reviewers; store returned review JSON in the review directory and rerun external-review-intake."
+          : status === "external_review_recorded"
+            ? "Rerun nobel-readiness score and package to consume the recorded supportive review without changing the claim."
+            : status === "external_review_requires_revision_or_rejects"
+              ? "Treat the candidate as requiring revision, rejection handling, or downgrade until the external findings are resolved."
+              : "Repair blocked handoff, bundle, dispatch, or invalid review-record findings before requesting or scoring review.",
+      artifactRefs: [
+        ".sovryn/nobel-readiness/external-review-dispatch.json",
+        ".sovryn/nobel-readiness/external-review-dispatch/DISPATCH_MANIFEST.json",
+        ".sovryn/nobel-readiness/external-review-dispatch/SUBMISSION_REQUEST.md",
+        ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_RECORD_TEMPLATE.json",
+        ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_INTAKE_INSTRUCTIONS.md",
+      ],
+      evidenceHash: "",
+    };
+    const hashedDispatch = {
+      ...dispatch,
+      evidenceHash: hashEvidence({ ...dispatch, evidenceHash: "" }),
+    };
+    await writeJson(
+      join(this.rootDir, "external-review-dispatch.json"),
+      hashedDispatch,
+    );
+    return hashedDispatch;
+  }
+
   async externalReviewIntake(): Promise<ExternalReviewIntakeAudit> {
     const handoff = await this.externalReviewHandoff();
     const reviewRel = ".sovryn/nobel-readiness/external-review-reviews";
@@ -3712,6 +3935,86 @@ This bundle is a dispatch packet for independent human review of one bounded dis
 ## Reviewer Decision Needed
 
 The reviewer should inspect the package, run or assess the replay path, test the evidence bindings against the claim, and decide whether the bounded claim is supported, needs revision, or should be rejected.
+`;
+}
+
+function externalReviewDispatchRequestMarkdown(
+  bundle: ExternalReviewBundleAudit,
+  intake: ExternalReviewIntakeAudit,
+): string {
+  return `# External Review Dispatch Request
+
+## Purpose
+
+This request asks an independent domain reviewer to inspect one bounded discovery-scored candidate package. It does not assert that independent review, independent reproduction, field uptake, or prize significance has occurred.
+
+## Candidate
+
+- Candidate ID: ${bundle.candidateId ?? "missing"}
+- Fund class: ${bundle.fundClass ?? "missing"}
+- Package path: ${bundle.packagePath ?? "missing"}
+- Bundle path: ${bundle.bundlePath}
+- Review record directory: ${intake.reviewDirectory}
+- Current review intake status: ${intake.status}
+- External expert validation claimed by Sovryn: no
+
+## Requested Review
+
+Please inspect the claim, evidence bindings, method, replay path, limitations, baseline and rival pressure, counterexample pressure, and scope discipline. Then return a review JSON record matching REVIEW_RECORD_TEMPLATE.json.
+
+## Allowed Review Decisions
+
+- accepted_with_caveats
+- major_revision
+- rejected
+- invalid_or_unverified
+
+## Required Reproduction Status
+
+- reproduced
+- partially_reproduced
+- not_reproduced
+- not_attempted
+
+## Required Novelty Assessment
+
+- nontrivial_and_plausibly_novel
+- known_or_trivial
+- unclear
+`;
+}
+
+function externalReviewDispatchIntakeInstructionsMarkdown(
+  intake: ExternalReviewIntakeAudit,
+): string {
+  return `# External Review Intake Instructions
+
+## Where To Put Returned Review Records
+
+Place each returned review JSON record in:
+
+\`${intake.reviewDirectory}\`
+
+Then run:
+
+\`sovryn nobel-readiness external-review-intake --json\`
+
+## Required Fields
+
+- candidateId
+- resultSlug
+- reviewerRole
+- reviewDate
+- reviewSourceRef
+- decision
+- independentReproductionStatus
+- noveltyAssessment
+- evidenceRefs
+- overclaimFindings
+
+## Scoring Rule
+
+Invalid, mismatched, unresolved, not-public-safe, rejecting, non-reproduced, known/trivial, or overclaiming review records cannot increase readiness. A supportive record can affect readiness only when it matches the active candidate, resolves to a public-safe source, records independent reproduction, and assesses the bounded claim as nontrivial and plausibly novel.
 `;
 }
 

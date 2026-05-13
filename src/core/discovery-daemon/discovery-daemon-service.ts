@@ -1874,6 +1874,40 @@ export type GeneratorBornDiscoveryClaimLiftNoveltyPressureReport = {
   evidenceHash: string;
 };
 
+export type GeneratorBornDiscoveryClaimLiftDeathMemoryDecision = {
+  kind: "generator_born_discovery_claim_lift_death_memory_decision";
+  candidateId: string;
+  packageRef: string | null;
+  sourceCacheRef: string | null;
+  noveltyPressureStatus: "novelty_pressure_cleared" | "blocked";
+  primaryBlocker: string;
+  deathMemoryStatus: "recorded" | "already_recorded" | "skipped";
+  deathCause: DeathCause | null;
+  graveyardEntry: GraveyardEntry | null;
+  packageMutated: false;
+  fundFound: false;
+  noUserNotification: true;
+  reason: string;
+  evidenceHash: string;
+};
+
+export type GeneratorBornDiscoveryClaimLiftDeathMemoryReport = {
+  kind: "generator_born_discovery_claim_lift_death_memory";
+  status: "death_memory_recorded" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  noveltyDecisionsLoaded: number;
+  graveyardEntriesAdded: number;
+  graveyardEntriesSkipped: number;
+  packagesMutated: 0;
+  fundFound: false;
+  decisions: GeneratorBornDiscoveryClaimLiftDeathMemoryDecision[];
+  blockerDistribution: Record<string, number>;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type GeneratorBornDiscoveryClaimLiftCandidatePreflightDecision = {
   kind: "generator_born_discovery_claim_lift_candidate_preflight_decision";
   candidateId: string;
@@ -15633,6 +15667,199 @@ export class GeneratorBornDiscoveryClaimLiftNoveltyPressureService {
   }
 }
 
+export class GeneratorBornDiscoveryClaimLiftDeathMemoryService {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<GeneratorBornDiscoveryClaimLiftDeathMemoryReport> {
+    await mkdir(this.liftRoot(), { recursive: true });
+    const noveltyPressure = await this.readNoveltyPressureOrRun();
+    const existing = await this.readGraveyardEntries();
+    const decisions: GeneratorBornDiscoveryClaimLiftDeathMemoryDecision[] = [];
+    const entriesToAdd: GraveyardEntry[] = [];
+    for (const decision of noveltyPressure.decisions) {
+      const memoryDecision = await this.evaluateNoveltyDecision(
+        decision,
+        existing,
+        entriesToAdd,
+      );
+      decisions.push(memoryDecision);
+      if (
+        memoryDecision.deathMemoryStatus === "recorded" &&
+        memoryDecision.graveyardEntry !== null
+      ) {
+        entriesToAdd.push(memoryDecision.graveyardEntry);
+      }
+    }
+    if (entriesToAdd.length > 0) {
+      await this.writeGraveyardEntries([...existing, ...entriesToAdd]);
+    }
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/generator-claim-lift-death-memory-continue-searching.json`;
+    const report: GeneratorBornDiscoveryClaimLiftDeathMemoryReport =
+      withEvidenceHash({
+        kind: "generator_born_discovery_claim_lift_death_memory" as const,
+        status:
+          entriesToAdd.length > 0
+            ? ("death_memory_recorded" as const)
+            : ("continue_searching_checkpointed" as const),
+        checkpointUsed: noveltyPressure.nextCheckpointRef,
+        nextCheckpointRef,
+        noveltyDecisionsLoaded: noveltyPressure.decisions.length,
+        graveyardEntriesAdded: entriesToAdd.length,
+        graveyardEntriesSkipped: decisions.length - entriesToAdd.length,
+        packagesMutated: 0 as const,
+        fundFound: false as const,
+        decisions,
+        blockerDistribution: countBy(decisions, "primaryBlocker"),
+        remainingBottleneck:
+          generatorBornDiscoveryClaimLiftDeathMemoryBottleneck(decisions),
+        artifactRefs:
+          generatorBornDiscoveryClaimLiftDeathMemoryArtifactRefs(
+            nextCheckpointRef,
+          ),
+      });
+    await this.writeArtifacts(report);
+    return report;
+  }
+
+  private liftRoot(): string {
+    return join(this.root, daemonArtifactRoot, generatorClaimLiftDir);
+  }
+
+  private async readNoveltyPressureOrRun(): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport> {
+    const report =
+      await readOptionalJson<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport>(
+        join(this.liftRoot(), "CLAIM_LIFT_NOVELTY_PRESSURE.json"),
+      );
+    if (report !== null) return report;
+    return new GeneratorBornDiscoveryClaimLiftNoveltyPressureService(
+      this.root,
+    ).run();
+  }
+
+  private async evaluateNoveltyDecision(
+    decision: GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision,
+    existing: GraveyardEntry[],
+    pending: GraveyardEntry[],
+  ): Promise<GeneratorBornDiscoveryClaimLiftDeathMemoryDecision> {
+    const deathCause =
+      generatorBornClaimLiftDeathCauseFromNoveltyPressure(decision);
+    const alreadyRecorded = [...existing, ...pending].some(
+      (entry) => entry.candidateId === decision.candidateId,
+    );
+    const base = {
+      kind: "generator_born_discovery_claim_lift_death_memory_decision" as const,
+      candidateId: decision.candidateId,
+      packageRef: decision.packageRef,
+      sourceCacheRef: decision.sourceCacheRef,
+      noveltyPressureStatus: decision.noveltyPressureStatus,
+      primaryBlocker: decision.primaryBlocker,
+      packageMutated: false as const,
+      fundFound: false as const,
+      noUserNotification: true as const,
+    };
+    if (deathCause === null) {
+      const skipped = {
+        ...base,
+        deathMemoryStatus: "skipped" as const,
+        deathCause: null,
+        graveyardEntry: null,
+        reason:
+          "Novelty-pressure blocker is potentially repairable or already nonterminal; no graveyard memory is written.",
+      };
+      return { ...skipped, evidenceHash: hashEvidence(skipped) };
+    }
+    if (alreadyRecorded) {
+      const skipped = {
+        ...base,
+        deathMemoryStatus: "already_recorded" as const,
+        deathCause,
+        graveyardEntry: null,
+        reason:
+          "Candidate already exists in the internal graveyard; duplicate death memory was not written.",
+      };
+      return { ...skipped, evidenceHash: hashEvidence(skipped) };
+    }
+    const candidate = await generatorBornClaimLiftPackageCandidate(
+      this.root,
+      decision.packageRef,
+    );
+    const sourceCache = await generatorBornClaimLiftSourceCache(
+      this.root,
+      decision.sourceCacheRef,
+    );
+    const entry: GraveyardEntry = {
+      candidateId: decision.candidateId,
+      domain:
+        candidate?.domain ??
+        generatorBornClaimLiftDomainFromSourceCache(sourceCache),
+      claim:
+        candidate?.claim ??
+        generatorBornClaimLiftDeathMemoryClaim(decision, sourceCache),
+      status: generatorBornClaimLiftInternalStatusForDeathCause(deathCause),
+      deathCause,
+      cycleId: "generator-claim-lift-novelty-pressure",
+      recordedAt: nowIso(),
+      noUserNotification: true,
+    };
+    const recorded = {
+      ...base,
+      deathMemoryStatus: "recorded" as const,
+      deathCause,
+      graveyardEntry: entry,
+      reason:
+        "Novelty pressure identified a terminal claim-lift blocker; internal graveyard memory was written without user notification or Fund-state mutation.",
+    };
+    return { ...recorded, evidenceHash: hashEvidence(recorded) };
+  }
+
+  private async readGraveyardEntries(): Promise<GraveyardEntry[]> {
+    const graveyard = await readOptionalJson<{ entries: GraveyardEntry[] }>(
+      join(this.root, daemonArtifactRoot, "graveyard.json"),
+    );
+    return graveyard?.entries ?? [];
+  }
+
+  private async writeGraveyardEntries(
+    entries: GraveyardEntry[],
+  ): Promise<void> {
+    await writeJson(
+      join(this.root, daemonArtifactRoot, "graveyard.json"),
+      withEvidenceHash({ kind: "candidate_graveyard", entries }),
+    );
+  }
+
+  private async writeArtifacts(
+    report: GeneratorBornDiscoveryClaimLiftDeathMemoryReport,
+  ): Promise<void> {
+    const root = this.liftRoot();
+    await writeJson(join(root, "CLAIM_LIFT_DEATH_MEMORY.json"), report);
+    await writeJson(join(root, "CLAIM_LIFT_DEATH_MEMORY_DECISIONS.json"), {
+      kind: "generator_born_discovery_claim_lift_death_memory_decisions",
+      decisions: report.decisions,
+      blockerDistribution: report.blockerDistribution,
+      evidenceHash: hashEvidence(report.decisions),
+    });
+    await writeJson(join(this.root, report.nextCheckpointRef), {
+      kind: "generator_born_discovery_claim_lift_death_memory_checkpoint",
+      status: report.status,
+      fundFound: report.fundFound,
+      graveyardEntriesAdded: report.graveyardEntriesAdded,
+      graveyardEntriesSkipped: report.graveyardEntriesSkipped,
+      blockerDistribution: report.blockerDistribution,
+      reportRef: `${daemonArtifactRoot}/${generatorClaimLiftDir}/CLAIM_LIFT_DEATH_MEMORY.json`,
+      remainingBottleneck: report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "CLAIM_LIFT_DEATH_MEMORY.md"),
+      generatorBornDiscoveryClaimLiftDeathMemoryMarkdown(report),
+    );
+    await writeText(
+      join(root, "CLAIM_LIFT_DEATH_MEMORY_NEXT_CHECKPOINT.md"),
+      generatorBornDiscoveryClaimLiftDeathMemoryNextCheckpointMarkdown(report),
+    );
+  }
+}
+
 export class GeneratorBornDiscoveryClaimLiftCandidatePreflightService {
   constructor(private readonly root: string) {}
 
@@ -28622,6 +28849,175 @@ function generatorBornDiscoveryClaimLiftNoveltyPressureNextCheckpointMarkdown(
 ): string {
   return [
     "# Claim Lift Novelty Pressure Next Checkpoint",
+    "",
+    `Status: ${report.status}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function generatorBornClaimLiftDeathCauseFromNoveltyPressure(
+  decision: GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision,
+): DeathCause | null {
+  if (decision.primaryBlocker === "ordinary_known_mechanism_confirmed") {
+    return "known_trivial";
+  }
+  return null;
+}
+
+async function generatorBornClaimLiftPackageCandidate(
+  root: string,
+  packageRef: string | null,
+): Promise<FundCandidate | null> {
+  if (packageRef === null || !publicSafeRef(packageRef)) return null;
+  return readFundCandidateFromPackageRoot(join(root, packageRef));
+}
+
+async function generatorBornClaimLiftSourceCache(
+  root: string,
+  sourceCacheRef: string | null,
+): Promise<DiscoveryAnchorRuntimeSourceArtifact | null> {
+  if (sourceCacheRef === null || !publicSafeRef(sourceCacheRef)) return null;
+  return readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+    join(root, sourceCacheRef),
+  );
+}
+
+function generatorBornClaimLiftDomainFromSourceCache(
+  sourceCache: DiscoveryAnchorRuntimeSourceArtifact | null,
+): DiscoveryDomain {
+  const anchor = new DiscoveryGradeAnchorSelector()
+    .select()
+    .find((item) => item.anchor.anchorId === sourceCache?.anchorId)?.anchor;
+  if (anchor !== undefined) return anchor.domain;
+  const text = normalizeWhitespace(
+    [
+      sourceCache?.anchorId,
+      sourceCache?.sourceRef,
+      sourceCache?.measuredVariable,
+      sourceCache?.targetOutcome,
+    ].join(" "),
+  ).toLowerCase();
+  if (text.includes("solar") || text.includes("climate")) {
+    return "climate_energy_residuals";
+  }
+  if (text.includes("gaia") || text.includes("astrometric")) {
+    return "astrophysics_open_catalog_anomalies";
+  }
+  if (text.includes("matbench") || text.includes("material")) {
+    return "computational_materials_property_data";
+  }
+  if (text.includes("graph") || text.includes("formal")) {
+    return "formal_mathematics_conjecture_refutation";
+  }
+  return "benchmark_protocol_methodology";
+}
+
+function generatorBornClaimLiftDeathMemoryClaim(
+  decision: GeneratorBornDiscoveryClaimLiftNoveltyPressureDecision,
+  sourceCache: DiscoveryAnchorRuntimeSourceArtifact | null,
+): string {
+  const target = normalizeWhitespace(
+    sourceCache?.targetOutcome ??
+      sourceCache?.measuredVariable ??
+      decision.candidateId,
+  );
+  return normalizeWhitespace(
+    `Claim-lift path ${decision.candidateId} is killed before DiscoveryCandidate creation because novelty pressure classified the measured target outcome as ${decision.primaryBlocker}; target scope: ${target}.`,
+  );
+}
+
+function generatorBornClaimLiftInternalStatusForDeathCause(
+  deathCause: DeathCause,
+): DiscoveryDaemonInternalStatus {
+  switch (deathCause) {
+    case "known_trivial":
+      return "killed_by_known_pattern";
+    case "baseline_dominated":
+      return "killed_by_baseline";
+    case "counterexample_dense":
+      return "killed_by_counterexample";
+    case "identity_drift":
+      return "killed_by_identity_drift";
+    case "rival_theory_stronger":
+      return "killed_by_rival_theory";
+    case "no_replay_path":
+    case "unreplayed_decisive_claim":
+      return "killed_by_replay";
+    default:
+      return "candidate_graveyard_updated";
+  }
+}
+
+function generatorBornDiscoveryClaimLiftDeathMemoryBottleneck(
+  decisions: GeneratorBornDiscoveryClaimLiftDeathMemoryDecision[],
+): string {
+  const recorded = decisions.filter(
+    (decision) => decision.deathMemoryStatus === "recorded",
+  );
+  if (recorded.length > 0) {
+    return `${recorded.length} terminal claim-lift blocker(s) were written to internal graveyard memory. Continue with replacement anchors or independent novelty evidence; no Fund state was changed.`;
+  }
+  const distribution = countBy(decisions, "primaryBlocker");
+  return `No new terminal claim-lift blockers were recorded. Current blockers: ${
+    Object.entries(distribution)
+      .map(([blocker, count]) => `${blocker}=${count}`)
+      .join(", ") || "none"
+  }.`;
+}
+
+function generatorBornDiscoveryClaimLiftDeathMemoryArtifactRefs(
+  nextCheckpointRef: string,
+): string[] {
+  const root = `${daemonArtifactRoot}/${generatorClaimLiftDir}`;
+  return [
+    `${root}/CLAIM_LIFT_DEATH_MEMORY.json`,
+    `${root}/CLAIM_LIFT_DEATH_MEMORY.md`,
+    `${root}/CLAIM_LIFT_DEATH_MEMORY_DECISIONS.json`,
+    `${root}/CLAIM_LIFT_DEATH_MEMORY_NEXT_CHECKPOINT.md`,
+    `${daemonArtifactRoot}/graveyard.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function generatorBornDiscoveryClaimLiftDeathMemoryMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftDeathMemoryReport,
+): string {
+  return [
+    "# Claim Lift Death Memory",
+    "",
+    `Novelty decisions loaded: ${report.noveltyDecisionsLoaded}.`,
+    `Graveyard entries added: ${report.graveyardEntriesAdded}.`,
+    `Graveyard entries skipped: ${report.graveyardEntriesSkipped}.`,
+    `Packages mutated: ${report.packagesMutated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "## Decisions",
+    "",
+    "| Candidate | Novelty pressure | Primary blocker | Death memory | Death cause | Reason |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.candidateId} | ${decision.noveltyPressureStatus} | ${decision.primaryBlocker} | ${decision.deathMemoryStatus} | ${decision.deathCause ?? "none"} | ${decision.reason} |`,
+    ),
+    ...(report.decisions.length === 0
+      ? ["| none | blocked | none | skipped | none | none |"]
+      : []),
+    "",
+    report.remainingBottleneck,
+    "",
+    "This command writes only internal graveyard memory for terminal claim-lift blockers. It never creates FUND_FOUND.md, fund-candidate.json, or user notifications.",
+  ].join("\n");
+}
+
+function generatorBornDiscoveryClaimLiftDeathMemoryNextCheckpointMarkdown(
+  report: GeneratorBornDiscoveryClaimLiftDeathMemoryReport,
+): string {
+  return [
+    "# Claim Lift Death Memory Next Checkpoint",
     "",
     `Status: ${report.status}.`,
     `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
@@ -44114,6 +44510,13 @@ export class AutonomousDiscoveryDaemonService {
   async generatorClaimLiftNoveltyPressure(): Promise<GeneratorBornDiscoveryClaimLiftNoveltyPressureReport> {
     await this.ensureInitialized();
     return new GeneratorBornDiscoveryClaimLiftNoveltyPressureService(
+      this.root,
+    ).run();
+  }
+
+  async generatorClaimLiftDeathMemory(): Promise<GeneratorBornDiscoveryClaimLiftDeathMemoryReport> {
+    await this.ensureInitialized();
+    return new GeneratorBornDiscoveryClaimLiftDeathMemoryService(
       this.root,
     ).run();
   }

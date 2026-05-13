@@ -99,6 +99,7 @@ const commands = [
   "generator-claim-lift-experiment",
   "generator-claim-lift-source-signal",
   "generator-claim-lift-novelty-pressure",
+  "generator-claim-lift-death-memory",
   "generator-claim-lift-candidate",
   "generator-claim-lift-rebind",
   "generator-claim-lift-intake",
@@ -5902,6 +5903,74 @@ test("generator-born claim lift novelty pressure blocks ordinary-known source-fa
   );
 });
 
+test("generator-born claim lift death memory records ordinary-known blockers without Fund state", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await writeClaimLiftSourceSignalCaches(root);
+  const sourceSignal = await service.generatorClaimLiftSourceSignal();
+  const bound = sourceSignal.decisions.find(
+    (decision) =>
+      decision.sourceSignalStatus === "source_signal_bound" &&
+      decision.sourceCacheRef !== null,
+  );
+  assert.ok(bound?.sourceCacheRef);
+  await rewriteClaimLiftSourceCacheAsOrdinaryKnownSolar(
+    root,
+    bound.sourceCacheRef,
+  );
+  await service.generatorClaimLiftNoveltyPressure();
+
+  const memory = await service.generatorClaimLiftDeathMemory();
+  const recorded = memory.decisions.find(
+    (decision) => decision.candidateId === bound.candidateId,
+  );
+  const graveyard = JSON.parse(
+    await readFile(join(root, daemonRoot, "graveyard.json"), "utf8"),
+  ) as {
+    entries: Array<{
+      candidateId: string;
+      deathCause: string;
+      noUserNotification: boolean;
+    }>;
+  };
+
+  assert.equal(memory.kind, "generator_born_discovery_claim_lift_death_memory");
+  assert.equal(memory.graveyardEntriesAdded >= 1, true);
+  assert.equal(recorded?.deathMemoryStatus, "recorded");
+  assert.equal(recorded?.deathCause, "known_trivial");
+  assert.equal(recorded?.fundFound, false);
+  assert.equal(recorded?.noUserNotification, true);
+  assert.equal(
+    graveyard.entries.some(
+      (entry) =>
+        entry.candidateId === bound.candidateId &&
+        entry.deathCause === "known_trivial" &&
+        entry.noUserNotification === true,
+    ),
+    true,
+  );
+  const second = await service.generatorClaimLiftDeathMemory();
+  assert.equal(second.graveyardEntriesAdded, 0);
+  assert.equal(
+    second.decisions.some(
+      (decision) =>
+        decision.candidateId === bound.candidateId &&
+        decision.deathMemoryStatus === "already_recorded",
+    ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("generator-born claim lift candidate preflight blocks ordinary-known mechanism gates", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -11456,6 +11525,11 @@ const cliScenarios: {
       "--json",
     ],
     expectedKind: "generator_born_discovery_claim_lift_novelty_pressure",
+  },
+  {
+    name: "generator-claim-lift-death-memory",
+    args: ["discover-daemon", "generator-claim-lift-death-memory", "--json"],
+    expectedKind: "generator_born_discovery_claim_lift_death_memory",
   },
   {
     name: "generator-claim-lift-candidate",

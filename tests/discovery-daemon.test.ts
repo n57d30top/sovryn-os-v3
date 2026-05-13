@@ -971,6 +971,59 @@ async function alignClaimLiftSourceCacheWithRuntimeEvidence(
   );
 }
 
+async function alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
+  root: string,
+  experiment: {
+    decisions: Array<{
+      bindableInsightEvidenceRefs?: string[];
+    }>;
+  },
+): Promise<void> {
+  for (const decision of experiment.decisions) {
+    const refs = decision.bindableInsightEvidenceRefs ?? [];
+    const sourceCacheRef = refs.find(
+      (ref) =>
+        ref.includes("discovery-anchor-run/source-cache/") &&
+        ref.endsWith(".json"),
+    );
+    const runtimeEvidenceRef = refs.find(
+      (ref) =>
+        ref.includes("generator-families/runtime-evidence/") &&
+        ref.endsWith(".json"),
+    );
+    if (sourceCacheRef === undefined || runtimeEvidenceRef === undefined) {
+      continue;
+    }
+    const sourceCache = JSON.parse(
+      await readFile(join(root, sourceCacheRef), "utf8"),
+    ) as Record<string, unknown>;
+    const runtimePayload = JSON.parse(
+      await readFile(join(root, runtimeEvidenceRef), "utf8"),
+    ) as { output?: Record<string, unknown> };
+    assert.ok(runtimePayload.output);
+    await writeFile(
+      join(root, sourceCacheRef),
+      JSON.stringify(
+        {
+          ...sourceCache,
+          measuredOutcome: runtimePayload.output.measuredOutcome,
+          residualMagnitude: runtimePayload.output.residualMagnitude,
+          baselineResults: runtimePayload.output.baselineResults,
+          rivalWeakened: runtimePayload.output.rivalWeakened,
+          nontrivialResidual: runtimePayload.output.nontrivialResidual,
+          crossSourceSupport: runtimePayload.output.crossSourceSupport,
+          counterexampleCollapsed:
+            runtimePayload.output.counterexampleCollapsed,
+          holdoutReplayAvailable: runtimePayload.output.holdoutReplayAvailable,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+  }
+}
+
 async function misalignClaimLiftSourceCacheFromRuntimeEvidence(
   root: string,
   candidateId: string,
@@ -5371,7 +5424,7 @@ test("generator-born claim lift signal experiment identifies bindable external-s
   );
 });
 
-test("generator-born claim lift rebind updates only ready packages and keeps root Fund state empty", async () => {
+test("generator-born claim lift rebind blocks raw source reproduction mismatch before package mutation", async () => {
   const root = await tempRoot();
   const service = new AutonomousDiscoveryDaemonService(root);
   await service.init();
@@ -5413,6 +5466,84 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
     globalThis.fetch = originalFetch;
   }
   await service.generatorClaimLiftExperiment();
+
+  const rebind = await service.generatorClaimLiftRebind();
+
+  assert.equal(rebind.status, "continue_searching_checkpointed");
+  assert.equal(rebind.packagesRebound, 0);
+  assert.equal(rebind.discoveryScoredPackages, 0);
+  assert.equal(
+    rebind.blockerDistribution.raw_source_reproduction_mismatch > 0,
+    true,
+  );
+  assert.equal(
+    rebind.decisions
+      .filter(
+        (decision) =>
+          decision.primaryBlocker === "raw_source_reproduction_mismatch",
+      )
+      .every(
+        (decision) =>
+          decision.rebindStatus === "skipped" &&
+          decision.packageMutated === false &&
+          decision.rawSourceReproductionConsistency.checked === true &&
+          decision.rawSourceReproductionConsistency.passed === false,
+      ),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift rebind updates only ready packages and keeps root Fund state empty", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftPropose();
+  await service.generatorClaimLift();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("Matbench")) {
+      return new Response(matbenchExperimentalGapFixtureJson(), {
+        status: 200,
+        headers: {
+          etag: "fixture-matbench-etag",
+          "content-length": String(matbenchExperimentalGapFixtureJson().length),
+        },
+      });
+    }
+    return new Response(gaiaAstrometricExcessFixtureCsv(), {
+      status: 200,
+      headers: {
+        etag: "fixture-gaia-etag",
+        "content-length": String(gaiaAstrometricExcessFixtureCsv().length),
+      },
+    });
+  }) as typeof fetch;
+  try {
+    await service.discoveryAnchorSelect();
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-MATBENCH-DIELECTRIC-GAP",
+    });
+    await service.discoveryAnchorSourceLoad({
+      anchorId: "DISC-ANCHOR-GAIA-ASTROMETRIC-EXCESS-SLICES",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const experiment = await service.generatorClaimLiftExperiment();
+  await alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
+    root,
+    experiment,
+  );
 
   const rebind = await service.generatorClaimLiftRebind();
 
@@ -5522,6 +5653,10 @@ test("generator-born claim lift rebind skips public-downgraded ready package", a
     globalThis.fetch = originalFetch;
   }
   const experiment = await service.generatorClaimLiftExperiment();
+  await alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
+    root,
+    experiment,
+  );
   const downgraded = experiment.decisions.find(
     (decision) => decision.experimentStatus === "insight_evidence_ready",
   );
@@ -5588,7 +5723,11 @@ test("generator-born claim lift intake consumes rebound discovery package throug
   } finally {
     globalThis.fetch = originalFetch;
   }
-  await service.generatorClaimLiftExperiment();
+  const experiment = await service.generatorClaimLiftExperiment();
+  await alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
+    root,
+    experiment,
+  );
   const rebind = await service.generatorClaimLiftRebind();
   const staleCandidateId = rebind.decisions.find(
     (decision) => decision.rebindStatus === "rebound",
@@ -5822,7 +5961,11 @@ test("generator-born claim lift intake blocks rebound package after public corpu
   } finally {
     globalThis.fetch = originalFetch;
   }
-  await service.generatorClaimLiftExperiment();
+  const experiment = await service.generatorClaimLiftExperiment();
+  await alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
+    root,
+    experiment,
+  );
   const rebind = await service.generatorClaimLiftRebind();
   for (const decision of rebind.decisions.filter(
     (item) => item.rebindStatus === "rebound",

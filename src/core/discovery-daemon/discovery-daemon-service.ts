@@ -1741,6 +1741,7 @@ export type GeneratorBornDiscoveryClaimLiftSignalRebindDecision = {
   rebindStatus: "rebound" | "skipped";
   primaryBlocker: string;
   insightEvidenceRefsBound: string[];
+  rawSourceReproductionConsistency: GeneratorBornClaimLiftRawSourceReproductionConsistency;
   fundClassBefore: FundClass | null;
   fundClassAfter: FundClass | null;
   countsForEinsteinNobelDiscoveryScoreAfter: boolean;
@@ -15043,6 +15044,18 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
       updatedCandidate,
       true,
     );
+    const rawSourceReproductionConsistency =
+      await generatorBornClaimLiftRawSourceReproductionConsistency(
+        this.root,
+        updatedCandidate,
+      );
+    if (rawSourceReproductionConsistency.passed !== true) {
+      return this.skippedDecision(
+        experimentDecision,
+        "raw_source_reproduction_mismatch",
+        rawSourceReproductionConsistency,
+      );
+    }
     const updatedPayload = {
       ...candidatePayload,
       candidate: updatedCandidate,
@@ -15081,6 +15094,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
         ? "none"
         : "non_discovery_fund_class_after_rebind",
       insightEvidenceRefsBound: experimentDecision.bindableInsightEvidenceRefs,
+      rawSourceReproductionConsistency,
       fundClassBefore: before.fundClass,
       fundClassAfter: after.fundClass,
       countsForEinsteinNobelDiscoveryScoreAfter:
@@ -15095,6 +15109,9 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
   private skippedDecision(
     experimentDecision: GeneratorBornDiscoveryClaimLiftSignalExperimentDecision,
     blocker: string,
+    rawSourceReproductionConsistency = generatorBornClaimLiftRawSourceReproductionConsistencyNotChecked(
+      "rebind_skipped_before_raw_source_reproduction_check",
+    ),
   ): GeneratorBornDiscoveryClaimLiftSignalRebindDecision {
     const result = new FundGateEvaluator().evaluate(null);
     const decision = {
@@ -15104,6 +15121,7 @@ export class GeneratorBornDiscoveryClaimLiftSignalRebindService {
       rebindStatus: "skipped" as const,
       primaryBlocker: blocker,
       insightEvidenceRefsBound: [],
+      rawSourceReproductionConsistency,
       fundClassBefore: null,
       fundClassAfter: null,
       countsForEinsteinNobelDiscoveryScoreAfter: false,
@@ -27099,19 +27117,8 @@ async function generatorBornClaimLiftRawSourceReproductionConsistency(
   root: string,
   candidate: FundCandidate | null,
 ): Promise<GeneratorBornClaimLiftRawSourceReproductionConsistency> {
-  const empty = (
-    reason: string,
-  ): GeneratorBornClaimLiftRawSourceReproductionConsistency => ({
-    checked: false,
-    passed: false,
-    sourceCacheRef: null,
-    runtimeEvidenceRef: null,
-    sourceMeasuredOutcome: null,
-    runtimeMeasuredOutcome: null,
-    sourceResidualMagnitude: null,
-    runtimeResidualMagnitude: null,
-    reason,
-  });
+  const empty =
+    generatorBornClaimLiftRawSourceReproductionConsistencyNotChecked;
   if (candidate === null) return empty("missing_candidate");
   const refs = candidate.insightEvidenceRefs ?? [];
   const sourceCacheRef =
@@ -27190,6 +27197,22 @@ async function generatorBornClaimLiftRawSourceReproductionConsistency(
       measuredMatches && residualMatches
         ? "raw_source_metrics_match_generator_runtime_evidence"
         : "raw_source_metrics_do_not_match_generator_runtime_evidence",
+  };
+}
+
+function generatorBornClaimLiftRawSourceReproductionConsistencyNotChecked(
+  reason: string,
+): GeneratorBornClaimLiftRawSourceReproductionConsistency {
+  return {
+    checked: false,
+    passed: false,
+    sourceCacheRef: null,
+    runtimeEvidenceRef: null,
+    sourceMeasuredOutcome: null,
+    runtimeMeasuredOutcome: null,
+    sourceResidualMagnitude: null,
+    runtimeResidualMagnitude: null,
+    reason,
   };
 }
 
@@ -27430,6 +27453,32 @@ function generatorBornDiscoveryClaimLiftSignalRebindMarkdown(
       ? ["| none | skipped | none | none | false | false | false | none | 0 |"]
       : []),
     "",
+    "## Raw Source Reproduction Consistency",
+    "",
+    "| Candidate | Checked | Passed | Source outcome | Runtime outcome | Source residual | Runtime residual | Reason |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map((decision) => {
+      const raw = decision.rawSourceReproductionConsistency;
+      return `| ${[
+        decision.candidateId,
+        String(raw.checked),
+        String(raw.passed),
+        raw.sourceMeasuredOutcome === null
+          ? "n/a"
+          : String(raw.sourceMeasuredOutcome),
+        raw.runtimeMeasuredOutcome === null
+          ? "n/a"
+          : String(raw.runtimeMeasuredOutcome),
+        raw.sourceResidualMagnitude === null
+          ? "n/a"
+          : String(raw.sourceResidualMagnitude),
+        raw.runtimeResidualMagnitude === null
+          ? "n/a"
+          : String(raw.runtimeResidualMagnitude),
+        raw.reason,
+      ].join(" | ")} |`;
+    }),
+    "",
     "This command updates only package-bound artifacts for decisions whose signal experiment already produced resolvable insight evidence. It does not write root FUND_FOUND.md or root fund-candidate.json.",
   ].join("\n");
 }
@@ -27585,7 +27634,7 @@ function generatorBornDiscoveryClaimLiftSignalIntakeMarkdown(
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...report.decisions.map((decision) => {
       const raw = decision.rawSourceReproductionConsistency;
-      return [
+      return `| ${[
         decision.candidateId,
         String(raw.passed),
         raw.sourceMeasuredOutcome === null
@@ -27601,7 +27650,7 @@ function generatorBornDiscoveryClaimLiftSignalIntakeMarkdown(
           ? "n/a"
           : String(raw.runtimeResidualMagnitude),
         raw.reason,
-      ].join(" | ");
+      ].join(" | ")} |`;
     }),
     "",
     "## Decisions",

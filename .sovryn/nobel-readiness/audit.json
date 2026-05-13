@@ -1,8 +1,8 @@
 {
   "kind": "nobel_readiness_audit",
-  "checkedAt": "2026-05-13T13:34:47.587Z",
-  "passed": false,
-  "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
+  "checkedAt": "2026-05-13T13:58:59.788Z",
+  "passed": true,
+  "targetRepo": null,
   "criteriaCount": 12,
   "domainCount": 10,
   "selectedDomainCount": 4,
@@ -18,10 +18,10 @@
   "killWeekDowngradedCount": 12,
   "finalLabel": "promising_with_strong_caveats",
   "forbiddenClaimFindings": [],
-  "publicReviewUrlAuditStatus": "blocked",
-  "publicReviewUrlAuditPassed": false,
-  "publicReviewUrlCount": 0,
-  "rawPublicReviewUrlCount": 0,
+  "publicReviewUrlAuditStatus": null,
+  "publicReviewUrlAuditPassed": null,
+  "publicReviewUrlCount": null,
+  "rawPublicReviewUrlCount": null,
   "artifactRefs": [
     ".sovryn/nobel-readiness/status.json",
     ".sovryn/nobel-readiness/criteria.json",
@@ -33,9 +33,7 @@
     ".sovryn/nobel-readiness/replay-results.json",
     ".sovryn/nobel-readiness/rival-theory-review.json",
     ".sovryn/nobel-readiness/readiness-score.json",
-    ".sovryn/nobel-readiness/NOBEL_READINESS_REPORT.md",
-    ".sovryn/nobel-readiness/public-review-url-audit.json",
-    ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
+    ".sovryn/nobel-readiness/NOBEL_READINESS_REPORT.md"
   ],
-  "evidenceHash": "78e1a5724f2d13950882daaf9ae90d9dc477f1c01e68cf127a5c77bfaf80b42c"
+  "evidenceHash": "f61ee11e7ea80081b461db669e553fe02e53a5691b2a7cd2ea06c53e29ff55fc"
 }

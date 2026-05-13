@@ -28,6 +28,7 @@ import {
   discoveryDaemonInternalStatuses,
   DiscoveryDomainRotator,
   DiscoveryGradeAnchorSelector,
+  ExternalSourceObjectHarvester,
   ExternalFormalAnchorSelector,
   FreshTargetSampler,
   FundCandidateDraftValidator,
@@ -38,6 +39,7 @@ import {
   hardSeedTypes,
   HardSeedToCandidateBuilder,
   HardSeedValidator,
+  IndependentSourceReplayRunner,
   InsightCandidateDeriver,
   InsightCandidatePromotionEvaluator,
   insightCandidateSchema,
@@ -108,6 +110,7 @@ const commands = [
   "formal-anchor-pilot",
   "formal-anchor-audit",
   "formal-anchor-pressure",
+  "source-object-engine",
   "discovery-anchor-select",
   "discovery-anchor-audit",
   "discovery-anchor-source-load",
@@ -4818,6 +4821,158 @@ test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
     ),
     true,
   );
+});
+
+test("ExternalSourceObjectHarvester rejects manifest-only and source-family-only objects", () => {
+  const harvester = new ExternalSourceObjectHarvester();
+  const baseObject = {
+    kind: "external_source_object" as const,
+    objectId: "SOURCE-OBJECT-FORMAL-001",
+    waveId: "formal_bounded_graph_property" as const,
+    domain: "formal_mathematics_conjecture_refutation" as const,
+    sourceObjectKind: "public_edge_list" as const,
+    sourceObjectRef: "edge-list:source-object-formal-001",
+    sourceRef: "https://hog.grinvin.org/",
+    inspectabilityRef: "https://www.graphclasses.org/",
+    sourceReceipt: "https://hog.grinvin.org/#source-object-formal-001",
+    sourceHash:
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    sourcePayload: { sourceFamilyOnly: false },
+    measuredVariable: "bounded obstruction residual",
+    targetOutcome: "checked graph-family boundary outcome",
+    safetyScope: "safe public formal object",
+    loaderCheckCommand: "sovryn discover-daemon source-object-engine --json",
+    accepted: true,
+    rejectionReason: null,
+  };
+
+  assert.equal(harvester.validate(baseObject).accepted, true);
+  assert.equal(
+    harvester.validate({
+      ...baseObject,
+      sourceObjectRef: "manifest:.sovryn/discovery-daemon/graph-minor.json",
+    }).rejectionReason,
+    "manifest_only_source_object",
+  );
+  assert.equal(
+    harvester.validate({
+      ...baseObject,
+      sourcePayload: { sourceFamilyOnly: true },
+    }).rejectionReason,
+    "source_family_only_without_concrete_object",
+  );
+});
+
+test("IndependentSourceReplayRunner does not count invalid manifest-only source replay as independent", () => {
+  const harvester = new ExternalSourceObjectHarvester();
+  const manifestOnly = harvester.validate({
+    kind: "external_source_object",
+    objectId: "SOURCE-OBJECT-MANIFEST-ONLY",
+    waveId: "formal_bounded_graph_property",
+    domain: "formal_mathematics_conjecture_refutation",
+    sourceObjectKind: "public_edge_list",
+    sourceObjectRef: "manifest:.sovryn/discovery-daemon/manifest-only.json",
+    sourceRef: "https://hog.grinvin.org/",
+    inspectabilityRef: "https://www.graphclasses.org/",
+    sourceReceipt: "https://hog.grinvin.org/#manifest-only",
+    sourceHash:
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    sourcePayload: { sourceFamilyOnly: false },
+    measuredVariable: "bounded obstruction residual",
+    targetOutcome: "checked graph-family boundary outcome",
+    safetyScope: "safe public formal object",
+    loaderCheckCommand: "sovryn discover-daemon source-object-engine --json",
+    accepted: true,
+    rejectionReason: null,
+  });
+  const replay = new IndependentSourceReplayRunner().run(manifestOnly, 1);
+
+  assert.equal(manifestOnly.accepted, false);
+  assert.equal(replay.replayStatus, "independent_source_replay_failed");
+  assert.equal(replay.primaryDeathCause, "replay_failed");
+});
+
+test("discover-daemon source-object-engine runs source-object-first waves without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.sourceObjectEngine();
+
+  assert.equal(report.kind, "source_object_first_discovery_engine");
+  assert.equal(report.status, "continue_searching_checkpointed");
+  assert.equal(report.wavesCompleted, 5);
+  assert.equal(report.sourceObjectsLoaded, 100);
+  assert.equal(report.independentSourceReplaysRun >= 60, true);
+  assert.equal(report.baselineCounterexampleChecksRun >= 60, true);
+  assert.equal(report.mechanismProofPressureChecksRun >= 20, true);
+  assert.equal(report.candidateLevelReplayAttempts, 10);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      report.deathCauseDistribution,
+      "no_death_cause",
+    ),
+    false,
+  );
+  for (const artifact of [
+    "SOURCE_OBJECT_UNIVERSE.md",
+    "SOURCE_OBJECT_RECEIPTS.json",
+    "INDEPENDENT_SOURCE_REPLAY_RESULTS.md",
+    "BASELINE_DIRECTIONALITY_AUDIT.md",
+    "MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md",
+    "HARD_SEED_BIRTH_DECISIONS.md",
+    "INSIGHT_CANDIDATE_DECISIONS.md",
+    "DISCOVERY_CANDIDATE_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "DEATH_CAUSE_SUMMARY.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    await access(join(root, daemonRoot, "source-object-first", artifact));
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const audit = await service.sourceObjectEngineAudit();
+  assert.equal(audit.passed, true);
+  assert.equal(audit.failedGates.length, 0);
+});
+
+test("discover-daemon source-object-engine CLI is bounded and silent", async () => {
+  const root = await tempRoot();
+  assert.equal(
+    (await executeCli(["discover-daemon", "init", "--json"], root)).ok,
+    true,
+  );
+  const run = await executeCli(
+    ["discover-daemon", "source-object-engine", "--json"],
+    root,
+  );
+  assert.equal(run.ok, true);
+  const runData = run.data as Record<string, unknown>;
+  assert.equal(runData.kind, "source_object_first_discovery_engine");
+  assert.equal(runData.fundFound, false);
+
+  const status = await executeCli(
+    ["discover-daemon", "source-object-engine", "status", "--json"],
+    root,
+  );
+  assert.equal(status.ok, true);
+  const statusData = status.data as Record<string, unknown>;
+  assert.equal(statusData.latestRunFound, true);
+
+  const audit = await executeCli(
+    ["discover-daemon", "source-object-engine", "audit", "--json"],
+    root,
+  );
+  assert.equal(audit.ok, true);
+  const auditData = audit.data as Record<string, unknown>;
+  assert.equal(auditData.passed, true);
 });
 
 test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {

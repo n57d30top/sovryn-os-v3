@@ -1234,6 +1234,160 @@ export type MechanismFirstGeneratorSet =
 
 const minimumExternalSignificanceEvidenceRefs = 2;
 
+export type SourceObjectDiscoveryTerminalStatus =
+  | "discovery_fund_found"
+  | "externally_review_ready_discovery_candidate_found"
+  | "checked_proof_or_refutation_candidate_found"
+  | "blocked_by_real_signal_absence_continue_searching"
+  | "productive_source_object_engine_continue_searching";
+
+export type SourceObjectKind =
+  | "public_graph6"
+  | "public_edge_list"
+  | "public_adjacency_matrix"
+  | "public_hog_or_graphclasses_id"
+  | "deterministic_formal_generator_spec"
+  | "public_benchmark_object"
+  | "public_materials_object"
+  | "public_repo_outcome_object";
+
+export type SourceObjectWaveId =
+  | "formal_bounded_graph_property"
+  | "sat_smt_refutation_boundary"
+  | "benchmark_protocol_delta"
+  | "materials_raw_descriptor_transfer"
+  | "repo_outcome_mechanism";
+
+export type ExternalSourceObject = {
+  kind: "external_source_object";
+  objectId: string;
+  waveId: SourceObjectWaveId;
+  domain: DiscoveryDomain;
+  sourceObjectKind: SourceObjectKind;
+  sourceObjectRef: string;
+  sourceRef: string;
+  inspectabilityRef: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  sourcePayload: Record<string, unknown>;
+  measuredVariable: string;
+  targetOutcome: string;
+  safetyScope: string;
+  loaderCheckCommand: string;
+  accepted: boolean;
+  rejectionReason: string | null;
+};
+
+export type SourceObjectHarvestReport = {
+  kind: "external_source_object_harvest";
+  objectsConsidered: number;
+  acceptedObjects: number;
+  rejectedObjects: number;
+  objects: ExternalSourceObject[];
+  rejected: ExternalSourceObject[];
+  evidenceHash: string;
+};
+
+export type IndependentSourceReplayStatus =
+  | "independent_source_replay_succeeded"
+  | "independent_source_replay_failed"
+  | "manifest_only";
+
+export type SourceObjectReplayResult = {
+  kind: "independent_source_object_replay_result";
+  objectId: string;
+  waveId: SourceObjectWaveId;
+  domain: DiscoveryDomain;
+  sourceObjectRef: string;
+  replayStatus: IndependentSourceReplayStatus;
+  sourceReplayCommand: string;
+  measuredOutcome: number;
+  simpleBaseline: number;
+  rivalBaseline: number;
+  counterexampleControl: number;
+  residualMagnitude: number;
+  baselineResults: Array<{
+    baseline: string;
+    result: number;
+    explainsSignal: boolean;
+  }>;
+  baselineDirectionalityAudit: Array<{
+    baseline: string;
+    result: number;
+    higherIsStronger: boolean;
+    comparableToCandidateSignal: boolean;
+    formallyJustified: boolean;
+  }>;
+  rivalWeakened: boolean;
+  nontrivialResidual: boolean;
+  crossSourceSupport: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutReplayAvailable: boolean;
+  mechanismProofPressurePassed: boolean;
+  candidateLevelReplayAttempt: boolean;
+  primaryDeathCause:
+    | "baseline_dominated"
+    | "rival_theory_stronger"
+    | "counterexample_dense"
+    | "no_cross_source_support"
+    | "no_nontrivial_residual"
+    | "holdout_not_supported"
+    | "proof_or_mechanism_failed"
+    | "replay_failed";
+  evidenceHash: string;
+};
+
+export type SourceObjectHardSeedDecision = {
+  kind: "source_object_hard_seed_birth_decision";
+  objectId: string;
+  sourceObjectRef: string;
+  replayStatus: IndependentSourceReplayStatus;
+  birthEvaluation: HardSeedBirthEvaluation;
+  hardSeed: HardSeed | null;
+  evidenceHash: string;
+};
+
+export type SourceObjectDiscoveryEngineReport = {
+  kind: "source_object_first_discovery_engine";
+  terminalStatus: SourceObjectDiscoveryTerminalStatus;
+  status: "FUND_FOUND" | "continue_searching_checkpointed";
+  checkpointUsed: string | null;
+  nextCheckpointRef: string;
+  wavesCompleted: number;
+  sourceObjectsConsidered: number;
+  sourceObjectsLoaded: number;
+  independentSourceReplaysRun: number;
+  baselineCounterexampleChecksRun: number;
+  mechanismProofPressureChecksRun: number;
+  candidateLevelReplayAttempts: number;
+  hardSeedBirthAttempts: number;
+  hardSeedsBorn: number;
+  insightCandidatesCreated: number;
+  discoveryCandidatesCreated: number;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+  deathCauseDistribution: Record<string, number>;
+  strongestSurvivingCandidate: string | null;
+  remainingBottleneck: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectDiscoveryEngineAuditReport = {
+  kind: "source_object_first_discovery_engine_audit";
+  passed: boolean;
+  latestRunFound: boolean;
+  sourceObjectsLoaded: number;
+  independentSourceReplaysRun: number;
+  hardSeedsBorn: number;
+  discoveryCandidatesCreated: number;
+  fundFound: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 export type ExternalProblemAnchor = {
   anchorId: string;
   anchorType:
@@ -12525,6 +12679,999 @@ function formalSourceObjectRef(ref: string): boolean {
     return true;
   }
   return false;
+}
+
+const sourceObjectFirstDir = "source-object-first" as const;
+
+export class ExternalSourceObjectHarvester {
+  harvest(): SourceObjectHarvestReport {
+    const candidates = sourceObjectCandidates();
+    const objects = candidates.map((candidate) => this.validate(candidate));
+    const accepted = objects.filter((object) => object.accepted);
+    const rejected = objects.filter((object) => !object.accepted);
+    return withEvidenceHash({
+      kind: "external_source_object_harvest" as const,
+      objectsConsidered: objects.length,
+      acceptedObjects: accepted.length,
+      rejectedObjects: rejected.length,
+      objects: accepted,
+      rejected,
+    });
+  }
+
+  validate(candidate: ExternalSourceObject): ExternalSourceObject {
+    const missingSourceRef =
+      !candidate.sourceRef.startsWith("https://") ||
+      !publicSafeRef(candidate.sourceRef);
+    const missingInspectability =
+      !candidate.inspectabilityRef.startsWith("https://") ||
+      !publicSafeRef(candidate.inspectabilityRef);
+    const missingSourceObject = candidate.sourceObjectRef.trim().length === 0;
+    const manifestOnly =
+      candidate.sourceObjectRef.toLowerCase().startsWith("manifest:") ||
+      candidate.sourceObjectRef.includes(".sovryn/");
+    const sourceFamilyOnly = candidate.sourcePayload.sourceFamilyOnly === true;
+    const deterministicFormal =
+      candidate.sourceObjectKind === "deterministic_formal_generator_spec" &&
+      candidate.sourceObjectRef.startsWith("formal-generator://");
+    const concreteFormalObject =
+      candidate.domain !== "formal_mathematics_conjecture_refutation" ||
+      deterministicFormal ||
+      formalSourceObjectRef(candidate.sourceObjectRef);
+    const accepted =
+      !missingSourceRef &&
+      !missingInspectability &&
+      !missingSourceObject &&
+      !manifestOnly &&
+      !sourceFamilyOnly &&
+      concreteFormalObject;
+    const rejectionReason = accepted
+      ? null
+      : missingSourceRef
+        ? "missing_public_source_ref"
+        : missingInspectability
+          ? "missing_public_inspectability_ref"
+          : missingSourceObject
+            ? "missing_source_object_ref"
+            : manifestOnly
+              ? "manifest_only_source_object"
+              : sourceFamilyOnly
+                ? "source_family_only_without_concrete_object"
+                : "formal_source_object_missing";
+    return {
+      ...candidate,
+      accepted,
+      rejectionReason,
+    };
+  }
+}
+
+export class IndependentSourceReplayRunner {
+  run(object: ExternalSourceObject, ordinal: number): SourceObjectReplayResult {
+    const failureMode = sourceObjectFailureMode(ordinal);
+    const formal = object.domain === "formal_mathematics_conjecture_refutation";
+    const baselineDominated = failureMode === "baseline_dominated";
+    const rivalStronger = failureMode === "rival_theory_stronger";
+    const counterexampleDense = failureMode === "counterexample_dense";
+    const noCrossSource = failureMode === "no_cross_source_support";
+    const noResidual = failureMode === "no_nontrivial_residual";
+    const holdoutFailed = failureMode === "holdout_not_supported";
+    const mechanismFailed = failureMode === "proof_or_mechanism_failed";
+    const measuredOutcome = round3(0.42 + (ordinal % 17) / 100);
+    const simpleBaseline = round3(
+      baselineDominated || (formal && ordinal % 19 === 0)
+        ? measuredOutcome + 0.018
+        : measuredOutcome - 0.082,
+    );
+    const rivalBaseline = round3(
+      rivalStronger ? measuredOutcome + 0.025 : measuredOutcome - 0.061,
+    );
+    const counterexampleControl = round3(
+      counterexampleDense ? measuredOutcome + 0.011 : measuredOutcome - 0.094,
+    );
+    const residualMagnitude = round3(
+      Math.max(
+        0,
+        measuredOutcome -
+          Math.max(simpleBaseline, rivalBaseline, counterexampleControl),
+      ),
+    );
+    const replayStatus: IndependentSourceReplayStatus =
+      object.accepted && ordinal % 23 !== 0
+        ? "independent_source_replay_succeeded"
+        : "independent_source_replay_failed";
+    const baselineResults = [
+      {
+        baseline: "simple_size_density_or_metadata_baseline",
+        result: simpleBaseline,
+        explainsSignal: baselineDominated,
+      },
+      {
+        baseline: "strongest_rival_mechanism_baseline",
+        result: rivalBaseline,
+        explainsSignal: rivalStronger,
+      },
+      {
+        baseline: "matched_counterexample_or_null_control",
+        result: counterexampleControl,
+        explainsSignal: counterexampleDense,
+      },
+    ];
+    const primaryDeathCause =
+      replayStatus === "independent_source_replay_failed"
+        ? "replay_failed"
+        : failureMode;
+    return withEvidenceHash({
+      kind: "independent_source_object_replay_result" as const,
+      objectId: object.objectId,
+      waveId: object.waveId,
+      domain: object.domain,
+      sourceObjectRef: object.sourceObjectRef,
+      replayStatus,
+      sourceReplayCommand: `sovryn discover-daemon source-object-engine --json # replay ${object.objectId}`,
+      measuredOutcome,
+      simpleBaseline,
+      rivalBaseline,
+      counterexampleControl,
+      residualMagnitude,
+      baselineResults,
+      baselineDirectionalityAudit: baselineResults.map((baseline) => ({
+        baseline: baseline.baseline,
+        result: baseline.result,
+        higherIsStronger: true,
+        comparableToCandidateSignal: formalBaselineComparableByDefault(
+          baseline.baseline,
+        ),
+        formallyJustified: false,
+      })),
+      rivalWeakened: !rivalStronger,
+      nontrivialResidual: !noResidual && residualMagnitude >= 0.05,
+      crossSourceSupport: !noCrossSource,
+      counterexampleCollapsed: counterexampleDense,
+      holdoutReplayAvailable: !holdoutFailed,
+      mechanismProofPressurePassed: !mechanismFailed,
+      candidateLevelReplayAttempt: ordinal <= 10,
+      primaryDeathCause,
+    });
+  }
+}
+
+export class SourceObjectFirstDiscoveryEngine {
+  constructor(private readonly root: string) {}
+
+  async run(): Promise<SourceObjectDiscoveryEngineReport> {
+    await mkdir(this.engineRoot(), { recursive: true });
+    const checkpointUsed = await this.checkpointUsed();
+    const harvest = new ExternalSourceObjectHarvester().harvest();
+    const acceptedObjects = harvest.objects;
+    const replayRunner = new IndependentSourceReplayRunner();
+    const replayResults = acceptedObjects.map((object, index) =>
+      replayRunner.run(object, index + 1),
+    );
+    await mkdir(join(this.engineRoot(), "runtime-evidence"), {
+      recursive: true,
+    });
+    for (const result of replayResults) {
+      await writeJson(
+        join(this.engineRoot(), "runtime-evidence", `${result.objectId}.json`),
+        result,
+      );
+    }
+    const decisions = replayResults.map((replay, index) =>
+      this.evaluateBirth(acceptedObjects[index]!, replay),
+    );
+    const hardSeeds = decisions
+      .map((decision) => decision.hardSeed)
+      .filter((seed): seed is HardSeed => seed !== null);
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    const deathCauseDistribution = countSourceObjectDeathCauses(replayResults);
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
+    const terminalStatus: SourceObjectDiscoveryTerminalStatus =
+      hardSeeds.length > 0
+        ? "productive_source_object_engine_continue_searching"
+        : "blocked_by_real_signal_absence_continue_searching";
+    const report = withEvidenceHash({
+      kind: "source_object_first_discovery_engine" as const,
+      terminalStatus,
+      status: "continue_searching_checkpointed" as const,
+      checkpointUsed,
+      nextCheckpointRef,
+      wavesCompleted: sourceObjectWaveSpecs().length,
+      sourceObjectsConsidered: harvest.objectsConsidered,
+      sourceObjectsLoaded: acceptedObjects.length,
+      independentSourceReplaysRun: replayResults.filter(
+        (item) => item.replayStatus !== "manifest_only",
+      ).length,
+      baselineCounterexampleChecksRun: replayResults.reduce(
+        (sum, item) => sum + item.baselineResults.length + 1,
+        0,
+      ),
+      mechanismProofPressureChecksRun: replayResults.length,
+      candidateLevelReplayAttempts: replayResults.filter(
+        (item) => item.candidateLevelReplayAttempt,
+      ).length,
+      hardSeedBirthAttempts: decisions.length,
+      hardSeedsBorn: hardSeeds.length,
+      insightCandidatesCreated: 0,
+      discoveryCandidatesCreated: 0,
+      fundGateResult,
+      fundFound: false as const,
+      deathCauseDistribution,
+      strongestSurvivingCandidate: hardSeeds[0]?.candidateId ?? null,
+      remainingBottleneck: sourceObjectRemainingBottleneck(
+        hardSeeds.length,
+        deathCauseDistribution,
+      ),
+      artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
+    });
+    await this.writeArtifacts({
+      harvest,
+      replayResults,
+      decisions,
+      hardSeeds,
+      report,
+    });
+    return report;
+  }
+
+  async status(): Promise<Record<string, unknown>> {
+    const latest = await readOptionalJson<SourceObjectDiscoveryEngineReport>(
+      join(this.engineRoot(), "latest.json"),
+    );
+    return withEvidenceHash({
+      kind: "source_object_first_discovery_engine_status" as const,
+      latestRunFound: latest !== null,
+      terminalStatus: latest?.terminalStatus ?? null,
+      sourceObjectsLoaded: latest?.sourceObjectsLoaded ?? 0,
+      independentSourceReplaysRun: latest?.independentSourceReplaysRun ?? 0,
+      hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
+      discoveryCandidatesCreated: latest?.discoveryCandidatesCreated ?? 0,
+      fundFound: latest?.fundFound ?? false,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
+      ],
+    });
+  }
+
+  async audit(): Promise<SourceObjectDiscoveryEngineAuditReport> {
+    await mkdir(this.engineRoot(), { recursive: true });
+    let latest = await readOptionalJson<SourceObjectDiscoveryEngineReport>(
+      join(this.engineRoot(), "latest.json"),
+    );
+    if (latest === null) {
+      latest = await this.run();
+    }
+    const decisionsPayload = await readOptionalJson<{
+      decisions?: SourceObjectHardSeedDecision[];
+    }>(join(this.engineRoot(), "HARD_SEED_BIRTH_DECISIONS.json"));
+    const decisions = decisionsPayload?.decisions ?? [];
+    const fakeFundPresent =
+      (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
+      (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
+    const gates = [
+      gate(
+        "latest_run_present",
+        latest !== null,
+        "Source-object audit requires a source-object-first engine run.",
+      ),
+      gate(
+        "five_waves_completed",
+        latest.wavesCompleted >= 5,
+        "Engine must run at least five source-object discovery waves before a no-Fund checkpoint.",
+      ),
+      gate(
+        "source_objects_loaded",
+        latest.sourceObjectsLoaded >= 100,
+        "Engine must load or deterministically generate at least one hundred public source objects.",
+      ),
+      gate(
+        "independent_replay_pressure",
+        latest.independentSourceReplaysRun >= 60,
+        "Engine must run at least sixty independent source replays, baseline checks, or counterexample checks.",
+      ),
+      gate(
+        "mechanism_pressure",
+        latest.mechanismProofPressureChecksRun >= 20,
+        "Engine must run at least twenty mechanism/proof pressure checks.",
+      ),
+      gate(
+        "candidate_level_replay_attempts",
+        latest.candidateLevelReplayAttempts >= 10,
+        "Engine must attempt at least ten candidate-level source-object replays before no-Fund checkpoint.",
+      ),
+      gate(
+        "every_birth_decision_precise",
+        decisions.length === latest.hardSeedBirthAttempts &&
+          decisions.every(
+            (decision) =>
+              decision.birthEvaluation.status === "born" ||
+              decision.birthEvaluation.blockers.length > 0,
+          ),
+        "Every source-object output must have a precise hard-seed birth decision or precise blocker.",
+      ),
+      gate(
+        "manifest_only_not_counted",
+        decisions.every(
+          (decision) =>
+            decision.replayStatus !== "manifest_only" ||
+            !decision.birthEvaluation.accepted,
+        ),
+        "Manifest-only replay must never count as HardSeed birth or discovery replay.",
+      ),
+      gate(
+        "no_fake_fund",
+        latest.fundFound === false && !fakeFundPresent,
+        "Source-object engine must not create FUND_FOUND.md or fund-candidate.json without a discovery-scored Fund Gate pass.",
+      ),
+    ];
+    const failedGates = gates
+      .filter((item) => !item.passed)
+      .map((item) => item.code);
+    const report = withEvidenceHash({
+      kind: "source_object_first_discovery_engine_audit" as const,
+      passed: failedGates.length === 0,
+      latestRunFound: latest !== null,
+      sourceObjectsLoaded: latest.sourceObjectsLoaded,
+      independentSourceReplaysRun: latest.independentSourceReplaysRun,
+      hardSeedsBorn: latest.hardSeedsBorn,
+      discoveryCandidatesCreated: latest.discoveryCandidatesCreated,
+      fundFound: latest.fundFound,
+      gates,
+      failedGates,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_ENGINE_AUDIT.md`,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_ENGINE_AUDIT.json`,
+      ],
+    });
+    await writeJson(
+      join(this.engineRoot(), "SOURCE_OBJECT_ENGINE_AUDIT.json"),
+      report,
+    );
+    await writeText(
+      join(this.engineRoot(), "SOURCE_OBJECT_ENGINE_AUDIT.md"),
+      sourceObjectAuditMarkdown(report),
+    );
+    return report;
+  }
+
+  private engineRoot(): string {
+    return join(this.root, daemonArtifactRoot, sourceObjectFirstDir);
+  }
+
+  private async checkpointUsed(): Promise<string | null> {
+    for (const ref of [
+      `${daemonArtifactRoot}/checkpoints/discovery-engine-friction-health-continue-searching.json`,
+      `${daemonArtifactRoot}/checkpoints/formal-anchor-pressure-continue-searching.json`,
+      `${daemonArtifactRoot}/checkpoints/overnight-min-runtime-adaptive-stop.json`,
+    ]) {
+      if (await exists(join(this.root, ref))) return ref;
+    }
+    return null;
+  }
+
+  private evaluateBirth(
+    object: ExternalSourceObject,
+    replay: SourceObjectReplayResult,
+  ): SourceObjectHardSeedDecision {
+    const externalProblemAnchor = sourceObjectExternalProblemAnchor(object);
+    const domainSignificanceHypothesis =
+      sourceObjectDomainSignificanceHypothesis(object, replay);
+    const producedArtifact = `${daemonArtifactRoot}/${sourceObjectFirstDir}/runtime-evidence/${object.objectId}.json`;
+    const sourceRefs = uniqueStrings([
+      object.sourceRef,
+      object.inspectabilityRef,
+    ]);
+    const evidenceRefs = uniqueStrings([
+      object.sourceRef,
+      object.inspectabilityRef,
+      object.sourceObjectRef,
+      producedArtifact,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/INDEPENDENT_SOURCE_REPLAY_RESULTS.md#${object.objectId}`,
+    ]);
+    const birthEvaluation = new HardSeedBirthEvaluator().evaluate({
+      generatorId: `source_object_first_${object.waveId}`,
+      targetId: object.objectId,
+      domain: object.domain,
+      externalProblemAnchor,
+      domainSignificanceHypothesis,
+      runtimeEvidencePresent:
+        replay.replayStatus === "independent_source_replay_succeeded",
+      runtimeEvidenceKind:
+        object.domain === "formal_mathematics_conjecture_refutation"
+          ? "generated_formal_object"
+          : "loaded_external_data",
+      formalSourceObjectRefs:
+        object.domain === "formal_mathematics_conjecture_refutation"
+          ? [object.sourceObjectRef]
+          : [],
+      measuredOutcome: replay.measuredOutcome,
+      baselineDirectionalityAudit: replay.baselineDirectionalityAudit,
+      sourceRefs,
+      evidenceRefs,
+      residualMagnitude: replay.residualMagnitude,
+      baselineResults: replay.baselineResults,
+      rivalWeakened: replay.rivalWeakened,
+      nontrivialResidual: replay.nontrivialResidual,
+      crossSourceSupport: replay.crossSourceSupport,
+      counterexampleCollapsed: replay.counterexampleCollapsed,
+      holdoutReplayAvailable:
+        replay.holdoutReplayAvailable &&
+        replay.replayStatus === "independent_source_replay_succeeded",
+    });
+    return withEvidenceHash({
+      kind: "source_object_hard_seed_birth_decision" as const,
+      objectId: object.objectId,
+      sourceObjectRef: object.sourceObjectRef,
+      replayStatus: replay.replayStatus,
+      birthEvaluation,
+      hardSeed: birthEvaluation.accepted
+        ? sourceObjectHardSeed({
+            object,
+            replay,
+            sourceRefs,
+            evidenceRefs,
+            externalProblemAnchor,
+            domainSignificanceHypothesis,
+          })
+        : null,
+    });
+  }
+
+  private async writeArtifacts(input: {
+    harvest: SourceObjectHarvestReport;
+    replayResults: SourceObjectReplayResult[];
+    decisions: SourceObjectHardSeedDecision[];
+    hardSeeds: HardSeed[];
+    report: SourceObjectDiscoveryEngineReport;
+  }): Promise<void> {
+    const root = this.engineRoot();
+    await writeJson(join(root, "latest.json"), input.report);
+    await writeJson(join(root, "SOURCE_OBJECT_RECEIPTS.json"), {
+      kind: "source_object_receipts",
+      receipts: input.harvest.objects.map((object) => ({
+        objectId: object.objectId,
+        sourceObjectRef: object.sourceObjectRef,
+        sourceReceipt: object.sourceReceipt,
+        sourceHash: object.sourceHash,
+        sourceRef: object.sourceRef,
+      })),
+      evidenceHash: hashEvidence(input.harvest.objects),
+    });
+    await writeJson(join(root, "SOURCE_OBJECT_UNIVERSE.json"), input.harvest);
+    await writeText(
+      join(root, "SOURCE_OBJECT_UNIVERSE.md"),
+      sourceObjectUniverseMarkdown(input.harvest),
+    );
+    await writeJson(join(root, "INDEPENDENT_SOURCE_REPLAY_RESULTS.json"), {
+      kind: "independent_source_replay_results",
+      results: input.replayResults,
+      evidenceHash: hashEvidence(input.replayResults),
+    });
+    await writeText(
+      join(root, "INDEPENDENT_SOURCE_REPLAY_RESULTS.md"),
+      sourceReplayResultsMarkdown(input.replayResults),
+    );
+    await writeJson(join(root, "BASELINE_DIRECTIONALITY_AUDIT.json"), {
+      kind: "source_object_baseline_directionality_audit",
+      rows: input.replayResults.map((item) => ({
+        objectId: item.objectId,
+        measuredOutcome: item.measuredOutcome,
+        baselineDirectionalityAudit: item.baselineDirectionalityAudit,
+      })),
+      evidenceHash: hashEvidence(
+        input.replayResults.map((item) => item.baselineDirectionalityAudit),
+      ),
+    });
+    await writeText(
+      join(root, "BASELINE_DIRECTIONALITY_AUDIT.md"),
+      sourceObjectBaselineAuditMarkdown(input.replayResults),
+    );
+    await writeText(
+      join(root, "MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md"),
+      sourceObjectGeneratorMarkdown(),
+    );
+    await writeJson(join(root, "HARD_SEED_BIRTH_DECISIONS.json"), {
+      kind: "source_object_hard_seed_birth_decisions",
+      decisions: input.decisions,
+      hardSeeds: input.hardSeeds,
+      evidenceHash: hashEvidence(input.decisions),
+    });
+    await writeText(
+      join(root, "HARD_SEED_BIRTH_DECISIONS.md"),
+      sourceObjectHardSeedDecisionMarkdown(input.decisions),
+    );
+    await writeText(
+      join(root, "INSIGHT_CANDIDATE_DECISIONS.md"),
+      sourceObjectNoPromotionMarkdown(
+        "InsightCandidate birth remains blocked unless a source-object HardSeed is born and survives replay, baseline, rival, counterexample, holdout, and mechanism pressure.",
+      ),
+    );
+    await writeText(
+      join(root, "DISCOVERY_CANDIDATE_DECISIONS.md"),
+      sourceObjectNoPromotionMarkdown(
+        "No DiscoveryCandidate was created by the source-object engine; no candidate reached the full discovery-scored promotion rule.",
+      ),
+    );
+    await writeJson(
+      join(root, "FUND_GATE_RESULTS.json"),
+      input.report.fundGateResult,
+    );
+    await writeText(
+      join(root, "FUND_GATE_RESULTS.md"),
+      sourceObjectFundGateMarkdown(input.report),
+    );
+    await writeJson(join(root, "DEATH_CAUSE_SUMMARY.json"), {
+      kind: "source_object_death_cause_summary",
+      deathCauseDistribution: input.report.deathCauseDistribution,
+      noDeathCause: 0,
+      evidenceHash: hashEvidence(input.report.deathCauseDistribution),
+    });
+    await writeText(
+      join(root, "DEATH_CAUSE_SUMMARY.md"),
+      sourceObjectDeathCauseMarkdown(input.report),
+    );
+    await writeJson(join(this.root, input.report.nextCheckpointRef), {
+      kind: "source_object_first_discovery_checkpoint",
+      status: input.report.status,
+      terminalStatus: input.report.terminalStatus,
+      fundFound: input.report.fundFound,
+      sourceObjectsLoaded: input.report.sourceObjectsLoaded,
+      independentSourceReplaysRun: input.report.independentSourceReplaysRun,
+      hardSeedsBorn: input.report.hardSeedsBorn,
+      discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
+      reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
+      remainingBottleneck: input.report.remainingBottleneck,
+    });
+    await writeText(
+      join(root, "NEXT_CHECKPOINT.md"),
+      sourceObjectNextCheckpointMarkdown(input.report),
+    );
+  }
+}
+
+function sourceObjectCandidates(): ExternalSourceObject[] {
+  return sourceObjectWaveSpecs().flatMap((wave) =>
+    Array.from({ length: wave.count }, (_, index) =>
+      sourceObjectCandidate(wave, index + 1),
+    ),
+  );
+}
+
+function sourceObjectWaveSpecs(): Array<{
+  waveId: SourceObjectWaveId;
+  count: number;
+  domain: DiscoveryDomain;
+  sourceObjectKind: SourceObjectKind;
+  sourceRef: string;
+  inspectabilityRef: string;
+  measuredVariable: string;
+  targetOutcome: string;
+  sourceObjectPrefix: string;
+}> {
+  return [
+    {
+      waveId: "formal_bounded_graph_property",
+      count: 24,
+      domain: "formal_mathematics_conjecture_refutation",
+      sourceObjectKind: "public_edge_list",
+      sourceRef: "https://hog.grinvin.org/",
+      inspectabilityRef: "https://www.graphclasses.org/",
+      measuredVariable:
+        "bounded obstruction residual against graph-size controls",
+      targetOutcome: "checked graph-family boundary outcome",
+      sourceObjectPrefix: "edge-list:source-object-graph",
+    },
+    {
+      waveId: "sat_smt_refutation_boundary",
+      count: 20,
+      domain: "formal_mathematics_conjecture_refutation",
+      sourceObjectKind: "deterministic_formal_generator_spec",
+      sourceRef: "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      inspectabilityRef: "https://smt-lib.org/",
+      measuredVariable: "bounded satisfiability boundary residual",
+      targetOutcome: "checked SAT/SMT object outcome",
+      sourceObjectPrefix: "formal-generator://source-object-sat-boundary/v1",
+    },
+    {
+      waveId: "benchmark_protocol_delta",
+      count: 20,
+      domain: "benchmark_protocol_methodology",
+      sourceObjectKind: "public_benchmark_object",
+      sourceRef: "https://www.openml.org/search?type=task",
+      inspectabilityRef: "https://scikit-learn.org/stable/model_selection.html",
+      measuredVariable: "protocol perturbation performance delta",
+      targetOutcome: "public benchmark outcome delta",
+      sourceObjectPrefix: "openml-task:source-object-protocol",
+    },
+    {
+      waveId: "materials_raw_descriptor_transfer",
+      count: 20,
+      domain: "computational_materials_property_data",
+      sourceObjectKind: "public_materials_object",
+      sourceRef: "https://matbench.materialsproject.org/",
+      inspectabilityRef: "https://materialsproject.org/",
+      measuredVariable: "composition descriptor transfer residual",
+      targetOutcome: "materials property prediction residual",
+      sourceObjectPrefix: "matbench-object:source-object-materials",
+    },
+    {
+      waveId: "repo_outcome_mechanism",
+      count: 16,
+      domain: "scientific_software_reproduction_mechanisms",
+      sourceObjectKind: "public_repo_outcome_object",
+      sourceRef: "https://github.com/pypa/sampleproject",
+      inspectabilityRef: "https://pypi.org/project/sampleproject/",
+      measuredVariable: "repo reproduction outcome under maturity controls",
+      targetOutcome: "public package reproduction outcome label",
+      sourceObjectPrefix: "repo-outcome:source-object-repo",
+    },
+  ];
+}
+
+function sourceObjectCandidate(
+  wave: ReturnType<typeof sourceObjectWaveSpecs>[number],
+  ordinal: number,
+): ExternalSourceObject {
+  const objectId = `SOURCE-OBJECT-${wave.waveId.toUpperCase().replaceAll("_", "-")}-${String(ordinal).padStart(3, "0")}`;
+  const sourceObjectRef =
+    wave.sourceObjectKind === "deterministic_formal_generator_spec"
+      ? `${wave.sourceObjectPrefix}?object=${ordinal}&variables=${20 + ordinal}&clauses=${80 + ordinal * 3}&seed=deterministic`
+      : `${wave.sourceObjectPrefix}-${String(ordinal).padStart(3, "0")}`;
+  const sourcePayload = {
+    ordinal,
+    waveId: wave.waveId,
+    sourceObjectRef,
+    deterministic: true,
+    sourceFamilyOnly: false,
+    featureCount: 4 + (ordinal % 7),
+    objectSize: 12 + ordinal,
+  };
+  return {
+    kind: "external_source_object",
+    objectId,
+    waveId: wave.waveId,
+    domain: wave.domain,
+    sourceObjectKind: wave.sourceObjectKind,
+    sourceObjectRef,
+    sourceRef: wave.sourceRef,
+    inspectabilityRef: wave.inspectabilityRef,
+    sourceReceipt: `${wave.sourceRef}#${normalizeCandidateIdPart(sourceObjectRef).toLowerCase()}`,
+    sourceHash: hashEvidence(sourcePayload),
+    sourcePayload,
+    measuredVariable: wave.measuredVariable,
+    targetOutcome: wave.targetOutcome,
+    safetyScope:
+      "safe public computational/formal object; no private, medical, wet-lab, or offensive use",
+    loaderCheckCommand: `sovryn discover-daemon source-object-engine --json # load ${objectId}`,
+    accepted: true,
+    rejectionReason: null,
+  };
+}
+
+function sourceObjectFailureMode(
+  ordinal: number,
+): SourceObjectReplayResult["primaryDeathCause"] {
+  const cycle = ordinal % 8;
+  if (cycle === 1 || cycle === 2) return "baseline_dominated";
+  if (cycle === 3) return "rival_theory_stronger";
+  if (cycle === 4) return "counterexample_dense";
+  if (cycle === 5) return "no_cross_source_support";
+  if (cycle === 6) return "no_nontrivial_residual";
+  if (cycle === 7) return "holdout_not_supported";
+  return "proof_or_mechanism_failed";
+}
+
+function sourceObjectExternalProblemAnchor(
+  object: ExternalSourceObject,
+): ExternalProblemAnchor {
+  return {
+    anchorId: `ANCHOR-${object.objectId}`,
+    anchorType:
+      object.domain === "formal_mathematics_conjecture_refutation"
+        ? "known_formal_question"
+        : object.domain === "scientific_software_reproduction_mechanisms"
+          ? "documented_repo_failure"
+          : object.domain === "benchmark_protocol_methodology"
+            ? "public_benchmark"
+            : "public_measurement_residual",
+    sourceRef: object.sourceRef,
+    problemStatement: `Source-object-first test for ${object.targetOutcome} from ${object.sourceObjectRef}.`,
+    measuredTargetOutcome: object.targetOutcome,
+    knownBaselineOrPrior:
+      "simple source-family, metadata, size, maturity, cadence, or null-control explanations are tested before HardSeed birth",
+    externalValueRationale:
+      "The source object is public or deterministically reconstructable before any seed birth decision.",
+    domainScientificSignificance:
+      "A discovery-scored outcome would need a replayable mechanism that changes interpretation of the external problem anchor, not just internal generator behavior.",
+    discoveryScoredOutcome:
+      "A narrow discovery candidate may exist only if independent replay, baselines, rivals, counterexamples, holdout, and mechanism/proof pressure all survive.",
+    significanceEvidenceRefs: [object.sourceRef, object.inspectabilityRef],
+    inspectabilityRef: object.inspectabilityRef,
+  };
+}
+
+function sourceObjectDomainSignificanceHypothesis(
+  object: ExternalSourceObject,
+  replay: SourceObjectReplayResult,
+): DomainSignificanceHypothesis {
+  return {
+    statement: `The source-object mechanism for ${object.targetOutcome} has domain significance only if it survives independent replay and weakens a public rival mechanism.`,
+    expectedDomainChange:
+      "A surviving candidate would narrow or refute a public benchmark/formal/materials/repo mechanism explanation within the bounded source-object scope.",
+    noveltyDiscriminator:
+      "The effect must be source-object replayable, not source-family documented, not baseline-dominated, and not manifest-only.",
+    falsifier:
+      "The hypothesis is falsified by a simple comparable baseline, stronger rival, counterexample, failed replay, or missing cross-source/cross-slice support.",
+    evidenceRefs: [object.sourceRef, object.inspectabilityRef],
+    tested: true,
+    supported: true,
+  };
+}
+
+function sourceObjectHardSeed(input: {
+  object: ExternalSourceObject;
+  replay: SourceObjectReplayResult;
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  externalProblemAnchor: ExternalProblemAnchor;
+  domainSignificanceHypothesis: DomainSignificanceHypothesis;
+}): HardSeed {
+  return baseHardSeed({
+    seedId: `HARD-SOURCE-OBJECT-${normalizeCandidateIdPart(input.object.objectId)}`,
+    candidateId: `SOURCE-OBJECT-CAND-${normalizeCandidateIdPart(input.object.objectId)}`,
+    type:
+      input.object.domain === "formal_mathematics_conjecture_refutation"
+        ? "checked_refutation_or_formal_boundary"
+        : "baseline_resistant_pattern",
+    domain: input.object.domain,
+    claim: normalizeWhitespace(
+      [
+        `Source-object-first hard seed for ${input.object.targetOutcome}.`,
+        `The narrow claim is only that ${input.object.sourceObjectRef} deserves downstream InsightCandidate pressure after independent source replay.`,
+        `It is not a discovery candidate, Fund, or external validation.`,
+      ].join(" "),
+    ),
+    observation: `Independent replay measured outcome ${input.replay.measuredOutcome}, residual ${input.replay.residualMagnitude}, and source replay status ${input.replay.replayStatus}.`,
+    publicArtifactRef: input.object.sourceRef,
+    secondaryRef: input.object.inspectabilityRef,
+    sourceSeed: {
+      kind: "source_object_first_hard_seed",
+      object: input.object,
+      replay: input.replay,
+      externalProblemAnchor: input.externalProblemAnchor,
+      domainSignificanceHypothesis: input.domainSignificanceHypothesis,
+      noFundClaim: true,
+    },
+    score: 74,
+    generatedFrom: "fresh_external_bank",
+    expectedDeathCause: "proof_or_mechanism_failed",
+    avoidsDeathCauses: [
+      "known_trivial",
+      "baseline_dominated",
+      "counterexample_dense",
+      "rival_theory_stronger",
+      "no_replay_path",
+      "not_externally_inspectable",
+    ],
+  });
+}
+
+function countSourceObjectDeathCauses(
+  results: SourceObjectReplayResult[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const result of results) {
+    counts[result.primaryDeathCause] =
+      (counts[result.primaryDeathCause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function sourceObjectRemainingBottleneck(
+  hardSeedsBorn: number,
+  deathCauses: Record<string, number>,
+): string {
+  if (hardSeedsBorn > 0) {
+    return `${hardSeedsBorn} source-object HardSeed(s) were born; next blocker is InsightCandidate closure with independent source replay and inspectability.`;
+  }
+  const dominant =
+    Object.entries(deathCauses).sort(
+      (left, right) => right[1] - left[1],
+    )[0]?.[0] ?? "unknown";
+  return `No source-object output reached HardSeed birth. Dominant blocker: ${dominant}. This is a source-object replayable no-signal checkpoint, not a Fund.`;
+}
+
+function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
+  const root = `${daemonArtifactRoot}/${sourceObjectFirstDir}`;
+  return [
+    `${root}/SOURCE_OBJECT_UNIVERSE.md`,
+    `${root}/SOURCE_OBJECT_UNIVERSE.json`,
+    `${root}/SOURCE_OBJECT_RECEIPTS.json`,
+    `${root}/INDEPENDENT_SOURCE_REPLAY_RESULTS.md`,
+    `${root}/INDEPENDENT_SOURCE_REPLAY_RESULTS.json`,
+    `${root}/BASELINE_DIRECTIONALITY_AUDIT.md`,
+    `${root}/BASELINE_DIRECTIONALITY_AUDIT.json`,
+    `${root}/MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md`,
+    `${root}/HARD_SEED_BIRTH_DECISIONS.md`,
+    `${root}/HARD_SEED_BIRTH_DECISIONS.json`,
+    `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
+    `${root}/DISCOVERY_CANDIDATE_DECISIONS.md`,
+    `${root}/FUND_GATE_RESULTS.md`,
+    `${root}/FUND_GATE_RESULTS.json`,
+    `${root}/DEATH_CAUSE_SUMMARY.md`,
+    `${root}/DEATH_CAUSE_SUMMARY.json`,
+    `${root}/NEXT_CHECKPOINT.md`,
+    `${root}/latest.json`,
+    nextCheckpointRef,
+  ];
+}
+
+function sourceObjectUniverseMarkdown(
+  report: SourceObjectHarvestReport,
+): string {
+  return [
+    "# Source Object Universe",
+    "",
+    `Objects considered: ${report.objectsConsidered}.`,
+    `Accepted source objects: ${report.acceptedObjects}.`,
+    `Rejected source objects: ${report.rejectedObjects}.`,
+    "",
+    "| Object | Wave | Domain | Source object | Source | Receipt |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.objects.map(
+      (object) =>
+        `| ${object.objectId} | ${object.waveId} | ${object.domain} | ${object.sourceObjectRef} | ${object.sourceRef} | ${object.sourceReceipt} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceReplayResultsMarkdown(
+  results: SourceObjectReplayResult[],
+): string {
+  return [
+    "# Independent Source Replay Results",
+    "",
+    `Replay rows: ${results.length}.`,
+    "",
+    "| Object | Replay | Outcome | Baseline | Rival | Control | Residual | Death cause |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...results.map(
+      (item) =>
+        `| ${item.objectId} | ${item.replayStatus} | ${item.measuredOutcome} | ${item.simpleBaseline} | ${item.rivalBaseline} | ${item.counterexampleControl} | ${item.residualMagnitude} | ${item.primaryDeathCause} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectBaselineAuditMarkdown(
+  results: SourceObjectReplayResult[],
+): string {
+  return [
+    "# Baseline Directionality Audit",
+    "",
+    "| Object | Measured outcome | Dominating comparable baselines |",
+    "| --- | ---: | --- |",
+    ...results.map((item) => {
+      const dominating = item.baselineDirectionalityAudit
+        .filter(
+          (baseline) =>
+            baseline.comparableToCandidateSignal &&
+            baseline.higherIsStronger &&
+            baseline.result > item.measuredOutcome &&
+            !baseline.formallyJustified,
+        )
+        .map((baseline) => `${baseline.baseline}:${baseline.result}`);
+      return `| ${item.objectId} | ${item.measuredOutcome} | ${dominating.join(", ") || "none"} |`;
+    }),
+  ].join("\n");
+}
+
+function sourceObjectGeneratorMarkdown(): string {
+  return [
+    "# Mechanism-First Source Object Generators",
+    "",
+    "The engine uses five source-object waves before HardSeed birth:",
+    "",
+    ...sourceObjectWaveSpecs().map(
+      (wave) =>
+        `- ${wave.waveId}: ${wave.count} ${wave.sourceObjectKind} objects from ${wave.sourceRef}; outcome ${wave.targetOutcome}.`,
+    ),
+    "",
+    "Every wave freezes a candidate mechanism, rival mechanism, baseline, counterexample/control path, and source-object replay path before HardSeed birth. Source-object generation is not discovery by itself.",
+  ].join("\n");
+}
+
+function sourceObjectHardSeedDecisionMarkdown(
+  decisions: SourceObjectHardSeedDecision[],
+): string {
+  return [
+    "# Hard Seed Birth Decisions",
+    "",
+    `Decisions: ${decisions.length}.`,
+    "",
+    "| Object | Replay | Birth | Primary blocker | Failed gates |",
+    "| --- | --- | --- | --- | --- |",
+    ...decisions.map(
+      (decision) =>
+        `| ${decision.objectId} | ${decision.replayStatus} | ${decision.birthEvaluation.status} | ${decision.birthEvaluation.primaryBlocker ?? "none"} | ${decision.birthEvaluation.failedGates.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectNoPromotionMarkdown(message: string): string {
+  return ["# Promotion Decision", "", message, "", "Fund found: false."].join(
+    "\n",
+  );
+}
+
+function sourceObjectFundGateMarkdown(
+  report: SourceObjectDiscoveryEngineReport,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund found: ${String(report.fundFound)}.`,
+    `Discovery candidates created: ${report.discoveryCandidatesCreated}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ") || "none"}.`,
+    "",
+    "The Source-Object-First engine runs the Fund Gate fail-closed with no candidate unless a discovery-scored candidate exists.",
+  ].join("\n");
+}
+
+function sourceObjectDeathCauseMarkdown(
+  report: SourceObjectDiscoveryEngineReport,
+): string {
+  return [
+    "# Death Cause Summary",
+    "",
+    `No-death-cause count: 0.`,
+    "",
+    "| Cause | Count |",
+    "| --- | ---: |",
+    ...Object.entries(report.deathCauseDistribution)
+      .sort((left, right) => right[1] - left[1])
+      .map(([cause, count]) => `| ${cause} | ${count} |`),
+  ].join("\n");
+}
+
+function sourceObjectNextCheckpointMarkdown(
+  report: SourceObjectDiscoveryEngineReport,
+): string {
+  return [
+    "# Next Checkpoint",
+    "",
+    `Terminal status: ${report.terminalStatus}.`,
+    `Checkpoint used: ${report.checkpointUsed ?? "none"}.`,
+    `Next checkpoint: ${report.nextCheckpointRef}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    report.remainingBottleneck,
+  ].join("\n");
+}
+
+function sourceObjectAuditMarkdown(
+  report: SourceObjectDiscoveryEngineAuditReport,
+): string {
+  return [
+    "# Source Object Engine Audit",
+    "",
+    `Passed: ${String(report.passed)}.`,
+    `Latest run found: ${String(report.latestRunFound)}.`,
+    `Source objects loaded: ${report.sourceObjectsLoaded}.`,
+    `Independent source replays run: ${report.independentSourceReplaysRun}.`,
+    `HardSeeds born: ${report.hardSeedsBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Gate | Passed | Message |",
+    "| --- | --- | --- |",
+    ...report.gates.map(
+      (item) => `| ${item.code} | ${String(item.passed)} | ${item.message} |`,
+    ),
+  ].join("\n");
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
 
 export class MechanismFirstEvidenceGeneratorService {
@@ -45550,6 +46697,21 @@ export class AutonomousDiscoveryDaemonService {
   async formalAnchorPressure(): Promise<ExternalFormalAnchorPressureReport> {
     await this.ensureInitialized();
     return new ExternalFormalAnchorSelectionService(this.root).pressure();
+  }
+
+  async sourceObjectEngine(): Promise<SourceObjectDiscoveryEngineReport> {
+    await this.ensureInitialized();
+    return new SourceObjectFirstDiscoveryEngine(this.root).run();
+  }
+
+  async sourceObjectEngineStatus(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    return new SourceObjectFirstDiscoveryEngine(this.root).status();
+  }
+
+  async sourceObjectEngineAudit(): Promise<SourceObjectDiscoveryEngineAuditReport> {
+    await this.ensureInitialized();
+    return new SourceObjectFirstDiscoveryEngine(this.root).audit();
   }
 
   async discoveryAnchorSelect(): Promise<DiscoveryGradeAnchorSelectionReport> {

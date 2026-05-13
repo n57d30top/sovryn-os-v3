@@ -5066,6 +5066,16 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
+    "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json",
+    "SOURCE_OBJECT_INSIGHT_CANDIDATE_MATRIX.md",
+    "REQUIRED_NEXT_TEST_PLAN.md",
+    "REQUIRED_NEXT_TEST_RESULTS.md",
+    "RIVAL_DISCRIMINATION_RESULTS.md",
+    "COUNTEREXAMPLE_EXPANSION_RESULTS.md",
+    "HOLDOUT_REPLAY_RESULTS.md",
+    "MECHANISM_PROOF_PRESSURE_RESULTS.md",
+    "KNOWN_TRIVIALITY_REVIEW.md",
+    "PROMOTION_DECISIONS.md",
     "DISCOVERY_CANDIDATE_DECISIONS.md",
     "FUND_GATE_RESULTS.md",
     "DEATH_CAUSE_SUMMARY.md",
@@ -5073,6 +5083,40 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   ]) {
     await access(join(root, daemonRoot, "source-object-first", artifact));
   }
+  const closure = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesTested: number;
+    testsRun: number;
+    discoveryCandidatesCreated: number;
+    fundCandidateDraftsCreated: number;
+    promotionDecisions: Array<{
+      requiredNextTestsPassed: boolean;
+      decision: string;
+      failedGates: string[];
+    }>;
+  };
+  assert.equal(closure.candidatesTested, report.insightCandidatesCreated);
+  assert.equal(closure.testsRun >= report.insightCandidatesCreated * 7, true);
+  assert.equal(closure.discoveryCandidatesCreated, 0);
+  assert.equal(closure.fundCandidateDraftsCreated, 0);
+  assert.equal(
+    closure.promotionDecisions.some(
+      (decision) =>
+        decision.requiredNextTestsPassed &&
+        decision.decision === "claim_lift_required" &&
+        decision.failedGates.includes("stable_discovery_claim_lift"),
+    ),
+    true,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

@@ -1418,6 +1418,72 @@ export type SourceObjectInsightClosureReport = {
   evidenceHash: string;
 };
 
+export type SourceObjectRequiredNextTestType =
+  | InsightGauntletTestType
+  | "baseline_directionality_audit"
+  | "known_triviality_review"
+  | "inspectability_review";
+
+export type SourceObjectRequiredNextTestExecution = {
+  kind: "source_object_required_next_test_execution";
+  seedId: string;
+  insightCandidateId: string;
+  testType: SourceObjectRequiredNextTestType;
+  promotionGate: string;
+  executed: true;
+  passed: boolean;
+  artifactRef: string;
+  evidenceRefs: string[];
+  observation: string;
+  caveats: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectPromotionClosureDecision = {
+  kind: "source_object_promotion_closure_decision";
+  seedId: string;
+  parentCandidateId: string;
+  insightCandidateId: string;
+  discoveryCandidateId: string | null;
+  promotedToDiscoveryCandidate: boolean;
+  fundCandidateDraftRef: string | null;
+  fundCandidateDraftCreated: false;
+  requiredNextTestsPassed: boolean;
+  promotionEvaluation: InsightCandidatePromotionEvaluation;
+  fundGateResult: FundGateResult;
+  failedGates: string[];
+  deathCause: DeathCause | "claim_lift_required" | "external_package_missing";
+  decision:
+    | "not_promoted"
+    | "claim_lift_required"
+    | "discovery_candidate_created"
+    | "fund_found";
+  reason: string;
+  evidenceHash: string;
+};
+
+export type SourceObjectRequiredNextTestClosureReport = {
+  kind: "source_object_required_next_test_closure";
+  insightCandidatesLoaded: number;
+  candidatesTested: number;
+  testsRun: number;
+  requiredNextTestsPassed: number;
+  discoveryCandidatesCreated: number;
+  fundCandidateDraftsCreated: 0;
+  fundFound: false;
+  killedByBaseline: number;
+  killedByRival: number;
+  killedByCounterexample: number;
+  killedByHoldoutReplay: number;
+  killedByMechanismOrKnownTriviality: number;
+  blockedByClaimLiftOrPackage: number;
+  strongestSurvivingCandidate: string | null;
+  executions: SourceObjectRequiredNextTestExecution[];
+  promotionDecisions: SourceObjectPromotionClosureDecision[];
+  fundGateResult: FundGateResult;
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -1439,6 +1505,8 @@ export type SourceObjectDiscoveryEngineReport = {
   hardSeedsBorn: number;
   insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
+  requiredNextTestsRun?: number;
+  fundCandidateDraftsCreated?: number;
   fundGateResult: FundGateResult;
   fundFound: boolean;
   deathCauseDistribution: Record<string, number>;
@@ -13245,8 +13313,13 @@ export class SourceObjectFirstDiscoveryEngine {
       .filter((seed): seed is HardSeed => seed !== null);
     const insightClosure =
       await this.closeHardSeedsIntoInsightCandidates(hardSeeds);
-    const fundGateResult = new FundGateEvaluator().evaluate(null);
-    const deathCauseDistribution = countSourceObjectDeathCauses(replayResults);
+    const requiredNextTestClosure =
+      await this.closeSourceObjectRequiredNextTests(insightClosure, hardSeeds);
+    const fundGateResult = requiredNextTestClosure.fundGateResult;
+    const deathCauseDistribution = mergeCountRecords(
+      countSourceObjectDeathCauses(replayResults),
+      countSourceObjectPromotionDeathCauses(requiredNextTestClosure),
+    );
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
       hardSeeds.length > 0
@@ -13282,11 +13355,16 @@ export class SourceObjectFirstDiscoveryEngine {
       hardSeedBirthAttempts: decisions.length,
       hardSeedsBorn: hardSeeds.length,
       insightCandidatesCreated: insightClosure.insightCandidatesCreated,
-      discoveryCandidatesCreated: insightClosure.discoveryCandidatesCreated,
+      discoveryCandidatesCreated:
+        requiredNextTestClosure.discoveryCandidatesCreated,
+      requiredNextTestsRun: requiredNextTestClosure.testsRun,
+      fundCandidateDraftsCreated:
+        requiredNextTestClosure.fundCandidateDraftsCreated,
       fundGateResult,
       fundFound: false as const,
       deathCauseDistribution,
       strongestSurvivingCandidate:
+        requiredNextTestClosure.strongestSurvivingCandidate ??
         insightClosure.decisions.find((decision) => decision.derived)
           ?.insightCandidateId ??
         hardSeeds[0]?.candidateId ??
@@ -13294,6 +13372,7 @@ export class SourceObjectFirstDiscoveryEngine {
       remainingBottleneck: sourceObjectRemainingBottleneck(
         hardSeeds.length,
         insightClosure.insightCandidatesCreated,
+        requiredNextTestClosure,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -13305,6 +13384,7 @@ export class SourceObjectFirstDiscoveryEngine {
       decisions,
       hardSeeds,
       insightClosure,
+      requiredNextTestClosure,
       report,
     });
     return report;
@@ -13348,6 +13428,13 @@ export class SourceObjectFirstDiscoveryEngine {
       decisions?: SourceObjectHardSeedDecision[];
     }>(join(this.engineRoot(), "HARD_SEED_BIRTH_DECISIONS.json"));
     const decisions = decisionsPayload?.decisions ?? [];
+    const requiredNextTestClosure =
+      await readOptionalJson<SourceObjectRequiredNextTestClosureReport>(
+        join(
+          this.engineRoot(),
+          "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json",
+        ),
+      );
     const fakeFundPresent =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
       (await exists(join(this.root, daemonArtifactRoot, fundCandidateFile)));
@@ -13415,6 +13502,16 @@ export class SourceObjectFirstDiscoveryEngine {
         "born_hard_seeds_enter_insight_closure",
         latest.hardSeedsBorn === 0 || latest.insightCandidatesCreated > 0,
         "Born source-object HardSeeds must enter InsightCandidate closure instead of remaining inert HardSeed artifacts.",
+      ),
+      gate(
+        "source_object_insights_enter_required_next_tests",
+        latest.insightCandidatesCreated === 0 ||
+          (requiredNextTestClosure !== null &&
+            requiredNextTestClosure.candidatesTested ===
+              latest.insightCandidatesCreated &&
+            requiredNextTestClosure.testsRun >=
+              latest.insightCandidatesCreated * 7),
+        "Born source-object InsightCandidates must enter required-next-test closure before any promotion decision.",
       ),
       gate(
         "manifest_only_not_counted",
@@ -13647,6 +13744,101 @@ export class SourceObjectFirstDiscoveryEngine {
     });
   }
 
+  private async closeSourceObjectRequiredNextTests(
+    insightClosure: SourceObjectInsightClosureReport,
+    hardSeeds: HardSeed[],
+  ): Promise<SourceObjectRequiredNextTestClosureReport> {
+    const seedById = new Map(hardSeeds.map((seed) => [seed.seedId, seed]));
+    const executions: SourceObjectRequiredNextTestExecution[] = [];
+    const promotionDecisions: SourceObjectPromotionClosureDecision[] = [];
+    for (const decision of insightClosure.decisions.filter(
+      (item) => item.derived && item.insightCandidateId !== null,
+    )) {
+      const seed = seedById.get(decision.seedId);
+      const candidate = decision.artifactRef
+        ? await this.readSourceObjectInsightCandidate(decision.artifactRef)
+        : null;
+      if (!seed || !candidate) continue;
+      const replay = sourceObjectReplayFromHardSeed(seed);
+      const candidateExecutions = sourceObjectRequiredNextTestExecutions({
+        seed,
+        candidate,
+        replay,
+      });
+      executions.push(...candidateExecutions);
+      const promotionDecision = sourceObjectPromotionClosureDecision({
+        seed,
+        candidate,
+        executions: candidateExecutions,
+        replay,
+      });
+      promotionDecisions.push(promotionDecision);
+    }
+    const fundGateResult =
+      promotionDecisions.find(
+        (decision) => decision.fundGateResult.notificationAllowed,
+      )?.fundGateResult ??
+      promotionDecisions[0]?.fundGateResult ??
+      new FundGateEvaluator().evaluate(null);
+    const requiredNextTestsPassed = promotionDecisions.filter(
+      (decision) => decision.requiredNextTestsPassed,
+    ).length;
+    return withEvidenceHash({
+      kind: "source_object_required_next_test_closure" as const,
+      insightCandidatesLoaded: insightClosure.insightCandidatesCreated,
+      candidatesTested: promotionDecisions.length,
+      testsRun: executions.length,
+      requiredNextTestsPassed,
+      discoveryCandidatesCreated: promotionDecisions.filter(
+        (decision) => decision.promotedToDiscoveryCandidate,
+      ).length,
+      fundCandidateDraftsCreated: 0 as const,
+      fundFound: false as const,
+      killedByBaseline: promotionDecisions.filter((decision) =>
+        decision.failedGates.includes("baseline_resistance"),
+      ).length,
+      killedByRival: promotionDecisions.filter((decision) =>
+        decision.failedGates.includes("rival_discriminating_test"),
+      ).length,
+      killedByCounterexample: promotionDecisions.filter((decision) =>
+        decision.failedGates.includes("counterexample_path"),
+      ).length,
+      killedByHoldoutReplay: promotionDecisions.filter(
+        (decision) =>
+          decision.failedGates.includes("holdout_path") ||
+          decision.failedGates.includes("replay_path"),
+      ).length,
+      killedByMechanismOrKnownTriviality: promotionDecisions.filter(
+        (decision) =>
+          decision.failedGates.includes("proof_or_mechanism_pressure_path") ||
+          decision.failedGates.includes("baseline_directionality_audit") ||
+          decision.failedGates.includes("known_triviality_review"),
+      ).length,
+      blockedByClaimLiftOrPackage: promotionDecisions.filter(
+        (decision) =>
+          decision.failedGates.includes("stable_discovery_claim_lift") ||
+          decision.failedGates.includes("external_review_package"),
+      ).length,
+      strongestSurvivingCandidate:
+        promotionDecisions.find((decision) => decision.requiredNextTestsPassed)
+          ?.insightCandidateId ??
+        promotionDecisions[0]?.insightCandidateId ??
+        null,
+      executions,
+      promotionDecisions,
+      fundGateResult,
+    });
+  }
+
+  private async readSourceObjectInsightCandidate(
+    artifactRef: string,
+  ): Promise<InsightCandidate | null> {
+    const artifact = await readOptionalJson<unknown>(
+      join(this.root, artifactRef.split("#")[0] ?? artifactRef),
+    );
+    return insightCandidateFromUnknown(artifact);
+  }
+
   private async writeArtifacts(input: {
     harvest: SourceObjectHarvestReport;
     prioritization: SourceObjectSignalPrioritizationReport;
@@ -13654,6 +13846,7 @@ export class SourceObjectFirstDiscoveryEngine {
     decisions: SourceObjectHardSeedDecision[];
     hardSeeds: HardSeed[];
     insightClosure: SourceObjectInsightClosureReport;
+    requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     report: SourceObjectDiscoveryEngineReport;
   }): Promise<void> {
     const root = this.engineRoot();
@@ -13755,10 +13948,70 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "INSIGHT_CANDIDATE_DECISIONS.md"),
       sourceObjectInsightCandidateDecisionMarkdown(input.insightClosure),
     );
+    await writeJson(
+      join(root, "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json"),
+      input.requiredNextTestClosure,
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_INSIGHT_CANDIDATE_MATRIX.md"),
+      sourceObjectInsightCandidateMatrixMarkdown(input.requiredNextTestClosure),
+    );
+    await writeText(
+      join(root, "REQUIRED_NEXT_TEST_PLAN.md"),
+      sourceObjectRequiredNextTestPlanMarkdown(input.insightClosure),
+    );
+    await writeText(
+      join(root, "REQUIRED_NEXT_TEST_RESULTS.md"),
+      sourceObjectRequiredNextTestResultsMarkdown(
+        input.requiredNextTestClosure,
+      ),
+    );
+    await writeText(
+      join(root, "RIVAL_DISCRIMINATION_RESULTS.md"),
+      sourceObjectGateResultsMarkdown(
+        "Rival Discrimination Results",
+        input.requiredNextTestClosure,
+        "rival_discriminating_test",
+      ),
+    );
+    await writeText(
+      join(root, "COUNTEREXAMPLE_EXPANSION_RESULTS.md"),
+      sourceObjectGateResultsMarkdown(
+        "Counterexample Expansion Results",
+        input.requiredNextTestClosure,
+        "counterexample_path",
+      ),
+    );
+    await writeText(
+      join(root, "HOLDOUT_REPLAY_RESULTS.md"),
+      sourceObjectHoldoutReplayResultsMarkdown(input.requiredNextTestClosure),
+    );
+    await writeText(
+      join(root, "MECHANISM_PROOF_PRESSURE_RESULTS.md"),
+      sourceObjectGateResultsMarkdown(
+        "Mechanism Proof Pressure Results",
+        input.requiredNextTestClosure,
+        "proof_or_mechanism_pressure_path",
+      ),
+    );
+    await writeText(
+      join(root, "KNOWN_TRIVIALITY_REVIEW.md"),
+      sourceObjectGateResultsMarkdown(
+        "Known Triviality Review",
+        input.requiredNextTestClosure,
+        "known_triviality_review",
+      ),
+    );
+    await writeText(
+      join(root, "PROMOTION_DECISIONS.md"),
+      sourceObjectPromotionDecisionsMarkdown(input.requiredNextTestClosure),
+    );
     await writeText(
       join(root, "DISCOVERY_CANDIDATE_DECISIONS.md"),
       sourceObjectNoPromotionMarkdown(
-        "No DiscoveryCandidate was created by the source-object engine; no candidate reached the full discovery-scored promotion rule.",
+        input.requiredNextTestClosure.discoveryCandidatesCreated > 0
+          ? "A DiscoveryCandidate was created only after source-object required-next-test closure."
+          : "No DiscoveryCandidate was created by the source-object engine; required-next-test closure did not produce a claim-lifted, package-backed discovery-scored candidate.",
       ),
     );
     await writeJson(
@@ -14238,6 +14491,482 @@ function sourceObjectInsightEvidenceScope(seed: HardSeed): string {
   );
 }
 
+function sourceObjectRequiredNextTestExecutions(input: {
+  seed: HardSeed;
+  candidate: InsightCandidate;
+  replay: SourceObjectReplayResult | null;
+}): SourceObjectRequiredNextTestExecution[] {
+  const { seed, candidate, replay } = input;
+  const baseRef = `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json#${normalizeCandidateIdPart(candidate.candidateId)}`;
+  const evidenceRefs = uniqueStrings([
+    ...candidate.parentEvidenceRefs,
+    ...seed.sourceRefs,
+    ...seed.evidenceRefs,
+    ...seed.baselineRefs,
+    ...seed.rivalRefs,
+    ...seed.holdoutRefs,
+    ...seed.replayRefs,
+    ...seed.counterexampleRefs,
+    `${daemonArtifactRoot}/${sourceObjectFirstDir}/runtime-evidence/${replay?.objectId ?? seed.seedId}.json`,
+  ]).filter(publicSafeRef);
+  const baselineDominated = replay
+    ? sourceObjectBaselineDominates(replay)
+    : true;
+  const knownTriviality = sourceObjectKnownTrivialityStatus(seed, replay);
+  const inspectability = sourceObjectInspectabilityStatus(seed, candidate);
+  return [
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "nontrivial_pattern_test",
+      promotionGate: "nontrivial_pattern_beyond_pipeline_success",
+      passed:
+        replay?.nontrivialResidual === true &&
+        replay.residualMagnitude >= 0.1 &&
+        replay.crossSourceSupport === true,
+      baseRef,
+      evidenceRefs,
+      observation: replay
+        ? `Residual ${replay.residualMagnitude} survived initial source-object replay with cross-source/cross-slice support ${String(replay.crossSourceSupport)}.`
+        : "No source-object replay record is bound.",
+      caveats:
+        replay?.nontrivialResidual === true
+          ? [
+              "This closes the evidence gate only for InsightCandidate pressure; it is not a discovery claim by itself.",
+            ]
+          : ["No nontrivial residual remains after source-object pressure."],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "baseline_resistance_test",
+      promotionGate: "baseline_resistance",
+      passed:
+        replay !== null &&
+        !baselineDominated &&
+        replay.baselineResults.every((row) => row.explainsSignal !== true),
+      baseRef,
+      evidenceRefs,
+      observation: replay
+        ? `Measured outcome ${replay.measuredOutcome} is compared against baselines ${replay.baselineResults.map((row) => `${row.baseline}=${row.result}`).join(", ")}.`
+        : "No baseline replay result exists.",
+      caveats: baselineDominated
+        ? ["At least one comparable baseline explains or exceeds the signal."]
+        : [],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "rival_discrimination_test",
+      promotionGate: "rival_discriminating_test",
+      passed:
+        replay?.rivalWeakened === true &&
+        replay.rivalBaseline < replay.measuredOutcome,
+      baseRef,
+      evidenceRefs,
+      observation: replay
+        ? `Rival baseline ${replay.rivalBaseline} was checked against measured outcome ${replay.measuredOutcome}.`
+        : "No rival replay result exists.",
+      caveats:
+        replay?.rivalWeakened === true
+          ? [
+              "The rival is weakened within this source-object replay scope only; it is not external validation.",
+            ]
+          : ["Rival theory remains stronger or unscoped."],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "holdout_feasibility_test",
+      promotionGate: "holdout_path",
+      passed:
+        replay?.holdoutReplayAvailable === true &&
+        replay.crossSourceSupport === true,
+      baseRef,
+      evidenceRefs,
+      observation:
+        replay?.holdoutReplayAvailable === true
+          ? "Independent holdout/replay path is available from the source-object run."
+          : "No independent holdout/replay path is available.",
+      caveats:
+        replay?.holdoutReplayAvailable === true
+          ? [
+              "Holdout support is bounded to the deterministic source-object family and still needs external-review packaging before promotion.",
+            ]
+          : ["Holdout path is missing or leakage-prone."],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "replay_feasibility_test",
+      promotionGate: "replay_path",
+      passed:
+        replay?.replayStatus === "independent_source_replay_succeeded" &&
+        replay.candidateLevelReplayAttempt === true,
+      baseRef,
+      evidenceRefs,
+      observation:
+        replay?.replayStatus === "independent_source_replay_succeeded"
+          ? `Independent source replay succeeded via ${replay.sourceReplayCommand}.`
+          : "Replay is missing, failed, or manifest-only.",
+      caveats: [],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "counterexample_search",
+      promotionGate: "counterexample_path",
+      passed:
+        replay !== null &&
+        replay.counterexampleCollapsed !== true &&
+        replay.counterexampleControl < replay.measuredOutcome,
+      baseRef,
+      evidenceRefs,
+      observation: replay
+        ? `Counterexample/control value ${replay.counterexampleControl} did not collapse measured outcome ${replay.measuredOutcome}.`
+        : "No counterexample replay result exists.",
+      caveats:
+        replay?.counterexampleCollapsed === true
+          ? ["Counterexample pressure collapses the bounded claim."]
+          : [],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "proof_or_mechanism_pressure_test",
+      promotionGate: "proof_or_mechanism_pressure_path",
+      passed: replay?.mechanismProofPressurePassed === true,
+      baseRef,
+      evidenceRefs,
+      observation:
+        replay?.mechanismProofPressurePassed === true
+          ? "Mechanism/proof pressure was nonfatal in source-object replay."
+          : "Mechanism/proof pressure failed.",
+      caveats: [],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "baseline_directionality_audit",
+      promotionGate: "baseline_directionality_audit",
+      passed: replay !== null && !baselineDominated,
+      baseRef,
+      evidenceRefs,
+      observation: replay
+        ? sourceObjectBaselineDirectionalityObservation(replay)
+        : "No baseline directionality audit exists.",
+      caveats: baselineDominated
+        ? [
+            "A comparable higher-is-stronger baseline exceeds the measured outcome without formal justification.",
+          ]
+        : [],
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "known_triviality_review",
+      promotionGate: "known_triviality_review",
+      passed: knownTriviality.passed,
+      baseRef,
+      evidenceRefs,
+      observation: knownTriviality.observation,
+      caveats: knownTriviality.caveats,
+    }),
+    sourceObjectRequiredExecution({
+      seed,
+      candidate,
+      testType: "inspectability_review",
+      promotionGate: "inspectability_review",
+      passed: inspectability.passed,
+      baseRef,
+      evidenceRefs,
+      observation: inspectability.observation,
+      caveats: inspectability.caveats,
+    }),
+  ];
+}
+
+function sourceObjectRequiredExecution(input: {
+  seed: HardSeed;
+  candidate: InsightCandidate;
+  testType: SourceObjectRequiredNextTestType;
+  promotionGate: string;
+  passed: boolean;
+  baseRef: string;
+  evidenceRefs: string[];
+  observation: string;
+  caveats: string[];
+}): SourceObjectRequiredNextTestExecution {
+  return withEvidenceHash({
+    kind: "source_object_required_next_test_execution" as const,
+    seedId: input.seed.seedId,
+    insightCandidateId: input.candidate.candidateId,
+    testType: input.testType,
+    promotionGate: input.promotionGate,
+    executed: true as const,
+    passed: input.passed,
+    artifactRef: `${input.baseRef}-${input.promotionGate}`,
+    evidenceRefs: uniqueStrings(input.evidenceRefs).filter(publicSafeRef),
+    observation: input.observation,
+    caveats: input.caveats,
+  });
+}
+
+function sourceObjectPromotionClosureDecision(input: {
+  seed: HardSeed;
+  candidate: InsightCandidate;
+  executions: SourceObjectRequiredNextTestExecution[];
+  replay: SourceObjectReplayResult | null;
+}): SourceObjectPromotionClosureDecision {
+  const promotionEvidence = sourceObjectPromotionEvidenceFromExecutions(
+    input.executions,
+  );
+  const updatedCandidate: InsightCandidate = {
+    ...input.candidate,
+    promotionEvidence,
+  };
+  const promotionEvaluation = new InsightCandidatePromotionEvaluator().evaluate(
+    updatedCandidate,
+  );
+  const requiredExecutionGates = [
+    "nontrivial_pattern_beyond_pipeline_success",
+    "baseline_resistance",
+    "rival_discriminating_test",
+    "holdout_path",
+    "replay_path",
+    "counterexample_path",
+    "proof_or_mechanism_pressure_path",
+    "baseline_directionality_audit",
+    "known_triviality_review",
+    "inspectability_review",
+  ];
+  const failedGates = uniqueStrings([
+    ...promotionEvaluation.failedGates,
+    ...requiredExecutionGates.filter(
+      (gateId) =>
+        !input.executions.some(
+          (execution) =>
+            execution.promotionGate === gateId && execution.passed === true,
+        ),
+    ),
+  ]);
+  const requiredNextTestsPassed = failedGates.length === 0;
+  const claimLiftBlocked = sourceObjectClaimLiftRequired(input.candidate);
+  const packageBlocked = true;
+  const finalFailedGates = uniqueStrings([
+    ...failedGates,
+    requiredNextTestsPassed && claimLiftBlocked
+      ? "stable_discovery_claim_lift"
+      : "",
+    requiredNextTestsPassed && packageBlocked ? "external_review_package" : "",
+  ]).filter(Boolean);
+  const promotedToDiscoveryCandidate =
+    requiredNextTestsPassed && !claimLiftBlocked && !packageBlocked;
+  const discoveryCandidateId = promotedToDiscoveryCandidate
+    ? `DISCOVERY-SOURCE-OBJECT-${normalizeCandidateIdPart(input.candidate.candidateId).slice(0, 56)}`
+    : null;
+  const fundGateResult = new FundGateEvaluator().evaluate(null);
+  return withEvidenceHash({
+    kind: "source_object_promotion_closure_decision" as const,
+    seedId: input.seed.seedId,
+    parentCandidateId: input.seed.candidateId,
+    insightCandidateId: input.candidate.candidateId,
+    discoveryCandidateId,
+    promotedToDiscoveryCandidate,
+    fundCandidateDraftRef: null,
+    fundCandidateDraftCreated: false as const,
+    requiredNextTestsPassed,
+    promotionEvaluation,
+    fundGateResult,
+    failedGates: finalFailedGates,
+    deathCause: sourceObjectPromotionDeathCause(finalFailedGates, input.replay),
+    decision: promotedToDiscoveryCandidate
+      ? ("discovery_candidate_created" as const)
+      : requiredNextTestsPassed
+        ? ("claim_lift_required" as const)
+        : ("not_promoted" as const),
+    reason: promotedToDiscoveryCandidate
+      ? "DiscoveryCandidate creation is permitted only after all source-object closure gates pass."
+      : requiredNextTestsPassed
+        ? "Required-next-test evidence is closed, but the frozen InsightCandidate claim is explicitly non-discovery and no external-review package is bound; claim-lift and packaging must happen before DiscoveryCandidate or FundCandidateDraft creation."
+        : `Promotion blocked by gates: ${finalFailedGates.join(", ")}.`,
+  });
+}
+
+function sourceObjectPromotionEvidenceFromExecutions(
+  executions: SourceObjectRequiredNextTestExecution[],
+): InsightCandidatePromotionEvidence {
+  const refsFor = (testType: InsightGauntletTestType) =>
+    executions
+      .filter(
+        (execution) => execution.testType === testType && execution.passed,
+      )
+      .map((execution) => execution.artifactRef);
+  return {
+    nontrivialPatternRefs: refsFor("nontrivial_pattern_test"),
+    baselineResistanceRefs: refsFor("baseline_resistance_test"),
+    rivalDiscriminatingTestRefs: refsFor("rival_discrimination_test"),
+    holdoutPathRefs: refsFor("holdout_feasibility_test"),
+    replayPathRefs: refsFor("replay_feasibility_test"),
+    counterexamplePathRefs: refsFor("counterexample_search"),
+    proofOrMechanismPressureRefs: refsFor("proof_or_mechanism_pressure_test"),
+  };
+}
+
+function sourceObjectPromotionDeathCause(
+  failedGates: string[],
+  replay: SourceObjectReplayResult | null,
+): SourceObjectPromotionClosureDecision["deathCause"] {
+  if (failedGates.includes("baseline_resistance")) return "baseline_dominated";
+  if (failedGates.includes("rival_discriminating_test")) {
+    return "rival_theory_stronger";
+  }
+  if (failedGates.includes("counterexample_path"))
+    return "counterexample_dense";
+  if (
+    failedGates.includes("holdout_path") ||
+    failedGates.includes("replay_path")
+  ) {
+    return replay?.replayStatus === "independent_source_replay_failed"
+      ? "no_replay_path"
+      : "holdout_not_supported";
+  }
+  if (
+    failedGates.includes("proof_or_mechanism_pressure_path") ||
+    failedGates.includes("known_triviality_review")
+  ) {
+    return failedGates.includes("known_triviality_review")
+      ? "known_trivial"
+      : "proof_or_mechanism_failed";
+  }
+  if (failedGates.includes("inspectability_review")) {
+    return "not_externally_inspectable";
+  }
+  if (failedGates.includes("stable_discovery_claim_lift")) {
+    return "claim_lift_required";
+  }
+  if (failedGates.includes("external_review_package")) {
+    return "external_package_missing";
+  }
+  return "no_death_cause";
+}
+
+function sourceObjectBaselineDominates(
+  replay: SourceObjectReplayResult,
+): boolean {
+  return replay.baselineDirectionalityAudit.some(
+    (row) =>
+      row.comparableToCandidateSignal === true &&
+      row.higherIsStronger === true &&
+      row.result >= replay.measuredOutcome &&
+      row.formallyJustified !== true,
+  );
+}
+
+function sourceObjectBaselineDirectionalityObservation(
+  replay: SourceObjectReplayResult,
+): string {
+  const dominant = replay.baselineDirectionalityAudit.filter(
+    (row) =>
+      row.comparableToCandidateSignal === true &&
+      row.higherIsStronger === true &&
+      row.result >= replay.measuredOutcome &&
+      row.formallyJustified !== true,
+  );
+  if (dominant.length > 0) {
+    return `Baseline directionality is fatal: ${dominant.map((row) => `${row.baseline}=${row.result}`).join(", ")} meets or exceeds measured outcome ${replay.measuredOutcome}.`;
+  }
+  return `Baseline directionality is nonfatal: measured outcome ${replay.measuredOutcome} exceeds comparable baselines ${replay.baselineDirectionalityAudit.map((row) => `${row.baseline}=${row.result}`).join(", ")}.`;
+}
+
+function sourceObjectKnownTrivialityStatus(
+  seed: HardSeed,
+  replay: SourceObjectReplayResult | null,
+): { passed: boolean; observation: string; caveats: string[] } {
+  const object = isRecord(seed.sourceSeed.object) ? seed.sourceSeed.object : {};
+  const payload = isRecord(object.sourcePayload) ? object.sourcePayload : {};
+  const sourceFamilyDocumented =
+    payload.sourceFamilyDocumentedOutcome === true ||
+    payload.sourceFamilyOnly === true;
+  const trivialNullRisk = payload.trivialNullBaselineRisk === true;
+  const baselineDominated = replay
+    ? sourceObjectBaselineDominates(replay)
+    : true;
+  const passed =
+    !sourceFamilyDocumented &&
+    !trivialNullRisk &&
+    !baselineDominated &&
+    replay?.replayStatus === "independent_source_replay_succeeded";
+  return {
+    passed,
+    observation: passed
+      ? "Known/triviality review is nonfatal in current bounded checks: source-family documentation, trivial-null baseline dominance, and manifest-only replay were not observed."
+      : "Known/triviality review is fatal or unresolved for this source-object InsightCandidate.",
+    caveats: passed
+      ? [
+          "This is an internal bounded check only; it does not replace human graph/formal/materials/benchmark review.",
+        ]
+      : [
+          sourceFamilyDocumented
+            ? "Source-family documentation already explains the outcome."
+            : "",
+          trivialNullRisk ? "Trivial/null baseline risk is flagged." : "",
+          baselineDominated
+            ? "Comparable null/simple baseline dominates the signal."
+            : "",
+          replay?.replayStatus === "manifest_only"
+            ? "Replay is manifest-only and cannot count."
+            : "",
+        ].filter(Boolean),
+  };
+}
+
+function sourceObjectInspectabilityStatus(
+  seed: HardSeed,
+  candidate: InsightCandidate,
+): { passed: boolean; observation: string; caveats: string[] } {
+  const object = isRecord(seed.sourceSeed.object) ? seed.sourceSeed.object : {};
+  const sourceObjectRef = stringOrNull(object.sourceObjectRef);
+  const sourceHash = stringOrNull(object.sourceHash);
+  const refs = uniqueStrings([
+    ...seed.sourceRefs,
+    ...seed.evidenceRefs,
+    ...candidate.parentEvidenceRefs,
+  ]);
+  const publicSafe = refs.length >= 5 && refs.every(publicSafeRef);
+  const passed = publicSafe && sourceObjectRef !== null && sourceHash !== null;
+  return {
+    passed,
+    observation: passed
+      ? `Inspectability has public-safe refs, source object ${sourceObjectRef}, and source hash ${sourceHash}.`
+      : "Inspectability is incomplete because source-object identity, hash, or public-safe evidence refs are missing.",
+    caveats: passed
+      ? [
+          "This is inspectability of the source-object evidence trail, not a complete external-review package.",
+        ]
+      : ["External-review package cannot be built from the current refs."],
+  };
+}
+
+function sourceObjectClaimLiftRequired(candidate: InsightCandidate): boolean {
+  const text = normalizeWhitespace(
+    [
+      candidate.exactNarrowClaim,
+      candidate.evidenceScope,
+      candidate.mechanismHypothesis,
+      ...candidate.whatIsNotClaimed,
+    ].join(" "),
+  ).toLowerCase();
+  return (
+    text.includes("not a discoverycandidate") ||
+    text.includes("not a discovery candidate") ||
+    text.includes("not fundcandidatedraft") ||
+    text.includes("not fund_found") ||
+    text.includes("only an insightcandidate") ||
+    text.includes("not a broad source-family theorem")
+  );
+}
+
 function countSourceObjectDeathCauses(
   results: SourceObjectReplayResult[],
 ): Record<string, number> {
@@ -14250,11 +14979,41 @@ function countSourceObjectDeathCauses(
   return counts;
 }
 
+function countSourceObjectPromotionDeathCauses(
+  report: SourceObjectRequiredNextTestClosureReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.promotionDecisions) {
+    if (decision.deathCause === "no_death_cause") continue;
+    counts[decision.deathCause] = (counts[decision.deathCause] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function mergeCountRecords(
+  ...records: Array<Record<string, number>>
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const record of records) {
+    for (const [key, value] of Object.entries(record)) {
+      counts[key] = (counts[key] ?? 0) + value;
+    }
+  }
+  return counts;
+}
+
 function sourceObjectRemainingBottleneck(
   hardSeedsBorn: number,
   insightCandidatesCreated: number,
+  requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (requiredNextTestClosure.requiredNextTestsPassed > 0) {
+    return `${requiredNextTestClosure.requiredNextTestsPassed} source-object InsightCandidate(s) closed the required-next-test evidence gates, but ${requiredNextTestClosure.blockedByClaimLiftOrPackage} still require stable discovery claim-lift and external-review package bindings before any DiscoveryCandidate or FundCandidateDraft can be created.`;
+  }
+  if (requiredNextTestClosure.candidatesTested > 0) {
+    return `${requiredNextTestClosure.candidatesTested} source-object InsightCandidate(s) entered required-next-test closure; none reached full promotion readiness. Next blocker is ${sourceObjectClosureDominantBlocker(requiredNextTestClosure)}.`;
+  }
   if (insightCandidatesCreated > 0) {
     return `${insightCandidatesCreated} source-object InsightCandidate(s) were born from ${hardSeedsBorn} HardSeed(s); next blocker is required-next-test execution, claim-lift packaging, and DiscoveryCandidate/FundCandidateDraft creation without weakening gates.`;
   }
@@ -14266,6 +15025,25 @@ function sourceObjectRemainingBottleneck(
       (left, right) => right[1] - left[1],
     )[0]?.[0] ?? "unknown";
   return `No source-object output reached HardSeed birth. Dominant blocker: ${dominant}. This is a source-object replayable no-signal checkpoint, not a Fund.`;
+}
+
+function sourceObjectClosureDominantBlocker(
+  report: SourceObjectRequiredNextTestClosureReport,
+): string {
+  const blockers = [
+    ["baseline_resistance", report.killedByBaseline],
+    ["rival_discrimination", report.killedByRival],
+    ["counterexample_pressure", report.killedByCounterexample],
+    ["holdout_or_replay", report.killedByHoldoutReplay],
+    [
+      "mechanism_or_known_triviality",
+      report.killedByMechanismOrKnownTriviality,
+    ],
+    ["claim_lift_or_external_package", report.blockedByClaimLiftOrPackage],
+  ] as const;
+  return (
+    [...blockers].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown"
+  );
 }
 
 function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
@@ -14291,6 +15069,16 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
+    `${root}/SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json`,
+    `${root}/SOURCE_OBJECT_INSIGHT_CANDIDATE_MATRIX.md`,
+    `${root}/REQUIRED_NEXT_TEST_PLAN.md`,
+    `${root}/REQUIRED_NEXT_TEST_RESULTS.md`,
+    `${root}/RIVAL_DISCRIMINATION_RESULTS.md`,
+    `${root}/COUNTEREXAMPLE_EXPANSION_RESULTS.md`,
+    `${root}/HOLDOUT_REPLAY_RESULTS.md`,
+    `${root}/MECHANISM_PROOF_PRESSURE_RESULTS.md`,
+    `${root}/KNOWN_TRIVIALITY_REVIEW.md`,
+    `${root}/PROMOTION_DECISIONS.md`,
     `${root}/DISCOVERY_CANDIDATE_DECISIONS.md`,
     `${root}/FUND_GATE_RESULTS.md`,
     `${root}/FUND_GATE_RESULTS.json`,
@@ -14581,6 +15369,136 @@ function sourceObjectInsightCandidateDecisionMarkdown(
     ),
     "",
     "No InsightCandidate may notify the user or count as Einstein/Nobel discovery score. DiscoveryCandidate creation remains a separate forward-only claim-lift/package step.",
+  ].join("\n");
+}
+
+function sourceObjectInsightCandidateMatrixMarkdown(
+  report: SourceObjectRequiredNextTestClosureReport,
+): string {
+  return [
+    "# Source Object Insight Candidate Matrix",
+    "",
+    `InsightCandidates loaded: ${report.insightCandidatesLoaded}.`,
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Required-next-tests run: ${report.testsRun}.`,
+    `Required-next-test closures: ${report.requiredNextTestsPassed}.`,
+    "",
+    "| InsightCandidate | Required tests passed | DiscoveryCandidate | Death cause | Failed gates |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.promotionDecisions.map(
+      (decision) =>
+        `| ${decision.insightCandidateId} | ${String(decision.requiredNextTestsPassed)} | ${decision.discoveryCandidateId ?? "none"} | ${decision.deathCause} | ${decision.failedGates.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectRequiredNextTestPlanMarkdown(
+  report: SourceObjectInsightClosureReport,
+): string {
+  const testPlan = [
+    "nontrivial_pattern_beyond_pipeline_success",
+    "baseline_resistance",
+    "rival_discriminating_test",
+    "holdout_path",
+    "replay_path",
+    "counterexample_path",
+    "proof_or_mechanism_pressure_path",
+    "baseline_directionality_audit",
+    "known_triviality_review",
+    "inspectability_review",
+  ];
+  return [
+    "# Required Next Test Plan",
+    "",
+    "The plan is applied only to born source-object InsightCandidates. It does not create Fund state, and it treats source-object replay as necessary but insufficient.",
+    "",
+    `InsightCandidates in scope: ${report.insightCandidatesCreated}.`,
+    "",
+    ...testPlan.map((item) => `- ${item}`),
+  ].join("\n");
+}
+
+function sourceObjectRequiredNextTestResultsMarkdown(
+  report: SourceObjectRequiredNextTestClosureReport,
+): string {
+  return [
+    "# Required Next Test Results",
+    "",
+    `Executions: ${report.testsRun}.`,
+    `Candidates tested: ${report.candidatesTested}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Candidate | Gate | Passed | Observation |",
+    "| --- | --- | --- | --- |",
+    ...report.executions.map(
+      (execution) =>
+        `| ${execution.insightCandidateId} | ${execution.promotionGate} | ${String(execution.passed)} | ${execution.observation.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectGateResultsMarkdown(
+  title: string,
+  report: SourceObjectRequiredNextTestClosureReport,
+  promotionGate: string,
+): string {
+  const rows = report.executions.filter(
+    (execution) => execution.promotionGate === promotionGate,
+  );
+  return [
+    `# ${title}`,
+    "",
+    `Rows: ${rows.length}.`,
+    "",
+    "| Candidate | Passed | Evidence refs | Caveats |",
+    "| --- | --- | ---: | --- |",
+    ...rows.map(
+      (execution) =>
+        `| ${execution.insightCandidateId} | ${String(execution.passed)} | ${execution.evidenceRefs.length} | ${execution.caveats.join("; ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectHoldoutReplayResultsMarkdown(
+  report: SourceObjectRequiredNextTestClosureReport,
+): string {
+  const rows = report.executions.filter(
+    (execution) =>
+      execution.promotionGate === "holdout_path" ||
+      execution.promotionGate === "replay_path",
+  );
+  return [
+    "# Holdout Replay Results",
+    "",
+    `Rows: ${rows.length}.`,
+    "",
+    "| Candidate | Gate | Passed | Observation |",
+    "| --- | --- | --- | --- |",
+    ...rows.map(
+      (execution) =>
+        `| ${execution.insightCandidateId} | ${execution.promotionGate} | ${String(execution.passed)} | ${execution.observation.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectPromotionDecisionsMarkdown(
+  report: SourceObjectRequiredNextTestClosureReport,
+): string {
+  return [
+    "# Promotion Decisions",
+    "",
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| InsightCandidate | Decision | Death cause | Fund Gate | Reason |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.promotionDecisions.map(
+      (decision) =>
+        `| ${decision.insightCandidateId} | ${decision.decision} | ${decision.deathCause} | ${decision.fundGateResult.failedGates.join(", ") || "none"} | ${decision.reason.replaceAll("|", "/")} |`,
+    ),
   ].join("\n");
 }
 

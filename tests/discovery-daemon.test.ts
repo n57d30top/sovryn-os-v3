@@ -5039,6 +5039,9 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.candidateLevelReplayAttempts > 0, true);
   assert.equal(report.hardSeedsBorn > 0, true);
   assert.equal(report.insightCandidatesCreated > 0, true);
+  assert.equal(report.claimLiftEligibleCount, 0);
+  assert.equal(report.claimLiftRejectedCount, report.insightCandidatesCreated);
+  assert.equal(report.reviewPackagesBuilt, 0);
   assert.equal(report.fundFound, false);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
@@ -5077,6 +5080,17 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "KNOWN_TRIVIALITY_REVIEW.md",
     "PROMOTION_DECISIONS.md",
     "DISCOVERY_CANDIDATE_DECISIONS.md",
+    "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json",
+    "SOURCE_OBJECT_INSIGHT_INVENTORY.md",
+    "SOURCE_OBJECT_INSIGHT_INVENTORY.json",
+    "CLAIM_LIFT_ELIGIBILITY_MATRIX.md",
+    "REJECTED_CLAIM_LIFTS.md",
+    "TOP_SOURCE_OBJECT_CLAIM_LIFTS.md",
+    "DISCOVERY_CLAIM_DRAFTS/README.md",
+    "SOURCE_OBJECT_REVIEW_PACKAGES/README.md",
+    "SOURCE_OBJECT_CLAIM_LIFT_DECISIONS.md",
+    "SOURCE_OBJECT_REVIEW_PACKAGE_STATUS.md",
+    "DISCOVERY_PROMOTION_DECISIONS.md",
     "FUND_GATE_RESULTS.md",
     "DEATH_CAUSE_SUMMARY.md",
     "NEXT_CHECKPOINT.md",
@@ -5114,6 +5128,46 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         decision.requiredNextTestsPassed &&
         decision.decision === "claim_lift_required" &&
         decision.failedGates.includes("stable_discovery_claim_lift"),
+    ),
+    true,
+  );
+  const claimLift = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    candidatesLoaded: number;
+    claimLiftEligibleCount: number;
+    rejectedCount: number;
+    topCandidatesSelected: number;
+    reviewPackagesBuilt: number;
+    discoveryCandidatesCreated: number;
+    fundCandidateDraftsCreated: number;
+    eligibilityDecisions: Array<{
+      eligible: boolean;
+      blockers: string[];
+    }>;
+  };
+  assert.equal(claimLift.candidatesLoaded, report.insightCandidatesCreated);
+  assert.equal(claimLift.claimLiftEligibleCount, 0);
+  assert.equal(claimLift.rejectedCount, report.insightCandidatesCreated);
+  assert.equal(claimLift.topCandidatesSelected, 0);
+  assert.equal(claimLift.reviewPackagesBuilt, 0);
+  assert.equal(claimLift.discoveryCandidatesCreated, 0);
+  assert.equal(claimLift.fundCandidateDraftsCreated, 0);
+  assert.equal(
+    claimLift.eligibilityDecisions.every(
+      (decision) =>
+        !decision.eligible &&
+        (decision.blockers.includes("exactNarrowMathematicalClaim") ||
+          decision.blockers.includes("noSemanticScopeExpansionNeeded") ||
+          decision.blockers.includes("externalReviewerCouldReproduce")),
     ),
     true,
   );

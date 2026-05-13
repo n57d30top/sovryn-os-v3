@@ -1484,6 +1484,111 @@ export type SourceObjectRequiredNextTestClosureReport = {
   evidenceHash: string;
 };
 
+export type SourceObjectInsightInventoryItem = {
+  kind: "source_object_insight_inventory_item";
+  seedId: string;
+  parentCandidateId: string;
+  candidateId: string;
+  sourceObjectIds: string[];
+  sourceObjectRefs: string[];
+  sourceObjectKind: string | null;
+  concreteSourceObjectStatus:
+    | "public_concrete_object"
+    | "deterministic_generator_spec"
+    | "placeholder_or_manifest_only";
+  exactCurrentInsightStatement: string;
+  formalDomain: DiscoveryDomain;
+  measuredProperty: string;
+  measuredOutcome: number | null;
+  residualSignal: number | null;
+  boundedChecksPassed: string[];
+  baselinesPassed: boolean;
+  rivalChecksPassed: boolean;
+  counterexampleChecksPassed: boolean;
+  holdoutReplayStatus: string;
+  knownTrivialityStatus: string;
+  currentBlocker: string;
+  whatIsNotClaimed: string[];
+  evidenceRefs: string[];
+  artifactRef: string | null;
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimLiftEligibilityDecision = {
+  kind: "source_object_claim_lift_eligibility_decision";
+  candidateId: string;
+  seedId: string;
+  eligible: boolean;
+  score: number;
+  status: "eligible_for_claim_draft" | "rejected";
+  criteria: {
+    exactNarrowMathematicalClaim: boolean;
+    falsifiable: boolean;
+    sourceObjectsPublicOrDeterministic: boolean;
+    baselinesDoNotDominate: boolean;
+    rivalsScopedOrWeakened: boolean;
+    counterexamplesNonfatal: boolean;
+    knownTrivialityNonfatal: boolean;
+    independentReplayEnough: boolean;
+    noSemanticScopeExpansionNeeded: boolean;
+    externalReviewerCouldReproduce: boolean;
+  };
+  blockers: string[];
+  reasons: string[];
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimLiftTopCandidate = {
+  candidateId: string;
+  seedId: string;
+  score: number;
+  exactDiscoveryClaim: string;
+  sourceObjectRefs: string[];
+  artifactRef: string;
+  evidenceHash: string;
+};
+
+export type SourceObjectReviewPackageStatus = {
+  kind: "source_object_review_package_status";
+  candidateId: string;
+  packageDirRef: string | null;
+  status:
+    | "review_package_complete"
+    | "not_built_not_claim_lift_eligible"
+    | "blocked_missing_stable_claim"
+    | "blocked_missing_concrete_source_object";
+  requiredFiles: string[];
+  presentFiles: string[];
+  missingFiles: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectClaimLiftGauntletReport = {
+  kind: "source_object_claim_lift_gauntlet";
+  candidatesLoaded: number;
+  claimLiftEligibleCount: number;
+  rejectedCount: number;
+  topCandidatesSelected: number;
+  exactClaimsDrafted: number;
+  reviewPackagesBuilt: number;
+  discoveryCandidatesCreated: 0;
+  fundCandidateDraftsCreated: 0;
+  fundFound: false;
+  inventory: SourceObjectInsightInventoryItem[];
+  eligibilityDecisions: SourceObjectClaimLiftEligibilityDecision[];
+  topCandidates: SourceObjectClaimLiftTopCandidate[];
+  reviewPackageStatuses: SourceObjectReviewPackageStatus[];
+  promotionDecisionSummary: Array<{
+    candidateId: string;
+    decision: "not_promoted" | "review_package_ready_for_human_review";
+    reason: string;
+  }>;
+  fundGateResult: FundGateResult;
+  nextCheckpointRef: string;
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -1506,6 +1611,10 @@ export type SourceObjectDiscoveryEngineReport = {
   insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
+  claimLiftEligibleCount?: number;
+  claimLiftRejectedCount?: number;
+  topClaimLiftCandidatesSelected?: number;
+  reviewPackagesBuilt?: number;
   fundCandidateDraftsCreated?: number;
   fundGateResult: FundGateResult;
   fundFound: boolean;
@@ -13315,12 +13424,18 @@ export class SourceObjectFirstDiscoveryEngine {
       await this.closeHardSeedsIntoInsightCandidates(hardSeeds);
     const requiredNextTestClosure =
       await this.closeSourceObjectRequiredNextTests(insightClosure, hardSeeds);
-    const fundGateResult = requiredNextTestClosure.fundGateResult;
+    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
+    const claimLiftGauntlet = await this.runSourceObjectClaimLiftGauntlet({
+      insightClosure,
+      hardSeeds,
+      requiredNextTestClosure,
+      nextCheckpointRef,
+    });
+    const fundGateResult = claimLiftGauntlet.fundGateResult;
     const deathCauseDistribution = mergeCountRecords(
       countSourceObjectDeathCauses(replayResults),
       countSourceObjectPromotionDeathCauses(requiredNextTestClosure),
     );
-    const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
       hardSeeds.length > 0
         ? "productive_source_object_engine_continue_searching"
@@ -13355,15 +13470,18 @@ export class SourceObjectFirstDiscoveryEngine {
       hardSeedBirthAttempts: decisions.length,
       hardSeedsBorn: hardSeeds.length,
       insightCandidatesCreated: insightClosure.insightCandidatesCreated,
-      discoveryCandidatesCreated:
-        requiredNextTestClosure.discoveryCandidatesCreated,
+      discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
-      fundCandidateDraftsCreated:
-        requiredNextTestClosure.fundCandidateDraftsCreated,
+      claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
+      claimLiftRejectedCount: claimLiftGauntlet.rejectedCount,
+      topClaimLiftCandidatesSelected: claimLiftGauntlet.topCandidatesSelected,
+      reviewPackagesBuilt: claimLiftGauntlet.reviewPackagesBuilt,
+      fundCandidateDraftsCreated: claimLiftGauntlet.fundCandidateDraftsCreated,
       fundGateResult,
       fundFound: false as const,
       deathCauseDistribution,
       strongestSurvivingCandidate:
+        claimLiftGauntlet.topCandidates[0]?.candidateId ??
         requiredNextTestClosure.strongestSurvivingCandidate ??
         insightClosure.decisions.find((decision) => decision.derived)
           ?.insightCandidateId ??
@@ -13373,6 +13491,7 @@ export class SourceObjectFirstDiscoveryEngine {
         hardSeeds.length,
         insightClosure.insightCandidatesCreated,
         requiredNextTestClosure,
+        claimLiftGauntlet,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -13385,6 +13504,7 @@ export class SourceObjectFirstDiscoveryEngine {
       hardSeeds,
       insightClosure,
       requiredNextTestClosure,
+      claimLiftGauntlet,
       report,
     });
     return report;
@@ -13434,6 +13554,10 @@ export class SourceObjectFirstDiscoveryEngine {
           this.engineRoot(),
           "SOURCE_OBJECT_REQUIRED_NEXT_TEST_CLOSURE.json",
         ),
+      );
+    const claimLiftGauntlet =
+      await readOptionalJson<SourceObjectClaimLiftGauntletReport>(
+        join(this.engineRoot(), "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json"),
       );
     const fakeFundPresent =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
@@ -13512,6 +13636,18 @@ export class SourceObjectFirstDiscoveryEngine {
             requiredNextTestClosure.testsRun >=
               latest.insightCandidatesCreated * 7),
         "Born source-object InsightCandidates must enter required-next-test closure before any promotion decision.",
+      ),
+      gate(
+        "source_object_claim_lift_gauntlet_completed",
+        latest.insightCandidatesCreated === 0 ||
+          (claimLiftGauntlet !== null &&
+            claimLiftGauntlet.candidatesLoaded ===
+              latest.insightCandidatesCreated &&
+            claimLiftGauntlet.discoveryCandidatesCreated ===
+              latest.discoveryCandidatesCreated &&
+            claimLiftGauntlet.fundCandidateDraftsCreated ===
+              (latest.fundCandidateDraftsCreated ?? 0)),
+        "Born source-object InsightCandidates must be checked for stable claim-lift and external-review package readiness before promotion.",
       ),
       gate(
         "manifest_only_not_counted",
@@ -13830,6 +13966,125 @@ export class SourceObjectFirstDiscoveryEngine {
     });
   }
 
+  private async runSourceObjectClaimLiftGauntlet(input: {
+    insightClosure: SourceObjectInsightClosureReport;
+    hardSeeds: HardSeed[];
+    requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
+    nextCheckpointRef: string;
+  }): Promise<SourceObjectClaimLiftGauntletReport> {
+    const seedById = new Map(
+      input.hardSeeds.map((seed) => [seed.seedId, seed]),
+    );
+    const promotionByCandidateId = new Map(
+      input.requiredNextTestClosure.promotionDecisions.map((decision) => [
+        decision.insightCandidateId,
+        decision,
+      ]),
+    );
+    const executionsByCandidateId = new Map<
+      string,
+      SourceObjectRequiredNextTestExecution[]
+    >();
+    for (const execution of input.requiredNextTestClosure.executions) {
+      const existing =
+        executionsByCandidateId.get(execution.insightCandidateId) ?? [];
+      existing.push(execution);
+      executionsByCandidateId.set(execution.insightCandidateId, existing);
+    }
+    const inventory: SourceObjectInsightInventoryItem[] = [];
+    const eligibilityDecisions: SourceObjectClaimLiftEligibilityDecision[] = [];
+    for (const closureDecision of input.insightClosure.decisions.filter(
+      (decision) => decision.derived && decision.insightCandidateId !== null,
+    )) {
+      const seed = seedById.get(closureDecision.seedId);
+      const candidate = closureDecision.artifactRef
+        ? await this.readSourceObjectInsightCandidate(
+            closureDecision.artifactRef,
+          )
+        : null;
+      if (!seed || !candidate) continue;
+      const replay = sourceObjectReplayFromHardSeed(seed);
+      const executions =
+        executionsByCandidateId.get(candidate.candidateId) ?? [];
+      const promotionDecision = promotionByCandidateId.get(
+        candidate.candidateId,
+      );
+      const item = sourceObjectInsightInventoryItem({
+        seed,
+        candidate,
+        replay,
+        executions,
+        promotionDecision,
+        artifactRef: closureDecision.artifactRef,
+      });
+      inventory.push(item);
+      eligibilityDecisions.push(
+        sourceObjectClaimLiftEligibilityDecision({
+          seed,
+          candidate,
+          replay,
+          inventoryItem: item,
+          executions,
+          promotionDecision,
+        }),
+      );
+    }
+    const topCandidates = eligibilityDecisions
+      .filter((decision) => decision.eligible)
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.candidateId.localeCompare(right.candidateId),
+      )
+      .slice(0, 3)
+      .map((decision) =>
+        sourceObjectClaimLiftTopCandidate(
+          decision,
+          inventory.find((item) => item.candidateId === decision.candidateId),
+        ),
+      );
+    const reviewPackageStatuses = inventory.map((item) =>
+      sourceObjectReviewPackageStatus(
+        item,
+        topCandidates.find(
+          (candidate) => candidate.candidateId === item.candidateId,
+        ) ?? null,
+      ),
+    );
+    const fundGateResult = new FundGateEvaluator().evaluate(null);
+    return withEvidenceHash({
+      kind: "source_object_claim_lift_gauntlet" as const,
+      candidatesLoaded: inventory.length,
+      claimLiftEligibleCount: eligibilityDecisions.filter(
+        (decision) => decision.eligible,
+      ).length,
+      rejectedCount: eligibilityDecisions.filter(
+        (decision) => !decision.eligible,
+      ).length,
+      topCandidatesSelected: topCandidates.length,
+      exactClaimsDrafted: topCandidates.length,
+      reviewPackagesBuilt: reviewPackageStatuses.filter(
+        (status) => status.status === "review_package_complete",
+      ).length,
+      discoveryCandidatesCreated: 0 as const,
+      fundCandidateDraftsCreated: 0 as const,
+      fundFound: false as const,
+      inventory,
+      eligibilityDecisions,
+      topCandidates,
+      reviewPackageStatuses,
+      promotionDecisionSummary: eligibilityDecisions.map((decision) => ({
+        candidateId: decision.candidateId,
+        decision: "not_promoted" as const,
+        reason: decision.eligible
+          ? "Claim-lift eligibility alone does not create a DiscoveryCandidate; a complete external-review package and FundCandidateDraft contract are still required."
+          : `Claim-lift rejected: ${decision.blockers.join(", ")}.`,
+      })),
+      fundGateResult,
+      nextCheckpointRef: input.nextCheckpointRef,
+    });
+  }
+
   private async readSourceObjectInsightCandidate(
     artifactRef: string,
   ): Promise<InsightCandidate | null> {
@@ -13847,6 +14102,7 @@ export class SourceObjectFirstDiscoveryEngine {
     hardSeeds: HardSeed[];
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
+    claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
     report: SourceObjectDiscoveryEngineReport;
   }): Promise<void> {
     const root = this.engineRoot();
@@ -14014,6 +14270,7 @@ export class SourceObjectFirstDiscoveryEngine {
           : "No DiscoveryCandidate was created by the source-object engine; required-next-test closure did not produce a claim-lifted, package-backed discovery-scored candidate.",
       ),
     );
+    await this.writeSourceObjectClaimLiftArtifacts(input.claimLiftGauntlet);
     await writeJson(
       join(root, "FUND_GATE_RESULTS.json"),
       input.report.fundGateResult,
@@ -14054,6 +14311,70 @@ export class SourceObjectFirstDiscoveryEngine {
     await writeText(
       join(root, "NEXT_CHECKPOINT.md"),
       sourceObjectNextCheckpointMarkdown(input.report),
+    );
+  }
+
+  private async writeSourceObjectClaimLiftArtifacts(
+    report: SourceObjectClaimLiftGauntletReport,
+  ): Promise<void> {
+    const root = this.engineRoot();
+    await writeJson(
+      join(root, "SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json"),
+      report,
+    );
+    await writeJson(join(root, "SOURCE_OBJECT_INSIGHT_INVENTORY.json"), {
+      kind: "source_object_insight_inventory",
+      candidatesLoaded: report.candidatesLoaded,
+      inventory: report.inventory,
+      evidenceHash: hashEvidence(report.inventory),
+    });
+    await writeText(
+      join(root, "SOURCE_OBJECT_INSIGHT_INVENTORY.md"),
+      sourceObjectInsightInventoryMarkdown(report),
+    );
+    await writeText(
+      join(root, "CLAIM_LIFT_ELIGIBILITY_MATRIX.md"),
+      sourceObjectClaimLiftEligibilityMatrixMarkdown(report),
+    );
+    await writeText(
+      join(root, "REJECTED_CLAIM_LIFTS.md"),
+      sourceObjectRejectedClaimLiftsMarkdown(report),
+    );
+    await writeText(
+      join(root, "TOP_SOURCE_OBJECT_CLAIM_LIFTS.md"),
+      sourceObjectTopClaimLiftsMarkdown(report),
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_CLAIM_LIFT_DECISIONS.md"),
+      sourceObjectClaimLiftDecisionsMarkdown(report),
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_REVIEW_PACKAGE_STATUS.md"),
+      sourceObjectReviewPackageStatusMarkdown(report),
+    );
+    await writeText(
+      join(root, "DISCOVERY_PROMOTION_DECISIONS.md"),
+      sourceObjectDiscoveryPromotionDecisionsMarkdown(report),
+    );
+    const claimDraftRoot = join(root, "DISCOVERY_CLAIM_DRAFTS");
+    await mkdir(claimDraftRoot, { recursive: true });
+    await writeText(
+      join(claimDraftRoot, "README.md"),
+      sourceObjectClaimDraftsIndexMarkdown(report),
+    );
+    for (const candidate of report.topCandidates) {
+      const candidateRoot = join(claimDraftRoot, candidate.candidateId);
+      await mkdir(candidateRoot, { recursive: true });
+      await writeText(
+        join(candidateRoot, "EXACT_DISCOVERY_CLAIM.md"),
+        sourceObjectExactDiscoveryClaimMarkdown(candidate),
+      );
+    }
+    const packageRoot = join(root, "SOURCE_OBJECT_REVIEW_PACKAGES");
+    await mkdir(packageRoot, { recursive: true });
+    await writeText(
+      join(packageRoot, "README.md"),
+      sourceObjectReviewPackagesIndexMarkdown(report),
     );
   }
 }
@@ -14967,6 +15288,320 @@ function sourceObjectClaimLiftRequired(candidate: InsightCandidate): boolean {
   );
 }
 
+function sourceObjectInsightInventoryItem(input: {
+  seed: HardSeed;
+  candidate: InsightCandidate;
+  replay: SourceObjectReplayResult | null;
+  executions: SourceObjectRequiredNextTestExecution[];
+  promotionDecision?: SourceObjectPromotionClosureDecision;
+  artifactRef: string | null;
+}): SourceObjectInsightInventoryItem {
+  const object = isRecord(input.seed.sourceSeed.object)
+    ? input.seed.sourceSeed.object
+    : {};
+  const sourceObjectRef = stringOrNull(object.sourceObjectRef);
+  const sourceObjectKind = stringOrNull(object.sourceObjectKind);
+  const sourceObjectStatus = sourceObjectConcreteSourceStatus(object);
+  const passedGates = input.executions
+    .filter((execution) => execution.passed)
+    .map((execution) => execution.promotionGate);
+  const failedGates = input.promotionDecision?.failedGates ?? [];
+  const knownExecution = input.executions.find(
+    (execution) => execution.promotionGate === "known_triviality_review",
+  );
+  const holdoutReplayPassed =
+    input.executions.some(
+      (execution) =>
+        execution.promotionGate === "holdout_path" && execution.passed,
+    ) &&
+    input.executions.some(
+      (execution) =>
+        execution.promotionGate === "replay_path" && execution.passed,
+    );
+  return withEvidenceHash({
+    kind: "source_object_insight_inventory_item" as const,
+    seedId: input.seed.seedId,
+    parentCandidateId: input.seed.candidateId,
+    candidateId: input.candidate.candidateId,
+    sourceObjectIds: [stringOrNull(object.objectId) ?? input.seed.seedId],
+    sourceObjectRefs: sourceObjectRef ? [sourceObjectRef] : [],
+    sourceObjectKind,
+    concreteSourceObjectStatus: sourceObjectStatus,
+    exactCurrentInsightStatement: input.candidate.exactNarrowClaim,
+    formalDomain: input.candidate.domain,
+    measuredProperty:
+      stringOrNull(object.measuredVariable) ?? input.seed.observation,
+    measuredOutcome: input.replay?.measuredOutcome ?? null,
+    residualSignal: input.replay?.residualMagnitude ?? null,
+    boundedChecksPassed: uniqueStrings(passedGates),
+    baselinesPassed:
+      input.executions.some(
+        (execution) =>
+          execution.promotionGate === "baseline_resistance" && execution.passed,
+      ) && !failedGates.includes("baseline_resistance"),
+    rivalChecksPassed:
+      input.executions.some(
+        (execution) =>
+          execution.promotionGate === "rival_discriminating_test" &&
+          execution.passed,
+      ) && !failedGates.includes("rival_discriminating_test"),
+    counterexampleChecksPassed:
+      input.executions.some(
+        (execution) =>
+          execution.promotionGate === "counterexample_path" && execution.passed,
+      ) && !failedGates.includes("counterexample_path"),
+    holdoutReplayStatus: holdoutReplayPassed
+      ? "holdout_and_replay_supported"
+      : "holdout_or_replay_blocked",
+    knownTrivialityStatus:
+      knownExecution?.passed === true
+        ? "not_fatal_by_current_checks"
+        : "fatal_or_unresolved",
+    currentBlocker:
+      input.promotionDecision?.failedGates.join(", ") ??
+      "stable_discovery_claim_lift",
+    whatIsNotClaimed: input.candidate.whatIsNotClaimed,
+    evidenceRefs: uniqueStrings([
+      ...input.candidate.parentEvidenceRefs,
+      ...input.seed.sourceRefs,
+      ...input.seed.evidenceRefs,
+      ...input.executions.flatMap((execution) => execution.evidenceRefs),
+    ]).filter(publicSafeRef),
+    artifactRef: input.artifactRef,
+  });
+}
+
+function sourceObjectClaimLiftEligibilityDecision(input: {
+  seed: HardSeed;
+  candidate: InsightCandidate;
+  replay: SourceObjectReplayResult | null;
+  inventoryItem: SourceObjectInsightInventoryItem;
+  executions: SourceObjectRequiredNextTestExecution[];
+  promotionDecision?: SourceObjectPromotionClosureDecision;
+}): SourceObjectClaimLiftEligibilityDecision {
+  const exactNarrowMathematicalClaim = sourceObjectClaimIsStableDiscoveryClaim(
+    input.candidate,
+  );
+  const falsifiable =
+    input.candidate.requiredNextTests.counterexamplePath.length > 0 &&
+    input.candidate.requiredNextTests.replayPath.length > 0;
+  const sourceObjectsPublicOrDeterministic =
+    input.inventoryItem.concreteSourceObjectStatus !==
+    "placeholder_or_manifest_only";
+  const baselinesDoNotDominate =
+    input.inventoryItem.baselinesPassed &&
+    input.promotionDecision?.failedGates.includes("baseline_resistance") !==
+      true;
+  const rivalsScopedOrWeakened = input.inventoryItem.rivalChecksPassed;
+  const counterexamplesNonfatal =
+    input.inventoryItem.counterexampleChecksPassed;
+  const knownTrivialityNonfatal =
+    input.inventoryItem.knownTrivialityStatus === "not_fatal_by_current_checks";
+  const independentReplayEnough =
+    input.replay?.replayStatus === "independent_source_replay_succeeded" &&
+    input.replay.candidateLevelReplayAttempt === true;
+  const noSemanticScopeExpansionNeeded = !sourceObjectClaimLiftRequired(
+    input.candidate,
+  );
+  const externalReviewerCouldReproduce =
+    sourceObjectsPublicOrDeterministic &&
+    independentReplayEnough &&
+    input.inventoryItem.evidenceRefs.every(publicSafeRef) &&
+    !sourceObjectEvidenceDependsOnInternalOnlyRefs(input.inventoryItem);
+  const criteria = {
+    exactNarrowMathematicalClaim,
+    falsifiable,
+    sourceObjectsPublicOrDeterministic,
+    baselinesDoNotDominate,
+    rivalsScopedOrWeakened,
+    counterexamplesNonfatal,
+    knownTrivialityNonfatal,
+    independentReplayEnough,
+    noSemanticScopeExpansionNeeded,
+    externalReviewerCouldReproduce,
+  };
+  const blockers = Object.entries(criteria)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+  const eligible = blockers.length === 0;
+  const score = Object.values(criteria).filter(Boolean).length * 10;
+  return withEvidenceHash({
+    kind: "source_object_claim_lift_eligibility_decision" as const,
+    candidateId: input.candidate.candidateId,
+    seedId: input.seed.seedId,
+    eligible,
+    score,
+    status: eligible ? "eligible_for_claim_draft" : "rejected",
+    criteria,
+    blockers,
+    reasons: eligible
+      ? [
+          "All source-object claim-lift criteria passed; still requires review package and FundCandidateDraft contract before promotion.",
+        ]
+      : sourceObjectClaimLiftRejectionReasons(blockers),
+    evidenceRefs: input.inventoryItem.evidenceRefs,
+  });
+}
+
+function sourceObjectClaimLiftTopCandidate(
+  decision: SourceObjectClaimLiftEligibilityDecision,
+  item: SourceObjectInsightInventoryItem | undefined,
+): SourceObjectClaimLiftTopCandidate {
+  const sourceObjectRefs = item?.sourceObjectRefs ?? [];
+  return withEvidenceHash({
+    candidateId: decision.candidateId,
+    seedId: decision.seedId,
+    score: decision.score,
+    exactDiscoveryClaim: sourceObjectReviewableClaim(item),
+    sourceObjectRefs,
+    artifactRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/DISCOVERY_CLAIM_DRAFTS/${decision.candidateId}/EXACT_DISCOVERY_CLAIM.md`,
+  });
+}
+
+function sourceObjectReviewPackageStatus(
+  item: SourceObjectInsightInventoryItem,
+  topCandidate: SourceObjectClaimLiftTopCandidate | null,
+): SourceObjectReviewPackageStatus {
+  const requiredFiles = [
+    "REVIEWER_SUMMARY.md",
+    "METHOD.md",
+    "SOURCE_OBJECTS.json",
+    "BOUNDED_CHECKS.md",
+    "BASELINE_RESULTS.md",
+    "RIVAL_RESULTS.md",
+    "COUNTEREXAMPLES.md",
+    "HOLDOUT_REPLAY_RESULTS.md",
+    "KNOWN_TRIVIALITY_REVIEW.md",
+    "LIMITATIONS.md",
+    "REPRODUCE.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+  ];
+  if (!topCandidate) {
+    const missingConcrete =
+      item.concreteSourceObjectStatus === "placeholder_or_manifest_only";
+    return withEvidenceHash({
+      kind: "source_object_review_package_status" as const,
+      candidateId: item.candidateId,
+      packageDirRef: null,
+      status: missingConcrete
+        ? "blocked_missing_concrete_source_object"
+        : "not_built_not_claim_lift_eligible",
+      requiredFiles,
+      presentFiles: [],
+      missingFiles: requiredFiles,
+    });
+  }
+  return withEvidenceHash({
+    kind: "source_object_review_package_status" as const,
+    candidateId: item.candidateId,
+    packageDirRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_REVIEW_PACKAGES/${item.candidateId}/`,
+    status: "blocked_missing_stable_claim" as const,
+    requiredFiles,
+    presentFiles: [],
+    missingFiles: requiredFiles,
+  });
+}
+
+function sourceObjectConcreteSourceStatus(
+  object: Record<string, unknown>,
+): SourceObjectInsightInventoryItem["concreteSourceObjectStatus"] {
+  const kind = stringOrNull(object.sourceObjectKind);
+  const ref = stringOrNull(object.sourceObjectRef) ?? "";
+  const payload = isRecord(object.sourcePayload) ? object.sourcePayload : {};
+  if (
+    kind === "deterministic_formal_generator_spec" &&
+    ref.startsWith("formal-generator://") &&
+    ref.includes("seed=deterministic")
+  ) {
+    return "deterministic_generator_spec";
+  }
+  if (
+    (kind === "public_graph6" && ref.startsWith("graph6:")) ||
+    (kind === "public_edge_list" && /^edge-list:\s*\[.+\]$/.test(ref)) ||
+    (kind === "public_adjacency_matrix" && /^adjacency:\s*\[.+\]$/.test(ref)) ||
+    (kind === "public_hog_or_graphclasses_id" &&
+      /^(hog|graphclasses):/i.test(ref)) ||
+    (kind === "public_benchmark_object" &&
+      /^openml-(task|dataset):\d+$/i.test(ref)) ||
+    (kind === "public_materials_object" &&
+      /^matbench-[a-z0-9_:-]+$/i.test(ref)) ||
+    (kind === "public_repo_outcome_object" &&
+      /^repo-outcome:https:\/\/github\.com\/[^/]+\/[^/]+/i.test(ref))
+  ) {
+    return "public_concrete_object";
+  }
+  if (payload.deterministic === true && ref.startsWith("formal-generator://")) {
+    return "deterministic_generator_spec";
+  }
+  return "placeholder_or_manifest_only";
+}
+
+function sourceObjectClaimIsStableDiscoveryClaim(
+  candidate: InsightCandidate,
+): boolean {
+  const claim = candidate.exactNarrowClaim.toLowerCase();
+  if (sourceObjectClaimLiftRequired(candidate)) return false;
+  if (claim.includes("residual signal") && !claim.includes("if and only if")) {
+    return false;
+  }
+  if (claim.includes("deserves downstream") || claim.includes("pipeline")) {
+    return false;
+  }
+  return claim.length >= 80 && claim.length <= 900;
+}
+
+function sourceObjectEvidenceDependsOnInternalOnlyRefs(
+  item: SourceObjectInsightInventoryItem,
+): boolean {
+  return item.evidenceRefs.some(
+    (ref) =>
+      ref.startsWith(`${daemonArtifactRoot}/`) &&
+      !ref.includes(`${sourceObjectFirstDir}/runtime-evidence/`) &&
+      !ref.includes(`${sourceObjectFirstDir}/SOURCE_OBJECT_RECEIPTS.json`),
+  );
+}
+
+function sourceObjectClaimLiftRejectionReasons(blockers: string[]): string[] {
+  const messages: Record<string, string> = {
+    exactNarrowMathematicalClaim:
+      "The current InsightCandidate statement is not yet a precise bounded mathematical/computational claim.",
+    falsifiable:
+      "The claim lacks a concrete falsifier/replay path suitable for an external reviewer.",
+    sourceObjectsPublicOrDeterministic:
+      "The source object is still a placeholder/object-family ref rather than a public concrete graph/object ID or deterministic generator spec.",
+    baselinesDoNotDominate:
+      "Baseline resistance is not closed strongly enough for claim-lift.",
+    rivalsScopedOrWeakened:
+      "Rival explanations are not scoped or weakened strongly enough for claim-lift.",
+    counterexamplesNonfatal:
+      "Counterexample pressure remains fatal or unresolved.",
+    knownTrivialityNonfatal:
+      "Known/triviality review remains fatal or unresolved.",
+    independentReplayEnough:
+      "Replay is not strong enough to count as independent source replay for claim-lift.",
+    noSemanticScopeExpansionNeeded:
+      "Lifting this InsightCandidate would require semantic expansion from an explicit non-discovery claim.",
+    externalReviewerCouldReproduce:
+      "A reviewer could not reproduce the claim from public concrete source objects and public-safe evidence alone.",
+  };
+  return blockers.map((blocker) => messages[blocker] ?? blocker);
+}
+
+function sourceObjectReviewableClaim(
+  item: SourceObjectInsightInventoryItem | undefined,
+): string {
+  if (!item) return "No source-object claim draft is available.";
+  return normalizeWhitespace(
+    [
+      `Within the bounded ${item.formalDomain} source-object scope`,
+      `${item.sourceObjectRefs.join(", ") || item.candidateId}`,
+      `has measured outcome ${item.measuredOutcome ?? "unknown"} and residual ${item.residualSignal ?? "unknown"}`,
+      "after independent source-object replay and nonfatal baseline, rival, counterexample, holdout/replay, and known/triviality checks.",
+      "This draft is not a theorem, not external validation, and not a Fund claim unless a complete review package and Fund Gate pass.",
+    ].join(" "),
+  );
+}
+
 function countSourceObjectDeathCauses(
   results: SourceObjectReplayResult[],
 ): Record<string, number> {
@@ -15006,8 +15641,15 @@ function sourceObjectRemainingBottleneck(
   hardSeedsBorn: number,
   insightCandidatesCreated: number,
   requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport,
+  claimLiftGauntlet: SourceObjectClaimLiftGauntletReport | null,
   deathCauses: Record<string, number>,
 ): string {
+  if (claimLiftGauntlet && claimLiftGauntlet.candidatesLoaded > 0) {
+    if (claimLiftGauntlet.claimLiftEligibleCount > 0) {
+      return `${claimLiftGauntlet.claimLiftEligibleCount} source-object InsightCandidate(s) are claim-lift eligible, but ${claimLiftGauntlet.reviewPackagesBuilt} review package(s) are complete and no FundCandidateDraft was created. Next blocker is package-backed DiscoveryCandidate promotion without overclaim.`;
+    }
+    return `${claimLiftGauntlet.candidatesLoaded} source-object InsightCandidate(s) closed evidence pressure but ${claimLiftGauntlet.rejectedCount} failed stable discovery claim-lift. Current blocker is precise external-reviewable claim formulation from concrete public source objects, not additional replay pressure.`;
+  }
   if (requiredNextTestClosure.requiredNextTestsPassed > 0) {
     return `${requiredNextTestClosure.requiredNextTestsPassed} source-object InsightCandidate(s) closed the required-next-test evidence gates, but ${requiredNextTestClosure.blockedByClaimLiftOrPackage} still require stable discovery claim-lift and external-review package bindings before any DiscoveryCandidate or FundCandidateDraft can be created.`;
   }
@@ -15080,6 +15722,17 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/KNOWN_TRIVIALITY_REVIEW.md`,
     `${root}/PROMOTION_DECISIONS.md`,
     `${root}/DISCOVERY_CANDIDATE_DECISIONS.md`,
+    `${root}/SOURCE_OBJECT_CLAIM_LIFT_GAUNTLET.json`,
+    `${root}/SOURCE_OBJECT_INSIGHT_INVENTORY.md`,
+    `${root}/SOURCE_OBJECT_INSIGHT_INVENTORY.json`,
+    `${root}/CLAIM_LIFT_ELIGIBILITY_MATRIX.md`,
+    `${root}/REJECTED_CLAIM_LIFTS.md`,
+    `${root}/TOP_SOURCE_OBJECT_CLAIM_LIFTS.md`,
+    `${root}/DISCOVERY_CLAIM_DRAFTS/README.md`,
+    `${root}/SOURCE_OBJECT_REVIEW_PACKAGES/README.md`,
+    `${root}/SOURCE_OBJECT_CLAIM_LIFT_DECISIONS.md`,
+    `${root}/SOURCE_OBJECT_REVIEW_PACKAGE_STATUS.md`,
+    `${root}/DISCOVERY_PROMOTION_DECISIONS.md`,
     `${root}/FUND_GATE_RESULTS.md`,
     `${root}/FUND_GATE_RESULTS.json`,
     `${root}/DEATH_CAUSE_SUMMARY.md`,
@@ -15088,6 +15741,210 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/latest.json`,
     nextCheckpointRef,
   ];
+}
+
+function sourceObjectInsightInventoryMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Source Object Insight Inventory",
+    "",
+    `Candidates loaded: ${report.candidatesLoaded}.`,
+    "",
+    "| Candidate | Source objects | Concrete status | Outcome | Residual | Current blocker |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.inventory.map(
+      (item) =>
+        `| ${item.candidateId} | ${item.sourceObjectRefs.join(", ") || "none"} | ${item.concreteSourceObjectStatus} | ${item.measuredOutcome ?? "n/a"} | ${item.residualSignal ?? "n/a"} | ${item.currentBlocker || "none"} |`,
+    ),
+    "",
+    "## What Is Not Claimed",
+    "",
+    ...report.inventory.map(
+      (item) =>
+        `- ${item.candidateId}: ${item.whatIsNotClaimed.join("; ") || "none"}`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectClaimLiftEligibilityMatrixMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  const criteria = [
+    "exactNarrowMathematicalClaim",
+    "falsifiable",
+    "sourceObjectsPublicOrDeterministic",
+    "baselinesDoNotDominate",
+    "rivalsScopedOrWeakened",
+    "counterexamplesNonfatal",
+    "knownTrivialityNonfatal",
+    "independentReplayEnough",
+    "noSemanticScopeExpansionNeeded",
+    "externalReviewerCouldReproduce",
+  ] as const;
+  return [
+    "# Claim-Lift Eligibility Matrix",
+    "",
+    `Eligible: ${report.claimLiftEligibleCount}.`,
+    `Rejected: ${report.rejectedCount}.`,
+    "",
+    `| Candidate | Score | Status | ${criteria.join(" | ")} |`,
+    `| --- | ---: | --- | ${criteria.map(() => "---").join(" | ")} |`,
+    ...report.eligibilityDecisions.map((decision) => {
+      const cells = criteria.map((criterion) =>
+        decision.criteria[criterion] ? "pass" : "fail",
+      );
+      return `| ${decision.candidateId} | ${decision.score} | ${decision.status} | ${cells.join(" | ")} |`;
+    }),
+  ].join("\n");
+}
+
+function sourceObjectRejectedClaimLiftsMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  const rejected = report.eligibilityDecisions.filter(
+    (decision) => !decision.eligible,
+  );
+  return [
+    "# Rejected Claim Lifts",
+    "",
+    `Rejected candidates: ${rejected.length}.`,
+    "",
+    ...rejected.flatMap((decision) => [
+      `## ${decision.candidateId}`,
+      "",
+      `Blockers: ${decision.blockers.join(", ") || "none"}.`,
+      "",
+      ...decision.reasons.map((reason) => `- ${reason}`),
+      "",
+    ]),
+  ].join("\n");
+}
+
+function sourceObjectTopClaimLiftsMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Top Source Object Claim Lifts",
+    "",
+    `Top candidates selected: ${report.topCandidatesSelected}.`,
+    "",
+    ...(report.topCandidates.length > 0
+      ? report.topCandidates.map(
+          (candidate) =>
+            `- ${candidate.candidateId}: score ${candidate.score}; draft ${candidate.artifactRef}`,
+        )
+      : [
+          "- none; no current Source-Object InsightCandidate satisfied the stable-claim and external-review reproducibility criteria.",
+        ]),
+  ].join("\n");
+}
+
+function sourceObjectClaimLiftDecisionsMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Source Object Claim-Lift Decisions",
+    "",
+    `Candidates loaded: ${report.candidatesLoaded}.`,
+    `Claim-lift eligible: ${report.claimLiftEligibleCount}.`,
+    `Rejected: ${report.rejectedCount}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    "",
+    ...report.promotionDecisionSummary.map(
+      (decision) =>
+        `- ${decision.candidateId}: ${decision.decision}; ${decision.reason}`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectReviewPackageStatusMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Source Object Review Package Status",
+    "",
+    `Review packages built: ${report.reviewPackagesBuilt}.`,
+    "",
+    "| Candidate | Status | Missing files |",
+    "| --- | --- | --- |",
+    ...report.reviewPackageStatuses.map(
+      (status) =>
+        `| ${status.candidateId} | ${status.status} | ${status.missingFiles.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectDiscoveryPromotionDecisionsMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Discovery Promotion Decisions",
+    "",
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `FundCandidateDrafts created: ${report.fundCandidateDraftsCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "No Source-Object InsightCandidate was promoted unless a stable exact claim and complete external-review package existed. This run remains fail-closed.",
+  ].join("\n");
+}
+
+function sourceObjectClaimDraftsIndexMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Discovery Claim Drafts",
+    "",
+    `Exact claims drafted: ${report.exactClaimsDrafted}.`,
+    "",
+    ...(report.topCandidates.length > 0
+      ? report.topCandidates.map(
+          (candidate) => `- ${candidate.candidateId}: ${candidate.artifactRef}`,
+        )
+      : [
+          "- none; every current InsightCandidate would require semantic expansion or lacks a concrete external source object/review package.",
+        ]),
+  ].join("\n");
+}
+
+function sourceObjectExactDiscoveryClaimMarkdown(
+  candidate: SourceObjectClaimLiftTopCandidate,
+): string {
+  return [
+    "# Exact Discovery Claim",
+    "",
+    candidate.exactDiscoveryClaim,
+    "",
+    "## Source Objects",
+    "",
+    ...candidate.sourceObjectRefs.map((ref) => `- ${ref}`),
+    "",
+    "## Not Claimed",
+    "",
+    "- This is not a theorem unless a proof object exists.",
+    "- This is not external validation.",
+    "- This is not a Fund unless the full discovery-scored Fund Gate passes.",
+  ].join("\n");
+}
+
+function sourceObjectReviewPackagesIndexMarkdown(
+  report: SourceObjectClaimLiftGauntletReport,
+): string {
+  return [
+    "# Source Object Review Packages",
+    "",
+    `Packages built: ${report.reviewPackagesBuilt}.`,
+    "",
+    ...report.reviewPackageStatuses
+      .filter((status) => status.status === "review_package_complete")
+      .map((status) => `- ${status.candidateId}: ${status.packageDirRef}`),
+    report.reviewPackagesBuilt === 0
+      ? "- none; package creation is blocked until a stable claim-lift candidate exists."
+      : "",
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 function sourceObjectUniverseMarkdown(

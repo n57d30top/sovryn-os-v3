@@ -1388,6 +1388,36 @@ export type SourceObjectHardSeedDecision = {
   evidenceHash: string;
 };
 
+export type SourceObjectInsightClosureDecision = {
+  kind: "source_object_insight_closure_decision";
+  seedId: string;
+  parentCandidateId: string;
+  insightCandidateId: string | null;
+  derived: boolean;
+  promotionEligible: boolean;
+  discoveryCandidateCreated: false;
+  decision:
+    | "insight_candidate_created"
+    | "blocked_missing_source_object_replay"
+    | "blocked_missing_evidence_refs"
+    | "blocked_identity_rejected";
+  blockedBy: string[];
+  artifactRef: string | null;
+  promotionFailedGates: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectInsightClosureReport = {
+  kind: "source_object_insight_closure";
+  hardSeedsEvaluated: number;
+  insightCandidatesCreated: number;
+  promotionEligibleInsightCandidates: number;
+  discoveryCandidatesCreated: 0;
+  decisions: SourceObjectInsightClosureDecision[];
+  fundFound: false;
+  evidenceHash: string;
+};
+
 export type SourceObjectDiscoveryEngineReport = {
   kind: "source_object_first_discovery_engine";
   terminalStatus: SourceObjectDiscoveryTerminalStatus;
@@ -1425,6 +1455,7 @@ export type SourceObjectDiscoveryEngineAuditReport = {
   sourceObjectsLoaded: number;
   independentSourceReplaysRun: number;
   hardSeedsBorn: number;
+  insightCandidatesCreated: number;
   discoveryCandidatesCreated: number;
   fundFound: boolean;
   gates: FundGate[];
@@ -3698,6 +3729,7 @@ export class InsightCandidateDeriver {
     exactNarrowClaim?: string;
     parentEvidenceRefs: string[];
     sourceVersioningDecision: CandidateVersioningDecision;
+    promotionEvidence?: InsightCandidatePromotionEvidence;
     ledger: CandidateIdentityLedger;
     now?: string;
   }): Promise<InsightCandidateDerivation> {
@@ -3758,7 +3790,7 @@ export class InsightCandidateDeriver {
         "not a broad cross-domain claim beyond the exact evidence scope",
       ],
       requiredNextTests,
-      promotionEvidence: {},
+      promotionEvidence: input.promotionEvidence ?? {},
       sourceVersioningDecision: input.sourceVersioningDecision,
       notificationSuppressed: true as const,
       fundFound: false as const,
@@ -13168,7 +13200,7 @@ export class IndependentSourceReplayRunner {
       counterexampleCollapsed: !survivedInitialPressure && counterexampleDense,
       holdoutReplayAvailable: survivedInitialPressure || !holdoutFailed,
       mechanismProofPressurePassed: survivedInitialPressure || !mechanismFailed,
-      candidateLevelReplayAttempt: ordinal <= 10,
+      candidateLevelReplayAttempt: survivedInitialPressure || ordinal <= 10,
       primaryDeathCause,
     });
   }
@@ -13211,6 +13243,8 @@ export class SourceObjectFirstDiscoveryEngine {
     const hardSeeds = decisions
       .map((decision) => decision.hardSeed)
       .filter((seed): seed is HardSeed => seed !== null);
+    const insightClosure =
+      await this.closeHardSeedsIntoInsightCandidates(hardSeeds);
     const fundGateResult = new FundGateEvaluator().evaluate(null);
     const deathCauseDistribution = countSourceObjectDeathCauses(replayResults);
     const nextCheckpointRef = `${daemonArtifactRoot}/checkpoints/source-object-first-continue-searching.json`;
@@ -13247,14 +13281,19 @@ export class SourceObjectFirstDiscoveryEngine {
       ).length,
       hardSeedBirthAttempts: decisions.length,
       hardSeedsBorn: hardSeeds.length,
-      insightCandidatesCreated: 0,
-      discoveryCandidatesCreated: 0,
+      insightCandidatesCreated: insightClosure.insightCandidatesCreated,
+      discoveryCandidatesCreated: insightClosure.discoveryCandidatesCreated,
       fundGateResult,
       fundFound: false as const,
       deathCauseDistribution,
-      strongestSurvivingCandidate: hardSeeds[0]?.candidateId ?? null,
+      strongestSurvivingCandidate:
+        insightClosure.decisions.find((decision) => decision.derived)
+          ?.insightCandidateId ??
+        hardSeeds[0]?.candidateId ??
+        null,
       remainingBottleneck: sourceObjectRemainingBottleneck(
         hardSeeds.length,
+        insightClosure.insightCandidatesCreated,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -13265,6 +13304,7 @@ export class SourceObjectFirstDiscoveryEngine {
       replayResults,
       decisions,
       hardSeeds,
+      insightClosure,
       report,
     });
     return report;
@@ -13287,6 +13327,7 @@ export class SourceObjectFirstDiscoveryEngine {
         latest?.lowSignalSourceObjectsRejected ?? 0,
       independentSourceReplaysRun: latest?.independentSourceReplaysRun ?? 0,
       hardSeedsBorn: latest?.hardSeedsBorn ?? 0,
+      insightCandidatesCreated: latest?.insightCandidatesCreated ?? 0,
       discoveryCandidatesCreated: latest?.discoveryCandidatesCreated ?? 0,
       fundFound: latest?.fundFound ?? false,
       artifactRefs: [
@@ -13371,6 +13412,11 @@ export class SourceObjectFirstDiscoveryEngine {
         "Every source-object output must have a precise hard-seed birth decision or precise blocker.",
       ),
       gate(
+        "born_hard_seeds_enter_insight_closure",
+        latest.hardSeedsBorn === 0 || latest.insightCandidatesCreated > 0,
+        "Born source-object HardSeeds must enter InsightCandidate closure instead of remaining inert HardSeed artifacts.",
+      ),
+      gate(
         "manifest_only_not_counted",
         decisions.every(
           (decision) =>
@@ -13395,6 +13441,7 @@ export class SourceObjectFirstDiscoveryEngine {
       sourceObjectsLoaded: latest.sourceObjectsLoaded,
       independentSourceReplaysRun: latest.independentSourceReplaysRun,
       hardSeedsBorn: latest.hardSeedsBorn,
+      insightCandidatesCreated: latest.insightCandidatesCreated,
       discoveryCandidatesCreated: latest.discoveryCandidatesCreated,
       fundFound: latest.fundFound,
       gates,
@@ -13498,12 +13545,115 @@ export class SourceObjectFirstDiscoveryEngine {
     });
   }
 
+  private async closeHardSeedsIntoInsightCandidates(
+    hardSeeds: HardSeed[],
+  ): Promise<SourceObjectInsightClosureReport> {
+    const ledger = new CandidateIdentityLedger();
+    const deriver = new InsightCandidateDeriver(this.root);
+    const decisions: SourceObjectInsightClosureDecision[] = [];
+    for (const seed of hardSeeds) {
+      const parentEvidenceRefs = sourceObjectInsightEvidenceRefs(seed);
+      const replay = sourceObjectReplayFromHardSeed(seed);
+      const blockedBy = uniqueStrings([
+        replay?.replayStatus === "independent_source_replay_succeeded"
+          ? ""
+          : "missing_independent_source_replay",
+        parentEvidenceRefs.length >= 7 ? "" : "missing_closure_evidence_refs",
+      ]).filter(Boolean);
+      if (blockedBy.length > 0) {
+        decisions.push(
+          withEvidenceHash({
+            kind: "source_object_insight_closure_decision" as const,
+            seedId: seed.seedId,
+            parentCandidateId: seed.candidateId,
+            insightCandidateId: null,
+            derived: false,
+            promotionEligible: false,
+            discoveryCandidateCreated: false as const,
+            decision: blockedBy.includes("missing_independent_source_replay")
+              ? ("blocked_missing_source_object_replay" as const)
+              : ("blocked_missing_evidence_refs" as const),
+            blockedBy,
+            artifactRef: null,
+            promotionFailedGates: blockedBy,
+          }),
+        );
+        continue;
+      }
+      const exactNarrowClaim = sourceObjectInsightClaim(seed, replay);
+      const mechanismHypothesis = sourceObjectInsightMechanism(seed);
+      const evidenceScope = sourceObjectInsightEvidenceScope(seed);
+      const canonicalClaim = new CandidateClaimCanonicalizer().canonicalize({
+        claim: exactNarrowClaim,
+        domain: seed.domain,
+        mechanism: mechanismHypothesis,
+        evidenceScope,
+        fundClass: "insight_candidate",
+      });
+      const derivation = await deriver.derive({
+        cycleId: "source-object-first",
+        parentPipelineCandidateId: seed.candidateId,
+        parentClaim: seed.claim,
+        parentFundClass: null,
+        domain: seed.domain,
+        mechanismHypothesis,
+        evidenceScope,
+        exactNarrowClaim,
+        parentEvidenceRefs,
+        sourceVersioningDecision: new CandidateVersioningPolicy().evaluate({
+          inputCandidateId: seed.candidateId,
+          existing: null,
+          next: canonicalClaim,
+        }),
+        ledger,
+      });
+      const identityAccepted = derivation.identityDecision?.accepted === true;
+      const derived = derivation.derived && identityAccepted;
+      decisions.push(
+        withEvidenceHash({
+          kind: "source_object_insight_closure_decision" as const,
+          seedId: seed.seedId,
+          parentCandidateId: seed.candidateId,
+          insightCandidateId: derivation.candidate?.candidateId ?? null,
+          derived,
+          promotionEligible:
+            derivation.promotionEvaluation
+              ?.eligibleForDiscoveryScoredEvaluation ?? false,
+          discoveryCandidateCreated: false as const,
+          decision: derived
+            ? ("insight_candidate_created" as const)
+            : ("blocked_identity_rejected" as const),
+          blockedBy: derived ? [] : ["identity_rejected"],
+          artifactRef: derivation.artifactRef,
+          promotionFailedGates:
+            derivation.promotionEvaluation?.failedGates ?? [],
+        }),
+      );
+    }
+    const insightCandidatesCreated = decisions.filter(
+      (decision) => decision.derived,
+    ).length;
+    const promotionEligibleInsightCandidates = decisions.filter(
+      (decision) => decision.promotionEligible,
+    ).length;
+    return withEvidenceHash({
+      kind: "source_object_insight_closure" as const,
+      hardSeedsEvaluated: hardSeeds.length,
+      insightCandidatesCreated,
+      promotionEligibleInsightCandidates,
+      discoveryCandidatesCreated: 0 as const,
+      decisions,
+      fundFound: false as const,
+    });
+  }
+
   private async writeArtifacts(input: {
     harvest: SourceObjectHarvestReport;
     prioritization: SourceObjectSignalPrioritizationReport;
     replayResults: SourceObjectReplayResult[];
     decisions: SourceObjectHardSeedDecision[];
     hardSeeds: HardSeed[];
+    insightClosure: SourceObjectInsightClosureReport;
     report: SourceObjectDiscoveryEngineReport;
   }): Promise<void> {
     const root = this.engineRoot();
@@ -13593,11 +13743,17 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "HARD_SEED_BIRTH_DECISIONS.md"),
       sourceObjectHardSeedDecisionMarkdown(input.decisions),
     );
+    await writeJson(
+      join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.json"),
+      input.insightClosure,
+    );
+    await writeText(
+      join(root, "SOURCE_OBJECT_INSIGHT_CLOSURE.md"),
+      sourceObjectInsightClosureMarkdown(input.insightClosure),
+    );
     await writeText(
       join(root, "INSIGHT_CANDIDATE_DECISIONS.md"),
-      sourceObjectNoPromotionMarkdown(
-        "InsightCandidate birth remains blocked unless a source-object HardSeed is born and survives replay, baseline, rival, counterexample, holdout, and mechanism pressure.",
-      ),
+      sourceObjectInsightCandidateDecisionMarkdown(input.insightClosure),
     );
     await writeText(
       join(root, "DISCOVERY_CANDIDATE_DECISIONS.md"),
@@ -13637,6 +13793,7 @@ export class SourceObjectFirstDiscoveryEngine {
         input.report.lowSignalSourceObjectsRejected,
       independentSourceReplaysRun: input.report.independentSourceReplaysRun,
       hardSeedsBorn: input.report.hardSeedsBorn,
+      insightCandidatesCreated: input.report.insightCandidatesCreated,
       discoveryCandidatesCreated: input.report.discoveryCandidatesCreated,
       reportRef: `${daemonArtifactRoot}/${sourceObjectFirstDir}/latest.json`,
       remainingBottleneck: input.report.remainingBottleneck,
@@ -14013,6 +14170,74 @@ function sourceObjectHardSeed(input: {
   });
 }
 
+function sourceObjectReplayFromHardSeed(
+  seed: HardSeed,
+): SourceObjectReplayResult | null {
+  const sourceSeed = seed.sourceSeed;
+  const replay = isRecord(sourceSeed.replay) ? sourceSeed.replay : null;
+  if (replay?.kind !== "independent_source_object_replay_result") {
+    return null;
+  }
+  return replay as SourceObjectReplayResult;
+}
+
+function sourceObjectInsightEvidenceRefs(seed: HardSeed): string[] {
+  return uniqueStrings([
+    `${daemonArtifactRoot}/${sourceObjectFirstDir}/HARD_SEED_BIRTH_DECISIONS.json#${seed.seedId}`,
+    `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOURCE_OBJECT_INSIGHT_CLOSURE.json#${seed.seedId}`,
+    ...seed.sourceRefs,
+    ...seed.evidenceRefs,
+    ...seed.baselineRefs,
+    ...seed.rivalRefs,
+    ...seed.holdoutRefs,
+    ...seed.replayRefs,
+    ...seed.counterexampleRefs,
+  ]).filter(publicSafeRef);
+}
+
+function sourceObjectInsightClaim(
+  seed: HardSeed,
+  replay: SourceObjectReplayResult | null,
+): string {
+  const sourceObjectRef = stringOrNull(
+    isRecord(seed.sourceSeed.object)
+      ? seed.sourceSeed.object.sourceObjectRef
+      : null,
+  );
+  return normalizeWhitespace(
+    [
+      `Insight candidate from ${seed.seedId}:`,
+      `${sourceObjectRef ?? "the public source object"} shows a bounded ${seed.domain} residual signal after independent source-object replay.`,
+      replay
+        ? `Measured outcome ${replay.measuredOutcome}, residual ${replay.residualMagnitude}, simple baseline ${replay.simpleBaseline}, rival baseline ${replay.rivalBaseline}, and counterexample/control ${replay.counterexampleControl} are bound as parent evidence.`
+        : "The replay record must remain bound before any downstream promotion.",
+      "This is only an InsightCandidate birth claim; it is not a DiscoveryCandidate, FundCandidateDraft, FUND_FOUND, external validation, or broad source-family theorem.",
+    ].join(" "),
+  );
+}
+
+function sourceObjectInsightMechanism(seed: HardSeed): string {
+  const hypothesis = isRecord(seed.sourceSeed.domainSignificanceHypothesis)
+    ? stringOrNull(seed.sourceSeed.domainSignificanceHypothesis.statement)
+    : null;
+  if (hypothesis) return hypothesis;
+  return `source-object-first mechanism pressure for ${seed.domain}`;
+}
+
+function sourceObjectInsightEvidenceScope(seed: HardSeed): string {
+  const object = isRecord(seed.sourceSeed.object) ? seed.sourceSeed.object : {};
+  const sourceObjectRef = stringOrNull(object.sourceObjectRef);
+  const targetOutcome = stringOrNull(object.targetOutcome);
+  return normalizeWhitespace(
+    [
+      `Bounded to ${sourceObjectRef ?? seed.seedId}`,
+      targetOutcome ? `and target outcome ${targetOutcome}` : "",
+      "plus the source-object-first replay, baseline, rival, holdout, counterexample, and mechanism-pressure refs in the parent HardSeed.",
+      "No broader source-family, cross-domain, or external-validation scope is included.",
+    ].join(" "),
+  );
+}
+
 function countSourceObjectDeathCauses(
   results: SourceObjectReplayResult[],
 ): Record<string, number> {
@@ -14027,8 +14252,12 @@ function countSourceObjectDeathCauses(
 
 function sourceObjectRemainingBottleneck(
   hardSeedsBorn: number,
+  insightCandidatesCreated: number,
   deathCauses: Record<string, number>,
 ): string {
+  if (insightCandidatesCreated > 0) {
+    return `${insightCandidatesCreated} source-object InsightCandidate(s) were born from ${hardSeedsBorn} HardSeed(s); next blocker is required-next-test execution, claim-lift packaging, and DiscoveryCandidate/FundCandidateDraft creation without weakening gates.`;
+  }
   if (hardSeedsBorn > 0) {
     return `${hardSeedsBorn} source-object HardSeed(s) were born; next blocker is InsightCandidate closure with independent source replay and inspectability.`;
   }
@@ -14059,6 +14288,8 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md`,
     `${root}/HARD_SEED_BIRTH_DECISIONS.md`,
     `${root}/HARD_SEED_BIRTH_DECISIONS.json`,
+    `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
+    `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
     `${root}/DISCOVERY_CANDIDATE_DECISIONS.md`,
     `${root}/FUND_GATE_RESULTS.md`,
@@ -14309,6 +14540,50 @@ function sourceObjectHardSeedDecisionMarkdown(
   ].join("\n");
 }
 
+function sourceObjectInsightClosureMarkdown(
+  report: SourceObjectInsightClosureReport,
+): string {
+  return [
+    "# Source Object Insight Closure",
+    "",
+    `HardSeeds evaluated: ${report.hardSeedsEvaluated}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `Promotion-eligible InsightCandidates: ${report.promotionEligibleInsightCandidates}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "Born HardSeeds are converted only into intermediate InsightCandidates. They remain non-notifying and do not create DiscoveryCandidates, FundCandidateDrafts, fund-candidate.json, or FUND_FOUND.md.",
+    "",
+    "| Seed | InsightCandidate | Derived | Promotion eligible | Decision | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.seedId} | ${decision.insightCandidateId ?? "none"} | ${String(decision.derived)} | ${String(decision.promotionEligible)} | ${decision.decision} | ${decision.blockedBy.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function sourceObjectInsightCandidateDecisionMarkdown(
+  report: SourceObjectInsightClosureReport,
+): string {
+  return [
+    "# InsightCandidate Decisions",
+    "",
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `Promotion-eligible InsightCandidates: ${report.promotionEligibleInsightCandidates}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    "",
+    "| HardSeed | InsightCandidate | Required-next-test blockers | Artifact |",
+    "| --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.seedId} | ${decision.insightCandidateId ?? "none"} | ${decision.promotionFailedGates.join(", ") || "none"} | ${decision.artifactRef ?? "none"} |`,
+    ),
+    "",
+    "No InsightCandidate may notify the user or count as Einstein/Nobel discovery score. DiscoveryCandidate creation remains a separate forward-only claim-lift/package step.",
+  ].join("\n");
+}
+
 function sourceObjectNoPromotionMarkdown(message: string): string {
   return ["# Promotion Decision", "", message, "", "Fund found: false."].join(
     "\n",
@@ -14357,6 +14632,9 @@ function sourceObjectNextCheckpointMarkdown(
     `Source objects evaluated by prioritizer: ${report.sourceObjectsEvaluatedByPrioritizer}.`,
     `High-priority source objects selected: ${report.highPrioritySourceObjectsSelected}.`,
     `Low-signal source objects rejected: ${report.lowSignalSourceObjectsRejected}.`,
+    `HardSeeds born: ${report.hardSeedsBorn}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",
     report.remainingBottleneck,
@@ -14374,6 +14652,7 @@ function sourceObjectAuditMarkdown(
     `Source objects loaded: ${report.sourceObjectsLoaded}.`,
     `Independent source replays run: ${report.independentSourceReplaysRun}.`,
     `HardSeeds born: ${report.hardSeedsBorn}.`,
+    `InsightCandidates created: ${report.insightCandidatesCreated}.`,
     `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
     `Fund found: ${String(report.fundFound)}.`,
     "",

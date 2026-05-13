@@ -5038,6 +5038,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.mechanismProofPressureChecksRun >= 20, true);
   assert.equal(report.candidateLevelReplayAttempts > 0, true);
   assert.equal(report.hardSeedsBorn > 0, true);
+  assert.equal(report.insightCandidatesCreated > 0, true);
   assert.equal(report.fundFound, false);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
@@ -5062,6 +5063,8 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "BASELINE_DIRECTIONALITY_AUDIT.md",
     "MECHANISM_FIRST_SOURCE_OBJECT_GENERATORS.md",
     "HARD_SEED_BIRTH_DECISIONS.md",
+    "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
+    "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
     "DISCOVERY_CANDIDATE_DECISIONS.md",
     "FUND_GATE_RESULTS.md",

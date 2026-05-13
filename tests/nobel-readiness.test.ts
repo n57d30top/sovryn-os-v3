@@ -1060,6 +1060,8 @@ test("nobel-readiness external-review dispatch writes review template without cl
   );
   assert.match(request, /does not assert that independent review/);
   assert.match(instructions, /cannot increase readiness/);
+  assert.match(instructions, /resolves to an external public URL/);
+  assert.match(String(template.reviewSourceRef), /external public URL/);
   assert.deepEqual(auditNobelReadinessPublicText(request), []);
   assert.deepEqual(auditNobelReadinessPublicText(instructions), []);
   assert.deepEqual(auditNobelReadinessPublicText(JSON.stringify(template)), []);

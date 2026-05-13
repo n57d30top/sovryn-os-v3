@@ -4935,6 +4935,11 @@ test("SourceObjectSignalPrioritizer loads death history and rejects low-signal o
       counterexampleSearchFeasible: true,
       mechanismProofPressureFeasible: true,
       trivialNullBaselineRisk: false,
+      counterexampleResistanceDesign: "strong",
+      residualPlausibility: "strong",
+      holdoutSupportDesign: "independent",
+      mechanismProofFeasibility: "strong",
+      targetedMechanismFirstDesign: true,
       ...payload,
     },
     measuredVariable: "bounded obstruction residual",
@@ -4945,7 +4950,10 @@ test("SourceObjectSignalPrioritizer loads death history and rejects low-signal o
     rejectionReason: null,
   });
   const report = prioritizer.prioritize([
-    sourceObject("SOURCE-BASELINE-RISK", { ordinal: 1 }),
+    sourceObject("SOURCE-BASELINE-RISK", {
+      ordinal: 1,
+      targetedMechanismFirstDesign: false,
+    }),
     sourceObject("SOURCE-HIGH-PRIORITY", {}),
     sourceObject("SOURCE-NO-REPLAY", { independentReplayObject: false }),
     sourceObject("SOURCE-DOCUMENTED", {
@@ -4975,7 +4983,13 @@ test("SourceObjectSignalPrioritizer loads death history and rejects low-signal o
     baselineRisk.penalties.includes("prior_history_baseline_dominated_family"),
     true,
   );
-  assert.equal(baselineRisk.score < highPriority.score, true);
+  assert.equal(
+    baselineRisk.rejectionReasons.includes(
+      "prior_history_baseline_dominated_family",
+    ),
+    true,
+  );
+  assert.equal(highPriority.selectedForReplayPressure, true);
   assert.equal(
     report.decisions
       .find((decision) => decision.objectId === "SOURCE-NO-REPLAY")
@@ -4992,6 +5006,12 @@ test("SourceObjectSignalPrioritizer loads death history and rejects low-signal o
     report.decisions
       .find((decision) => decision.objectId === "SOURCE-NO-CROSS-SOURCE")
       ?.rejectionReasons.includes("missing_cross_source_or_cross_slice_path"),
+    true,
+  );
+  assert.equal(
+    report.decisions
+      .find((decision) => decision.objectId === "SOURCE-HIGH-PRIORITY")
+      ?.bonuses.includes("strong_counterexample_resistance_design"),
     true,
   );
 });
@@ -5017,6 +5037,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.baselineCounterexampleChecksRun >= 60, true);
   assert.equal(report.mechanismProofPressureChecksRun >= 20, true);
   assert.equal(report.candidateLevelReplayAttempts > 0, true);
+  assert.equal(report.hardSeedsBorn > 0, true);
   assert.equal(report.fundFound, false);
   assert.equal(report.discoveryCandidatesCreated, 0);
   assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);

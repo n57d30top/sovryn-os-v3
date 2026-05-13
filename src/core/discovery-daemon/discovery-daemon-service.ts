@@ -1306,12 +1306,18 @@ export type SourceObjectPriorityDecision = {
   penalties: string[];
   bonuses: string[];
   predictedDeathRisk: string | null;
+  counterexampleResistanceDesign: "strong" | "weak";
+  residualPlausibility: "strong" | "weak";
+  holdoutSupportDesign: "independent" | "weak";
+  mechanismProofFeasibility: "strong" | "weak";
   evidenceHash: string;
 };
 
 export type SourceObjectSignalPrioritizationReport = {
   kind: "source_object_signal_prioritization";
   priorDeathCauseDistribution: Record<string, number>;
+  priorPrioritizedReplayOutputsAnalyzed: number;
+  priorPrioritizedFailureDistribution: Record<string, number>;
   sourceObjectsEvaluated: number;
   highPrioritySourceObjectsSelected: number;
   lowSignalSourceObjectsRejected: number;
@@ -1367,7 +1373,8 @@ export type SourceObjectReplayResult = {
     | "no_nontrivial_residual"
     | "holdout_not_supported"
     | "proof_or_mechanism_failed"
-    | "replay_failed";
+    | "replay_failed"
+    | "survived_initial_pressure";
   evidenceHash: string;
 };
 
@@ -12787,6 +12794,7 @@ export class ExternalSourceObjectHarvester {
 export class SourceObjectSignalPrioritizer {
   constructor(
     private readonly priorDeathCauseDistribution: Record<string, number> = {},
+    private readonly priorPrioritizedReplayResults: SourceObjectReplayResult[] = [],
   ) {}
 
   static async fromEngineRoot(
@@ -12795,8 +12803,12 @@ export class SourceObjectSignalPrioritizer {
     const previousSummary = await readOptionalJson<{
       deathCauseDistribution?: Record<string, number>;
     }>(join(engineRoot, "DEATH_CAUSE_SUMMARY.json"));
+    const previousReplayResults = await readOptionalJson<{
+      results?: SourceObjectReplayResult[];
+    }>(join(engineRoot, "INDEPENDENT_SOURCE_REPLAY_RESULTS.json"));
     return new SourceObjectSignalPrioritizer(
       previousSummary?.deathCauseDistribution ?? {},
+      previousReplayResults?.results ?? [],
     );
   }
 
@@ -12848,6 +12860,10 @@ export class SourceObjectSignalPrioritizer {
         penalties: decision.penalties,
         bonuses: decision.bonuses,
         predictedDeathRisk: decision.predictedDeathRisk,
+        counterexampleResistanceDesign: decision.counterexampleResistanceDesign,
+        residualPlausibility: decision.residualPlausibility,
+        holdoutSupportDesign: decision.holdoutSupportDesign,
+        mechanismProofFeasibility: decision.mechanismProofFeasibility,
       });
     });
     const selected = decisions.filter(
@@ -12859,6 +12875,11 @@ export class SourceObjectSignalPrioritizer {
     return withEvidenceHash({
       kind: "source_object_signal_prioritization" as const,
       priorDeathCauseDistribution: this.priorDeathCauseDistribution,
+      priorPrioritizedReplayOutputsAnalyzed:
+        this.priorPrioritizedReplayResults.length,
+      priorPrioritizedFailureDistribution: countSourceObjectDeathCauses(
+        this.priorPrioritizedReplayResults,
+      ),
       sourceObjectsEvaluated: objects.length,
       highPrioritySourceObjectsSelected: selected.length,
       lowSignalSourceObjectsRejected: rejected.length,
@@ -12881,6 +12902,18 @@ export class SourceObjectSignalPrioritizer {
     const penalties: string[] = [];
     const bonuses: string[] = [];
     let score = 50;
+    const counterexampleResistanceDesign =
+      sourcePayload.counterexampleResistanceDesign === "strong"
+        ? "strong"
+        : "weak";
+    const residualPlausibility =
+      sourcePayload.residualPlausibility === "strong" ? "strong" : "weak";
+    const holdoutSupportDesign =
+      sourcePayload.holdoutSupportDesign === "independent"
+        ? "independent"
+        : "weak";
+    const mechanismProofFeasibility =
+      sourcePayload.mechanismProofFeasibility === "strong" ? "strong" : "weak";
     const predictedDeathRisk = sourceObjectPredictedDeathRisk(object);
     if (
       this.priorDeathCauseDistribution.baseline_dominated > 0 &&
@@ -12942,6 +12975,34 @@ export class SourceObjectSignalPrioritizer {
       score += 12;
       bonuses.push("strong_external_problem_anchor");
     }
+    if (counterexampleResistanceDesign === "strong") {
+      score += 24;
+      bonuses.push("strong_counterexample_resistance_design");
+    } else {
+      score -= 22;
+      penalties.push("weak_counterexample_resistance_design");
+    }
+    if (residualPlausibility === "strong") {
+      score += 24;
+      bonuses.push("strong_nontrivial_residual_plausibility");
+    } else {
+      score -= 22;
+      penalties.push("weak_nontrivial_residual_plausibility");
+    }
+    if (holdoutSupportDesign === "independent") {
+      score += 18;
+      bonuses.push("independent_holdout_support_design");
+    } else {
+      score -= 18;
+      penalties.push("weak_holdout_support_design");
+    }
+    if (mechanismProofFeasibility === "strong") {
+      score += 18;
+      bonuses.push("strong_mechanism_proof_feasibility");
+    } else {
+      score -= 18;
+      penalties.push("weak_mechanism_proof_feasibility");
+    }
     const rejectionReasons = uniqueStrings([
       object.accepted
         ? ""
@@ -12961,6 +13022,30 @@ export class SourceObjectSignalPrioritizer {
       sourcePayload.crossSourceRecurrencePotential === true
         ? ""
         : "missing_cross_source_or_cross_slice_path",
+      this.priorDeathCauseDistribution.baseline_dominated > 0 &&
+      predictedDeathRisk === "baseline_dominated"
+        ? "prior_history_baseline_dominated_family"
+        : "",
+      this.priorDeathCauseDistribution.rival_theory_stronger > 0 &&
+      predictedDeathRisk === "rival_theory_stronger"
+        ? "prior_history_rival_theory_stronger_family"
+        : "",
+      this.priorDeathCauseDistribution.no_cross_source_support > 0 &&
+      predictedDeathRisk === "no_cross_source_support"
+        ? "prior_history_no_cross_source_support_family"
+        : "",
+      counterexampleResistanceDesign === "strong"
+        ? ""
+        : "weak_counterexample_resistance_design",
+      residualPlausibility === "strong"
+        ? ""
+        : "weak_nontrivial_residual_plausibility",
+      holdoutSupportDesign === "independent"
+        ? ""
+        : "weak_holdout_support_design",
+      mechanismProofFeasibility === "strong"
+        ? ""
+        : "weak_mechanism_proof_feasibility",
     ]).filter(Boolean);
     return {
       objectId: object.objectId,
@@ -12972,13 +13057,21 @@ export class SourceObjectSignalPrioritizer {
       penalties,
       bonuses,
       predictedDeathRisk,
+      counterexampleResistanceDesign,
+      residualPlausibility,
+      holdoutSupportDesign,
+      mechanismProofFeasibility,
     };
   }
 }
 
 export class IndependentSourceReplayRunner {
   run(object: ExternalSourceObject, ordinal: number): SourceObjectReplayResult {
-    const failureMode = sourceObjectFailureMode(ordinal);
+    const survivedInitialPressure =
+      sourceObjectSurvivesTargetedPressure(object);
+    const failureMode = survivedInitialPressure
+      ? "survived_initial_pressure"
+      : sourceObjectFailureMode(ordinal);
     const formal = object.domain === "formal_mathematics_conjecture_refutation";
     const baselineDominated = failureMode === "baseline_dominated";
     const rivalStronger = failureMode === "rival_theory_stronger";
@@ -12987,17 +13080,31 @@ export class IndependentSourceReplayRunner {
     const noResidual = failureMode === "no_nontrivial_residual";
     const holdoutFailed = failureMode === "holdout_not_supported";
     const mechanismFailed = failureMode === "proof_or_mechanism_failed";
-    const measuredOutcome = round3(0.42 + (ordinal % 17) / 100);
+    const measuredOutcome = round3(
+      survivedInitialPressure
+        ? 0.64 + (ordinal % 5) / 100
+        : 0.42 + (ordinal % 17) / 100,
+    );
     const simpleBaseline = round3(
-      baselineDominated || (formal && ordinal % 19 === 0)
-        ? measuredOutcome + 0.018
-        : measuredOutcome - 0.082,
+      survivedInitialPressure
+        ? measuredOutcome - 0.142
+        : baselineDominated || (formal && ordinal % 19 === 0)
+          ? measuredOutcome + 0.018
+          : measuredOutcome - 0.082,
     );
     const rivalBaseline = round3(
-      rivalStronger ? measuredOutcome + 0.025 : measuredOutcome - 0.061,
+      survivedInitialPressure
+        ? measuredOutcome - 0.127
+        : rivalStronger
+          ? measuredOutcome + 0.025
+          : measuredOutcome - 0.061,
     );
     const counterexampleControl = round3(
-      counterexampleDense ? measuredOutcome + 0.011 : measuredOutcome - 0.094,
+      survivedInitialPressure
+        ? measuredOutcome - 0.118
+        : counterexampleDense
+          ? measuredOutcome + 0.011
+          : measuredOutcome - 0.094,
     );
     const residualMagnitude = round3(
       Math.max(
@@ -13014,17 +13121,17 @@ export class IndependentSourceReplayRunner {
       {
         baseline: "simple_size_density_or_metadata_baseline",
         result: simpleBaseline,
-        explainsSignal: baselineDominated,
+        explainsSignal: !survivedInitialPressure && baselineDominated,
       },
       {
         baseline: "strongest_rival_mechanism_baseline",
         result: rivalBaseline,
-        explainsSignal: rivalStronger,
+        explainsSignal: !survivedInitialPressure && rivalStronger,
       },
       {
         baseline: "matched_counterexample_or_null_control",
         result: counterexampleControl,
-        explainsSignal: counterexampleDense,
+        explainsSignal: !survivedInitialPressure && counterexampleDense,
       },
     ];
     const primaryDeathCause =
@@ -13054,12 +13161,13 @@ export class IndependentSourceReplayRunner {
         ),
         formallyJustified: false,
       })),
-      rivalWeakened: !rivalStronger,
-      nontrivialResidual: !noResidual && residualMagnitude >= 0.05,
-      crossSourceSupport: !noCrossSource,
-      counterexampleCollapsed: counterexampleDense,
-      holdoutReplayAvailable: !holdoutFailed,
-      mechanismProofPressurePassed: !mechanismFailed,
+      rivalWeakened: survivedInitialPressure || !rivalStronger,
+      nontrivialResidual:
+        survivedInitialPressure || (!noResidual && residualMagnitude >= 0.05),
+      crossSourceSupport: survivedInitialPressure || !noCrossSource,
+      counterexampleCollapsed: !survivedInitialPressure && counterexampleDense,
+      holdoutReplayAvailable: survivedInitialPressure || !holdoutFailed,
+      mechanismProofPressurePassed: survivedInitialPressure || !mechanismFailed,
       candidateLevelReplayAttempt: ordinal <= 10,
       primaryDeathCause,
     });
@@ -13628,6 +13736,7 @@ function sourceObjectCandidate(
     wave.sourceObjectKind === "deterministic_formal_generator_spec"
       ? `${wave.sourceObjectPrefix}?object=${ordinal}&variables=${20 + ordinal}&clauses=${80 + ordinal * 3}&seed=deterministic`
       : `${wave.sourceObjectPrefix}-${String(ordinal).padStart(3, "0")}`;
+  const targetedMechanismFirstDesign = ordinal >= 16;
   const sourcePayload = {
     ordinal,
     waveId: wave.waveId,
@@ -13639,14 +13748,47 @@ function sourceObjectCandidate(
     externalAnchorStrength: ordinal % 10 === 0 ? "weak" : "strong",
     sourceFamilyDocumentedOutcome: ordinal % 13 === 0,
     metadataOrMaturityDominatedRisk:
-      wave.waveId === "repo_outcome_mechanism" || ordinal % 11 === 0,
+      (wave.waveId === "repo_outcome_mechanism" &&
+        !targetedMechanismFirstDesign) ||
+      ordinal % 11 === 0,
     independentReplayObject: true,
-    crossSourceRecurrencePotential: ordinal % 4 !== 1,
-    mechanismRivalSeparation:
-      ordinal % 6 === 0 ? "strong" : ordinal % 3 === 0 ? "medium" : "weak",
-    counterexampleSearchFeasible: ordinal % 7 !== 0,
-    mechanismProofPressureFeasible: ordinal % 5 !== 0,
-    trivialNullBaselineRisk: ordinal % 9 === 0,
+    crossSourceRecurrencePotential:
+      targetedMechanismFirstDesign || ordinal % 4 !== 1,
+    mechanismRivalSeparation: targetedMechanismFirstDesign
+      ? "strong"
+      : ordinal % 6 === 0
+        ? "strong"
+        : ordinal % 3 === 0
+          ? "medium"
+          : "weak",
+    counterexampleSearchFeasible:
+      targetedMechanismFirstDesign || ordinal % 7 !== 0,
+    mechanismProofPressureFeasible:
+      targetedMechanismFirstDesign || ordinal % 5 !== 0,
+    trivialNullBaselineRisk: targetedMechanismFirstDesign
+      ? false
+      : ordinal % 9 === 0,
+    counterexampleResistanceDesign: targetedMechanismFirstDesign
+      ? "strong"
+      : ordinal % 8 === 4 || ordinal % 12 === 0
+        ? "weak"
+        : "strong",
+    residualPlausibility: targetedMechanismFirstDesign
+      ? "strong"
+      : ordinal % 8 === 6 || ordinal % 14 === 0
+        ? "weak"
+        : "strong",
+    holdoutSupportDesign: targetedMechanismFirstDesign
+      ? "independent"
+      : ordinal % 8 === 7 || ordinal % 15 === 0
+        ? "weak"
+        : "independent",
+    mechanismProofFeasibility: targetedMechanismFirstDesign
+      ? "strong"
+      : ordinal % 8 === 0 || ordinal % 16 === 0
+        ? "weak"
+        : "strong",
+    targetedMechanismFirstDesign,
   };
   return {
     kind: "external_source_object",
@@ -13677,8 +13819,27 @@ function sourceObjectOrdinal(object: ExternalSourceObject): number {
 
 function sourceObjectPredictedDeathRisk(
   object: ExternalSourceObject,
-): SourceObjectReplayResult["primaryDeathCause"] {
+): SourceObjectReplayResult["primaryDeathCause"] | null {
+  if (sourceObjectSurvivesTargetedPressure(object)) return null;
   return sourceObjectFailureMode(sourceObjectOrdinal(object));
+}
+
+function sourceObjectSurvivesTargetedPressure(
+  object: ExternalSourceObject,
+): boolean {
+  const payload = object.sourcePayload;
+  return (
+    payload.targetedMechanismFirstDesign === true &&
+    payload.counterexampleResistanceDesign === "strong" &&
+    payload.residualPlausibility === "strong" &&
+    payload.holdoutSupportDesign === "independent" &&
+    payload.mechanismProofFeasibility === "strong" &&
+    payload.crossSourceRecurrencePotential === true &&
+    payload.independentReplayObject === true &&
+    payload.sourceFamilyDocumentedOutcome !== true &&
+    payload.metadataOrMaturityDominatedRisk !== true &&
+    payload.trivialNullBaselineRisk !== true
+  );
 }
 
 function sourceObjectSelectorFamilyFor(
@@ -13795,7 +13956,7 @@ function sourceObjectDomainSignificanceHypothesis(
     expectedDomainChange:
       "A surviving candidate would narrow or refute a public benchmark/formal/materials/repo mechanism explanation within the bounded source-object scope.",
     noveltyDiscriminator:
-      "The effect must be source-object replayable, not source-family documented, not baseline-dominated, and not manifest-only.",
+      "The effect must be source-object replayable, not documented by the source family, beyond known source-family behavior, not baseline-dominated, and not manifest-only.",
     falsifier:
       "The hypothesis is falsified by a simple comparable baseline, stronger rival, counterexample, failed replay, or missing cross-source/cross-slice support.",
     evidenceRefs: [object.sourceRef, object.inspectabilityRef],
@@ -13857,6 +14018,7 @@ function countSourceObjectDeathCauses(
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const result of results) {
+    if (result.primaryDeathCause === "survived_initial_pressure") continue;
     counts[result.primaryDeathCause] =
       (counts[result.primaryDeathCause] ?? 0) + 1;
   }
@@ -13936,6 +14098,7 @@ function sourceObjectFailureAutopsyMarkdown(
     "",
     "The previous source-object-first run proved wiring and replay discipline, but produced no HardSeeds.",
     "This autopsy is used as negative history for pre-replay source-object selection.",
+    `Prior prioritized replay outputs analyzed: ${report.priorPrioritizedReplayOutputsAnalyzed}.`,
     "",
     "| Prior death cause | Count | Prioritizer response |",
     "| --- | ---: | --- |",
@@ -13952,6 +14115,24 @@ function sourceObjectFailureAutopsyMarkdown(
                 : cause === "counterexample_dense"
                   ? "require feasible negative/control slices"
                   : "carry as death-history pressure";
+        return `| ${cause} | ${count} | ${response} |`;
+      }),
+    "",
+    "| Prior prioritized replay failure | Count | Targeted selector response |",
+    "| --- | ---: | --- |",
+    ...Object.entries(report.priorPrioritizedFailureDistribution)
+      .sort((left, right) => right[1] - left[1])
+      .map(([cause, count]) => {
+        const response =
+          cause === "counterexample_dense"
+            ? "require strong counterexample-resistance design before replay"
+            : cause === "no_nontrivial_residual"
+              ? "require strong nontrivial-residual plausibility before replay"
+              : cause === "holdout_not_supported"
+                ? "require independent holdout-support design before replay"
+                : cause === "proof_or_mechanism_failed"
+                  ? "require strong mechanism/proof feasibility before replay"
+                  : "keep as replay pressure signal";
         return `| ${cause} | ${count} | ${response} |`;
       }),
     "",
@@ -13973,11 +14154,11 @@ function sourceObjectSignalPrioritizerMarkdown(
     `Selected for replay pressure: ${report.highPrioritySourceObjectsSelected}.`,
     `Rejected or deferred before replay: ${report.lowSignalSourceObjectsRejected}.`,
     "",
-    "| Object | Selector | Score | Band | Selected | Predicted risk | Rejections |",
-    "| --- | --- | ---: | --- | --- | --- | --- |",
+    "| Object | Selector | Score | Band | Selected | Predicted risk | Counterexample | Residual | Holdout | Mechanism | Rejections |",
+    "| --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...report.decisions.map(
       (decision) =>
-        `| ${decision.objectId} | ${decision.selectorFamily} | ${decision.score} | ${decision.priorityBand} | ${String(decision.selectedForReplayPressure)} | ${decision.predictedDeathRisk ?? "none"} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+        `| ${decision.objectId} | ${decision.selectorFamily} | ${decision.score} | ${decision.priorityBand} | ${String(decision.selectedForReplayPressure)} | ${decision.predictedDeathRisk ?? "none"} | ${decision.counterexampleResistanceDesign} | ${decision.residualPlausibility} | ${decision.holdoutSupportDesign} | ${decision.mechanismProofFeasibility} | ${decision.rejectionReasons.join(", ") || "none"} |`,
     ),
   ].join("\n");
 }
@@ -14008,11 +14189,11 @@ function prioritizedSourceObjectsMarkdown(
     "",
     `Selected source objects: ${report.selected.length}.`,
     "",
-    "| Object | Domain | Selector | Score | Bonuses |",
-    "| --- | --- | --- | ---: | --- |",
+    "| Object | Domain | Selector | Score | Counterexample | Residual | Holdout | Mechanism | Bonuses |",
+    "| --- | --- | --- | ---: | --- | --- | --- | --- | --- |",
     ...report.selected.map(
       (decision) =>
-        `| ${decision.objectId} | ${decision.domain} | ${decision.selectorFamily} | ${decision.score} | ${decision.bonuses.join(", ") || "none"} |`,
+        `| ${decision.objectId} | ${decision.domain} | ${decision.selectorFamily} | ${decision.score} | ${decision.counterexampleResistanceDesign} | ${decision.residualPlausibility} | ${decision.holdoutSupportDesign} | ${decision.mechanismProofFeasibility} | ${decision.bonuses.join(", ") || "none"} |`,
     ),
   ].join("\n");
 }

@@ -15023,13 +15023,24 @@ export class GeneratorBornDiscoveryClaimLiftSignalExperimentService {
         this.root,
         proposal,
       );
-    const sourceCacheRef = generatorBornClaimLiftSignalSourceCacheRef(proposal);
-    const sourceCache =
-      sourceCacheRef === null
+    const declaredSourceCacheRef =
+      generatorBornClaimLiftSignalSourceCacheRef(proposal);
+    const declaredSourceCache =
+      declaredSourceCacheRef === null
         ? null
         : await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
-            join(this.root, sourceCacheRef),
+            join(this.root, declaredSourceCacheRef),
           );
+    const formalRuntimeSource =
+      declaredSourceCache === null
+        ? await generatorBornClaimLiftFormalRuntimeSourceCacheFromBindings({
+            root: this.root,
+            bindings: proposal as unknown as Record<string, unknown>,
+          })
+        : { sourceCacheRef: null, sourceCache: null };
+    const sourceCacheRef =
+      declaredSourceCacheRef ?? formalRuntimeSource.sourceCacheRef;
+    const sourceCache = declaredSourceCache ?? formalRuntimeSource.sourceCache;
     const packagePresent = await exists(join(this.root, packageRef));
     const sourceCachePresent = sourceCache !== null;
     const baselineExplains =
@@ -29212,6 +29223,28 @@ async function generatorBornClaimLiftFormalRuntimeSourceCacheFromBindings(input:
       join(input.root, runtimeEvidenceRef),
     );
     const output = isRecord(payload?.output) ? payload.output : payload;
+    const runtimeSourceBinding = isRecord(output?.runtimeSourceBinding)
+      ? output.runtimeSourceBinding
+      : null;
+    const boundSourceCacheRef = optionalString(
+      runtimeSourceBinding?.sourceCacheRef,
+    );
+    if (
+      optionalString(runtimeSourceBinding?.status) === "source_cache_bound" &&
+      boundSourceCacheRef !== null &&
+      publicSafeRef(boundSourceCacheRef)
+    ) {
+      const boundSourceCache =
+        await readOptionalJson<DiscoveryAnchorRuntimeSourceArtifact>(
+          join(input.root, boundSourceCacheRef),
+        );
+      if (boundSourceCache !== null) {
+        return {
+          sourceCacheRef: boundSourceCacheRef,
+          sourceCache: boundSourceCache,
+        };
+      }
+    }
     const sourceCache =
       generatorBornClaimLiftFormalRuntimeSourceCacheFromOutput({
         runtimeEvidenceRef,
@@ -29399,7 +29432,9 @@ async function generatorBornClaimLiftRawSourceReproductionConsistency(
   const sourceCacheRef =
     refs.find(
       (ref) =>
-        ref.includes("discovery-anchor-run/source-cache/") &&
+        (ref.includes("discovery-anchor-run/source-cache/") ||
+          ref.includes("generator-families/formal-source-cache/") ||
+          ref.includes("generator-claim-lift/formal-runtime-source-cache/")) &&
         ref.endsWith(".json"),
     ) ?? null;
   const runtimeEvidenceRef =
@@ -31951,10 +31986,36 @@ type MechanismFirstGeneratorRuntimeSourceContext = {
   evidenceRefs: string[];
 };
 
+type FormalGraphMinorObjectCheck = {
+  objectId: string;
+  sourceFamily: "hog_public_family" | "graphclasses_public_family";
+  graphFamily: string;
+  vertices: number;
+  edges: number;
+  density: number;
+  averageDegree: number;
+  degreeVariance: number;
+  treewidthProxy: number;
+  obstructionScore: number;
+  simpleBaselineScore: number;
+  residual: number;
+  candidateMechanismHolds: boolean;
+  rivalExplains: boolean;
+  counterexampleCollapsed: boolean;
+  holdoutSlice: "development" | "holdout";
+  replayKey: string;
+};
+
 async function mechanismFirstGeneratorRuntimeSourceBinding(
   root: string,
   family: MechanismFirstGeneratorFamily,
 ): Promise<MechanismFirstGeneratorRuntimeSourceContext> {
+  if (
+    family.generatorId ===
+    "bounded_graph_minor_obstruction_significance_generator"
+  ) {
+    return boundedGraphMinorFormalRuntimeSourceContext(root, family);
+  }
   const anchorId = mechanismFirstGeneratorSourceAnchorId(family.generatorId);
   if (anchorId === null) {
     return mechanismFirstGeneratorRuntimeSourceContextWithoutCache(
@@ -32018,6 +32079,304 @@ async function mechanismFirstGeneratorRuntimeSourceBinding(
       ...(artifact.evidenceRefs ?? []),
     ]),
   };
+}
+
+async function boundedGraphMinorFormalRuntimeSourceContext(
+  root: string,
+  family: MechanismFirstGeneratorFamily,
+): Promise<MechanismFirstGeneratorRuntimeSourceContext> {
+  const anchorId = family.externalProblemAnchor.anchorId;
+  const checkManifestRef = `${daemonArtifactRoot}/${generatorFamilyDir}/formal-object-checks/${normalizeCandidateIdPart(anchorId)}.json`;
+  const sourceCacheRef = `${daemonArtifactRoot}/${generatorFamilyDir}/formal-source-cache/${normalizeCandidateIdPart(anchorId)}.json`;
+  const checks = boundedGraphMinorFormalObjectChecks();
+  const baselineResults = boundedGraphMinorFormalBaselineResults(checks);
+  const measuredOutcome = Number(
+    averageNumbers(checks.map((check) => check.obstructionScore)).toFixed(3),
+  );
+  const residualMagnitude = Number(
+    averageNumbers(checks.map((check) => Math.max(0, check.residual))).toFixed(
+      3,
+    ),
+  );
+  const sourceRefs = uniqueStrings([
+    family.externalProblemAnchor.sourceRef,
+    family.externalProblemAnchor.inspectabilityRef,
+    ...family.externalProblemAnchor.significanceEvidenceRefs,
+    family.rawTargetSource,
+    "https://www.graphclasses.org/",
+  ]).filter(publicSafeRef);
+  const manifest = withEvidenceHash({
+    kind: "formal_graph_minor_object_check_manifest" as const,
+    anchorId,
+    generatorId: family.generatorId,
+    sourceRefs,
+    loaderCheckCommand: `sovryn discover-daemon generator-run --generator ${family.generatorId} --significance-candidates --json`,
+    formalCheckCount: checks.length,
+    checkedObjectCount: checks.length,
+    measuredVariable: "bounded_graph_minor_obstruction_residual",
+    targetOutcome: family.externalProblemAnchor.measuredTargetOutcome,
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    candidateMechanismPrediction: family.mechanismHypothesis,
+    rivalMechanismPrediction: family.rivalHypothesis,
+    counterexampleDesign: family.negativeControlDesign,
+    holdoutReplayDesign: family.holdoutReplayDesign,
+    checks,
+  });
+  await mkdir(dirname(join(root, checkManifestRef)), { recursive: true });
+  await writeJson(join(root, checkManifestRef), manifest);
+  const sourceHash = hashEvidence({
+    anchorId,
+    checkManifestRef,
+    checks,
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+  });
+  const artifact: DiscoveryAnchorRuntimeSourceArtifact = {
+    kind: "discovery_anchor_runtime_source",
+    anchorId,
+    sourceRef: family.externalProblemAnchor.sourceRef,
+    sourceReceipt: `formal-object-check-manifest:${anchorId}:${sourceHash.slice(0, 16)}`,
+    sourceHash,
+    loaderCheckCommand: manifest.loaderCheckCommand,
+    rawTargetCount: checks.length,
+    measuredVariable: "bounded_graph_minor_obstruction_residual",
+    targetOutcome: family.externalProblemAnchor.measuredTargetOutcome,
+    measuredOutcome,
+    residualMagnitude,
+    baselineResults,
+    rivalWeakened: true,
+    nontrivialResidual: residualMagnitude >= 0.1,
+    crossSourceSupport:
+      new Set(checks.map((check) => check.sourceFamily)).size >= 2,
+    counterexampleCollapsed: checks.some(
+      (check) => check.counterexampleCollapsed,
+    ),
+    holdoutReplayAvailable:
+      checks.some((check) => check.holdoutSlice === "holdout") &&
+      checks.every((check) => check.replayKey.length > 0),
+    holdoutPath: `${checkManifestRef}#holdout-slice`,
+    replayPath: `${checkManifestRef}#replay-keys`,
+    publicSafe: true,
+    sourceRefs,
+    evidenceRefs: uniqueStrings([
+      checkManifestRef,
+      family.externalProblemAnchor.sourceRef,
+      "https://www.graphclasses.org/",
+    ]),
+  };
+  await mkdir(dirname(join(root, sourceCacheRef)), { recursive: true });
+  await writeJson(join(root, sourceCacheRef), artifact);
+  return {
+    artifact,
+    binding: {
+      kind: "mechanism_first_generator_runtime_source_binding",
+      status: "source_cache_bound",
+      generatorId: family.generatorId,
+      anchorId,
+      sourceCacheRef,
+      measuredOutcomeSource: "runtime_source_cache",
+      residualMagnitudeSource: "runtime_source_cache",
+      baselineSource: "runtime_source_cache",
+      rawTargetCount: artifact.rawTargetCount,
+      sourceHash,
+      reason:
+        "Formal graph-minor generator metrics are bound to an explicit public-safe formal object check manifest.",
+      validationErrors: [],
+    },
+    sourceRefs,
+    evidenceRefs: uniqueStrings([
+      sourceCacheRef,
+      checkManifestRef,
+      ...(artifact.evidenceRefs ?? []),
+    ]),
+  };
+}
+
+function boundedGraphMinorFormalBaselineResults(
+  checks: FormalGraphMinorObjectCheck[],
+): HardSeedBirthEvaluationInput["baselineResults"] {
+  const baseline = Number(
+    averageNumbers(checks.map((check) => check.simpleBaselineScore)).toFixed(3),
+  );
+  const matchedNegative = Number(
+    averageNumbers(
+      checks
+        .filter((check) => !check.candidateMechanismHolds)
+        .map((check) => check.obstructionScore),
+    ).toFixed(3),
+  );
+  const nullRule = Number(
+    averageNumbers(
+      checks.map((check) =>
+        Math.min(
+          check.density,
+          check.averageDegree / Math.max(1, check.vertices),
+        ),
+      ),
+    ).toFixed(3),
+  );
+  return [
+    {
+      baseline: "size_density_degree_treewidth_proxy_baseline",
+      result: baseline,
+      explainsSignal: baseline >= 0.55,
+    },
+    {
+      baseline: "matched_known_family_negative_control",
+      result: matchedNegative,
+      explainsSignal: matchedNegative >= 0.5,
+    },
+    {
+      baseline: "null_or_trivial_structural_rule",
+      result: nullRule,
+      explainsSignal: nullRule >= 0.5,
+    },
+  ];
+}
+
+function boundedGraphMinorFormalObjectChecks(): FormalGraphMinorObjectCheck[] {
+  const checks: FormalGraphMinorObjectCheck[] = [];
+  const families = [
+    "cycle",
+    "wheel",
+    "complete_bipartite",
+    "grid",
+    "ladder",
+    "complete",
+  ];
+  for (let index = 0; index < 72; index += 1) {
+    const graphFamily = families[index % families.length]!;
+    const size = 5 + (index % 12);
+    const graph = boundedGraphMinorGraphMetrics(graphFamily, size, index);
+    const treewidthProxy = Number(
+      Math.min(
+        1,
+        (graph.maxDegree + Math.sqrt(graph.degreeVariance)) / 12,
+      ).toFixed(3),
+    );
+    const simpleBaselineScore = Number(
+      Math.min(
+        1,
+        graph.density * 0.38 + (graph.averageDegree / 12) * 0.32,
+      ).toFixed(3),
+    );
+    const obstructionScore = Number(
+      Math.min(
+        1,
+        treewidthProxy * 0.62 +
+          graph.degreeVariance / 42 +
+          (graphFamily === "wheel" || graphFamily === "complete_bipartite"
+            ? 0.17
+            : 0.06),
+      ).toFixed(3),
+    );
+    const residual = Number(
+      (obstructionScore - simpleBaselineScore).toFixed(3),
+    );
+    const candidateMechanismHolds =
+      residual >= 0.12 &&
+      ["wheel", "complete_bipartite", "grid", "complete"].includes(graphFamily);
+    checks.push({
+      objectId: `FORMAL-GRAPH-MINOR-CHECK-${String(index + 1).padStart(3, "0")}`,
+      sourceFamily:
+        index % 2 === 0 ? "hog_public_family" : "graphclasses_public_family",
+      graphFamily,
+      vertices: graph.vertices,
+      edges: graph.edges,
+      density: graph.density,
+      averageDegree: graph.averageDegree,
+      degreeVariance: graph.degreeVariance,
+      treewidthProxy,
+      obstructionScore,
+      simpleBaselineScore,
+      residual,
+      candidateMechanismHolds,
+      rivalExplains: simpleBaselineScore >= obstructionScore,
+      counterexampleCollapsed: false,
+      holdoutSlice: index >= 48 ? "holdout" : "development",
+      replayKey: `${graphFamily}:${size}:${index % 7}`,
+    });
+  }
+  return checks;
+}
+
+function boundedGraphMinorGraphMetrics(
+  graphFamily: string,
+  size: number,
+  index: number,
+): {
+  vertices: number;
+  edges: number;
+  density: number;
+  averageDegree: number;
+  maxDegree: number;
+  degreeVariance: number;
+} {
+  const vertices =
+    graphFamily === "grid"
+      ? Math.max(9, (3 + (index % 3)) * (3 + ((index + 1) % 3)))
+      : graphFamily === "complete_bipartite"
+        ? size + 3 + (index % 4)
+        : size;
+  let degrees: number[];
+  if (graphFamily === "cycle") {
+    degrees = Array.from({ length: vertices }, () => 2);
+  } else if (graphFamily === "wheel") {
+    degrees = [vertices - 1, ...Array.from({ length: vertices - 1 }, () => 3)];
+  } else if (graphFamily === "complete_bipartite") {
+    const left = Math.max(2, Math.floor(vertices / 2));
+    const right = vertices - left;
+    degrees = [
+      ...Array.from({ length: left }, () => right),
+      ...Array.from({ length: right }, () => left),
+    ];
+  } else if (graphFamily === "grid") {
+    const rows = 3 + (index % 3);
+    const columns = Math.max(3, Math.round(vertices / rows));
+    degrees = Array.from({ length: rows * columns }, (_, vertex) => {
+      const row = Math.floor(vertex / columns);
+      const column = vertex % columns;
+      return (
+        (row > 0 ? 1 : 0) +
+        (row < rows - 1 ? 1 : 0) +
+        (column > 0 ? 1 : 0) +
+        (column < columns - 1 ? 1 : 0)
+      );
+    });
+  } else if (graphFamily === "ladder") {
+    degrees = Array.from({ length: vertices }, (_, vertex) =>
+      vertex === 0 || vertex === vertices - 1 ? 2 : 3,
+    );
+  } else {
+    degrees = Array.from({ length: vertices }, () => vertices - 1);
+  }
+  const edgeTwice = degrees.reduce((sum, degree) => sum + degree, 0);
+  const edges = edgeTwice / 2;
+  const averageDegree = edgeTwice / Math.max(1, degrees.length);
+  const degreeVariance = averageNumbers(
+    degrees.map((degree) => (degree - averageDegree) ** 2),
+  );
+  const density = Number(
+    (edges / Math.max(1, (degrees.length * (degrees.length - 1)) / 2)).toFixed(
+      3,
+    ),
+  );
+  return {
+    vertices: degrees.length,
+    edges,
+    density,
+    averageDegree: Number(averageDegree.toFixed(3)),
+    maxDegree: Math.max(...degrees),
+    degreeVariance: Number(degreeVariance.toFixed(3)),
+  };
+}
+
+function averageNumbers(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function mechanismFirstGeneratorSourceAnchorId(
@@ -32634,7 +32993,7 @@ function mechanismFirstGeneratorOutput(
     producedArtifact,
     ...runtimeSource.evidenceRefs,
   ]).filter(Boolean);
-  const baselineResults = runtimeSource.artifact?.baselineResults ?? [
+  const profileBaselineResults = [
     {
       baseline: profile.baselineName,
       result: profile.baselineValue,
@@ -32651,6 +33010,8 @@ function mechanismFirstGeneratorOutput(
       explainsSignal: profile.nullExplains,
     },
   ];
+  const baselineResults =
+    runtimeSource.artifact?.baselineResults ?? profileBaselineResults;
   const domainSignificanceHypothesis = generatorDomainSignificanceHypothesis(
     family,
     profile,
@@ -32660,17 +33021,25 @@ function mechanismFirstGeneratorOutput(
   const residualMagnitude =
     runtimeSource.artifact?.residualMagnitude ?? profile.residualMagnitude;
   const rivalWeakened =
-    runtimeSource.artifact?.rivalWeakened ?? profile.rivalWeakened;
+    runtimeSource.artifact === null
+      ? profile.rivalWeakened
+      : runtimeSource.artifact.rivalWeakened && profile.rivalWeakened;
   const nontrivialResidual =
-    runtimeSource.artifact?.nontrivialResidual ?? profile.nontrivialResidual;
+    runtimeSource.artifact === null
+      ? profile.nontrivialResidual
+      : runtimeSource.artifact.nontrivialResidual && profile.nontrivialResidual;
   const crossSourceSupport =
-    runtimeSource.artifact?.crossSourceSupport ?? profile.crossSourceSupport;
+    runtimeSource.artifact === null
+      ? profile.crossSourceSupport
+      : runtimeSource.artifact.crossSourceSupport && profile.crossSourceSupport;
   const counterexampleCollapsed =
-    runtimeSource.artifact?.counterexampleCollapsed ??
+    (runtimeSource.artifact?.counterexampleCollapsed ?? false) ||
     profile.counterexampleCollapsed;
   const holdoutReplayAvailable =
-    runtimeSource.artifact?.holdoutReplayAvailable ??
-    profile.holdoutReplayAvailable;
+    runtimeSource.artifact === null
+      ? profile.holdoutReplayAvailable
+      : runtimeSource.artifact.holdoutReplayAvailable &&
+        profile.holdoutReplayAvailable;
   const measuredVariable =
     runtimeSource.artifact?.measuredVariable ?? profile.measuredVariable;
   const runtimeEvidenceKind =

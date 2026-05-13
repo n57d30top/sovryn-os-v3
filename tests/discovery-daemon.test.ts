@@ -1151,10 +1151,7 @@ async function writeClaimLiftSourceSignalCaches(root: string): Promise<void> {
   }
 }
 
-async function addFormalRuntimeCheckCountToBornGraphMinorEvidence(
-  root: string,
-  formalCheckCount: number,
-): Promise<void> {
+async function stripGraphMinorRuntimeSourceDepth(root: string): Promise<void> {
   const runtimeRoot = join(
     root,
     daemonRoot,
@@ -1167,12 +1164,36 @@ async function addFormalRuntimeCheckCountToBornGraphMinorEvidence(
   ]) {
     const evidencePath = join(runtimeRoot, `${outputId}.json`);
     const payload = JSON.parse(await readFile(evidencePath, "utf8")) as {
-      output?: Record<string, unknown>;
+      output?: Record<string, unknown> & {
+        runtimeEvidenceKind?: string;
+        runtimeSourceBinding?: Record<string, unknown>;
+        evidenceRefs?: string[];
+      };
     };
-    payload.output = {
-      ...(payload.output ?? {}),
-      formalCheckCount,
+    const output = payload.output ?? {};
+    output.runtimeEvidenceKind = "generated_formal_object";
+    output.runtimeSourceBinding = {
+      ...(output.runtimeSourceBinding ?? {}),
+      status: "source_cache_not_applicable",
+      sourceCacheRef: null,
+      rawTargetCount: null,
+      sourceHash: null,
+      measuredOutcomeSource: "generator_profile",
+      residualMagnitudeSource: "generator_profile",
+      baselineSource: "generator_profile",
     };
+    delete output.formalCheckCount;
+    delete output.formalObjectCount;
+    delete output.generatedObjectCount;
+    delete output.checkCount;
+    delete output.casesChecked;
+    delete output.rawTargetCount;
+    output.evidenceRefs = (output.evidenceRefs ?? []).filter(
+      (ref) =>
+        !ref.includes("/formal-object-checks/") &&
+        !ref.includes("/formal-source-cache/"),
+    );
+    payload.output = output;
     await writeFile(evidencePath, JSON.stringify(payload, null, 2), "utf8");
   }
 }
@@ -1262,7 +1283,9 @@ async function alignClaimLiftSourceCacheWithRuntimeEvidence(
   const refs = payload.candidate?.insightEvidenceRefs ?? [];
   const sourceCacheRef = refs.find(
     (ref) =>
-      ref.includes("discovery-anchor-run/source-cache/") &&
+      (ref.includes("discovery-anchor-run/source-cache/") ||
+        ref.includes("generator-families/formal-source-cache/") ||
+        ref.includes("generator-claim-lift/formal-runtime-source-cache/")) &&
       ref.endsWith(".json"),
   );
   const runtimeEvidenceRef = refs.find(
@@ -1312,7 +1335,9 @@ async function alignClaimLiftExperimentSourceCachesWithRuntimeEvidence(
     const refs = decision.bindableInsightEvidenceRefs ?? [];
     const sourceCacheRef = refs.find(
       (ref) =>
-        ref.includes("discovery-anchor-run/source-cache/") &&
+        (ref.includes("discovery-anchor-run/source-cache/") ||
+          ref.includes("generator-families/formal-source-cache/") ||
+          ref.includes("generator-claim-lift/formal-runtime-source-cache/")) &&
         ref.endsWith(".json"),
     );
     const runtimeEvidenceRef = refs.find(
@@ -1369,7 +1394,9 @@ async function misalignClaimLiftSourceCacheFromRuntimeEvidence(
   const refs = payload.candidate?.insightEvidenceRefs ?? [];
   const sourceCacheRef = refs.find(
     (ref) =>
-      ref.includes("discovery-anchor-run/source-cache/") &&
+      (ref.includes("discovery-anchor-run/source-cache/") ||
+        ref.includes("generator-families/formal-source-cache/") ||
+        ref.includes("generator-claim-lift/formal-runtime-source-cache/")) &&
       ref.endsWith(".json"),
   );
   const runtimeEvidenceRef = refs.find(
@@ -4359,6 +4386,72 @@ test("mechanism-first significance generator registry loads domain-significance-
   );
 });
 
+test("mechanism-first graph-minor generator binds a formal object check manifest", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.generatorRun({
+    generatorId: "bounded_graph_minor_obstruction_significance_generator",
+    significanceCandidates: true,
+  });
+  const payload = JSON.parse(
+    await readFile(
+      join(root, daemonRoot, "generator-families", "GENERATOR_OUTPUTS.json"),
+      "utf8",
+    ),
+  ) as {
+    outputs: Array<{
+      outputId: string;
+      birthEvaluation: { accepted: boolean };
+      runtimeSourceBinding: {
+        status: string;
+        sourceCacheRef: string | null;
+        rawTargetCount: number | null;
+      };
+      evidenceRefs: string[];
+    }>;
+  };
+  const outputs = payload.outputs;
+  const firstOutput = outputs[0]!;
+  const sourceCacheRef = firstOutput.runtimeSourceBinding.sourceCacheRef;
+
+  assert.equal(report.runtimeChecks, 10);
+  assert.equal(report.hardSeedsBorn, 2);
+  assert.equal(
+    outputs.filter((output) => output.birthEvaluation.accepted).length,
+    2,
+  );
+  assert.equal(firstOutput.runtimeSourceBinding.status, "source_cache_bound");
+  assert.equal(firstOutput.runtimeSourceBinding.rawTargetCount, 72);
+  assert.ok(sourceCacheRef);
+
+  const sourceCache = JSON.parse(
+    await readFile(join(root, sourceCacheRef), "utf8"),
+  ) as {
+    rawTargetCount: number;
+    evidenceRefs: string[];
+    counterexampleCollapsed: boolean;
+  };
+  const manifestRef = sourceCache.evidenceRefs.find((ref) =>
+    ref.includes("/formal-object-checks/"),
+  );
+  assert.equal(sourceCache.rawTargetCount, 72);
+  assert.equal(sourceCache.counterexampleCollapsed, false);
+  assert.ok(manifestRef);
+
+  const manifest = JSON.parse(
+    await readFile(join(root, manifestRef), "utf8"),
+  ) as { formalCheckCount: number; checks: unknown[] };
+  assert.equal(manifest.formalCheckCount, 72);
+  assert.equal(manifest.checks.length, 72);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
 test("hard-seed birth evaluator blocks weak runtime generator evidence", () => {
   const baseInput = {
     generatorId: "test_generator",
@@ -5888,6 +5981,7 @@ test("generator-born claim lift source signal classifies formal runtime evidence
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
+  await stripGraphMinorRuntimeSourceDepth(root);
 
   const sourceSignal = await service.generatorClaimLiftSourceSignal();
   const graphDecision = sourceSignal.decisions.find((decision) =>
@@ -5934,7 +6028,6 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
   await service.generatorPressure();
   await service.generatorInsightClosure();
   await service.generatorFundClosure();
-  await addFormalRuntimeCheckCountToBornGraphMinorEvidence(root, 72);
 
   const sourceSignal = await service.generatorClaimLiftSourceSignal();
   const graphDecisions = sourceSignal.decisions.filter((decision) =>
@@ -5948,8 +6041,7 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
         decision.sourceSignalStatus === "source_signal_bound" &&
         decision.primaryBlocker === "none" &&
         decision.failedGates.length === 0 &&
-        decision.sourceCacheRef?.includes("formal-runtime-source-cache") ===
-          true &&
+        decision.sourceCacheRef?.includes("formal-source-cache") === true &&
         decision.bindableInsightEvidenceRefs.some((ref) =>
           ref.includes("generator-families/runtime-evidence"),
         ),
@@ -5973,6 +6065,66 @@ test("generator-born claim lift source signal can bind depth-backed formal runti
     true,
   );
   assert.equal(novelty.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("generator-born claim lift rebind consumes depth-backed formal source-cache evidence", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.generatorRun({ significanceCandidates: true });
+  await service.generatorPressure();
+  await service.generatorInsightClosure();
+  await service.generatorFundClosure();
+  await service.generatorClaimLiftSourceSignal();
+  await service.generatorClaimLiftNoveltyPressure();
+  const preflight = await service.generatorClaimLiftCandidate();
+
+  assert.equal(preflight.candidateContractsReady >= 2, true);
+
+  const proposals = await service.generatorClaimLiftPropose();
+  assert.equal(proposals.proposalsReady >= 2, true);
+
+  await service.generatorClaimLift();
+  const experiment = await service.generatorClaimLiftExperiment();
+  const graphExperiments = experiment.decisions.filter((decision) =>
+    decision.candidateId.includes("GRAPH-MINOR"),
+  );
+
+  assert.equal(graphExperiments.length, 2);
+  assert.equal(
+    graphExperiments.every(
+      (decision) =>
+        decision.experimentStatus === "insight_evidence_ready" &&
+        decision.sourceCacheRef?.includes("formal-source-cache") === true &&
+        decision.bindableInsightEvidenceRefs.some((ref) =>
+          ref.includes("generator-families/runtime-evidence"),
+        ),
+    ),
+    true,
+  );
+
+  const rebind = await service.generatorClaimLiftRebind();
+  const graphRebinds = rebind.decisions.filter((decision) =>
+    decision.candidateId.includes("GRAPH-MINOR"),
+  );
+
+  assert.equal(graphRebinds.length, 2);
+  assert.equal(
+    graphRebinds.every(
+      (decision) =>
+        decision.rebindStatus === "rebound" &&
+        decision.rawSourceReproductionConsistency.checked === true &&
+        decision.rawSourceReproductionConsistency.passed === true &&
+        decision.packageRef?.includes("DISCOVERY-LIFT") === true,
+    ),
+    true,
+  );
+  assert.equal(rebind.fundFound, false);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -6712,8 +6864,8 @@ test("generator-born claim lift path blocks downgraded public-corpus anchors eve
     true,
   );
   assert.equal(pressure.discoverySignalReady, 0);
-  assert.equal(experiment.insightEvidenceReady, 0);
-  assert.equal(rebind.discoveryScoredPackages, 0);
+  assert.equal(experiment.insightEvidenceReady, 2);
+  assert.equal(rebind.discoveryScoredPackages, 2);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),
@@ -6773,9 +6925,12 @@ test("generator-born claim lift signal experiment identifies bindable external-s
   assert.equal(experiment.status, "insight_evidence_ready");
   assert.equal(experiment.liftedCandidatesLoaded, 6);
   assert.equal(experiment.experimentsRun, 6);
-  assert.equal(experiment.insightEvidenceReady, 4);
-  assert.equal(experiment.blockedExperiments, 2);
-  assert.equal(experiment.blockerDistribution.missing_external_source_cache, 2);
+  assert.equal(experiment.insightEvidenceReady, 6);
+  assert.equal(experiment.blockedExperiments, 0);
+  assert.equal(
+    experiment.blockerDistribution.missing_external_source_cache ?? 0,
+    0,
+  );
   assert.equal(
     experiment.decisions
       .filter(
@@ -6843,9 +6998,9 @@ test("generator-born claim lift rebind blocks raw source reproduction mismatch b
 
   const rebind = await service.generatorClaimLiftRebind();
 
-  assert.equal(rebind.status, "continue_searching_checkpointed");
-  assert.equal(rebind.packagesRebound, 0);
-  assert.equal(rebind.discoveryScoredPackages, 0);
+  assert.equal(rebind.status, "discovery_package_rebound");
+  assert.equal(rebind.packagesRebound, 2);
+  assert.equal(rebind.discoveryScoredPackages, 2);
   assert.equal(
     rebind.blockerDistribution.raw_source_reproduction_mismatch > 0,
     true,
@@ -6927,9 +7082,9 @@ test("generator-born claim lift rebind updates only ready packages and keeps roo
     "generator_born_discovery_claim_lift_signal_rebind",
   );
   assert.equal(rebind.status, "discovery_package_rebound");
-  assert.equal(rebind.packagesRebound, 4);
-  assert.equal(rebind.packagesSkipped, 2);
-  assert.equal(rebind.discoveryScoredPackages, 4);
+  assert.equal(rebind.packagesRebound, 6);
+  assert.equal(rebind.packagesSkipped, 0);
+  assert.equal(rebind.discoveryScoredPackages, 6);
   assert.equal(rebind.fundFound, false);
   assert.equal(rebind.fundGateResult.notificationAllowed, true);
   assert.equal(
@@ -7048,9 +7203,9 @@ test("generator-born claim lift rebind skips public-downgraded ready package", a
   assert.equal(decision?.primaryBlocker, "public_corpus_downgrade");
   assert.equal(decision?.packageMutated, false);
   assert.equal(decision?.countsForEinsteinNobelDiscoveryScoreAfter, false);
-  assert.equal(rebind.packagesRebound, 3);
-  assert.equal(rebind.packagesSkipped, 3);
-  assert.equal(rebind.discoveryScoredPackages, 3);
+  assert.equal(rebind.packagesRebound, 5);
+  assert.equal(rebind.packagesSkipped, 1);
+  assert.equal(rebind.discoveryScoredPackages, 5);
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

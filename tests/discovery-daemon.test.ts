@@ -5053,6 +5053,23 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     ),
   );
 
+  const firstReport = await service.sourceObjectEngine();
+  assert.equal(firstReport.externalFormalTop10Executed, 10);
+  const firstExternalSelection = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
+      ),
+      "utf8",
+    ),
+  ) as { top10: Array<{ anchorId: string }> };
+  const firstPilotAnchorIds = new Set(
+    firstExternalSelection.top10.map((anchor) => anchor.anchorId),
+  );
+
   const report = await service.sourceObjectEngine();
 
   assert.equal(report.kind, "source_object_first_discovery_engine");
@@ -5074,7 +5091,13 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(report.sourceObjectObservationsCreated, report.hardSeedsBorn);
   assert.equal(report.claimFirstPilotsRun, 10);
   assert.equal(report.claimFirstExactClaimsProduced, 10);
-  assert.equal((report.externalFormalAnchorsConsidered ?? 0) >= 25, true);
+  assert.equal((report.externalFormalAnchorsConsidered ?? 0) >= 50, true);
+  assert.equal(
+    report.externalFormalAnchorsScored,
+    report.externalFormalAnchorsConsidered,
+  );
+  assert.equal((report.externalFormalQualityGatePassed ?? 0) >= 10, true);
+  assert.equal((report.externalFormalQualityRejected ?? 0) > 0, true);
   assert.equal((report.externalFormalAnchorsRejected ?? 0) > 0, true);
   assert.equal(report.externalFormalTop20Selected, 20);
   assert.equal(report.externalFormalTop10Executed, 10);
@@ -5114,16 +5137,23 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "CLAIM_FIRST_BIRTH_GATE.json",
     "SOURCE_OBJECT_RECLASSIFICATION.md",
     "SOURCE_OBJECT_RECLASSIFICATION.json",
+    "FAILED_EXTERNAL_ANCHOR_AUTOPSY.md",
+    "FAILED_EXTERNAL_ANCHOR_AUTOPSY.json",
     "CLAIM_FIRST_PILOT_RESULTS.md",
     "CLAIM_FIRST_PILOT_RESULTS.json",
     "EXTERNAL_FORMAL_ANCHOR_SOURCES.md",
     "EXTERNAL_FORMAL_ANCHOR_SOURCES.json",
+    "ANCHOR_QUALITY_GATE.md",
+    "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json",
+    "REJECTED_LOW_QUALITY_ANCHORS.md",
     "EXTERNAL_FORMAL_ANCHOR_SELECTION.json",
     "FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md",
     "TOP20_EXTERNAL_FORMAL_ANCHORS.md",
+    "TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md",
     "TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md",
     "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md",
     "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json",
+    "CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md",
     "INSIGHT_BIRTH_DECISIONS.md",
     "INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
@@ -5298,13 +5328,16 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       candidateMechanism: string;
       strongestRivalMechanism: string;
       falsifiablePrediction: string;
+      nontrivialityRationale: string;
       baselineThatCouldKillIt: string;
+      reasonBaselineNotExpectedToDominate: string;
       counterexamplePath: string;
       replayPath: string;
+      holdoutOrIndependentObjectFamilyPath: string;
       concreteSourceObject: boolean;
     }>;
   };
-  assert.equal(externalAnchors.anchorsConsidered >= 25, true);
+  assert.equal(externalAnchors.anchorsConsidered >= 50, true);
   assert.equal(
     externalAnchors.concreteReplayableAnchors,
     externalAnchors.anchorsConsidered,
@@ -5325,9 +5358,61 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         anchor.falsifiablePrediction.length > 0 &&
         anchor.baselineThatCouldKillIt.length > 0 &&
         anchor.counterexamplePath.length > 0 &&
-        anchor.replayPath.length > 0,
+        anchor.replayPath.length > 0 &&
+        anchor.holdoutOrIndependentObjectFamilyPath.length > 0,
     ),
     true,
+  );
+  const externalQuality = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    anchorsScored: number;
+    qualityGatePassed: number;
+    rejectedByQualityGate: number;
+    scores: Array<{
+      anchorId: string;
+      qualityGatePassed: boolean;
+      qualityGateFailures: string[];
+      features: Record<string, boolean>;
+    }>;
+  };
+  assert.equal(
+    externalQuality.anchorsScored,
+    externalAnchors.anchorsConsidered,
+  );
+  assert.equal(externalQuality.qualityGatePassed >= 10, true);
+  assert.equal(externalQuality.rejectedByQualityGate > 0, true);
+  assert.equal(
+    externalQuality.scores.every(
+      (score) =>
+        score.qualityGatePassed || score.qualityGateFailures.length > 0,
+    ),
+    true,
+  );
+  const failedExternalAutopsy = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "FAILED_EXTERNAL_ANCHOR_AUTOPSY.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    failedPilotsAnalyzed: number;
+    items: Array<{ anchorId: string; whySelectedDespiteFailing: string[] }>;
+  };
+  const failedPilotAnchorIds = new Set(
+    failedExternalAutopsy.items.map((item) => item.anchorId),
   );
   const externalSelection = JSON.parse(
     await readFile(
@@ -5344,26 +5429,54 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     rejectedBeforeExecution: number;
     top20Selected: number;
     top10PilotSelected: number;
+    decisions: Array<{
+      anchorId: string;
+      selectedForPilot: boolean;
+      qualityGatePassed: boolean;
+      qualityGateFailures: string[];
+    }>;
     top20: Array<{ anchorId: string }>;
     top10: Array<{
+      anchorId: string;
       exactBoundedClaim: string;
       falsifiablePrediction: string;
+      nontrivialityRationale: string;
+      reasonBaselineNotExpectedToDominate: string;
       counterexamplePath: string;
+      replayPath: string;
+      holdoutOrIndependentObjectFamilyPath: string;
       concreteSourceObject: boolean;
     }>;
   };
-  assert.equal(externalSelection.anchorsScreened >= 25, true);
+  assert.equal(externalSelection.anchorsScreened >= 50, true);
   assert.equal(externalSelection.rejectedBeforeExecution > 0, true);
   assert.equal(externalSelection.top20Selected, 20);
   assert.equal(externalSelection.top20.length, 20);
   assert.equal(externalSelection.top10PilotSelected, 10);
+  const pilotQualityDecisions = externalSelection.decisions.filter(
+    (decision) => decision.selectedForPilot,
+  );
+  assert.equal(pilotQualityDecisions.length, 10);
+  assert.equal(
+    pilotQualityDecisions.every(
+      (decision) =>
+        decision.qualityGatePassed && decision.qualityGateFailures.length === 0,
+    ),
+    true,
+  );
   assert.equal(
     externalSelection.top10.every(
       (anchor) =>
         anchor.concreteSourceObject &&
+        !failedPilotAnchorIds.has(anchor.anchorId) &&
+        !firstPilotAnchorIds.has(anchor.anchorId) &&
         anchor.exactBoundedClaim.length > 0 &&
         anchor.falsifiablePrediction.length > 0 &&
-        anchor.counterexamplePath.length > 0,
+        anchor.nontrivialityRationale.length > 0 &&
+        anchor.reasonBaselineNotExpectedToDominate.length > 0 &&
+        anchor.counterexamplePath.length > 0 &&
+        anchor.replayPath.length > 0 &&
+        anchor.holdoutOrIndependentObjectFamilyPath.length > 0,
     ),
     true,
   );

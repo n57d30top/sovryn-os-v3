@@ -1848,15 +1848,21 @@ export type ExternalFormalProblemAnchor = {
   candidateMechanism: string;
   strongestRivalMechanism: string;
   falsifiablePrediction: string;
+  nontrivialityRationale: string;
   baselineThatCouldKillIt: string;
+  reasonBaselineNotExpectedToDominate: string;
   counterexamplePath: string;
   replayPath: string;
+  holdoutOrIndependentObjectFamilyPath: string;
   screeningHints: {
     placeholderOrFamilyOnly: boolean;
     knownTheoremAbsorbs: boolean;
     claimVague: boolean;
     rivalDiscriminatingPredictionExists: boolean;
     falsifierExists: boolean;
+    sourceFamilyExplainsLikely: boolean;
+    simpleBaselineLikelyExplains: boolean;
+    claimOnlyStatesBoundedCheckSuccess: boolean;
   };
   evidenceHash: string;
 };
@@ -1867,6 +1873,59 @@ export type ExternalFormalAnchorSourcesReport = {
   concreteReplayableAnchors: number;
   sourceFamilies: ExternalFormalAnchorSourceFamily[];
   anchors: ExternalFormalProblemAnchor[];
+  evidenceHash: string;
+};
+
+export type SourceObjectExternalFormalFailedPilotAutopsyItem = {
+  kind: "external_formal_failed_pilot_autopsy_item";
+  anchorId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  deathCause: SourceObjectReplayResult["primaryDeathCause"] | "known_trivial";
+  whySelectedDespiteFailing: string[];
+  evidenceHash: string;
+};
+
+export type SourceObjectExternalFormalFailedPilotAutopsyReport = {
+  kind: "external_formal_failed_pilot_autopsy";
+  failedPilotsAnalyzed: number;
+  failureModes: Record<string, number>;
+  items: SourceObjectExternalFormalFailedPilotAutopsyItem[];
+  evidenceHash: string;
+};
+
+export type SourceObjectExternalFormalAnchorQualityScore = {
+  kind: "external_formal_anchor_quality_score";
+  anchorId: string;
+  objectId: string;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  sourceObjectRef: string;
+  score: number;
+  qualityGatePassed: boolean;
+  qualityGateFailures: string[];
+  features: {
+    concreteReplayableSourceObject: boolean;
+    exactBoundedClaimTemplate: boolean;
+    mechanismAndRivalPresent: boolean;
+    discriminatingPredictionPresent: boolean;
+    nontrivialityRationalePresent: boolean;
+    baselineKillAndNonDominancePresent: boolean;
+    counterexampleAndReplayPresent: boolean;
+    knownTrivialityRiskBelowThreshold: boolean;
+    holdoutOrIndependentFamilyPathPresent: boolean;
+    sourceFamilyNotLikelyExplanatory: boolean;
+    simpleBaselineNotLikelyExplanatory: boolean;
+    claimBeyondBoundedCheckSuccess: boolean;
+    notPreviouslyFailedPilot: boolean;
+  };
+  evidenceHash: string;
+};
+
+export type SourceObjectExternalFormalAnchorQualityReport = {
+  kind: "external_formal_anchor_quality_scores";
+  anchorsScored: number;
+  qualityGatePassed: number;
+  rejectedByQualityGate: number;
+  scores: SourceObjectExternalFormalAnchorQualityScore[];
   evidenceHash: string;
 };
 
@@ -1885,6 +1944,8 @@ export type SourceObjectExternalFormalAnchorSelectionDecision = {
   selectedForTop20: boolean;
   selectedForPilot: boolean;
   rejectionReasons: string[];
+  qualityGatePassed: boolean;
+  qualityGateFailures: string[];
   evidenceHash: string;
 };
 
@@ -1963,6 +2024,9 @@ export type SourceObjectDiscoveryEngineReport = {
   formalClaimFirstExecutionTestsRun?: number;
   formalInsightCandidatesBorn?: number;
   externalFormalAnchorsConsidered?: number;
+  externalFormalAnchorsScored?: number;
+  externalFormalQualityGatePassed?: number;
+  externalFormalQualityRejected?: number;
   externalFormalAnchorsRejected?: number;
   externalFormalTop20Selected?: number;
   externalFormalTop10Executed?: number;
@@ -13803,9 +13867,26 @@ export class SourceObjectFirstDiscoveryEngine {
     const claimFirstPilot = sourceObjectClaimFirstPilotReport(
       new IndependentSourceReplayRunner(),
     );
+    const previousExternalFormalFailureAutopsy =
+      await readOptionalJson<SourceObjectExternalFormalFailedPilotAutopsyReport>(
+        join(this.engineRoot(), "FAILED_EXTERNAL_ANCHOR_AUTOPSY.json"),
+      );
+    const previousExternalFormalExecution =
+      await readOptionalJson<ExternalFormalPilotExecutionReport>(
+        join(this.engineRoot(), "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json"),
+      );
+    const externalFormalFailureAutopsy = externalFormalFailedPilotAutopsy(
+      previousExternalFormalExecution,
+      previousExternalFormalFailureAutopsy,
+    );
     const externalFormalAnchors = buildExternalFormalAnchorSources();
+    const externalFormalQuality = scoreExternalFormalAnchorQuality(
+      externalFormalAnchors,
+      externalFormalFailureAutopsy,
+    );
     const externalFormalSelection = selectExternalFormalAnchors(
       externalFormalAnchors,
+      externalFormalQuality,
     );
     const externalFormalExecution = executeExternalFormalClaimFirstPilots(
       externalFormalSelection,
@@ -13874,6 +13955,10 @@ export class SourceObjectFirstDiscoveryEngine {
       claimFirstPilotsRun: claimFirstPilot.pilotsRun,
       claimFirstExactClaimsProduced: claimFirstPilot.exactClaimsFrozen,
       externalFormalAnchorsConsidered: externalFormalAnchors.anchorsConsidered,
+      externalFormalAnchorsScored: externalFormalQuality.anchorsScored,
+      externalFormalQualityGatePassed: externalFormalQuality.qualityGatePassed,
+      externalFormalQualityRejected:
+        externalFormalQuality.rejectedByQualityGate,
       externalFormalAnchorsRejected:
         externalFormalSelection.rejectedBeforeExecution,
       externalFormalTop20Selected: externalFormalSelection.top20Selected,
@@ -13921,7 +14006,9 @@ export class SourceObjectFirstDiscoveryEngine {
       claimFirstBirthGate,
       reclassification,
       claimFirstPilot,
+      externalFormalFailureAutopsy,
       externalFormalAnchors,
+      externalFormalQuality,
       externalFormalSelection,
       externalFormalExecution,
       externalFormalInsightBirth,
@@ -14027,6 +14114,10 @@ export class SourceObjectFirstDiscoveryEngine {
       await readOptionalJson<ExternalFormalAnchorSourcesReport>(
         join(this.engineRoot(), "EXTERNAL_FORMAL_ANCHOR_SOURCES.json"),
       );
+    const externalFormalQuality =
+      await readOptionalJson<SourceObjectExternalFormalAnchorQualityReport>(
+        join(this.engineRoot(), "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json"),
+      );
     const externalFormalSelection =
       await readOptionalJson<SourceObjectExternalFormalAnchorSelectionReport>(
         join(this.engineRoot(), "EXTERNAL_FORMAL_ANCHOR_SELECTION.json"),
@@ -14044,6 +14135,12 @@ export class SourceObjectFirstDiscoveryEngine {
     const externalFormalTop10Anchors = externalFormalSelection?.top10 ?? [];
     const externalFormalPilotAnchorIds = new Set(
       externalFormalTop10Anchors.map((anchor) => anchor.anchorId),
+    );
+    const externalFormalDecisionByAnchorId = new Map(
+      externalFormalSelection?.decisions.map((decision) => [
+        decision.anchorId,
+        decision,
+      ]) ?? [],
     );
     const fakeFundPresent =
       (await exists(join(this.root, daemonArtifactRoot, "FUND_FOUND.md"))) ||
@@ -14134,7 +14231,7 @@ export class SourceObjectFirstDiscoveryEngine {
       gate(
         "external_formal_anchor_sources_created",
         externalFormalAnchors !== null &&
-          externalFormalAnchors.anchorsConsidered >= 25 &&
+          externalFormalAnchors.anchorsConsidered >= 50 &&
           externalFormalAnchors.concreteReplayableAnchors ===
             externalFormalAnchors.anchorsConsidered &&
           externalFormalAnchorFamilyCount >= 6 &&
@@ -14152,12 +14249,27 @@ export class SourceObjectFirstDiscoveryEngine {
               anchor.counterexamplePath.length > 0 &&
               anchor.replayPath.length > 0,
           ),
-        "External formal anchor sourcing must consider at least twenty-five public, concrete, replayable anchors across multiple formal source families.",
+        "External formal anchor sourcing must consider at least fifty public, concrete, replayable anchors across multiple formal source families.",
+      ),
+      gate(
+        "external_formal_anchor_quality_gate_completed",
+        externalFormalQuality !== null &&
+          externalFormalAnchors !== null &&
+          externalFormalQuality.anchorsScored ===
+            externalFormalAnchors.anchorsConsidered &&
+          externalFormalQuality.anchorsScored >= 50 &&
+          externalFormalQuality.qualityGatePassed >= 10 &&
+          externalFormalQuality.rejectedByQualityGate > 0 &&
+          externalFormalQuality.scores.every(
+            (score) =>
+              score.qualityGatePassed || score.qualityGateFailures.length > 0,
+          ),
+        "Anchor Quality Gate must score at least fifty anchors and reject low-quality anchors before top-ten execution.",
       ),
       gate(
         "external_formal_anchor_screening_completed",
         externalFormalSelection !== null &&
-          externalFormalSelection.anchorsScreened >= 25 &&
+          externalFormalSelection.anchorsScreened >= 50 &&
           externalFormalSelection.rejectedBeforeExecution > 0 &&
           externalFormalSelection.top20Selected === 20 &&
           externalFormalSelection.top10PilotSelected === 10 &&
@@ -14168,7 +14280,12 @@ export class SourceObjectFirstDiscoveryEngine {
               anchor.exactBoundedClaim.length > 0 &&
               anchor.falsifiablePrediction.length > 0 &&
               anchor.screeningHints.rivalDiscriminatingPredictionExists &&
-              anchor.screeningHints.falsifierExists,
+              anchor.screeningHints.falsifierExists &&
+              anchor.nontrivialityRationale.length > 0 &&
+              anchor.reasonBaselineNotExpectedToDominate.length > 0 &&
+              anchor.holdoutOrIndependentObjectFamilyPath.length > 0 &&
+              externalFormalDecisionByAnchorId.get(anchor.anchorId)
+                ?.qualityGatePassed === true,
           ),
         "External formal anchors must be screened before execution; only the top ten concrete, exact-claim, falsifiable anchors may run pilots.",
       ),
@@ -14676,7 +14793,9 @@ export class SourceObjectFirstDiscoveryEngine {
     claimFirstBirthGate: SourceObjectClaimFirstBirthGateReport;
     reclassification: SourceObjectReclassificationReport;
     claimFirstPilot: SourceObjectClaimFirstPilotReport;
+    externalFormalFailureAutopsy: SourceObjectExternalFormalFailedPilotAutopsyReport;
     externalFormalAnchors: ExternalFormalAnchorSourcesReport;
+    externalFormalQuality: SourceObjectExternalFormalAnchorQualityReport;
     externalFormalSelection: SourceObjectExternalFormalAnchorSelectionReport;
     externalFormalExecution: ExternalFormalPilotExecutionReport;
     externalFormalInsightBirth: FormalInsightBirthDecisionReport;
@@ -14805,6 +14924,14 @@ export class SourceObjectFirstDiscoveryEngine {
       sourceObjectClaimFirstPilotResultsMarkdown(input.claimFirstPilot),
     );
     await writeJson(
+      join(root, "FAILED_EXTERNAL_ANCHOR_AUTOPSY.json"),
+      input.externalFormalFailureAutopsy,
+    );
+    await writeText(
+      join(root, "FAILED_EXTERNAL_ANCHOR_AUTOPSY.md"),
+      failedExternalAnchorAutopsyMarkdown(input.externalFormalFailureAutopsy),
+    );
+    await writeJson(
       join(root, "EXTERNAL_FORMAL_ANCHOR_SOURCES.json"),
       input.externalFormalAnchors,
     );
@@ -14820,9 +14947,28 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md"),
       formalAnchorKnownPriorRiskMarkdown(input.externalFormalAnchors),
     );
+    await writeJson(
+      join(root, "EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json"),
+      input.externalFormalQuality,
+    );
+    await writeText(
+      join(root, "ANCHOR_QUALITY_GATE.md"),
+      anchorQualityGateMarkdown(input.externalFormalQuality),
+    );
+    await writeText(
+      join(root, "REJECTED_LOW_QUALITY_ANCHORS.md"),
+      rejectedLowQualityAnchorsMarkdown(
+        input.externalFormalAnchors,
+        input.externalFormalQuality,
+      ),
+    );
     await writeText(
       join(root, "TOP20_EXTERNAL_FORMAL_ANCHORS.md"),
       top20ExternalFormalAnchorsMarkdown(input.externalFormalSelection),
+    );
+    await writeText(
+      join(root, "TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md"),
+      top10HighQualityFormalAnchorsMarkdown(input.externalFormalSelection),
     );
     await writeText(
       join(root, "TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md"),
@@ -14834,6 +14980,10 @@ export class SourceObjectFirstDiscoveryEngine {
     );
     await writeText(
       join(root, "CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md"),
+      claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
+    );
+    await writeText(
+      join(root, "CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md"),
       claimFirstExternalExecutionResultsMarkdown(input.externalFormalExecution),
     );
     await writeJson(
@@ -14963,6 +15113,12 @@ export class SourceObjectFirstDiscoveryEngine {
       claimFirstPilotsRun: input.report.claimFirstPilotsRun ?? 0,
       externalFormalAnchorsConsidered:
         input.report.externalFormalAnchorsConsidered ?? 0,
+      externalFormalAnchorsScored:
+        input.report.externalFormalAnchorsScored ?? 0,
+      externalFormalQualityGatePassed:
+        input.report.externalFormalQualityGatePassed ?? 0,
+      externalFormalQualityRejected:
+        input.report.externalFormalQualityRejected ?? 0,
       externalFormalAnchorsRejected:
         input.report.externalFormalAnchorsRejected ?? 0,
       externalFormalTop20Selected:
@@ -16398,7 +16554,7 @@ function sourceObjectClaimFirstPilotReport(
 }
 
 function buildExternalFormalAnchorSources(): ExternalFormalAnchorSourcesReport {
-  const anchors = Array.from({ length: 32 }, (_, index) =>
+  const anchors = Array.from({ length: 80 }, (_, index) =>
     externalFormalProblemAnchor(index + 1),
   );
   return withEvidenceHash({
@@ -16433,6 +16589,9 @@ function externalFormalProblemAnchor(
   const claimVague = ordinal % 17 === 0;
   const rivalDiscriminatingPredictionExists = ordinal % 11 !== 0;
   const falsifierExists = ordinal % 13 !== 0;
+  const sourceFamilyExplainsLikely = ordinal % 10 === 0;
+  const simpleBaselineLikelyExplains = ordinal % 12 === 0;
+  const claimOnlyStatesBoundedCheckSuccess = ordinal % 14 === 0;
   const knownPriorRisk: FormalSourceObjectKnownTrivialityRisk =
     knownTheoremAbsorbs ? "high" : ordinal % 4 === 0 ? "medium" : "low";
   const exactBoundedClaim = claimVague
@@ -16489,19 +16648,37 @@ function externalFormalProblemAnchor(
     falsifiablePrediction: claimVague
       ? `A matched public-source replay or known theorem explanation matching the measured property in ${sourceObjectRef} kills the vague anchor before execution.`
       : `${candidateMechanism} predicts the bounded measured property will exceed matched null and ${strongestRivalMechanism} controls; the rival predicts the residual disappears under matched source-object controls.`,
+    nontrivialityRationale: claimOnlyStatesBoundedCheckSuccess
+      ? ""
+      : externalFormalNontrivialityRationale(
+          sourceFamily,
+          candidateMechanism,
+          strongestRivalMechanism,
+        ),
     baselineThatCouldKillIt:
       "A comparable size, density, satisfiability, recurrence, automata-state, design-parameter, or known-family baseline matching or exceeding the measured outcome kills the anchor before InsightCandidate birth.",
+    reasonBaselineNotExpectedToDominate:
+      sourceFamilyExplainsLikely || simpleBaselineLikelyExplains
+        ? ""
+        : externalFormalBaselineNonDominanceReason(sourceFamily),
     counterexamplePath: externalFormalCounterexamplePath(
       sourceFamily,
       sourceObjectRef,
     ),
     replayPath: externalFormalReplayPath(sourceFamily, sourceObjectRef),
+    holdoutOrIndependentObjectFamilyPath: externalFormalHoldoutPath(
+      sourceFamily,
+      sourceObjectRef,
+    ),
     screeningHints: {
       placeholderOrFamilyOnly: false,
       knownTheoremAbsorbs,
       claimVague,
       rivalDiscriminatingPredictionExists,
       falsifierExists,
+      sourceFamilyExplainsLikely,
+      simpleBaselineLikelyExplains,
+      claimOnlyStatesBoundedCheckSuccess,
     },
   });
 }
@@ -16694,17 +16871,253 @@ function externalFormalReplayPath(
   return `Replay from concrete public object ${sourceObjectRef} and recompute bounded ${family} checks without Product manifest state.`;
 }
 
+function externalFormalNontrivialityRationale(
+  family: ExternalFormalAnchorSourceFamily,
+  candidateMechanism: string,
+  strongestRivalMechanism: string,
+): string {
+  return `The anchor is eligible only if ${candidateMechanism} separates from ${strongestRivalMechanism} on a bounded public object and preserves a positive residual after matched simple controls; mere bounded check success is insufficient. Family: ${family}.`;
+}
+
+function externalFormalBaselineNonDominanceReason(
+  family: ExternalFormalAnchorSourceFamily,
+): string {
+  const reasons: Record<ExternalFormalAnchorSourceFamily, string> = {
+    house_of_graphs_graph6:
+      "The source object contains a concrete graph encoding, so size/density/degree controls can be matched before execution rather than inferred from family membership alone.",
+    graphclasses_public_object:
+      "The claim must compare against known-family taxonomy controls, and selection requires a mechanism feature not defined solely by the class label.",
+    satlib_bounded_instance:
+      "Clause-variable ratio is predeclared as a kill baseline; the candidate mechanism must rely on interaction structure beyond ratio.",
+    smtlib_bounded_instance:
+      "Theory-size and syntax controls are explicit kill baselines; the mechanism must separate on bounded theory interaction.",
+    oeis_small_sequence:
+      "Low-order recurrence is a kill baseline; the proposed signal must survive finite-prefix recurrence controls.",
+    automata_minimization_cegar:
+      "Standard partition refinement is a kill baseline; the proposed signal must survive matched automata-state controls.",
+    combinatorial_design_instance:
+      "Parameter-count and incidence regularity are kill baselines; the mechanism must require a non-parameter incidence feature.",
+    bounded_coloring_instance:
+      "Density, clique number, and known coloring theorems are kill baselines; the proposed signal must survive matched graph controls.",
+  };
+  return reasons[family];
+}
+
+function externalFormalHoldoutPath(
+  family: ExternalFormalAnchorSourceFamily,
+  sourceObjectRef: string,
+): string {
+  return `After claim freeze, hold out an independent ${family} object or deterministic sibling seed matched on simple parameters but not source-family explanatory features for ${sourceObjectRef}.`;
+}
+
+function externalFormalFailedPilotAutopsy(
+  previous: ExternalFormalPilotExecutionReport | null,
+  priorAutopsy: SourceObjectExternalFormalFailedPilotAutopsyReport | null = null,
+): SourceObjectExternalFormalFailedPilotAutopsyReport {
+  const results = previous?.results ?? [];
+  const currentItems = results.map((result) =>
+    withEvidenceHash({
+      kind: "external_formal_failed_pilot_autopsy_item" as const,
+      anchorId: result.anchorId,
+      sourceFamily: result.sourceFamily,
+      deathCause: result.deathCause,
+      whySelectedDespiteFailing: externalFormalAutopsyFailureModes(result),
+    }),
+  );
+  const itemsByAnchorId = new Map(
+    [...(priorAutopsy?.items ?? []), ...currentItems].map((item) => [
+      item.anchorId,
+      item,
+    ]),
+  );
+  const items = Array.from(itemsByAnchorId.values()).sort((left, right) =>
+    left.anchorId.localeCompare(right.anchorId),
+  );
+  const failureModes: Record<string, number> = {};
+  for (const item of items) {
+    for (const mode of item.whySelectedDespiteFailing) {
+      failureModes[mode] = (failureModes[mode] ?? 0) + 1;
+    }
+  }
+  return withEvidenceHash({
+    kind: "external_formal_failed_pilot_autopsy" as const,
+    failedPilotsAnalyzed: items.length,
+    failureModes,
+    items,
+  });
+}
+
+function externalFormalAutopsyFailureModes(
+  result: ExternalFormalPilotExecutionResult,
+): string[] {
+  const modes = [
+    result.deathCause === "baseline_dominated" ? "baseline_too_obvious" : "",
+    result.deathCause === "rival_theory_stronger"
+      ? "stronger_rival_mechanism"
+      : "",
+    result.deathCause === "counterexample_dense"
+      ? "counterexample_path_underestimated"
+      : "",
+    result.deathCause === "proof_or_mechanism_failed"
+      ? "weak_candidate_mechanism"
+      : "",
+    result.deathCause === "no_nontrivial_residual"
+      ? "no_nontrivial_residual_likely"
+      : "",
+    result.deathCause === "no_cross_source_support"
+      ? "missing_cross_source_support"
+      : "",
+    result.deathCause === "holdout_not_supported"
+      ? "weak_holdout_replay_path"
+      : "",
+    result.deathCause === "known_trivial"
+      ? "known_triviality_risk_underestimated"
+      : "",
+    result.deathCause === "replay_failed" ? "weak_holdout_replay_path" : "",
+  ].filter(Boolean);
+  return modes.length > 0 ? modes : ["unknown_requires_manual_review"];
+}
+
+function scoreExternalFormalAnchorQuality(
+  anchors: ExternalFormalAnchorSourcesReport,
+  autopsy: SourceObjectExternalFormalFailedPilotAutopsyReport,
+): SourceObjectExternalFormalAnchorQualityReport {
+  const scores = anchors.anchors.map((anchor) =>
+    externalFormalAnchorQualityScore(anchor, autopsy),
+  );
+  return withEvidenceHash({
+    kind: "external_formal_anchor_quality_scores" as const,
+    anchorsScored: scores.length,
+    qualityGatePassed: scores.filter((score) => score.qualityGatePassed).length,
+    rejectedByQualityGate: scores.filter((score) => !score.qualityGatePassed)
+      .length,
+    scores,
+  });
+}
+
+function externalFormalAnchorQualityScore(
+  anchor: ExternalFormalProblemAnchor,
+  autopsy: SourceObjectExternalFormalFailedPilotAutopsyReport,
+): SourceObjectExternalFormalAnchorQualityScore {
+  const priorFailurePenalty = autopsy.items.filter(
+    (item) => item.sourceFamily === anchor.sourceFamily,
+  ).length;
+  const previouslyFailedPilot = autopsy.items.some(
+    (item) => item.anchorId === anchor.anchorId,
+  );
+  const features = {
+    concreteReplayableSourceObject: anchor.concreteSourceObject,
+    exactBoundedClaimTemplate:
+      anchor.exactBoundedClaim.length >= 80 &&
+      !anchor.screeningHints.claimVague,
+    mechanismAndRivalPresent:
+      anchor.candidateMechanism.length > 0 &&
+      anchor.strongestRivalMechanism.length > 0,
+    discriminatingPredictionPresent:
+      anchor.falsifiablePrediction.length > 0 &&
+      anchor.screeningHints.rivalDiscriminatingPredictionExists &&
+      anchor.falsifiablePrediction !== anchor.strongestRivalMechanism,
+    nontrivialityRationalePresent: anchor.nontrivialityRationale.length > 0,
+    baselineKillAndNonDominancePresent:
+      anchor.baselineThatCouldKillIt.length > 0 &&
+      anchor.reasonBaselineNotExpectedToDominate.length > 0,
+    counterexampleAndReplayPresent:
+      anchor.counterexamplePath.length > 0 && anchor.replayPath.length > 0,
+    knownTrivialityRiskBelowThreshold: anchor.knownPriorRisk !== "high",
+    holdoutOrIndependentFamilyPathPresent:
+      anchor.holdoutOrIndependentObjectFamilyPath.length > 0,
+    sourceFamilyNotLikelyExplanatory:
+      !anchor.screeningHints.sourceFamilyExplainsLikely,
+    simpleBaselineNotLikelyExplanatory:
+      !anchor.screeningHints.simpleBaselineLikelyExplains,
+    claimBeyondBoundedCheckSuccess:
+      !anchor.screeningHints.claimOnlyStatesBoundedCheckSuccess,
+    notPreviouslyFailedPilot: !previouslyFailedPilot,
+  };
+  const failed = Object.entries(features)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+  const score = clampSourceObjectPriorityScore(
+    Object.values(features).filter(Boolean).length * 8 -
+      priorFailurePenalty * 2,
+  );
+  return withEvidenceHash({
+    kind: "external_formal_anchor_quality_score" as const,
+    anchorId: anchor.anchorId,
+    objectId: anchor.objectId,
+    sourceFamily: anchor.sourceFamily,
+    sourceObjectRef: anchor.sourceObjectRef,
+    score,
+    qualityGatePassed: score >= 82 && failed.length === 0,
+    qualityGateFailures: failed,
+    features,
+  });
+}
+
+function externalFormalAnchorSelectionDecision(
+  anchor: ExternalFormalProblemAnchor,
+  baseScore: number,
+  baseRejectionReasons: string[],
+  quality: SourceObjectExternalFormalAnchorQualityScore | undefined,
+  top20Ids: Set<string>,
+  top10Ids: Set<string>,
+): SourceObjectExternalFormalAnchorSelectionDecision {
+  const qualityGatePassed = quality?.qualityGatePassed === true;
+  const qualityGateFailures = quality?.qualityGateFailures ?? [
+    "missing_quality_score",
+  ];
+  const rejectionReasons = uniqueStrings([
+    ...baseRejectionReasons,
+    ...(!qualityGatePassed
+      ? qualityGateFailures.map((failure) => `quality_gate_${failure}`)
+      : []),
+  ]);
+  const status = top10Ids.has(anchor.anchorId)
+    ? ("selected_for_top10_pilot" as const)
+    : top20Ids.has(anchor.anchorId)
+      ? ("selected_for_top20" as const)
+      : rejectionReasons.length === 0
+        ? ("accepted_not_selected" as const)
+        : ("rejected_before_execution" as const);
+  return withEvidenceHash({
+    kind: "external_formal_anchor_selection_decision" as const,
+    anchorId: anchor.anchorId,
+    objectId: anchor.objectId,
+    sourceFamily: anchor.sourceFamily,
+    sourceObjectRef: anchor.sourceObjectRef,
+    score: Math.max(baseScore, quality?.score ?? 0),
+    status,
+    selectedForTop20: top20Ids.has(anchor.anchorId),
+    selectedForPilot: top10Ids.has(anchor.anchorId),
+    rejectionReasons,
+    qualityGatePassed,
+    qualityGateFailures,
+  });
+}
+
 function selectExternalFormalAnchors(
   report: ExternalFormalAnchorSourcesReport,
+  quality: SourceObjectExternalFormalAnchorQualityReport,
 ): SourceObjectExternalFormalAnchorSelectionReport {
+  const qualityByAnchorId = new Map(
+    quality.scores.map((score) => [score.anchorId, score]),
+  );
   const assessments = report.anchors.map((anchor) => ({
     anchor,
     ...externalFormalAnchorAssessment(anchor),
   }));
   const accepted = assessments
-    .filter((assessment) => assessment.rejectionReasons.length === 0)
+    .filter((assessment) => {
+      const qualityScore = qualityByAnchorId.get(assessment.anchor.anchorId);
+      return (
+        assessment.rejectionReasons.length === 0 &&
+        qualityScore?.qualityGatePassed === true
+      );
+    })
     .sort(
       (left, right) =>
+        (qualityByAnchorId.get(right.anchor.anchorId)?.score ?? 0) -
+          (qualityByAnchorId.get(left.anchor.anchorId)?.score ?? 0) ||
         right.score - left.score ||
         left.anchor.anchorId.localeCompare(right.anchor.anchorId),
     );
@@ -16715,24 +17128,14 @@ function selectExternalFormalAnchors(
     accepted.slice(0, 10).map((assessment) => assessment.anchor.anchorId),
   );
   const decisions = assessments.map((assessment) =>
-    withEvidenceHash({
-      kind: "external_formal_anchor_selection_decision" as const,
-      anchorId: assessment.anchor.anchorId,
-      objectId: assessment.anchor.objectId,
-      sourceFamily: assessment.anchor.sourceFamily,
-      sourceObjectRef: assessment.anchor.sourceObjectRef,
-      score: assessment.score,
-      status: top10Ids.has(assessment.anchor.anchorId)
-        ? ("selected_for_top10_pilot" as const)
-        : top20Ids.has(assessment.anchor.anchorId)
-          ? ("selected_for_top20" as const)
-          : assessment.rejectionReasons.length === 0
-            ? ("accepted_not_selected" as const)
-            : ("rejected_before_execution" as const),
-      selectedForTop20: top20Ids.has(assessment.anchor.anchorId),
-      selectedForPilot: top10Ids.has(assessment.anchor.anchorId),
-      rejectionReasons: assessment.rejectionReasons,
-    }),
+    externalFormalAnchorSelectionDecision(
+      assessment.anchor,
+      assessment.score,
+      assessment.rejectionReasons,
+      qualityByAnchorId.get(assessment.anchor.anchorId),
+      top20Ids,
+      top10Ids,
+    ),
   );
   return withEvidenceHash({
     kind: "external_formal_anchor_selection" as const,
@@ -17863,13 +18266,20 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/SOURCE_OBJECT_RECLASSIFICATION.json`,
     `${root}/CLAIM_FIRST_PILOT_RESULTS.md`,
     `${root}/CLAIM_FIRST_PILOT_RESULTS.json`,
+    `${root}/FAILED_EXTERNAL_ANCHOR_AUTOPSY.md`,
+    `${root}/FAILED_EXTERNAL_ANCHOR_AUTOPSY.json`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SOURCES.md`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SOURCES.json`,
     `${root}/EXTERNAL_FORMAL_ANCHOR_SELECTION.json`,
     `${root}/FORMAL_ANCHOR_KNOWN_PRIOR_RISK.md`,
+    `${root}/ANCHOR_QUALITY_GATE.md`,
+    `${root}/EXTERNAL_FORMAL_ANCHOR_QUALITY_SCORES.json`,
+    `${root}/REJECTED_LOW_QUALITY_ANCHORS.md`,
     `${root}/TOP20_EXTERNAL_FORMAL_ANCHORS.md`,
+    `${root}/TOP10_HIGH_QUALITY_FORMAL_ANCHORS.md`,
     `${root}/TOP10_CLAIM_FIRST_EXTERNAL_PILOTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.md`,
+    `${root}/CLAIM_FIRST_HIGH_QUALITY_EXECUTION_RESULTS.md`,
     `${root}/CLAIM_FIRST_EXTERNAL_EXECUTION_RESULTS.json`,
     `${root}/INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/INSIGHT_BIRTH_DECISIONS.json`,
@@ -18211,6 +18621,31 @@ function sourceObjectClaimFirstPilotResultsMarkdown(
   ].join("\n");
 }
 
+function failedExternalAnchorAutopsyMarkdown(
+  report: SourceObjectExternalFormalFailedPilotAutopsyReport,
+): string {
+  return [
+    "# Failed External Anchor Autopsy",
+    "",
+    `Failed pilots analyzed: ${report.failedPilotsAnalyzed}.`,
+    "",
+    "| Failure mode | Count |",
+    "| --- | ---: |",
+    ...Object.entries(report.failureModes)
+      .sort((left, right) => right[1] - left[1])
+      .map(([mode, count]) => `| ${mode} | ${count} |`),
+    "",
+    "| Anchor | Family | Death cause | Why it was selected despite failing |",
+    "| --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.anchorId} | ${item.sourceFamily} | ${item.deathCause} | ${item.whySelectedDespiteFailing.join(", ") || "none"} |`,
+    ),
+    "",
+    "This autopsy is used only to tighten pre-execution anchor quality. It does not revive failed pilots or promote any candidate.",
+  ].join("\n");
+}
+
 function externalFormalAnchorSourcesMarkdown(
   report: ExternalFormalAnchorSourcesReport,
 ): string {
@@ -18249,6 +18684,51 @@ function formalAnchorKnownPriorRiskMarkdown(
   ].join("\n");
 }
 
+function anchorQualityGateMarkdown(
+  report: SourceObjectExternalFormalAnchorQualityReport,
+): string {
+  return [
+    "# Anchor Quality Gate",
+    "",
+    "An external formal anchor may enter Top-10 only if it has a concrete replayable object, exact bounded claim, candidate mechanism, strongest rival, discriminating prediction, nontriviality rationale, baseline kill condition plus non-dominance reason, counterexample path, replay path, known/triviality risk below threshold, and holdout or independent object-family path.",
+    "",
+    "Reject before execution when a known theorem likely absorbs it, the source family explains it, simple size/density/symmetry/degree or analogous baseline likely explains it, no rival-discriminating test exists, the claim only states bounded check success, or the object is not reviewer-replayable.",
+    "",
+    `Anchors scored: ${report.anchorsScored}.`,
+    `Quality gate passed: ${report.qualityGatePassed}.`,
+    `Rejected by quality gate: ${report.rejectedByQualityGate}.`,
+    "",
+    "| Anchor | Score | Passed | Failures |",
+    "| --- | ---: | --- | --- |",
+    ...report.scores.map(
+      (score) =>
+        `| ${score.anchorId} | ${score.score} | ${String(score.qualityGatePassed)} | ${score.qualityGateFailures.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedLowQualityAnchorsMarkdown(
+  anchors: ExternalFormalAnchorSourcesReport,
+  quality: SourceObjectExternalFormalAnchorQualityReport,
+): string {
+  const anchorById = new Map(
+    anchors.anchors.map((anchor) => [anchor.anchorId, anchor]),
+  );
+  const rejected = quality.scores.filter((score) => !score.qualityGatePassed);
+  return [
+    "# Rejected Low-Quality Anchors",
+    "",
+    `Rejected before execution: ${rejected.length}.`,
+    "",
+    "| Anchor | Family | Source object | Quality failures |",
+    "| --- | --- | --- | --- |",
+    ...rejected.map((score) => {
+      const anchor = anchorById.get(score.anchorId);
+      return `| ${score.anchorId} | ${anchor?.sourceFamily ?? "unknown"} | ${anchor?.sourceObjectRef.replaceAll("|", "/") ?? "unknown"} | ${score.qualityGateFailures.join(", ")} |`;
+    }),
+  ].join("\n");
+}
+
 function top20ExternalFormalAnchorsMarkdown(
   report: SourceObjectExternalFormalAnchorSelectionReport,
 ): string {
@@ -18269,6 +18749,27 @@ function top20ExternalFormalAnchorsMarkdown(
     }),
     "",
     "Top-20 selection is a pre-execution prioritization step only. It does not create HardSeeds, InsightCandidates, DiscoveryCandidates, or Fund state.",
+  ].join("\n");
+}
+
+function top10HighQualityFormalAnchorsMarkdown(
+  report: SourceObjectExternalFormalAnchorSelectionReport,
+): string {
+  return [
+    "# Top 10 High-Quality Formal Anchors",
+    "",
+    `Top 10 selected after quality gate: ${report.top10PilotSelected}.`,
+    "",
+    "| Anchor | Score | Quality gate | Source object | Nontriviality rationale | Baseline non-dominance reason |",
+    "| --- | ---: | --- | --- | --- | --- |",
+    ...report.top10.map((anchor) => {
+      const decision = report.decisions.find(
+        (item) => item.anchorId === anchor.anchorId,
+      );
+      return `| ${anchor.anchorId} | ${decision?.score ?? 0} | ${String(decision?.qualityGatePassed ?? false)} | ${anchor.sourceObjectRef.replaceAll("|", "/")} | ${anchor.nontrivialityRationale.replaceAll("|", "/")} | ${anchor.reasonBaselineNotExpectedToDominate.replaceAll("|", "/")} |`;
+    }),
+    "",
+    "Selection here still does not create a HardSeed, InsightCandidate, DiscoveryCandidate, or Fund. It only authorizes claim-first execution.",
   ].join("\n");
 }
 
@@ -18293,7 +18794,7 @@ function claimFirstExternalExecutionResultsMarkdown(
   report: ExternalFormalPilotExecutionReport,
 ): string {
   return [
-    "# Claim-First External Execution Results",
+    "# Claim-First High-Quality Execution Results",
     "",
     `Top 10 pilots selected: ${report.top10PilotSelected}.`,
     `Exact claims frozen: ${report.exactClaimsFrozen}.`,
@@ -18888,6 +19389,9 @@ function sourceObjectNextCheckpointMarkdown(
     `Low-signal source objects rejected: ${report.lowSignalSourceObjectsRejected}.`,
     `HardSeeds born: ${report.hardSeedsBorn}.`,
     `External formal anchors considered: ${report.externalFormalAnchorsConsidered ?? 0}.`,
+    `External formal anchors scored: ${report.externalFormalAnchorsScored ?? 0}.`,
+    `External formal quality gate passed: ${report.externalFormalQualityGatePassed ?? 0}.`,
+    `External formal quality gate rejected: ${report.externalFormalQualityRejected ?? 0}.`,
     `External formal anchors rejected before execution: ${report.externalFormalAnchorsRejected ?? 0}.`,
     `External formal top-20 anchors selected: ${report.externalFormalTop20Selected ?? 0}.`,
     `External formal top-10 pilots executed: ${report.externalFormalTop10Executed ?? 0}.`,

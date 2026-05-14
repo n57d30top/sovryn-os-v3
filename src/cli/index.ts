@@ -237,6 +237,7 @@ Commands:
   sovryn discover-daemon overnight-min-runtime [--min-runtime-ms N] [--runtime-limit-ms N] [--heartbeat-ms N] [--generator-variant-limit N] [--stagnation-iteration-limit N] [--json]
   sovryn discover-daemon eight-stage-sprint [--json]
   sovryn discover-daemon stage-six-honest-100 [--json]
+  sovryn discover-daemon three-stage-epistemic-campaign [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1758,7 +1759,7 @@ async function discoverDaemonCommand(
   if (!subcommand) {
     throw new AppError(
       "DISCOVER_DAEMON_COMMAND_REQUIRED",
-      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|generator-claim-lift-propose|generator-claim-lift|generator-claim-lift-pressure|generator-claim-lift-experiment|generator-claim-lift-source-signal|generator-claim-lift-novelty-pressure|generator-claim-lift-death-memory|generator-claim-lift-candidate|generator-claim-lift-rebind|generator-claim-lift-intake|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|source-object-engine|benchmark-fragility|benchmark-fragility-recurrence|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates or --significance-candidates with generator-families or generator-run to select the generator family set.",
+      "Use: sovryn discover-daemon <status|init|run|resume|package-scout|candidate-present-preflight|draft-audit|inspectability-audit|generation-quality|domain-discovery|domain-audit|domain-rotation|hard-seeds|hard-seed-generate|hard-seed-audit|insight-gauntlet|insight-patterns|outcome-pattern-search|outcome-war|reality-marathon|marathon|raw-evidence-reset|cross-source-residual-search|generative-experiments|tool-expansion|mechanism-first-pressure|generator-families|generator-run|generator-audit|generator-pressure|generator-insight-closure|generator-fund-closure|generator-claim-lift-propose|generator-claim-lift|generator-claim-lift-pressure|generator-claim-lift-experiment|generator-claim-lift-source-signal|generator-claim-lift-novelty-pressure|generator-claim-lift-death-memory|generator-claim-lift-candidate|generator-claim-lift-rebind|generator-claim-lift-intake|dimacs-boundary-closure|formal-anchor-select|formal-anchor-pilot|formal-anchor-audit|formal-anchor-pressure|source-object-engine|benchmark-fragility|benchmark-fragility-recurrence|discovery-anchor-select|discovery-anchor-audit|discovery-anchor-source-load|discovery-anchor-run|discovery-anchor-run-audit|raw-insight-gate-closure|overnight-completion|overnight-min-runtime|eight-stage-sprint|stage-six-honest-100|three-stage-epistemic-campaign|cycle|candidate-status|graveyard|fund-gate|fund-reconcile|fund-package-contract|notify-if-fund|audit>. Use --replacement-candidates or --significance-candidates with generator-families or generator-run to select the generator family set.",
     );
   }
   const service = new AutonomousDiscoveryDaemonService(root);
@@ -2003,6 +2004,8 @@ async function discoverDaemonCommand(
       return service.eightStageSprint();
     case "stage-six-honest-100":
       return service.stageSixHonest100();
+    case "three-stage-epistemic-campaign":
+      return service.threeStageEpistemicCampaign();
     case "cycle":
       return service.cycle({
         mode:

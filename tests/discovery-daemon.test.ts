@@ -67,6 +67,7 @@ import {
 } from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
 import { EightStageCompletionSprintService } from "../src/core/discovery-daemon/eight-stage-completion-sprint-service.js";
 import { StageSixHonest100Service } from "../src/core/discovery-daemon/stage-six-honest-100-service.js";
+import { ThreeStageEpistemicCampaignService } from "../src/core/discovery-daemon/three-stage-epistemic-campaign-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -130,6 +131,7 @@ const commands = [
   "overnight-min-runtime",
   "eight-stage-sprint",
   "stage-six-honest-100",
+  "three-stage-epistemic-campaign",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8478,6 +8480,77 @@ test("stage-six honest 100 runner writes required artifacts", async () => {
     "PROMPT_TO_ARTIFACT_CHECKLIST.md",
   ]) {
     await access(join(root, daemonRoot, "stage-six-honest-100", artifact));
+  }
+});
+
+test("three-stage epistemic campaign reports honest non-100 stage blockers", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.threeStageEpistemicCampaign();
+
+  assert.equal(report.kind, "three_stage_epistemic_completion_campaign");
+  assert.equal(
+    report.terminalStatus,
+    "productive_epistemic_engine_continue_searching",
+  );
+  assert.equal(report.claimsValidated, 10);
+  assert.equal(report.deepValidatedClaims, 3);
+  assert.equal(report.claimsKilled >= 1, true);
+  assert.equal(report.synthesisCandidates, 20);
+  assert.equal(report.topSynthesisCandidatesExecuted, 5);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageDecisions.every((stage) => stage.reached100 === false),
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "three-stage-epistemic-campaign", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "three_stage_epistemic_completion_campaign",
+  );
+});
+
+test("three-stage epistemic campaign writes required artifacts", async () => {
+  const root = await tempRoot();
+  const report = await new ThreeStageEpistemicCampaignService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 26, true);
+  for (const artifact of [
+    "THREE_STAGE_BASELINE_AUDIT.md",
+    "THREE_STAGE_SCORECARD.md",
+    "THREE_STAGE_BLOCKERS.md",
+    "UNBREAKABLE_VALIDATOR_CAMPAIGN.md",
+    "EXTERNAL_CLAIM_VALIDATION_RESULTS.md",
+    "BENCHMARK_RECURRENCE_RESULTS.md",
+    "VALIDATOR_100_DECISION.md",
+    "HARDSEED_SYNTHESIS_INPUTS.md",
+    "SYNTHESIS_CANDIDATES.md",
+    "TOP5_SYNTHESIS_EXECUTION_RESULTS.md",
+    "SYNTHESIS_DECISION.md",
+    "STRUCTURAL_PRINCIPLES.md",
+    "MECHANISM_MODEL.md",
+    "HOLDOUT_PREDICTION_RESULTS.md",
+    "STRUCTURAL_UNDERSTANDING_DECISION.md",
+    "THREE_STAGE_FINAL_AUDIT.md",
+    "THREE_STAGE_FINAL_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+    "PROMPT_TO_ARTIFACT_CHECKLIST.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "three-stage-epistemic-campaign", artifact),
+    );
   }
 });
 

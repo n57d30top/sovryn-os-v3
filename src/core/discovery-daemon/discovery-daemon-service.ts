@@ -42,6 +42,10 @@ import {
   StageSixHonest100Service,
   type StageSixHonest100Report,
 } from "./stage-six-honest-100-service.js";
+import {
+  ThreeStageEpistemicCampaignService,
+  type ThreeStageEpistemicCampaignReport,
+} from "./three-stage-epistemic-campaign-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65916,6 +65920,11 @@ export class AutonomousDiscoveryDaemonService {
   async stageSixHonest100(): Promise<StageSixHonest100Report> {
     await this.ensureInitialized();
     return new StageSixHonest100Service(this.root).run();
+  }
+
+  async threeStageEpistemicCampaign(): Promise<ThreeStageEpistemicCampaignReport> {
+    await this.ensureInitialized();
+    return new ThreeStageEpistemicCampaignService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

@@ -5344,8 +5344,12 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.md",
     "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.json",
     "EXTERNAL_FORMAL_CLAIM_MINING.json",
+    "EXTERNAL_CLAIM_SOURCE_HARVEST.md",
+    "EXTERNAL_CLAIM_SOURCE_HARVEST.json",
     "EXTERNAL_FORMAL_CLAIM_SOURCES.md",
     "EXTERNAL_FORMAL_CLAIMS.json",
+    "EXTRACTED_EXTERNAL_CLAIMS.md",
+    "EXTRACTED_EXTERNAL_CLAIMS.json",
     "EXTERNAL_CLAIM_FAILURE_AUTOPSY.md",
     "EXTERNAL_CLAIM_FAILURE_MATRIX.json",
     "CLAIM_ATTACKABILITY_GATE.md",
@@ -5353,15 +5357,21 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "REJECTED_EXTERNAL_CLAIMS.md",
     "EXTERNAL_CLAIM_ORACLE_GATE.md",
     "EXTERNAL_CLAIM_ORACLE_GATE.json",
+    "HIGH_VALUE_CLAIM_GATE.md",
+    "HIGH_VALUE_CLAIM_GATE.json",
     "REJECTED_NO_ORACLE_CLAIMS.md",
     "HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md",
     "DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md",
     "CLAIM_OBJECT_MATCHES.md",
     "CLAIM_OBJECT_MATCHES.json",
+    "HIGH_VALUE_CLAIM_OBJECT_MATCHES.md",
+    "HIGH_VALUE_CLAIM_OBJECT_MATCHES.json",
     "EXTERNAL_CLAIM_ATTACK_RESULTS.md",
     "EXTERNAL_CLAIM_ATTACK_RESULTS.json",
     "HIGH_VALUE_CLAIM_ATTACK_RESULTS.md",
     "HIGH_VALUE_CLAIM_ATTACK_RESULTS.json",
+    "HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.md",
+    "HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.json",
     "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md",
     "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
@@ -7539,14 +7549,58 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       "utf8",
     ),
   ) as {
+    claimSourceHarvest: {
+      sourcesConsidered: number;
+      sourcesAccepted: number;
+      sourcesRejected: number;
+      sourceClassesRepresented: string[];
+      sources: Array<{
+        sourceId: string;
+        sourceClass: string;
+        sourceUrlOrPublicReference: string;
+        sourceReceipt: string;
+        sourceHash: string;
+        domain: string;
+        concreteObjectId: string;
+        concreteObjectEncoding: string;
+        exactClaimTextOrParaphrase: string;
+        whyClaimMatters: string;
+        falsifier: string;
+        successOracle: string;
+        failureOracle: string;
+        expectedWitnessOrRefutationType: string;
+        whyWitnessRefutationWouldBeNonstandard: string;
+        strongestRivalMechanism: string;
+        knownTrivialityRisk: string;
+        replayPath: string;
+        acceptedForExtraction: boolean;
+        rejectionReasons: string[];
+      }>;
+      accepted: Array<{ sourceId: string }>;
+      rejected: Array<{ sourceId: string; rejectionReasons: string[] }>;
+    };
     claimSources: {
       claimsConsidered: number;
       sourceDomainsRepresented: string[];
       claims: Array<{
         claimId: string;
+        claimSourceId: string;
+        sourceClass: string;
         sourceUrlOrPublicReference: string;
+        sourceReceipt: string;
+        sourceHash: string;
         exactClaimOrParaphrase: string;
         domain: string;
+        concreteObjectOrFileId: string;
+        sourceObjectEncoding: string;
+        whyClaimMatters: string;
+        falsifier: string;
+        successOracle: string;
+        failureOracle: string;
+        expectedWitnessOrRefutationType: string;
+        whyWitnessRefutationWouldBeNonstandard: string;
+        strongestRivalMechanism: string;
+        externalSignificance: string;
         attackabilityRationale: string;
         refutingOrSupportingObjectShape: string;
         knownTrivialityRisk: string;
@@ -7677,7 +7731,53 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       }>;
     };
   };
+  assert.equal(
+    externalClaimMining.claimSourceHarvest.sourcesConsidered >= 18,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.claimSourceHarvest.sourceClassesRepresented.length >= 6,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.claimSourceHarvest.sourcesAccepted > 0,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.claimSourceHarvest.sourcesRejected > 0,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.claimSourceHarvest.sources.every(
+      (source) =>
+        source.sourceId.startsWith("EXT-CLAIM-SOURCE-") &&
+        source.sourceClass.length > 0 &&
+        source.sourceUrlOrPublicReference.length > 0 &&
+        source.exactClaimTextOrParaphrase.length > 0 &&
+        source.whyClaimMatters.length > 0 &&
+        ["low", "medium", "high"].includes(source.knownTrivialityRisk) &&
+        (source.acceptedForExtraction
+          ? source.sourceReceipt.length > 0 &&
+            source.sourceHash.length > 0 &&
+            source.concreteObjectId.length > 0 &&
+            source.concreteObjectEncoding.length > 0 &&
+            source.falsifier.length > 0 &&
+            source.successOracle.length > 0 &&
+            source.failureOracle.length > 0 &&
+            source.expectedWitnessOrRefutationType.length > 0 &&
+            source.whyWitnessRefutationWouldBeNonstandard.length > 0 &&
+            source.strongestRivalMechanism.length > 0 &&
+            source.replayPath.length > 0 &&
+            source.rejectionReasons.length === 0
+          : source.rejectionReasons.length > 0),
+    ),
+    true,
+  );
   assert.equal(externalClaimMining.claimSources.claimsConsidered >= 12, true);
+  assert.equal(
+    externalClaimMining.claimSources.claimsConsidered,
+    externalClaimMining.claimSourceHarvest.sourcesAccepted,
+  );
   assert.equal(
     externalClaimMining.claimSources.sourceDomainsRepresented.length >= 3,
     true,
@@ -7686,9 +7786,23 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     externalClaimMining.claimSources.claims.every(
       (claim) =>
         claim.claimId.startsWith("EXT-CLAIM-") &&
+        claim.claimSourceId.startsWith("EXT-CLAIM-SOURCE-") &&
+        claim.sourceClass.length > 0 &&
         claim.sourceUrlOrPublicReference.length > 0 &&
+        claim.sourceReceipt.length > 0 &&
+        claim.sourceHash.length > 0 &&
         claim.exactClaimOrParaphrase.length > 0 &&
         claim.domain.length > 0 &&
+        claim.concreteObjectOrFileId.length > 0 &&
+        claim.sourceObjectEncoding.length > 0 &&
+        claim.whyClaimMatters.length > 0 &&
+        claim.falsifier.length > 0 &&
+        claim.successOracle.length > 0 &&
+        claim.failureOracle.length > 0 &&
+        claim.expectedWitnessOrRefutationType.length > 0 &&
+        claim.whyWitnessRefutationWouldBeNonstandard.length > 0 &&
+        claim.strongestRivalMechanism.length > 0 &&
+        claim.externalSignificance.length > 0 &&
         claim.attackabilityRationale.length > 0 &&
         claim.refutingOrSupportingObjectShape.length > 0 &&
         ["low", "medium", "high"].includes(claim.knownTrivialityRisk) &&

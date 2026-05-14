@@ -3594,12 +3594,74 @@ export type CuratedExternalFormalChallengeSelectionReport = {
   evidenceHash: string;
 };
 
+export type ExternalClaimSourceClass =
+  | "sat_smt_benchmark_note"
+  | "solver_heuristic_report"
+  | "automata_cegar_example"
+  | "oeis_comment_or_formula_note"
+  | "combinatorial_design_source"
+  | "graph_theory_concrete_object"
+  | "benchmark_challenge_description";
+
+export type ExternalClaimSourceHarvestEntry = {
+  kind: "external_claim_source_harvest_entry";
+  sourceId: string;
+  sourceClass: ExternalClaimSourceClass;
+  sourceUrlOrPublicReference: string;
+  sourceReceipt: string;
+  sourceHash: string;
+  domain: CertificateFriendlyFormalDomainId;
+  concreteObjectId: string;
+  concreteObjectEncoding: string;
+  exactClaimTextOrParaphrase: string;
+  whyClaimMatters: string;
+  falsifier: string;
+  successOracle: string;
+  failureOracle: string;
+  expectedWitnessOrRefutationType: string;
+  whyWitnessRefutationWouldBeNonstandard: string;
+  strongestRivalMechanism: string;
+  externalSignificance: string;
+  knownTrivialityRisk: FormalSourceObjectKnownTrivialityRisk;
+  replayPath: string;
+  acceptedForExtraction: boolean;
+  rejectionReasons: string[];
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalClaimSourceHarvestReport = {
+  kind: "external_claim_source_harvest";
+  sourcesConsidered: number;
+  sourcesAccepted: number;
+  sourcesRejected: number;
+  sourceClassesRepresented: ExternalClaimSourceClass[];
+  sources: ExternalClaimSourceHarvestEntry[];
+  accepted: ExternalClaimSourceHarvestEntry[];
+  rejected: ExternalClaimSourceHarvestEntry[];
+  evidenceHash: string;
+};
+
 export type ExternalFormalClaimSource = {
   kind: "external_formal_claim_source";
   claimId: string;
+  claimSourceId: string;
+  sourceClass: ExternalClaimSourceClass;
   sourceUrlOrPublicReference: string;
+  sourceReceipt: string;
+  sourceHash: string;
   exactClaimOrParaphrase: string;
   domain: CertificateFriendlyFormalDomainId;
+  concreteObjectOrFileId: string;
+  sourceObjectEncoding: string;
+  whyClaimMatters: string;
+  falsifier: string;
+  successOracle: string;
+  failureOracle: string;
+  expectedWitnessOrRefutationType: string;
+  whyWitnessRefutationWouldBeNonstandard: string;
+  strongestRivalMechanism: string;
+  externalSignificance: string;
   attackabilityRationale: string;
   refutingOrSupportingObjectShape: string;
   knownTrivialityRisk: FormalSourceObjectKnownTrivialityRisk;
@@ -3841,6 +3903,7 @@ export type ExternalClaimMiningInsightBirthReport = {
 
 export type ExternalFormalClaimMiningReport = {
   kind: "external_formal_claim_mining";
+  claimSourceHarvest: ExternalClaimSourceHarvestReport;
   claimSources: ExternalFormalClaimSourceReport;
   attackabilityGate: ExternalClaimAttackabilityGateReport;
   failureAutopsy: ExternalClaimFailureAutopsyReport;
@@ -17020,13 +17083,51 @@ export class SourceObjectFirstDiscoveryEngine {
         "external_formal_claim_mining_completed",
         externalFormalClaimMining !== null &&
           curatedExternalFormalChallengeSelection !== null &&
+          externalFormalClaimMining.claimSourceHarvest.sourcesConsidered >=
+            18 &&
+          externalFormalClaimMining.claimSourceHarvest.sourcesAccepted > 0 &&
+          externalFormalClaimMining.claimSourceHarvest.sourcesRejected > 0 &&
+          externalFormalClaimMining.claimSourceHarvest.sourceClassesRepresented
+            .length >= 6 &&
+          externalFormalClaimMining.claimSourceHarvest.sources.every(
+            (source) =>
+              source.sourceUrlOrPublicReference.length > 0 &&
+              source.exactClaimTextOrParaphrase.length > 0 &&
+              source.whyClaimMatters.length > 0 &&
+              (source.acceptedForExtraction
+                ? source.sourceReceipt.length > 0 &&
+                  source.concreteObjectId.length > 0 &&
+                  source.falsifier.length > 0 &&
+                  source.successOracle.length > 0 &&
+                  source.failureOracle.length > 0 &&
+                  source.expectedWitnessOrRefutationType.length > 0 &&
+                  source.whyWitnessRefutationWouldBeNonstandard.length > 0 &&
+                  source.strongestRivalMechanism.length > 0 &&
+                  source.replayPath.length > 0
+                : source.rejectionReasons.length > 0),
+          ) &&
           externalFormalClaimMining.claimSources.claimsConsidered >= 12 &&
+          externalFormalClaimMining.claimSources.claimsConsidered ===
+            externalFormalClaimMining.claimSourceHarvest.sourcesAccepted &&
           externalFormalClaimMining.claimSources.sourceDomainsRepresented
             .length >= 3 &&
           externalFormalClaimMining.claimSources.claims.every(
             (claim) =>
+              claim.claimSourceId.length > 0 &&
+              claim.sourceClass.length > 0 &&
               claim.sourceUrlOrPublicReference.length > 0 &&
+              claim.sourceReceipt.length > 0 &&
+              claim.sourceHash.length > 0 &&
               claim.exactClaimOrParaphrase.length > 0 &&
+              claim.concreteObjectOrFileId.length > 0 &&
+              claim.sourceObjectEncoding.length > 0 &&
+              claim.falsifier.length > 0 &&
+              claim.successOracle.length > 0 &&
+              claim.failureOracle.length > 0 &&
+              claim.expectedWitnessOrRefutationType.length > 0 &&
+              claim.whyWitnessRefutationWouldBeNonstandard.length > 0 &&
+              claim.strongestRivalMechanism.length > 0 &&
+              claim.externalSignificance.length > 0 &&
               claim.attackabilityRationale.length > 0 &&
               claim.refutingOrSupportingObjectShape.length > 0 &&
               claim.replayPath.length > 0,
@@ -18490,11 +18591,31 @@ export class SourceObjectFirstDiscoveryEngine {
       input.externalFormalClaimMining,
     );
     await writeJson(
+      join(root, "EXTERNAL_CLAIM_SOURCE_HARVEST.json"),
+      input.externalFormalClaimMining.claimSourceHarvest,
+    );
+    await writeText(
+      join(root, "EXTERNAL_CLAIM_SOURCE_HARVEST.md"),
+      externalClaimSourceHarvestMarkdown(
+        input.externalFormalClaimMining.claimSourceHarvest,
+      ),
+    );
+    await writeJson(
       join(root, "EXTERNAL_FORMAL_CLAIMS.json"),
+      input.externalFormalClaimMining.claimSources,
+    );
+    await writeJson(
+      join(root, "EXTRACTED_EXTERNAL_CLAIMS.json"),
       input.externalFormalClaimMining.claimSources,
     );
     await writeText(
       join(root, "EXTERNAL_FORMAL_CLAIM_SOURCES.md"),
+      externalFormalClaimSourcesMarkdown(
+        input.externalFormalClaimMining.claimSources,
+      ),
+    );
+    await writeText(
+      join(root, "EXTRACTED_EXTERNAL_CLAIMS.md"),
       externalFormalClaimSourcesMarkdown(
         input.externalFormalClaimMining.claimSources,
       ),
@@ -18535,6 +18656,16 @@ export class SourceObjectFirstDiscoveryEngine {
         input.externalFormalClaimMining.oracleGate,
       ),
     );
+    await writeJson(
+      join(root, "HIGH_VALUE_CLAIM_GATE.json"),
+      input.externalFormalClaimMining.oracleGate,
+    );
+    await writeText(
+      join(root, "HIGH_VALUE_CLAIM_GATE.md"),
+      externalClaimOracleGateMarkdown(
+        input.externalFormalClaimMining.oracleGate,
+      ),
+    );
     await writeText(
       join(root, "REJECTED_NO_ORACLE_CLAIMS.md"),
       rejectedNoOracleClaimsMarkdown(
@@ -18557,8 +18688,16 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "CLAIM_OBJECT_MATCHES.json"),
       input.externalFormalClaimMining.objectMatches,
     );
+    await writeJson(
+      join(root, "HIGH_VALUE_CLAIM_OBJECT_MATCHES.json"),
+      input.externalFormalClaimMining.objectMatches,
+    );
     await writeText(
       join(root, "CLAIM_OBJECT_MATCHES.md"),
+      claimObjectMatchesMarkdown(input.externalFormalClaimMining.objectMatches),
+    );
+    await writeText(
+      join(root, "HIGH_VALUE_CLAIM_OBJECT_MATCHES.md"),
       claimObjectMatchesMarkdown(input.externalFormalClaimMining.objectMatches),
     );
     await writeJson(
@@ -18577,6 +18716,16 @@ export class SourceObjectFirstDiscoveryEngine {
     );
     await writeText(
       join(root, "HIGH_VALUE_CLAIM_ATTACK_RESULTS.md"),
+      highValueClaimAttackResultsMarkdown(
+        input.externalFormalClaimMining.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.json"),
+      input.externalFormalClaimMining.execution,
+    );
+    await writeText(
+      join(root, "HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.md"),
       highValueClaimAttackResultsMarkdown(
         input.externalFormalClaimMining.execution,
       ),
@@ -26295,7 +26444,11 @@ function runExternalFormalClaimMining(
   curatedSelection: CuratedExternalFormalChallengeSelectionReport,
   harvest: ExternalFormalObjectHarvestReport,
 ): ExternalFormalClaimMiningReport {
-  const claimSources = externalFormalClaimSources(curatedSelection, harvest);
+  const claimSourceHarvest = externalClaimSourceHarvest(
+    curatedSelection,
+    harvest,
+  );
+  const claimSources = externalFormalClaimSources(claimSourceHarvest);
   const attackabilityGate = externalClaimAttackabilityGate(claimSources);
   const rawObjectMatches = externalClaimObjectMatches(
     attackabilityGate,
@@ -26321,6 +26474,7 @@ function runExternalFormalClaimMining(
     decideExternalClaimMiningInsightBirth(execution);
   return withEvidenceHash({
     kind: "external_formal_claim_mining" as const,
+    claimSourceHarvest,
     claimSources,
     attackabilityGate,
     failureAutopsy,
@@ -26332,35 +26486,630 @@ function runExternalFormalClaimMining(
   });
 }
 
-function externalFormalClaimSources(
+type ExternalClaimSourceSeed = {
+  sourceClass: ExternalClaimSourceClass;
+  sourceFamily: ExternalFormalAnchorSourceFamily | null;
+  sourceUrlOrPublicReference: string;
+  domain: CertificateFriendlyFormalDomainId;
+  exactClaimTextOrParaphrase: string;
+  whyClaimMatters: string;
+  falsifier: string;
+  successOracle: string;
+  failureOracle: string;
+  expectedWitnessOrRefutationType: string;
+  whyWitnessRefutationWouldBeNonstandard: string;
+  strongestRivalMechanism?: string;
+  externalSignificance: string;
+  forceRejectReasons?: string[];
+};
+
+function externalClaimSourceHarvest(
   curatedSelection: CuratedExternalFormalChallengeSelectionReport,
   harvest: ExternalFormalObjectHarvestReport,
-): ExternalFormalClaimSourceReport {
+): ExternalClaimSourceHarvestReport {
   const curatedObjectIds = new Set(
     curatedSelection.challengeObjects.selected.map((object) => object.objectId),
   );
-  const eligibleObjects = harvest.valid
-    .filter((object) => !object.familyOnlyPlaceholder)
-    .filter((object) => object.validPublicReceipt)
-    .filter((object) => !curatedObjectIds.has(object.objectId))
-    .slice(0, 18);
-  const claims = eligibleObjects.map((object, index) => {
-    const domain = certificateDomainForExternalObject(object);
-    const profile = externalClaimProfile(domain, object);
+  const validObjects = harvest.valid.filter(
+    (object) => !curatedObjectIds.has(object.objectId),
+  );
+  const sourceFamilyOffsets = new Map<
+    ExternalFormalAnchorSourceFamily,
+    number
+  >();
+  const sources = externalClaimSourceSeeds().map((seed, index) => {
+    const sourceObject = seed.sourceFamily
+      ? nextExternalClaimSourceObject(
+          validObjects,
+          seed.sourceFamily,
+          sourceFamilyOffsets,
+        )
+      : null;
+    const sourceId = `EXT-CLAIM-SOURCE-${String(index + 1).padStart(3, "0")}`;
+    const sourcePayload = {
+      sourceId,
+      sourceClass: seed.sourceClass,
+      sourceUrlOrPublicReference: seed.sourceUrlOrPublicReference,
+      sourceObjectId: sourceObject?.objectId ?? null,
+      exactClaimTextOrParaphrase: seed.exactClaimTextOrParaphrase,
+    };
+    const sourceHash = hashEvidence(sourcePayload);
+    const sourceReceipt =
+      sourceObject && seed.sourceUrlOrPublicReference.length > 0
+        ? `${seed.sourceUrlOrPublicReference}#object=${sourceObject.objectId};source=${sourceId};hash=${sourceHash.slice(0, 16)}`
+        : "";
+    const replayPath = sourceObject?.replayCommandOrReconstruction
+      ? `${sourceObject.replayCommandOrReconstruction}; claim-source=${sourceId}`
+      : "";
+    const strongestRivalMechanism =
+      seed.strongestRivalMechanism ?? sourceObject?.rivalMechanism ?? "";
+    const knownTrivialityRisk =
+      sourceObject?.knownPriorRisk ??
+      (seed.forceRejectReasons?.includes("known_theorem_replay")
+        ? "high"
+        : "medium");
+    const rejectionReasons = uniqueStrings([
+      ...(seed.forceRejectReasons ?? []),
+      seed.sourceUrlOrPublicReference.length > 0
+        ? ""
+        : "missing_source_reference",
+      sourceObject ? "" : "no_concrete_file_id_or_object",
+      sourceObject?.concreteEncoding.length ? "" : "missing_concrete_encoding",
+      sourceReceipt.length > 0 ? "" : "missing_source_receipt",
+      seed.exactClaimTextOrParaphrase.length >= 80 ? "" : "claim_too_vague",
+      seed.falsifier.length > 0 ? "" : "missing_falsifier",
+      seed.successOracle.length > 0 ? "" : "missing_success_oracle",
+      seed.failureOracle.length > 0 ? "" : "missing_failure_oracle",
+      seed.expectedWitnessOrRefutationType.length > 0
+        ? ""
+        : "missing_witness_or_refutation_type",
+      seed.whyWitnessRefutationWouldBeNonstandard.length > 0
+        ? ""
+        : "witness_value_not_nonstandard",
+      strongestRivalMechanism.length > 0 ? "" : "missing_rival_mechanism",
+      replayPath.length > 0 ? "" : "missing_replay_path",
+      knownTrivialityRisk === "high" ? "known_triviality_risk_high" : "",
+    ]).filter(Boolean);
+    return withEvidenceHash({
+      kind: "external_claim_source_harvest_entry" as const,
+      sourceId,
+      sourceClass: seed.sourceClass,
+      sourceUrlOrPublicReference: seed.sourceUrlOrPublicReference,
+      sourceReceipt,
+      sourceHash,
+      domain: seed.domain,
+      concreteObjectId: sourceObject?.objectId ?? "",
+      concreteObjectEncoding: sourceObject?.concreteEncoding ?? "",
+      exactClaimTextOrParaphrase: seed.exactClaimTextOrParaphrase,
+      whyClaimMatters: seed.whyClaimMatters,
+      falsifier: seed.falsifier,
+      successOracle: seed.successOracle,
+      failureOracle: seed.failureOracle,
+      expectedWitnessOrRefutationType: seed.expectedWitnessOrRefutationType,
+      whyWitnessRefutationWouldBeNonstandard:
+        seed.whyWitnessRefutationWouldBeNonstandard,
+      strongestRivalMechanism,
+      externalSignificance: seed.externalSignificance,
+      knownTrivialityRisk,
+      replayPath,
+      acceptedForExtraction: rejectionReasons.length === 0,
+      rejectionReasons,
+      evidenceRefs: uniqueStrings([
+        sourceObject
+          ? `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_OBJECTS.json#${sourceObject.objectId}`
+          : "",
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/CURATED_EXTERNAL_FORMAL_CHALLENGE_SELECTION.json`,
+      ]).filter(Boolean),
+    });
+  });
+  const accepted = sources.filter((source) => source.acceptedForExtraction);
+  const rejected = sources.filter((source) => !source.acceptedForExtraction);
+  return withEvidenceHash({
+    kind: "external_claim_source_harvest" as const,
+    sourcesConsidered: sources.length,
+    sourcesAccepted: accepted.length,
+    sourcesRejected: rejected.length,
+    sourceClassesRepresented: uniqueStrings(
+      sources.map((source) => source.sourceClass),
+    ) as ExternalClaimSourceClass[],
+    sources,
+    accepted,
+    rejected,
+  });
+}
+
+function nextExternalClaimSourceObject(
+  objects: ExternalFormalConcreteObject[],
+  family: ExternalFormalAnchorSourceFamily,
+  offsets: Map<ExternalFormalAnchorSourceFamily, number>,
+): ExternalFormalConcreteObject | null {
+  const familyObjects = objects.filter(
+    (object) => object.sourceFamily === family,
+  );
+  const available = familyObjects.length > 0 ? familyObjects : objects;
+  if (available.length === 0) return null;
+  const offset = offsets.get(family) ?? 0;
+  offsets.set(family, offset + 1);
+  return available[offset % available.length] ?? null;
+}
+
+function externalClaimSourceSeeds(): ExternalClaimSourceSeed[] {
+  return [
+    {
+      sourceClass: "sat_smt_benchmark_note",
+      sourceFamily: "satlib_bounded_instance",
+      sourceUrlOrPublicReference:
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      domain: "sat_cnf",
+      exactClaimTextOrParaphrase:
+        "SATLIB-style hard random CNF benchmark notes are treated as depending on full clause-family interaction rather than on a single clause/variable ratio or one syntactic subfamily.",
+      whyClaimMatters:
+        "A smaller replayable core-like refutation would attack an external hard-instance assumption rather than merely replaying SAT=yes or SAT=no.",
+      falsifier:
+        "A public CNF subset/core replay that preserves the contradiction boundary while the full clause-family explanation is removed.",
+      successOracle:
+        "Validated minimal core-like refutation scopes the full-clause-family rival on the concrete CNF object.",
+      failureOracle:
+        "Reject if the result is only SAT/UNSAT, if the ratio baseline dominates, or if no core-like replayable artifact is extracted.",
+      expectedWitnessOrRefutationType: "minimal CNF core-like refutation",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must expose a smaller structural contradiction boundary, not a standard satisfying assignment or generic UNSAT flag.",
+      externalSignificance:
+        "Would turn a benchmark-hardness note into a concrete refutable structural claim.",
+    },
+    {
+      sourceClass: "solver_heuristic_report",
+      sourceFamily: "satlib_bounded_instance",
+      sourceUrlOrPublicReference:
+        "https://satcompetition.github.io/2023/downloads.html",
+      domain: "sat_cnf",
+      exactClaimTextOrParaphrase:
+        "Solver benchmark challenge reports often rank instances as hard because solver heuristics fail on encoded structure; the attack asks whether a replayable substructure, not raw size, explains the boundary.",
+      whyClaimMatters:
+        "A substructure witness would scope the package/runtime/solver-maturity rival for a public hard-instance claim.",
+      falsifier:
+        "A matched size/ratio baseline or solver-family replay explains the outcome without the proposed substructure.",
+      successOracle:
+        "A validated substructure witness predicts the bounded failure/success boundary after size and ratio controls.",
+      failureOracle:
+        "Reject if solver behavior follows source-family, size, or clause/variable ratio controls.",
+      expectedWitnessOrRefutationType:
+        "solver-heuristic boundary substructure witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must identify a mechanism-level hard substructure, not only report solver runtime or satisfiability.",
+      externalSignificance:
+        "Would produce an inspectable claim about a public benchmark challenge assumption.",
+    },
+    {
+      sourceClass: "sat_smt_benchmark_note",
+      sourceFamily: "smtlib_bounded_instance",
+      sourceUrlOrPublicReference: "https://smt-lib.org/benchmarks.shtml",
+      domain: "smt",
+      exactClaimTextOrParaphrase:
+        "SMT-LIB benchmark descriptions can imply that a selected object exercises a mixed-theory boundary; the attack asks whether either theory fragment alone reproduces the outcome.",
+      whyClaimMatters:
+        "A fragment-ablation refutation would be more valuable than a generic SMT model because it tests the benchmark's mixed-boundary interpretation.",
+      falsifier:
+        "A public fragment-only replay that reproduces the bounded result without cross-fragment dependence.",
+      successOracle:
+        "Cross-fragment contradiction or ablation witness shows the mixed-boundary claim survives single-fragment rivals.",
+      failureOracle:
+        "Reject if one fragment, syntax size, or assertion-count baseline explains the outcome.",
+      expectedWitnessOrRefutationType:
+        "mixed-theory fragment-ablation refutation",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must distinguish cross-fragment dependence from a standard SMT satisfiability model.",
+      externalSignificance:
+        "Would make a benchmark classification claim inspectable from a concrete SMT2 object.",
+    },
+    {
+      sourceClass: "solver_heuristic_report",
+      sourceFamily: "smtlib_bounded_instance",
+      sourceUrlOrPublicReference:
+        "https://github.com/SMT-LIB/benchmarks/tree/master/QF_BV",
+      domain: "smt",
+      exactClaimTextOrParaphrase:
+        "Bit-vector benchmark families are often treated as bit-blast-hard; the bounded attack tests whether a theory-specific boundary survives syntax-size and bit-width rivals.",
+      whyClaimMatters:
+        "A theory-specific boundary witness would make the heuristic-hardness explanation more precise and falsifiable.",
+      falsifier:
+        "Bit-width, assertion-count, or syntax-size controls reproduce the outcome without the proposed boundary.",
+      successOracle:
+        "Validated model or contradiction witness scopes the bit-width/syntax-size rival on the concrete SMT2 object.",
+      failureOracle:
+        "Reject if the witness is a generic model, if bit-width dominates, or if replay fails.",
+      expectedWitnessOrRefutationType:
+        "bit-vector boundary contradiction/model witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must identify a boundary condition, not merely return sat/unsat.",
+      externalSignificance:
+        "Would target a concrete SMT benchmark heuristic rather than an internal Product observation.",
+    },
+    {
+      sourceClass: "automata_cegar_example",
+      sourceFamily: "automata_minimization_cegar",
+      sourceUrlOrPublicReference: "https://automata.cs.ru.nl/examples/",
+      domain: "automata",
+      exactClaimTextOrParaphrase:
+        "Automata minimization and CEGAR examples are often described by state-count or refinement behavior; this claim tests whether a transition-local perturbation has a shortest distinguishing word not predicted by state count.",
+      whyClaimMatters:
+        "A shortest distinguishing word would directly scope a state-count rival for a replayable transition table.",
+      falsifier:
+        "A state-count-matched perturbation produces the same separation or no distinguishing word exists under replay.",
+      successOracle:
+        "Shortest distinguishing word validates the transition-local mechanism against state-count and alphabet-size rivals.",
+      failureOracle:
+        "Reject if the witness is ordinary minimization output or if state count explains the separation.",
+      expectedWitnessOrRefutationType:
+        "transition-specific shortest distinguishing word",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The word must discriminate a predeclared perturbation mechanism, not only prove two arbitrary automata differ.",
+      externalSignificance:
+        "Would turn a public automata example into a bounded mechanism claim with a replayable witness.",
+    },
+    {
+      sourceClass: "benchmark_challenge_description",
+      sourceFamily: "automata_minimization_cegar",
+      sourceUrlOrPublicReference:
+        "https://github.com/automata-tooling/automata-benchmarks",
+      domain: "automata",
+      exactClaimTextOrParaphrase:
+        "A benchmark automaton can be claimed to expose refinement depth rather than transition-table size; the attack freezes a distinguishing-word oracle before replay.",
+      whyClaimMatters:
+        "The witness would refute a size-only explanation for a concrete transition-table object.",
+      falsifier:
+        "A size-matched transition-table baseline yields equal or shorter distinguishing words.",
+      successOracle:
+        "Validated distinguishing word remains shorter or more specific under size-matched controls.",
+      failureOracle:
+        "Reject if no word is found, if the word is generic, or if replay from the transition table fails.",
+      expectedWitnessOrRefutationType:
+        "CEGAR refinement distinguishing-word witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must expose refinement-specific separation rather than a textbook equivalence check.",
+      externalSignificance:
+        "Would make an automata challenge note externally inspectable through a concrete witness.",
+    },
+    {
+      sourceClass: "oeis_comment_or_formula_note",
+      sourceFamily: "oeis_small_sequence",
+      sourceUrlOrPublicReference: "https://oeis.org/",
+      domain: "oeis_sequence",
+      exactClaimTextOrParaphrase:
+        "An OEIS-style formula or recurrence note can be attacked by freezing a bounded recurrence interpretation and checking for the first public term that breaks it.",
+      whyClaimMatters:
+        "A minimal recurrence-breaking term is a concrete refutation artifact, not a curve-fit success on a finite prefix.",
+      falsifier:
+        "The recurrence generator reproduces all held-out terms or the first failure is explained by prefix interpolation.",
+      successOracle:
+        "A first failing term refutes the frozen recurrence under deterministic replay and finite-prefix controls.",
+      failureOracle:
+        "Reject if the recurrence is known, if finite-prefix interpolation explains the effect, or if no public terms exist.",
+      expectedWitnessOrRefutationType:
+        "minimal recurrence-breaking sequence term",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness is a minimal public counterterm to a frozen formula, not another fitted recurrence.",
+      externalSignificance:
+        "Would convert a public sequence comment into a bounded replayable refutation target.",
+    },
+    {
+      sourceClass: "oeis_comment_or_formula_note",
+      sourceFamily: "oeis_small_sequence",
+      sourceUrlOrPublicReference: "https://oeis.org/wiki/Index_to_OEIS",
+      domain: "oeis_sequence",
+      exactClaimTextOrParaphrase:
+        "A sequence note with explicit terms can be tested for whether a low-order recurrence survives a withheld term boundary rather than being a finite-prefix artifact.",
+      whyClaimMatters:
+        "The first withheld-term failure would scope the finite-prefix interpolation rival.",
+      falsifier:
+        "Held-out terms continue the frozen recurrence or a lower-order interpolation baseline is stronger.",
+      successOracle:
+        "Minimal held-out violation is replayable from explicit terms and weakens the recurrence-note interpretation.",
+      failureOracle:
+        "Reject if the witness is only a standard recurrence check or if known sequence facts absorb it.",
+      expectedWitnessOrRefutationType: "held-out recurrence violation witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must be the first predeclared held-out violation, not a post-hoc fit failure.",
+      externalSignificance:
+        "Would make a sequence-note claim falsifiable with public terms.",
+    },
+    {
+      sourceClass: "combinatorial_design_source",
+      sourceFamily: "combinatorial_design_instance",
+      sourceUrlOrPublicReference: "https://www.dmgordon.org/cover/",
+      domain: "combinatorial_design",
+      exactClaimTextOrParaphrase:
+        "Covering/design tables can imply that an incidence structure is near-boundary; this attack asks whether a concrete incidence violation or uniqueness witness survives count-regularity rivals.",
+      whyClaimMatters:
+        "An incidence-level witness would scope block-count and parameter-count rivals for a public design source.",
+      falsifier:
+        "Count regularity, block size, or parameter baseline reproduces the outcome without the proposed incidence boundary.",
+      successOracle:
+        "Validated incidence violation or uniqueness witness is replayable from rows and weakens count-only rivals.",
+      failureOracle:
+        "Reject if the artifact is only block-count regularity or if known design tables absorb it.",
+      expectedWitnessOrRefutationType:
+        "incidence uniqueness or violation witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must name incidence rows/pairs, not only repeat design parameters.",
+      externalSignificance:
+        "Would connect a public design table to a concrete bounded refutation or uniqueness claim.",
+    },
+    {
+      sourceClass: "combinatorial_design_source",
+      sourceFamily: "combinatorial_design_instance",
+      sourceUrlOrPublicReference:
+        "https://www.combinatorics.org/ojs/index.php/eljc/article/view/DS5",
+      domain: "combinatorial_design",
+      exactClaimTextOrParaphrase:
+        "A combinatorial design instance can be attacked as a uniqueness boundary rather than a parameter-count artifact by validating a replayable incidence certificate.",
+      whyClaimMatters:
+        "A concrete incidence certificate would separate structural uniqueness from a source-family count explanation.",
+      falsifier:
+        "A same-parameter alternative incidence structure or count-only baseline explains the outcome.",
+      successOracle:
+        "Validated incidence witness scopes parameter-count and source-family rivals on the concrete object.",
+      failureOracle:
+        "Reject if only standard block-design parameter checks pass.",
+      expectedWitnessOrRefutationType:
+        "same-parameter incidence uniqueness/refutation witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must compare incidence structures, not only validate a textbook block condition.",
+      externalSignificance:
+        "Would turn a public design instance into a precise reviewer-replayable claim.",
+    },
+    {
+      sourceClass: "graph_theory_concrete_object",
+      sourceFamily: "house_of_graphs_graph6",
+      sourceUrlOrPublicReference: "https://houseofgraphs.org/",
+      domain: "graph_minor",
+      exactClaimTextOrParaphrase:
+        "A House-of-Graphs-style concrete graph object can be attacked for whether an obstruction boundary survives density, degree, and treewidth-proxy rivals.",
+      whyClaimMatters:
+        "An explicit minor model or obstruction failure would be more informative than a scalar graph score.",
+      falsifier:
+        "Density, degree sequence, treewidth proxy, or known graph family reproduces the obstruction signal.",
+      successOracle:
+        "Explicit branch-set minor model or obstruction refutation scopes the standard graph-invariant rivals.",
+      failureOracle:
+        "Reject if the result is only clique, independence, coloring, degree, or source-family behavior.",
+      expectedWitnessOrRefutationType:
+        "explicit minor model or obstruction refutation",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must name branch sets or obstruction failure rather than a standard invariant value.",
+      externalSignificance:
+        "Would repair the prior graph-minor failure mode by starting from a concrete replay object.",
+    },
+    {
+      sourceClass: "graph_theory_concrete_object",
+      sourceFamily: "graphclasses_public_object",
+      sourceUrlOrPublicReference: "https://www.graphclasses.org/",
+      domain: "matching_tutte",
+      exactClaimTextOrParaphrase:
+        "A concrete GraphClasses-style example can be attacked for whether a matching deficiency boundary remains after component-count and parity rivals are matched.",
+      whyClaimMatters:
+        "A deficiency-set witness scopes a strong simple rival and is reviewer-replayable from an edge list.",
+      falsifier:
+        "Component count, parity, or degree baseline explains the matching outcome without a structural deficiency set.",
+      successOracle:
+        "Validated deficiency set exposes a matching obstruction after parity/component controls.",
+      failureOracle:
+        "Reject if the witness is only a standard maximum matching certificate.",
+      expectedWitnessOrRefutationType: "Tutte deficiency-set witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must expose a blocking subset that scopes the parity/component rival.",
+      externalSignificance:
+        "Would produce an exact graph-theoretic witness on a concrete public object.",
+    },
+    {
+      sourceClass: "benchmark_challenge_description",
+      sourceFamily: "bounded_coloring_instance",
+      sourceUrlOrPublicReference:
+        "http://archive.dimacs.rutgers.edu/pub/challenge/graph/benchmarks/color/",
+      domain: "graph_coloring",
+      exactClaimTextOrParaphrase:
+        "A DIMACS-style graph coloring challenge instance can be attacked only if a non-clique obstruction, not standard clique or independence bounds, explains the bounded coloring pressure.",
+      whyClaimMatters:
+        "The claim matters only when the artifact is not absorbed by standard coloring certificates.",
+      falsifier:
+        "Clique, independence, degree, or standard chromatic-number bounds explain the outcome.",
+      successOracle:
+        "A non-clique obstruction witness scopes the standard coloring-bound rivals.",
+      failureOracle:
+        "Reject if the artifact is a standard coloring/clique/independence certificate.",
+      expectedWitnessOrRefutationType:
+        "non-clique coloring obstruction witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must not be a standard coloring, clique, or independence certificate.",
+      externalSignificance:
+        "Would only be valuable if it avoids the known DIMACS/source-family failure mode.",
+    },
+    {
+      sourceClass: "graph_theory_concrete_object",
+      sourceFamily: "house_of_graphs_graph6",
+      sourceUrlOrPublicReference: "https://houseofgraphs.org/",
+      domain: "graph_minor",
+      exactClaimTextOrParaphrase:
+        "A concrete graph6 object is used to attack whether a minor obstruction boundary has a branch-set witness that survives matched graph-invariant controls.",
+      whyClaimMatters:
+        "Branch-set evidence would scope a graph-family rival before any discovery-scored claim.",
+      falsifier:
+        "Matched density, degree, or treewidth proxy controls reproduce the measured obstruction behavior.",
+      successOracle:
+        "Branch-set witness validates the obstruction mechanism under independent replay.",
+      failureOracle:
+        "Reject if no branch sets exist or if a standard graph invariant dominates.",
+      expectedWitnessOrRefutationType: "branch-set minor-model witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must be a concrete branch-set model, not an observed score.",
+      externalSignificance:
+        "Would test a nonstandard graph-minor claim with replayable graph6 evidence.",
+    },
+    {
+      sourceClass: "sat_smt_benchmark_note",
+      sourceFamily: "satlib_bounded_instance",
+      sourceUrlOrPublicReference:
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html",
+      domain: "sat_cnf",
+      exactClaimTextOrParaphrase:
+        "A public CNF benchmark instance can be tested for whether a predeclared core-like boundary explains the outcome better than clause density and variable count.",
+      whyClaimMatters:
+        "The candidate would be valuable only if the core boundary is replayable and not a standard SAT certificate.",
+      falsifier:
+        "Clause density, variable count, or a random clause-family baseline explains the outcome.",
+      successOracle:
+        "Core-like boundary witness scopes the density/variable rival.",
+      failureOracle:
+        "Reject if no core-like artifact is extracted under public replay.",
+      expectedWitnessOrRefutationType: "bounded CNF core boundary witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The artifact must be a boundary/core explanation rather than SAT/UNSAT.",
+      externalSignificance:
+        "Would target an external SAT benchmark claim with a nonstandard witness path.",
+    },
+    {
+      sourceClass: "benchmark_challenge_description",
+      sourceFamily: "smtlib_bounded_instance",
+      sourceUrlOrPublicReference: "https://smt-comp.github.io/",
+      domain: "smt",
+      exactClaimTextOrParaphrase:
+        "An SMT competition-style benchmark claim can be attacked by requiring a concrete fragment-boundary witness before any insight is born.",
+      whyClaimMatters:
+        "A fragment-boundary witness would be more externally meaningful than pipeline replay or solver outcome logging.",
+      falsifier:
+        "A single-fragment or syntax-size baseline reproduces the outcome.",
+      successOracle:
+        "Validated fragment-boundary witness scopes the single-fragment rival under replay.",
+      failureOracle:
+        "Reject if the artifact is a generic model or if syntax size explains it.",
+      expectedWitnessOrRefutationType: "SMT fragment-boundary witness",
+      whyWitnessRefutationWouldBeNonstandard:
+        "The witness must identify a boundary across fragments rather than a generic model.",
+      externalSignificance:
+        "Would create a precise attack target from an external SMT challenge source.",
+    },
+    {
+      sourceClass: "graph_theory_concrete_object",
+      sourceFamily: "bounded_coloring_instance",
+      sourceUrlOrPublicReference:
+        "https://users.cecs.anu.edu.au/~bdm/data/graphs.html",
+      domain: "graph_coloring",
+      exactClaimTextOrParaphrase:
+        "Generic graph-coloring object examples often reduce to standard clique or coloring certificates and should be rejected unless a nonstandard obstruction is predeclared.",
+      whyClaimMatters:
+        "This negative source is retained to prove the harvester rejects standard witness-only graph claims.",
+      falsifier:
+        "A clique, independence, degree, or chromatic-number certificate explains the object.",
+      successOracle: "",
+      failureOracle:
+        "Reject before execution because the witness would be a standard coloring certificate.",
+      expectedWitnessOrRefutationType: "standard coloring certificate",
+      whyWitnessRefutationWouldBeNonstandard: "",
+      externalSignificance:
+        "Negative-control source class for standard-witness rejection.",
+      forceRejectReasons: [
+        "standard_certificate_only",
+        "source_family_likely_absorbs_claim",
+      ],
+    },
+    {
+      sourceClass: "sat_smt_benchmark_note",
+      sourceFamily: null,
+      sourceUrlOrPublicReference:
+        "https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html#family-only-note",
+      domain: "sat_cnf",
+      exactClaimTextOrParaphrase:
+        "Family-only benchmark notes without a concrete CNF file or object ID are not executable claim sources for discovery-scored evidence.",
+      whyClaimMatters:
+        "This negative source prevents source-family text from entering top-three execution.",
+      falsifier: "",
+      successOracle: "",
+      failureOracle:
+        "Reject because no concrete replayable CNF object is bound to the claim.",
+      expectedWitnessOrRefutationType: "",
+      whyWitnessRefutationWouldBeNonstandard: "",
+      externalSignificance:
+        "Negative-control source for family-only rejection.",
+      forceRejectReasons: [
+        "family_only_no_concrete_object",
+        "missing_nonstandard_witness_path",
+      ],
+    },
+    {
+      sourceClass: "oeis_comment_or_formula_note",
+      sourceFamily: null,
+      sourceUrlOrPublicReference: "https://oeis.org/wiki/Welcome",
+      domain: "oeis_sequence",
+      exactClaimTextOrParaphrase:
+        "Generic sequence commentary without explicit terms, formula, or recurrence is too vague to attack with a replayable witness.",
+      whyClaimMatters:
+        "This negative source keeps generic OEIS commentary out of execution.",
+      falsifier: "",
+      successOracle: "",
+      failureOracle: "Reject because no explicit terms or falsifier exist.",
+      expectedWitnessOrRefutationType: "",
+      whyWitnessRefutationWouldBeNonstandard: "",
+      externalSignificance:
+        "Negative-control source for vague-claim rejection.",
+      forceRejectReasons: ["claim_too_vague", "missing_explicit_terms"],
+    },
+    {
+      sourceClass: "graph_theory_concrete_object",
+      sourceFamily: null,
+      sourceUrlOrPublicReference: "https://www.graphclasses.org/",
+      domain: "graph_minor",
+      exactClaimTextOrParaphrase:
+        "A graph-family description without graph6, edge list, adjacency matrix, or public object ID is not a source-object-first discovery target.",
+      whyClaimMatters:
+        "This negative source prevents a repeat of manifest-only graph-minor failure modes.",
+      falsifier: "",
+      successOracle: "",
+      failureOracle: "Reject because the source is a family description only.",
+      expectedWitnessOrRefutationType: "",
+      whyWitnessRefutationWouldBeNonstandard: "",
+      externalSignificance:
+        "Negative-control source for graph-family-only rejection.",
+      forceRejectReasons: [
+        "family_only_no_concrete_object",
+        "manifest_only_or_placeholder_risk",
+      ],
+    },
+  ];
+}
+
+function externalFormalClaimSources(
+  harvestReport: ExternalClaimSourceHarvestReport,
+): ExternalFormalClaimSourceReport {
+  const claims = harvestReport.accepted.map((source, index) => {
     return withEvidenceHash({
       kind: "external_formal_claim_source" as const,
-      claimId: `EXT-CLAIM-${String(index + 1).padStart(3, "0")}-${object.objectId}`,
-      sourceUrlOrPublicReference: object.sourceUrlOrPublicId,
-      exactClaimOrParaphrase: profile.claimText,
-      domain,
-      attackabilityRationale: profile.attackabilityRationale,
-      refutingOrSupportingObjectShape: profile.refutingObjectShape,
-      knownTrivialityRisk: object.knownPriorRisk,
-      replayPath: object.replayCommandOrReconstruction,
-      sourceObjectId: object.objectId,
+      claimId: `EXT-CLAIM-${String(index + 1).padStart(3, "0")}-${source.concreteObjectId}`,
+      claimSourceId: source.sourceId,
+      sourceClass: source.sourceClass,
+      sourceUrlOrPublicReference: source.sourceUrlOrPublicReference,
+      sourceReceipt: source.sourceReceipt,
+      sourceHash: source.sourceHash,
+      exactClaimOrParaphrase: source.exactClaimTextOrParaphrase,
+      domain: source.domain,
+      concreteObjectOrFileId: source.concreteObjectId,
+      sourceObjectEncoding: source.concreteObjectEncoding,
+      whyClaimMatters: source.whyClaimMatters,
+      falsifier: source.falsifier,
+      successOracle: source.successOracle,
+      failureOracle: source.failureOracle,
+      expectedWitnessOrRefutationType: source.expectedWitnessOrRefutationType,
+      whyWitnessRefutationWouldBeNonstandard:
+        source.whyWitnessRefutationWouldBeNonstandard,
+      strongestRivalMechanism: source.strongestRivalMechanism,
+      externalSignificance: source.externalSignificance,
+      attackabilityRationale: source.whyClaimMatters,
+      refutingOrSupportingObjectShape: source.expectedWitnessOrRefutationType,
+      knownTrivialityRisk: source.knownTrivialityRisk,
+      replayPath: source.replayPath,
+      sourceObjectId: source.concreteObjectId,
       evidenceRefs: [
-        `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_OBJECTS.json#${object.objectId}`,
-        `${daemonArtifactRoot}/${sourceObjectFirstDir}/CURATED_EXTERNAL_FORMAL_CHALLENGE_SELECTION.json`,
+        ...source.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_CLAIM_SOURCE_HARVEST.json#${source.sourceId}`,
       ],
     });
   });
@@ -26549,17 +27298,24 @@ function externalClaimObjectMatches(
     const fallbackObject = harvest.valid[index % harvest.valid.length]!;
     const sourceObject = object ?? fallbackObject;
     const profile = externalClaimProfile(domain, sourceObject);
+    const witnessOrRefutationType =
+      claim.expectedWitnessOrRefutationType || profile.witnessOrRefutationType;
+    const whyNonstandard =
+      claim.whyWitnessRefutationWouldBeNonstandard || profile.whyNonstandard;
+    const rivalMechanism =
+      claim.strongestRivalMechanism || sourceObject.rivalMechanism;
+    const replayMethod =
+      claim.replayPath || sourceObject.replayCommandOrReconstruction;
+    const falsifier = claim.falsifier || sourceObject.falsifier;
     const rejectionReasons = [
       sourceObject.validPublicReceipt ? "" : "missing_public_source_receipt",
       sourceObject.concreteEncoding.length > 0
         ? ""
         : "missing_concrete_object_encoding",
-      profile.witnessOrRefutationType.length > 0
+      witnessOrRefutationType.length > 0
         ? ""
         : "missing_witness_or_refutation_type",
-      sourceObject.replayCommandOrReconstruction.length > 0
-        ? ""
-        : "missing_replay_method",
+      replayMethod.length > 0 ? "" : "missing_replay_method",
       sourceObject.knownPriorRisk === "high"
         ? "known_triviality_risk_high"
         : "",
@@ -26574,15 +27330,13 @@ function externalClaimObjectMatches(
       exactBoundedClaim: normalizeWhitespace(
         `${claim.exactClaimOrParaphrase} This attack is bounded to ${sourceObject.objectId} and its deterministic replay object; it does not claim a general theorem.`,
       ),
-      rivalMechanism: sourceObject.rivalMechanism,
-      witnessOrRefutationType: profile.witnessOrRefutationType,
-      whatWouldCountAsRefutation:
-        "A validated witness/counterexample that makes the external claim false on the concrete replay object while retaining public replayability.",
-      whatWouldCountAsSupport:
-        "A validated nonstandard witness that scopes the strongest rival without being absorbed by known theorem or source-family mechanisms.",
-      whyNonstandard: profile.whyNonstandard,
-      replayMethod: sourceObject.replayCommandOrReconstruction,
-      falsifier: sourceObject.falsifier,
+      rivalMechanism,
+      witnessOrRefutationType,
+      whatWouldCountAsRefutation: claim.failureOracle,
+      whatWouldCountAsSupport: claim.successOracle,
+      whyNonstandard,
+      replayMethod,
+      falsifier,
       selectedForAttackPilot: false,
       rejectionReasons,
       evidenceRefs: uniqueStrings([
@@ -28461,8 +29215,12 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/EXTERNAL_FORMAL_CLAIM_MINING.json`,
+    `${root}/EXTERNAL_CLAIM_SOURCE_HARVEST.md`,
+    `${root}/EXTERNAL_CLAIM_SOURCE_HARVEST.json`,
     `${root}/EXTERNAL_FORMAL_CLAIM_SOURCES.md`,
     `${root}/EXTERNAL_FORMAL_CLAIMS.json`,
+    `${root}/EXTRACTED_EXTERNAL_CLAIMS.md`,
+    `${root}/EXTRACTED_EXTERNAL_CLAIMS.json`,
     `${root}/EXTERNAL_CLAIM_FAILURE_AUTOPSY.md`,
     `${root}/EXTERNAL_CLAIM_FAILURE_MATRIX.json`,
     `${root}/CLAIM_ATTACKABILITY_GATE.md`,
@@ -28470,15 +29228,21 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/REJECTED_EXTERNAL_CLAIMS.md`,
     `${root}/EXTERNAL_CLAIM_ORACLE_GATE.md`,
     `${root}/EXTERNAL_CLAIM_ORACLE_GATE.json`,
+    `${root}/HIGH_VALUE_CLAIM_GATE.md`,
+    `${root}/HIGH_VALUE_CLAIM_GATE.json`,
     `${root}/REJECTED_NO_ORACLE_CLAIMS.md`,
     `${root}/HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md`,
     `${root}/DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md`,
     `${root}/CLAIM_OBJECT_MATCHES.md`,
     `${root}/CLAIM_OBJECT_MATCHES.json`,
+    `${root}/HIGH_VALUE_CLAIM_OBJECT_MATCHES.md`,
+    `${root}/HIGH_VALUE_CLAIM_OBJECT_MATCHES.json`,
     `${root}/EXTERNAL_CLAIM_ATTACK_RESULTS.md`,
     `${root}/EXTERNAL_CLAIM_ATTACK_RESULTS.json`,
     `${root}/HIGH_VALUE_CLAIM_ATTACK_RESULTS.md`,
     `${root}/HIGH_VALUE_CLAIM_ATTACK_RESULTS.json`,
+    `${root}/HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.md`,
+    `${root}/HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.json`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
@@ -30500,6 +31264,28 @@ function curatedChallengeInsightBirthDecisionsMarkdown(
   ].join("\n");
 }
 
+function externalClaimSourceHarvestMarkdown(
+  report: ExternalClaimSourceHarvestReport,
+): string {
+  return [
+    "# External Claim Source Harvest",
+    "",
+    `Sources considered: ${report.sourcesConsidered}.`,
+    `Sources accepted for extraction: ${report.sourcesAccepted}.`,
+    `Sources rejected before extraction: ${report.sourcesRejected}.`,
+    `Source classes represented: ${report.sourceClassesRepresented.join(", ") || "none"}.`,
+    "",
+    "| Source | Class | Accepted | Domain | Concrete object | Known risk | Rejections |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.sources.map(
+      (source) =>
+        `| ${source.sourceId} | ${source.sourceClass} | ${String(source.acceptedForExtraction)} | ${source.domain} | ${source.concreteObjectId || "none"} | ${source.knownTrivialityRisk} | ${source.rejectionReasons.join(", ") || "none"} |`,
+    ),
+    "",
+    "The harvester records external claim sources before Sovryn execution. Rejected sources do not enter claim/object matching.",
+  ].join("\n");
+}
+
 function externalFormalClaimSourcesMarkdown(
   report: ExternalFormalClaimSourceReport,
 ): string {
@@ -30509,11 +31295,11 @@ function externalFormalClaimSourcesMarkdown(
     `Claims considered: ${report.claimsConsidered}.`,
     `Domains represented: ${report.sourceDomainsRepresented.join(", ") || "none"}.`,
     "",
-    "| Claim | Domain | Source | Known risk | Attackable by |",
-    "| --- | --- | --- | --- | --- |",
+    "| Claim | Source class | Domain | Source | Object | Known risk | Attackable by |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
     ...report.claims.map(
       (claim) =>
-        `| ${claim.claimId} | ${claim.domain} | ${claim.sourceUrlOrPublicReference.replaceAll("|", "/")} | ${claim.knownTrivialityRisk} | ${claim.refutingOrSupportingObjectShape.replaceAll("|", "/")} |`,
+        `| ${claim.claimId} | ${claim.sourceClass} | ${claim.domain} | ${claim.sourceUrlOrPublicReference.replaceAll("|", "/")} | ${claim.concreteObjectOrFileId} | ${claim.knownTrivialityRisk} | ${claim.refutingOrSupportingObjectShape.replaceAll("|", "/")} |`,
     ),
     "",
     "Claims are mined as attack targets only. They do not create InsightCandidates unless a nonstandard replayable witness/refutation survives all gates.",

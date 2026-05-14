@@ -66,6 +66,7 @@ import {
   BenchmarkProtocolFragilityPilotService,
 } from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
 import { EightStageCompletionSprintService } from "../src/core/discovery-daemon/eight-stage-completion-sprint-service.js";
+import { StageSixHonest100Service } from "../src/core/discovery-daemon/stage-six-honest-100-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -128,6 +129,7 @@ const commands = [
   "overnight-completion",
   "overnight-min-runtime",
   "eight-stage-sprint",
+  "stage-six-honest-100",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8413,6 +8415,69 @@ test("eight-stage completion sprint writes required artifacts", async () => {
     "PROMPT_TO_ARTIFACT_CHECKLIST.md",
   ]) {
     await access(join(root, daemonRoot, "eight-stage-sprint", artifact));
+  }
+});
+
+test("stage-six honest 100 runner executes claim-first discovery fail-closed", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.stageSixHonest100();
+
+  assert.equal(report.kind, "stage_six_honest_100_claim_first_run");
+  assert.equal(
+    report.terminalStatus,
+    "productive_engine_continue_searching_stage6_blocked",
+  );
+  assert.equal(report.frozenClaims, 7);
+  assert.equal(report.candidatesTested, 7);
+  assert.equal(report.checksExecuted, 49);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundCandidateDraftsCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.fundGateResult.failedGates.includes("candidate_present"),
+    true,
+  );
+  assert.equal(report.stageScoresAfter.stage_6, 82);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "stage-six-honest-100", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "stage_six_honest_100_claim_first_run",
+  );
+});
+
+test("stage-six honest 100 runner writes required artifacts", async () => {
+  const root = await tempRoot();
+  const report = await new StageSixHonest100Service(root).run();
+
+  assert.equal(report.artifactRefs.length >= 13, true);
+  for (const artifact of [
+    "STAGE_6_BLOCKER_AUTOPSY.md",
+    "HIGH_YIELD_DISCOVERY_PATH_SELECTION.md",
+    "FROZEN_DISCOVERY_CLAIMS.md",
+    "CLAIM_FIRST_EXECUTION_RESULTS.md",
+    "DISCOVERY_PROMOTION_GAUNTLET.md",
+    "CANDIDATE_CLASSIFICATION_REPORT.md",
+    "FUND_GATE_RESULTS.md",
+    "FINAL_EIGHT_STAGE_SCORECARD.md",
+    "FINAL_COMPLETION_DECISION.md",
+    "NEXT_CHECKPOINT.md",
+    "PROMPT_TO_ARTIFACT_CHECKLIST.md",
+  ]) {
+    await access(join(root, daemonRoot, "stage-six-honest-100", artifact));
   }
 });
 

@@ -38,6 +38,10 @@ import {
   EightStageCompletionSprintService,
   type EightStageCompletionSprintReport,
 } from "./eight-stage-completion-sprint-service.js";
+import {
+  StageSixHonest100Service,
+  type StageSixHonest100Report,
+} from "./stage-six-honest-100-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65907,6 +65911,11 @@ export class AutonomousDiscoveryDaemonService {
   async eightStageSprint(): Promise<EightStageCompletionSprintReport> {
     await this.ensureInitialized();
     return new EightStageCompletionSprintService(this.root).run();
+  }
+
+  async stageSixHonest100(): Promise<StageSixHonest100Report> {
+    await this.ensureInitialized();
+    return new StageSixHonest100Service(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

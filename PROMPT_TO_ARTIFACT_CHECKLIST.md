@@ -1,16 +1,16 @@
 # Prompt To Artifact Checklist
 
-| Requirement                                  | Evidence                                                                          | Status   |
-| -------------------------------------------- | --------------------------------------------------------------------------------- | -------- |
-| Extract structural kill rules                | STRUCTURAL_KILL_RULES.md / .json                                                  | complete |
-| Enforce Strategy memory before execution     | STRATEGY_MEMORY_GATE.md and STRATEGY_MEMORY_GATE_RESULTS.md                       | complete |
-| Integrate Knowledge memory                   | KNOWLEDGE_MEMORY_ENFORCEMENT.md and DEATH_CAUSE_MEMORY_UPDATE.md                  | complete |
-| Run memory-gated benchmark claim pass        | MEMORY_GATED_BENCHMARK_CLAIM_PASS.md                                              | complete |
-| Execute group/time/entity split checks       | GROUP_TIME_ENTITY_SPLIT_RESULTS.md                                                | complete |
-| Execute recurrence and rival closure         | RECURRENCE_AND_RIVAL_CLOSURE_RESULTS.md                                           | complete |
-| Audit three stages                           | THREE_STAGE_MEMORY_GATE_AUDIT.md and UPDATED_THREE_STAGE_SCORECARD.md             | complete |
-| Stage 3 95+ only if rules affect selection   | 7 candidates blocked before execution                                             | complete |
-| Stage 2 no increase without InsightCandidate | score remains 76                                                                  | complete |
-| No fake Fund                                 | fundFound false; no FUND_FOUND.md written by this service                         | complete |
-| Checkpoint                                   | .sovryn/discovery-daemon/checkpoints/strategy-memory-gate-continue-searching.json | complete |
-| Verification                                 | build/test/format/diff/graph/audits completed                                     | complete |
+| Requirement                                                                          | Evidence                                                                                                   | Status   |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | -------- |
+| Collect at least 20 claims                                                           | MEMORY_GATED_EXTERNAL_CLAIMS.md                                                                            | complete |
+| Require group/time/entity/repeated/protocol/baseline source evidence                 | GROUP_TIME_ENTITY_SOURCE_AUDIT.md                                                                          | complete |
+| Run Strategy Memory Gate before execution                                            | MEMORY_GATED_EXTERNAL_CLAIMS.md gate column                                                                | complete |
+| Reject old kill rules without material evidence                                      | MEMORY_GATED_EXTERNAL_CLAIMS.md and TOP5_MEMORY_GATED_CLAIMS.md                                            | complete |
+| Select top 5 memory-gated claims                                                     | TOP5_MEMORY_GATED_CLAIMS.md                                                                                | complete |
+| Deep-run top 3                                                                       | TOP3_DEEP_VALIDATION_RESULTS.md                                                                            | complete |
+| Freeze claims and run baseline, holdout, rival, recurrence, negative control, replay | TOP3_DEEP_VALIDATION_RESULTS.md and RECURRENCE_RIVAL_HOLDOUT_REPORT.md                                     | complete |
+| Decide InsightCandidate birth                                                        | INSIGHT_BIRTH_DECISIONS.md                                                                                 | complete |
+| Update stage scores                                                                  | UPDATED_THREE_STAGE_SCORECARD.md                                                                           | complete |
+| Preserve no fake Fund                                                                | fundFound false; no FUND_FOUND.md written by this service                                                  | complete |
+| Checkpoint                                                                           | .sovryn/discovery-daemon/checkpoints/memory-gated-benchmark-upgrade-continue-searching.json                | complete |
+| Verification                                                                         | npm build/test/format/diff plus evidence, holdout, health, daemon, readiness, corpus, launch audits passed | complete |

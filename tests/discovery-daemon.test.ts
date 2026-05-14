@@ -69,6 +69,7 @@ import { EightStageCompletionSprintService } from "../src/core/discovery-daemon/
 import { StageSixHonest100Service } from "../src/core/discovery-daemon/stage-six-honest-100-service.js";
 import { ThreeStageEpistemicCampaignService } from "../src/core/discovery-daemon/three-stage-epistemic-campaign-service.js";
 import { StructuralStrategyMemoryGateService } from "../src/core/discovery-daemon/structural-strategy-memory-gate-service.js";
+import { MemoryGatedBenchmarkUpgradeService } from "../src/core/discovery-daemon/memory-gated-benchmark-upgrade-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -134,6 +135,7 @@ const commands = [
   "stage-six-honest-100",
   "three-stage-epistemic-campaign",
   "strategy-memory-gate",
+  "memory-gated-benchmark-upgrade",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8624,6 +8626,76 @@ test("strategy memory gate writes required artifacts", async () => {
   ]) {
     await access(join(root, daemonRoot, "strategy-memory-gate", artifact));
   }
+});
+
+test("memory-gated benchmark upgrade finds stronger split-evidence claims without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.memoryGatedBenchmarkUpgrade();
+
+  assert.equal(report.kind, "memory_gated_external_benchmark_claim_upgrade");
+  assert.equal(report.claimsCollected, 20);
+  assert.equal(report.claimsBlocked, 15);
+  assert.equal(report.claimsAllowed, 5);
+  assert.equal(report.top5Selected, 5);
+  assert.equal(report.top3Executed, 3);
+  assert.equal(report.recurrenceResult.supported >= 1, true);
+  assert.equal(report.rivalClosureResult.scopedOrWeakened >= 1, true);
+  assert.equal(report.holdoutResult.survived >= 1, true);
+  assert.equal(report.insightCandidatesCreated, 1);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageScores.find((stage) => stage.stage === 2)?.updatedScore,
+    84,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "memory-gated-benchmark-upgrade", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "memory_gated_external_benchmark_claim_upgrade",
+  );
+});
+
+test("memory-gated benchmark upgrade writes required artifacts and public-safe insight package", async () => {
+  const root = await tempRoot();
+  const report = await new MemoryGatedBenchmarkUpgradeService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 15, true);
+  for (const artifact of [
+    "MEMORY_GATED_EXTERNAL_CLAIMS.md",
+    "GROUP_TIME_ENTITY_SOURCE_AUDIT.md",
+    "TOP5_MEMORY_GATED_CLAIMS.md",
+    "TOP3_DEEP_VALIDATION_RESULTS.md",
+    "RECURRENCE_RIVAL_HOLDOUT_REPORT.md",
+    "INSIGHT_BIRTH_DECISIONS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+    "PROMPT_TO_ARTIFACT_CHECKLIST.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "memory-gated-benchmark-upgrade", artifact),
+    );
+  }
+  await access(
+    join(
+      root,
+      daemonRoot,
+      "memory-gated-benchmark-upgrade",
+      "review-packages",
+      "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+    ),
+  );
 });
 
 test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {

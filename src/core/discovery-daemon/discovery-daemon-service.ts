@@ -50,6 +50,10 @@ import {
   StructuralStrategyMemoryGateService,
   type StructuralStrategyMemoryGateReport,
 } from "./structural-strategy-memory-gate-service.js";
+import {
+  MemoryGatedBenchmarkUpgradeService,
+  type MemoryGatedBenchmarkUpgradeReport,
+} from "./memory-gated-benchmark-upgrade-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65934,6 +65938,11 @@ export class AutonomousDiscoveryDaemonService {
   async strategyMemoryGate(): Promise<StructuralStrategyMemoryGateReport> {
     await this.ensureInitialized();
     return new StructuralStrategyMemoryGateService(this.root).run();
+  }
+
+  async memoryGatedBenchmarkUpgrade(): Promise<MemoryGatedBenchmarkUpgradeReport> {
+    await this.ensureInitialized();
+    return new MemoryGatedBenchmarkUpgradeService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

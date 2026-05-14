@@ -1,3 +1,3 @@
 # Next Action
 
-Acquire or human-curate public benchmark/data claims with real group, time, or entity split manifests before execution; do not execute claims that repeat single-task, source-family, replay-missing, or baseline-dominated deaths without material new evidence.
+Run focused promotion readiness on INSIGHT-BENCH-TEMPORAL-RECURRENCE-001 only: external review package hardening, kill-week, stronger recurrence replay, and Fund Gate if it survives.

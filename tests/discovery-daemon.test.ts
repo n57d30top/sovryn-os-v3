@@ -5313,6 +5313,20 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json",
     "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
     "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
+    "NONSTANDARD_CERTIFICATE_REFUTATION_SELECTION.json",
+    "STANDARD_WITNESS_FAILURE_AUTOPSY.md",
+    "STANDARD_WITNESS_FAILURE_AUTOPSY.json",
+    "NONSTANDARD_WITNESS_REQUIREMENTS.md",
+    "NONSTANDARD_WITNESS_REQUIREMENTS.json",
+    "NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.md",
+    "NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.json",
+    "NONSTANDARD_WITNESS_CANDIDATES.md",
+    "NONSTANDARD_WITNESS_CANDIDATES.json",
+    "REJECTED_STANDARD_WITNESS_CANDIDATES.md",
+    "NONSTANDARD_WITNESS_EXECUTION_RESULTS.md",
+    "NONSTANDARD_WITNESS_EXECUTION_RESULTS.json",
+    "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
+    "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -6957,6 +6971,249 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(nontrivialWitness.insightBirthDecisions.fundFound, false);
   assert.equal(
     nontrivialWitness.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const nonstandardWitness = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "NONSTANDARD_CERTIFICATE_REFUTATION_SELECTION.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    failureAutopsy: {
+      failuresAnalyzed: number;
+      knownTrivialCases: number;
+      validButNotDiscriminatingCases: number;
+      counterexampleRefutationCases: number;
+      items: Array<{
+        artifactId: string;
+        objectId: string;
+        exactClaim: string;
+        failureClassification: string;
+        standardMechanismThatAbsorbedIt: string;
+        whyWitnessWasNotNontrivial: string;
+        requiredNonStandardWitness: string;
+        candidateDomainOrObjectFamily: string;
+      }>;
+    };
+    requirements: {
+      requirementsCount: number;
+      requirements: Array<{
+        requirementId: string;
+        rejectedStandardMechanism: string;
+        requiredWitnessShape: string;
+        preferredDomainFamilies: string[];
+        mustScopeRival: string;
+        mustAvoid: string[];
+      }>;
+    };
+    sourceClasses: {
+      classesEvaluated: number;
+      classesSelected: number;
+      classesRejected: number;
+      items: Array<{
+        sourceClass: string;
+        selected: boolean;
+        nonStandardCertificateType: string;
+        standardCertificateRisk: string;
+        rivalScopingRole: string;
+        rejectionReason: string | null;
+      }>;
+    };
+    candidates: {
+      candidatesGenerated: number;
+      rejectedStandardOrTrivial: number;
+      top5Selected: number;
+      candidates: Array<{
+        tripleId: string;
+        objectId: string;
+        exactBoundedClaim: string;
+        nonStandardWitnessType: string;
+        rivalMechanismToScope: string;
+        whyStandardMechanismsShouldNotAbsorb: string;
+        replayPath: string;
+        falsifier: string;
+        knownTrivialityRisk: string;
+        rejectionReasons: string[];
+        selectedForExecution: boolean;
+      }>;
+      top5: Array<{ tripleId: string; selectedForExecution: boolean }>;
+    };
+    execution: {
+      candidatesTested: number;
+      checksRun: number;
+      nonstandardWitnessesFound: number;
+      checkedRefutationsFound: number;
+      results: Array<{
+        classification: string;
+        witnessOrRefutationExtraction: {
+          extracted: boolean;
+          artifactType: string;
+          observation: string;
+        };
+        witnessValidation: {
+          valid: boolean;
+          nonStandard: boolean;
+          observation: string;
+        };
+        rivalScopingTest: {
+          scopedOrWeakened: boolean;
+          observation: string;
+        };
+        knownTrivialityTest: { nonfatal: boolean; observation: string };
+        replayCheck: { succeeded: boolean; observation: string };
+        counterexampleCheck: {
+          checked: boolean;
+          counterexampleFound: boolean;
+          observation: string;
+        };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(
+    nonstandardWitness.failureAutopsy.failuresAnalyzed >=
+      nontrivialWitness.execution.results.length,
+    true,
+  );
+  assert.equal(nonstandardWitness.failureAutopsy.knownTrivialCases > 0, true);
+  assert.equal(
+    nonstandardWitness.failureAutopsy.items.every(
+      (item) =>
+        item.artifactId.length > 0 &&
+        item.objectId.length > 0 &&
+        item.exactClaim.length > 0 &&
+        item.failureClassification.length > 0 &&
+        item.standardMechanismThatAbsorbedIt.length > 0 &&
+        item.whyWitnessWasNotNontrivial.length > 0 &&
+        item.requiredNonStandardWitness.length > 0 &&
+        item.candidateDomainOrObjectFamily.length > 0,
+    ),
+    true,
+  );
+  assert.equal(nonstandardWitness.requirements.requirementsCount, 3);
+  assert.equal(
+    nonstandardWitness.requirements.requirements.every(
+      (requirement) =>
+        requirement.requirementId.length > 0 &&
+        requirement.rejectedStandardMechanism.length > 0 &&
+        requirement.requiredWitnessShape.length > 0 &&
+        requirement.preferredDomainFamilies.length > 0 &&
+        requirement.mustScopeRival.length > 0 &&
+        requirement.mustAvoid.length > 0,
+    ),
+    true,
+  );
+  assert.equal(nonstandardWitness.sourceClasses.classesEvaluated, 8);
+  assert.equal(nonstandardWitness.sourceClasses.classesSelected >= 5, true);
+  assert.equal(nonstandardWitness.sourceClasses.classesRejected > 0, true);
+  assert.equal(
+    nonstandardWitness.sourceClasses.items.every(
+      (item) =>
+        item.sourceClass.length > 0 &&
+        item.nonStandardCertificateType.length > 0 &&
+        item.standardCertificateRisk.length > 0 &&
+        item.rivalScopingRole.length > 0 &&
+        (item.selected || item.rejectionReason !== null),
+    ),
+    true,
+  );
+  assert.equal(nonstandardWitness.candidates.candidatesGenerated <= 20, true);
+  assert.equal(
+    nonstandardWitness.candidates.rejectedStandardOrTrivial > 0,
+    true,
+  );
+  assert.equal(nonstandardWitness.candidates.top5Selected, 5);
+  assert.equal(nonstandardWitness.candidates.top5.length, 5);
+  assert.equal(
+    nonstandardWitness.candidates.candidates.every(
+      (candidate) =>
+        candidate.tripleId.startsWith("NONSTANDARD-CERT-") &&
+        candidate.objectId.length > 0 &&
+        candidate.exactBoundedClaim.length > 0 &&
+        candidate.nonStandardWitnessType.length > 0 &&
+        candidate.rivalMechanismToScope.length > 0 &&
+        candidate.whyStandardMechanismsShouldNotAbsorb.length > 0 &&
+        candidate.replayPath.length > 0 &&
+        candidate.falsifier.length > 0 &&
+        ["low", "medium", "high"].includes(candidate.knownTrivialityRisk),
+    ),
+    true,
+  );
+  assert.equal(
+    nonstandardWitness.execution.candidatesTested,
+    nonstandardWitness.candidates.top5Selected,
+  );
+  assert.equal(
+    nonstandardWitness.execution.checksRun,
+    nonstandardWitness.execution.candidatesTested * 6,
+  );
+  assert.equal(nonstandardWitness.execution.nonstandardWitnessesFound, 0);
+  assert.equal(nonstandardWitness.execution.checkedRefutationsFound, 0);
+  assert.equal(
+    nonstandardWitness.execution.results.every(
+      (result) =>
+        [
+          "nonstandard_witness_scopes_rival",
+          "checked_refutation_candidate",
+          "known_trivial",
+          "standard_witness_absorbed",
+          "witness_valid_but_not_discriminating",
+          "rival_not_scoped",
+          "counterexample_refutes_claim",
+          "no_witness_found",
+          "replay_failed",
+        ].includes(result.classification) &&
+        result.witnessOrRefutationExtraction.artifactType.length > 0 &&
+        result.witnessOrRefutationExtraction.observation.length > 0 &&
+        result.witnessValidation.observation.length > 0 &&
+        result.rivalScopingTest.observation.length > 0 &&
+        result.knownTrivialityTest.observation.length > 0 &&
+        result.replayCheck.observation.length > 0 &&
+        result.counterexampleCheck.checked &&
+        result.counterexampleCheck.observation.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    nonstandardWitness.insightBirthDecisions.candidatesEvaluated,
+    nonstandardWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    nonstandardWitness.insightBirthDecisions.candidatesArchived,
+    nonstandardWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    nonstandardWitness.insightBirthDecisions.insightCandidatesBorn,
+    0,
+  );
+  assert.equal(
+    nonstandardWitness.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(nonstandardWitness.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    nonstandardWitness.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

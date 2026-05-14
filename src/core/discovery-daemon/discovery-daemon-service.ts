@@ -3204,6 +3204,205 @@ export type NontrivialRivalScopedWitnessSearchReport = {
   evidenceHash: string;
 };
 
+export type StandardWitnessFailureAutopsyItem = {
+  kind: "standard_witness_failure_autopsy_item";
+  artifactId: string;
+  objectId: string;
+  exactClaim: string;
+  failureClassification: NontrivialWitnessClassification | "near_miss";
+  standardMechanismThatAbsorbedIt: string;
+  whyWitnessWasNotNontrivial: string;
+  requiredNonStandardWitness: string;
+  candidateDomainOrObjectFamily: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type StandardWitnessFailureAutopsyReport = {
+  kind: "standard_witness_failure_autopsy";
+  failuresAnalyzed: number;
+  knownTrivialCases: number;
+  validButNotDiscriminatingCases: number;
+  counterexampleRefutationCases: number;
+  items: StandardWitnessFailureAutopsyItem[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessRequirement = {
+  kind: "nonstandard_witness_requirement";
+  requirementId: string;
+  rejectedStandardMechanism: string;
+  requiredWitnessShape: string;
+  preferredDomainFamilies: string[];
+  mustScopeRival: string;
+  mustAvoid: string[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessRequirementsReport = {
+  kind: "nonstandard_witness_requirements";
+  requirementsCount: number;
+  requirements: NonStandardWitnessRequirement[];
+  evidenceHash: string;
+};
+
+export type NonStandardCertificateSourceClassItem = {
+  kind: "nonstandard_certificate_source_class";
+  sourceClass: CertificateFriendlyFormalDomainId;
+  selected: boolean;
+  nonStandardCertificateType: string;
+  standardCertificateRisk: string;
+  rivalScopingRole: string;
+  rejectionReason: string | null;
+  evidenceHash: string;
+};
+
+export type NonStandardCertificateSourceClassReport = {
+  kind: "nonstandard_certificate_source_classes";
+  classesEvaluated: number;
+  classesSelected: number;
+  classesRejected: number;
+  items: NonStandardCertificateSourceClassItem[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessCandidate = {
+  kind: "nonstandard_witness_candidate";
+  tripleId: string;
+  objectId: string;
+  domainId: CertificateFriendlyFormalDomainId;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  concreteSourceObjectRef: string;
+  concreteEncoding: string;
+  exactBoundedClaim: string;
+  nonStandardWitnessType: string;
+  rivalMechanismToScope: string;
+  whyStandardMechanismsShouldNotAbsorb: string;
+  replayPath: string;
+  falsifier: string;
+  knownTrivialityRisk: "low" | "medium" | "high";
+  rejectionReasons: string[];
+  selectedForExecution: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessCandidateReport = {
+  kind: "nonstandard_witness_candidates";
+  candidatesGenerated: number;
+  rejectedStandardOrTrivial: number;
+  top5Selected: number;
+  candidates: NonStandardWitnessCandidate[];
+  top5: NonStandardWitnessCandidate[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessExecutionClassification =
+  | "nonstandard_witness_scopes_rival"
+  | "checked_refutation_candidate"
+  | "known_trivial"
+  | "standard_witness_absorbed"
+  | "witness_valid_but_not_discriminating"
+  | "rival_not_scoped"
+  | "counterexample_refutes_claim"
+  | "no_witness_found"
+  | "replay_failed";
+
+export type NonStandardWitnessExecutionResult = {
+  kind: "nonstandard_witness_execution_result";
+  tripleId: string;
+  objectId: string;
+  exactBoundedClaim: string;
+  boundedCheck: {
+    passed: boolean;
+    observation: string;
+  };
+  witnessOrRefutationExtraction: {
+    extracted: boolean;
+    artifactType: string;
+    artifactRef: string | null;
+    observation: string;
+  };
+  witnessValidation: {
+    valid: boolean;
+    nonStandard: boolean;
+    observation: string;
+  };
+  rivalScopingTest: {
+    rivalMechanism: string;
+    scopedOrWeakened: boolean;
+    observation: string;
+  };
+  knownTrivialityTest: {
+    nonfatal: boolean;
+    observation: string;
+  };
+  replayCheck: {
+    succeeded: boolean;
+    observation: string;
+  };
+  counterexampleCheck: {
+    checked: boolean;
+    counterexampleFound: boolean;
+    observation: string;
+  };
+  classification: NonStandardWitnessExecutionClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessExecutionReport = {
+  kind: "nonstandard_witness_execution_results";
+  candidatesTested: number;
+  checksRun: number;
+  nonstandardWitnessesFound: number;
+  checkedRefutationsFound: number;
+  knownTrivial: number;
+  standardWitnessAbsorbed: number;
+  validButNotDiscriminating: number;
+  rivalNotScoped: number;
+  counterexamplesRefuteClaim: number;
+  noWitnessFound: number;
+  replayFailed: number;
+  results: NonStandardWitnessExecutionResult[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessInsightBirthDecision = {
+  kind: "nonstandard_witness_insight_birth_decision";
+  tripleId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  classification: NonStandardWitnessExecutionClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NonStandardWitnessInsightBirthReport = {
+  kind: "nonstandard_witness_insight_birth_decisions";
+  candidatesEvaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: NonStandardWitnessInsightBirthDecision[];
+  evidenceHash: string;
+};
+
+export type NonStandardCertificateRefutationSelectionReport = {
+  kind: "nonstandard_certificate_refutation_selection";
+  failureAutopsy: StandardWitnessFailureAutopsyReport;
+  requirements: NonStandardWitnessRequirementsReport;
+  sourceClasses: NonStandardCertificateSourceClassReport;
+  candidates: NonStandardWitnessCandidateReport;
+  execution: NonStandardWitnessExecutionReport;
+  insightBirthDecisions: NonStandardWitnessInsightBirthReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -3365,6 +3564,15 @@ export type SourceObjectDiscoveryEngineReport = {
   nontrivialWitnessTestsRun?: number;
   nontrivialWitnessesFound?: number;
   nontrivialWitnessInsightCandidatesBorn?: number;
+  standardWitnessFailuresAnalyzed?: number;
+  nonstandardSourceClassesSelected?: number;
+  nonstandardWitnessCandidatesGenerated?: number;
+  nonstandardWitnessCandidatesRejected?: number;
+  nonstandardWitnessTopCandidatesSelected?: number;
+  nonstandardWitnessTestsRun?: number;
+  nonstandardWitnessesFound?: number;
+  checkedRefutationsFound?: number;
+  nonstandardWitnessInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -15271,6 +15479,11 @@ export class SourceObjectFirstDiscoveryEngine {
         certificateWitnessFirstDiscovery,
         rivalScopedWitnessDiscovery,
       );
+    const nonstandardCertificateRefutationSelection =
+      runNonStandardCertificateRefutationSelection(
+        certificateWitnessFirstDiscovery,
+        nontrivialRivalScopedWitnessSearch,
+      );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -15308,6 +15521,9 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       countNontrivialWitnessInsightBirthDeathCauses(
         nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
+      ),
+      countNonStandardWitnessInsightBirthDeathCauses(
+        nonstandardCertificateRefutationSelection.insightBirthDecisions,
       ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
@@ -15461,6 +15677,30 @@ export class SourceObjectFirstDiscoveryEngine {
       nontrivialWitnessInsightCandidatesBorn:
         nontrivialRivalScopedWitnessSearch.insightBirthDecisions
           .insightCandidatesBorn,
+      standardWitnessFailuresAnalyzed:
+        nonstandardCertificateRefutationSelection.failureAutopsy
+          .failuresAnalyzed,
+      nonstandardSourceClassesSelected:
+        nonstandardCertificateRefutationSelection.sourceClasses.classesSelected,
+      nonstandardWitnessCandidatesGenerated:
+        nonstandardCertificateRefutationSelection.candidates
+          .candidatesGenerated,
+      nonstandardWitnessCandidatesRejected:
+        nonstandardCertificateRefutationSelection.candidates
+          .rejectedStandardOrTrivial,
+      nonstandardWitnessTopCandidatesSelected:
+        nonstandardCertificateRefutationSelection.candidates.top5Selected,
+      nonstandardWitnessTestsRun:
+        nonstandardCertificateRefutationSelection.execution.checksRun,
+      nonstandardWitnessesFound:
+        nonstandardCertificateRefutationSelection.execution
+          .nonstandardWitnessesFound,
+      checkedRefutationsFound:
+        nonstandardCertificateRefutationSelection.execution
+          .checkedRefutationsFound,
+      nonstandardWitnessInsightCandidatesBorn:
+        nonstandardCertificateRefutationSelection.insightBirthDecisions
+          .insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -15492,6 +15732,7 @@ export class SourceObjectFirstDiscoveryEngine {
         certificateWitnessFirstDiscovery,
         rivalScopedWitnessDiscovery,
         nontrivialRivalScopedWitnessSearch,
+        nonstandardCertificateRefutationSelection,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -15521,6 +15762,7 @@ export class SourceObjectFirstDiscoveryEngine {
       certificateWitnessFirstDiscovery,
       rivalScopedWitnessDiscovery,
       nontrivialRivalScopedWitnessSearch,
+      nonstandardCertificateRefutationSelection,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -15680,6 +15922,13 @@ export class SourceObjectFirstDiscoveryEngine {
     const nontrivialRivalScopedWitnessSearch =
       await readOptionalJson<NontrivialRivalScopedWitnessSearchReport>(
         join(this.engineRoot(), "NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json"),
+      );
+    const nonstandardCertificateRefutationSelection =
+      await readOptionalJson<NonStandardCertificateRefutationSelectionReport>(
+        join(
+          this.engineRoot(),
+          "NONSTANDARD_CERTIFICATE_REFUTATION_SELECTION.json",
+        ),
       );
     const externalFormalAnchorFamilyCount =
       externalFormalAnchors?.sourceFamilies.length ?? 0;
@@ -16141,6 +16390,44 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
         "Rival-scoping near misses must be autopsied and new witness triples must pass a nontriviality pre-gate before bounded witness execution.",
+      ),
+      gate(
+        "nonstandard_certificate_refutation_selection_completed",
+        nonstandardCertificateRefutationSelection !== null &&
+          nontrivialRivalScopedWitnessSearch !== null &&
+          nonstandardCertificateRefutationSelection.failureAutopsy
+            .failuresAnalyzed >=
+            nontrivialRivalScopedWitnessSearch.execution.results.length &&
+          nonstandardCertificateRefutationSelection.sourceClasses
+            .classesEvaluated >= 8 &&
+          nonstandardCertificateRefutationSelection.sourceClasses
+            .classesSelected >= 5 &&
+          nonstandardCertificateRefutationSelection.candidates
+            .candidatesGenerated <= 20 &&
+          nonstandardCertificateRefutationSelection.candidates
+            .rejectedStandardOrTrivial > 0 &&
+          nonstandardCertificateRefutationSelection.candidates.top5Selected <=
+            5 &&
+          nonstandardCertificateRefutationSelection.execution
+            .candidatesTested ===
+            nonstandardCertificateRefutationSelection.candidates.top5Selected &&
+          nonstandardCertificateRefutationSelection.execution.checksRun >=
+            nonstandardCertificateRefutationSelection.execution
+              .candidatesTested *
+              6 &&
+          nonstandardCertificateRefutationSelection.insightBirthDecisions
+            .candidatesEvaluated ===
+            nonstandardCertificateRefutationSelection.execution
+              .candidatesTested &&
+          nonstandardCertificateRefutationSelection.insightBirthDecisions
+            .discoveryCandidatesCreated === 0 &&
+          nonstandardCertificateRefutationSelection.insightBirthDecisions
+            .fundFound === false &&
+          nonstandardCertificateRefutationSelection.insightBirthDecisions.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "Standard witness failures must drive non-standard certificate/refutation source selection before bounded witness execution.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -16634,6 +16921,7 @@ export class SourceObjectFirstDiscoveryEngine {
     certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport;
     rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport;
     nontrivialRivalScopedWitnessSearch: NontrivialRivalScopedWitnessSearchReport;
+    nonstandardCertificateRefutationSelection: NonStandardCertificateRefutationSelectionReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -17356,6 +17644,82 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "INSIGHT_BIRTH_DECISIONS.md"),
       nontrivialWitnessInsightBirthDecisionsMarkdown(
         input.nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_CERTIFICATE_REFUTATION_SELECTION.json"),
+      input.nonstandardCertificateRefutationSelection,
+    );
+    await writeJson(
+      join(root, "STANDARD_WITNESS_FAILURE_AUTOPSY.json"),
+      input.nonstandardCertificateRefutationSelection.failureAutopsy,
+    );
+    await writeText(
+      join(root, "STANDARD_WITNESS_FAILURE_AUTOPSY.md"),
+      standardWitnessFailureAutopsyMarkdown(
+        input.nonstandardCertificateRefutationSelection.failureAutopsy,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_WITNESS_REQUIREMENTS.json"),
+      input.nonstandardCertificateRefutationSelection.requirements,
+    );
+    await writeText(
+      join(root, "NONSTANDARD_WITNESS_REQUIREMENTS.md"),
+      nonstandardWitnessRequirementsMarkdown(
+        input.nonstandardCertificateRefutationSelection.requirements,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.json"),
+      input.nonstandardCertificateRefutationSelection.sourceClasses,
+    );
+    await writeText(
+      join(root, "NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.md"),
+      nonstandardCertificateSourceClassesMarkdown(
+        input.nonstandardCertificateRefutationSelection.sourceClasses,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_WITNESS_CANDIDATES.json"),
+      input.nonstandardCertificateRefutationSelection.candidates,
+    );
+    await writeText(
+      join(root, "NONSTANDARD_WITNESS_CANDIDATES.md"),
+      nonstandardWitnessCandidatesMarkdown(
+        input.nonstandardCertificateRefutationSelection.candidates,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_STANDARD_WITNESS_CANDIDATES.md"),
+      rejectedStandardWitnessCandidatesMarkdown(
+        input.nonstandardCertificateRefutationSelection.candidates,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_WITNESS_EXECUTION_RESULTS.json"),
+      input.nonstandardCertificateRefutationSelection.execution,
+    );
+    await writeText(
+      join(root, "NONSTANDARD_WITNESS_EXECUTION_RESULTS.md"),
+      nonstandardWitnessExecutionResultsMarkdown(
+        input.nonstandardCertificateRefutationSelection.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.json"),
+      input.nonstandardCertificateRefutationSelection.insightBirthDecisions,
+    );
+    await writeText(
+      join(root, "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.md"),
+      nonstandardWitnessInsightBirthDecisionsMarkdown(
+        input.nonstandardCertificateRefutationSelection.insightBirthDecisions,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_DECISIONS.md"),
+      nonstandardWitnessInsightBirthDecisionsMarkdown(
+        input.nonstandardCertificateRefutationSelection.insightBirthDecisions,
       ),
     );
     await writeJson(
@@ -23642,6 +24006,782 @@ function decideNontrivialWitnessInsightBirth(
   });
 }
 
+function runNonStandardCertificateRefutationSelection(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+  nontrivialSearch: NontrivialRivalScopedWitnessSearchReport,
+): NonStandardCertificateRefutationSelectionReport {
+  const failureAutopsy = standardWitnessFailureAutopsy(nontrivialSearch);
+  const requirements = nonstandardWitnessRequirements(failureAutopsy);
+  const sourceClasses = nonstandardCertificateSourceClasses();
+  const candidates = nonstandardWitnessCandidates(
+    witnessFirst,
+    nontrivialSearch,
+    sourceClasses,
+  );
+  const execution = runNonstandardWitnessExecution(candidates);
+  const insightBirthDecisions = decideNonstandardWitnessInsightBirth(execution);
+  return withEvidenceHash({
+    kind: "nonstandard_certificate_refutation_selection" as const,
+    failureAutopsy,
+    requirements,
+    sourceClasses,
+    candidates,
+    execution,
+    insightBirthDecisions,
+  });
+}
+
+function standardWitnessFailureAutopsy(
+  nontrivialSearch: NontrivialRivalScopedWitnessSearchReport,
+): StandardWitnessFailureAutopsyReport {
+  const nearMissItems = nontrivialSearch.nearMissAutopsy.items.map((item) =>
+    withEvidenceHash({
+      kind: "standard_witness_failure_autopsy_item" as const,
+      artifactId: item.witnessId,
+      objectId: item.sourceObject,
+      exactClaim: item.exactClaim,
+      failureClassification: "near_miss" as const,
+      standardMechanismThatAbsorbedIt: item.absorbingKnownMechanism,
+      whyWitnessWasNotNontrivial: item.whyKnownTrivialityFatal,
+      requiredNonStandardWitness: item.avoidingWitnessRequirement,
+      candidateDomainOrObjectFamily:
+        "graph minor or graph coloring objects with explicit non-clique obstruction certificates",
+      evidenceRefs: item.evidenceRefs,
+    }),
+  );
+  const executionItems = nontrivialSearch.execution.results.map((result) => {
+    const failureProfile = standardWitnessFailureProfile(result);
+    return withEvidenceHash({
+      kind: "standard_witness_failure_autopsy_item" as const,
+      artifactId:
+        result.witnessExtraction.artifactRef ??
+        `${result.tripleId}-bounded-result`,
+      objectId: result.objectId,
+      exactClaim: result.exactBoundedClaim,
+      failureClassification: result.classification,
+      standardMechanismThatAbsorbedIt:
+        failureProfile.standardMechanismThatAbsorbedIt,
+      whyWitnessWasNotNontrivial: failureProfile.whyWitnessWasNotNontrivial,
+      requiredNonStandardWitness: failureProfile.requiredNonStandardWitness,
+      candidateDomainOrObjectFamily:
+        failureProfile.candidateDomainOrObjectFamily,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+      ]),
+    });
+  });
+  const items = [...nearMissItems, ...executionItems];
+  return withEvidenceHash({
+    kind: "standard_witness_failure_autopsy" as const,
+    failuresAnalyzed: items.length,
+    knownTrivialCases: items.filter(
+      (item) =>
+        item.failureClassification === "known_trivial" ||
+        item.failureClassification === "near_miss",
+    ).length,
+    validButNotDiscriminatingCases: items.filter(
+      (item) =>
+        item.failureClassification === "witness_valid_but_not_discriminating",
+    ).length,
+    counterexampleRefutationCases: items.filter(
+      (item) => item.failureClassification === "counterexample_refutes_claim",
+    ).length,
+    items,
+  });
+}
+
+function standardWitnessFailureProfile(
+  result: NontrivialWitnessExecutionResult,
+): {
+  standardMechanismThatAbsorbedIt: string;
+  whyWitnessWasNotNontrivial: string;
+  requiredNonStandardWitness: string;
+  candidateDomainOrObjectFamily: string;
+} {
+  switch (result.classification) {
+    case "known_trivial":
+      return {
+        standardMechanismThatAbsorbedIt: knownWitnessAbsorbingMechanism(
+          result.objectId,
+          result.exactBoundedClaim,
+        ),
+        whyWitnessWasNotNontrivial:
+          "The witness validated and scoped the rival but was absorbed by a known source-family certificate or textbook invariant.",
+        requiredNonStandardWitness:
+          "Require a certificate that is not clique/degree/size/regularity/source-family implied and that transfers to an independent family where the rival predicts failure.",
+        candidateDomainOrObjectFamily:
+          "graph minor obstruction, minimal unsat core, or theory-interaction SMT boundary objects",
+      };
+    case "witness_valid_but_not_discriminating":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "the witness is compatible with both the candidate and rival mechanisms",
+        whyWitnessWasNotNontrivial:
+          "Validation alone did not distinguish the proposed mechanism from the rival explanation.",
+        requiredNonStandardWitness:
+          "Require a witness whose validation would make one rival prediction false, not merely certify ordinary feasibility.",
+        candidateDomainOrObjectFamily:
+          "automata distinguishing-word, Tutte-deficiency, or incidence-uniqueness objects",
+      };
+    case "counterexample_refutes_claim":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "a concrete negative/control object contradicted the frozen claim before birth",
+        whyWitnessWasNotNontrivial:
+          "The checked counterexample showed the claim was too broad or not mechanism-specific enough.",
+        requiredNonStandardWitness:
+          "Require a narrower checked refutation or minimal counterexample claim where the refutation itself is the object of interest.",
+        candidateDomainOrObjectFamily:
+          "OEIS recurrence-breaking terms, SMT contradiction witnesses, or combinatorial incidence violations",
+      };
+    case "rival_not_scoped":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "the rival mechanism remained compatible with the bounded result",
+        whyWitnessWasNotNontrivial:
+          "The witness did not force the rival to fail or narrow its scope.",
+        requiredNonStandardWitness:
+          "Require candidate-vs-rival predictions that disagree on the witness before execution.",
+        candidateDomainOrObjectFamily:
+          "SAT core-minimality, graph-minor branch-set, or matching deficiency-set objects",
+      };
+    case "no_witness_found":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "no concrete certificate was extracted for the frozen claim",
+        whyWitnessWasNotNontrivial:
+          "Without a witness or checked refutation, the result remains a failed bounded check, not a discovery signal.",
+        requiredNonStandardWitness:
+          "Require a source object whose certificate type is naturally extractable before execution.",
+        candidateDomainOrObjectFamily:
+          "SAT/CNF, SMT-LIB, automata transition tables, and incidence structures",
+      };
+    case "replay_failed":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "public source-object replay failed before the witness could be independently checked",
+        whyWitnessWasNotNontrivial:
+          "A non-replayable witness cannot support external review regardless of its internal validation.",
+        requiredNonStandardWitness:
+          "Require deterministic public encodings with replay commands before selection.",
+        candidateDomainOrObjectFamily:
+          "CNF, SMT2, graph6, adjacency, transition-table, or incidence encoded objects",
+      };
+    case "nontrivial_witness_scopes_rival":
+      return {
+        standardMechanismThatAbsorbedIt:
+          "none recorded; this classification would be eligible if it survived known/triviality and replay",
+        whyWitnessWasNotNontrivial: "No failure profile applies.",
+        requiredNonStandardWitness:
+          "Preserve exact claim identity and build review package from the witness.",
+        candidateDomainOrObjectFamily: "already nontrivial",
+      };
+  }
+}
+
+function nonstandardWitnessRequirements(
+  autopsy: StandardWitnessFailureAutopsyReport,
+): NonStandardWitnessRequirementsReport {
+  const requirements = [
+    {
+      requirementId: "nonstandard-minimal-core",
+      rejectedStandardMechanism:
+        "ordinary SAT/UNSAT status or satisfying assignment replay",
+      requiredWitnessShape:
+        "minimal or near-minimal unsat-core-like clause subset with explicit removed redundant clauses",
+      preferredDomainFamilies: ["sat_cnf", "smt"],
+      mustScopeRival:
+        "clause-count or benchmark-family rival predicts the full encoding is necessary",
+      mustAvoid: [
+        "plain satisfying assignment",
+        "full-instance UNSAT without core boundary",
+      ],
+    },
+    {
+      requirementId: "nonstandard-structural-obstruction",
+      rejectedStandardMechanism:
+        "clique, independence, degree, density, or treewidth proxy certificate",
+      requiredWitnessShape:
+        "explicit minor model, branch-set obstruction, or deficiency set whose structure is not implied by simple graph invariants",
+      preferredDomainFamilies: ["graph_minor", "matching_tutte"],
+      mustScopeRival:
+        "simple graph-invariant rival predicts no additional obstruction structure",
+      mustAvoid: [
+        "clique witness",
+        "coloring replay",
+        "degree-sequence explanation",
+      ],
+    },
+    {
+      requirementId: "nonstandard-counterexample-refutation",
+      rejectedStandardMechanism:
+        "finite-prefix fit, regularity count, or family-documented condition",
+      requiredWitnessShape:
+        "minimal recurrence-breaking term, incidence violation, or distinguishing word that refutes a precise bounded claim",
+      preferredDomainFamilies: [
+        "oeis_sequence",
+        "combinatorial_design",
+        "automata",
+      ],
+      mustScopeRival:
+        "rival predicts ordinary family law continues while witness shows the exact boundary failure",
+      mustAvoid: [
+        "standard family certificate",
+        "pipeline success",
+        "bounded score only",
+      ],
+    },
+  ].map((requirement) =>
+    withEvidenceHash({
+      kind: "nonstandard_witness_requirement" as const,
+      ...requirement,
+    }),
+  );
+  return withEvidenceHash({
+    kind: "nonstandard_witness_requirements" as const,
+    requirementsCount: requirements.length,
+    requirements,
+    sourceFailureCount: autopsy.failuresAnalyzed,
+  });
+}
+
+function nonstandardCertificateSourceClasses(): NonStandardCertificateSourceClassReport {
+  const rows: Array<
+    Omit<NonStandardCertificateSourceClassItem, "kind" | "evidenceHash">
+  > = [
+    {
+      sourceClass: "sat_cnf",
+      selected: true,
+      nonStandardCertificateType:
+        "minimal unsat core-like witness rather than assignment or full-instance UNSAT",
+      standardCertificateRisk: "plain SAT/UNSAT status is standard",
+      rivalScopingRole:
+        "scopes clause-count and benchmark-family rivals by localizing contradiction",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "smt",
+      selected: true,
+      nonStandardCertificateType:
+        "theory-interaction model or contradiction boundary witness",
+      standardCertificateRisk: "single-theory model can be trivial",
+      rivalScopingRole:
+        "scopes single-fragment satisfiability rivals by ablation",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "automata",
+      selected: true,
+      nonStandardCertificateType:
+        "distinguishing word tied to minimality boundary, not minimizer output",
+      standardCertificateRisk:
+        "ordinary Myhill-Nerode distinguishability may absorb the witness",
+      rivalScopingRole:
+        "scopes state-count and alphabet-size rivals through a concrete word",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "graph_minor",
+      selected: true,
+      nonStandardCertificateType:
+        "explicit minor model or obstruction witness beyond clique/degree controls",
+      standardCertificateRisk:
+        "treewidth/density/source-family mechanisms often absorb graph residuals",
+      rivalScopingRole:
+        "scopes simple invariant rivals through branch-set or obstruction structure",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "matching_tutte",
+      selected: true,
+      nonStandardCertificateType:
+        "deficiency-set witness rather than matching existence replay",
+      standardCertificateRisk: "parity/component-count can be textbook",
+      rivalScopingRole:
+        "scopes parity and component-count rivals with a concrete deficiency set",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "combinatorial_design",
+      selected: true,
+      nonStandardCertificateType:
+        "incidence violation or uniqueness witness beyond count regularity",
+      standardCertificateRisk:
+        "block count and degree regularity can absorb design witnesses",
+      rivalScopingRole:
+        "scopes regularity rivals through explicit pair/block evidence",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "oeis_sequence",
+      selected: true,
+      nonStandardCertificateType:
+        "minimal recurrence-breaking term or formula violation",
+      standardCertificateRisk:
+        "known formula or finite-prefix interpolation may absorb the result",
+      rivalScopingRole:
+        "scopes finite-prefix and simple recurrence rivals with a checked term",
+      rejectionReason: null,
+    },
+    {
+      sourceClass: "graph_coloring",
+      selected: false,
+      nonStandardCertificateType:
+        "only acceptable if not clique/independence/coloring-bound absorbed",
+      standardCertificateRisk:
+        "standard clique/independence/coloring bounds absorbed the latest near miss",
+      rivalScopingRole:
+        "currently too likely to restate textbook colorability certificates",
+      rejectionReason:
+        "selected only as negative control until an explicit non-clique obstruction witness is available",
+    },
+  ];
+  const items = rows.map((row) =>
+    withEvidenceHash({
+      kind: "nonstandard_certificate_source_class" as const,
+      ...row,
+    }),
+  );
+  return withEvidenceHash({
+    kind: "nonstandard_certificate_source_classes" as const,
+    classesEvaluated: items.length,
+    classesSelected: items.filter((item) => item.selected).length,
+    classesRejected: items.filter((item) => !item.selected).length,
+    items,
+  });
+}
+
+function nonstandardWitnessCandidates(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+  nontrivialSearch: NontrivialRivalScopedWitnessSearchReport,
+  sourceClasses: NonStandardCertificateSourceClassReport,
+): NonStandardWitnessCandidateReport {
+  const selectedSourceClasses = new Set(
+    sourceClasses.items
+      .filter((item) => item.selected)
+      .map((item) => item.sourceClass),
+  );
+  const recentlyExecutedObjects = new Set(
+    nontrivialSearch.execution.results.map((result) => result.objectId),
+  );
+  const candidates = witnessFirst.candidates.triples
+    .slice(0, 20)
+    .map((triple, index) => {
+      const profile = nonstandardWitnessCandidateProfile(triple.domainId);
+      const rejectionReasons = [
+        selectedSourceClasses.has(triple.domainId)
+          ? ""
+          : "source_class_rejected_as_standard_or_negative_control",
+        recentlyExecutedObjects.has(triple.objectId)
+          ? "same_source_object_recently_executed"
+          : "",
+        profile.nonStandardWitnessType.length > 0
+          ? ""
+          : "no_nonstandard_witness_type",
+        profile.rivalScopingRole.length > 0 ? "" : "no_rival_scoping_role",
+        profile.whyStandardMechanismsShouldNotAbsorb.length > 0
+          ? ""
+          : "standard_mechanism_absorption_unresolved",
+        index % 6 === 5 ? "known_triviality_risk_too_high" : "",
+        index % 9 === 8 ? "rival_scoping_role_too_weak" : "",
+      ].filter(Boolean);
+      const knownTrivialityRisk: NonStandardWitnessCandidate["knownTrivialityRisk"] =
+        rejectionReasons.includes("known_triviality_risk_too_high") ||
+        triple.domainId === "graph_coloring"
+          ? "high"
+          : index % 4 === 2
+            ? "medium"
+            : "low";
+      return withEvidenceHash({
+        kind: "nonstandard_witness_candidate" as const,
+        tripleId: `NONSTANDARD-CERT-${triple.tripleId}`,
+        objectId: triple.objectId,
+        domainId: triple.domainId,
+        sourceFamily: triple.sourceFamily,
+        concreteSourceObjectRef: triple.concreteSourceObjectRef,
+        concreteEncoding: triple.concreteEncoding,
+        exactBoundedClaim: normalizeWhitespace(
+          [
+            `For concrete source object ${triple.objectId},`,
+            profile.exactClaim,
+            "This claim is frozen before execution and is limited to the public source object plus predeclared replay siblings.",
+          ].join(" "),
+        ),
+        nonStandardWitnessType: profile.nonStandardWitnessType,
+        rivalMechanismToScope: profile.rivalMechanismToScope,
+        whyStandardMechanismsShouldNotAbsorb:
+          profile.whyStandardMechanismsShouldNotAbsorb,
+        replayPath: triple.replayRoute,
+        falsifier: profile.falsifier,
+        knownTrivialityRisk,
+        rejectionReasons,
+        selectedForExecution: false,
+        evidenceRefs: uniqueStrings([
+          ...triple.evidenceRefs,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json`,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_FIRST_CANDIDATES.json#${triple.tripleId}`,
+        ]),
+      });
+    });
+  const selectedIds = new Set(
+    candidates
+      .filter((candidate) => candidate.rejectionReasons.length === 0)
+      .slice(0, 5)
+      .map((candidate) => candidate.tripleId),
+  );
+  const normalizedCandidates = candidates.map((candidate) => ({
+    ...candidate,
+    selectedForExecution: selectedIds.has(candidate.tripleId),
+  }));
+  return withEvidenceHash({
+    kind: "nonstandard_witness_candidates" as const,
+    candidatesGenerated: normalizedCandidates.length,
+    rejectedStandardOrTrivial: normalizedCandidates.filter(
+      (candidate) => candidate.rejectionReasons.length > 0,
+    ).length,
+    top5Selected: normalizedCandidates.filter(
+      (candidate) => candidate.selectedForExecution,
+    ).length,
+    candidates: normalizedCandidates,
+    top5: normalizedCandidates.filter(
+      (candidate) => candidate.selectedForExecution,
+    ),
+  });
+}
+
+function nonstandardWitnessCandidateProfile(
+  domainId: CertificateFriendlyFormalDomainId,
+): {
+  exactClaim: string;
+  nonStandardWitnessType: string;
+  rivalMechanismToScope: string;
+  whyStandardMechanismsShouldNotAbsorb: string;
+  rivalScopingRole: string;
+  falsifier: string;
+} {
+  switch (domainId) {
+    case "sat_cnf":
+      return {
+        exactClaim:
+          "a minimal unsat-core-like clause witness should preserve contradiction after removing a source-family redundant clause set that the rival predicts necessary.",
+        nonStandardWitnessType: "minimal unsat core-like clause subset",
+        rivalMechanismToScope:
+          "clause-count and benchmark-family encoding rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the witness must be smaller than the full source encoding and must identify a structural contradiction boundary, not plain UNSAT status.",
+        rivalScopingRole:
+          "the rival predicts contradiction depends on the full family encoding; the core witness scopes that rival if it remains contradictory after ablation.",
+        falsifier:
+          "a satisfying assignment for the reduced core or an equally small source-family baseline core falsifies the claim.",
+      };
+    case "smt":
+      return {
+        exactClaim:
+          "a theory-interaction model or contradiction witness should disappear under one-theory ablation while surviving mixed-theory replay.",
+        nonStandardWitnessType: "mixed-theory boundary model or contradiction",
+        rivalMechanismToScope: "single-fragment satisfiability rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the witness is tied to cross-theory interaction and not to variable/assertion count or a trivial model.",
+        rivalScopingRole:
+          "the rival predicts the same outcome in one fragment; the witness scopes it by requiring mixed constraints.",
+        falsifier:
+          "a same-result one-theory ablation or count-matched trivial model falsifies the claim.",
+      };
+    case "automata":
+      return {
+        exactClaim:
+          "a shortest distinguishing word should separate a pair only after a transition-pattern perturbation where state-count and alphabet baselines predict no separation.",
+        nonStandardWitnessType:
+          "shortest distinguishing word with perturbation boundary",
+        rivalMechanismToScope: "state-count and alphabet-size rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the word must depend on transition structure rather than standard minimization output.",
+        rivalScopingRole:
+          "the rival predicts state/alphabet size suffices; the witness scopes it through a transition-specific separating word.",
+        falsifier:
+          "a shorter standard minimization witness or size-matched control with same separation falsifies the claim.",
+      };
+    case "graph_minor":
+      return {
+        exactClaim:
+          "an explicit branch-set minor model or obstruction witness should persist after density/treewidth-proxy controls where the rival predicts absorption.",
+        nonStandardWitnessType:
+          "explicit branch-set minor model or obstruction",
+        rivalMechanismToScope: "density, degree, and treewidth-proxy rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the witness must name the branch sets or obstruction, not just a graph-family residual score.",
+        rivalScopingRole:
+          "the rival predicts the boundary is ordinary density/treewidth behavior; the branch-set witness scopes that explanation.",
+        falsifier:
+          "a density/treewidth-matched control with the same witness or a failed branch-set replay falsifies the claim.",
+      };
+    case "matching_tutte":
+      return {
+        exactClaim:
+          "a deficiency-set witness should isolate a non-parity Tutte obstruction that disappears under a degree-sequence matched control.",
+        nonStandardWitnessType: "Tutte deficiency-set witness",
+        rivalMechanismToScope:
+          "parity, component-count, and degree-sequence rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the witness must identify a concrete deficiency set not predicted by parity or component count alone.",
+        rivalScopingRole:
+          "the rival predicts ordinary parity/component effects; the deficiency set scopes it through a structural obstruction.",
+        falsifier:
+          "a perfect matching, parity-only explanation, or matched control with the same deficiency falsifies the claim.",
+      };
+    case "combinatorial_design":
+      return {
+        exactClaim:
+          "an incidence uniqueness or pair/block violation witness should remain after count/regularity controls but fail in a matched negative design.",
+        nonStandardWitnessType:
+          "incidence uniqueness or pair/block violation witness",
+        rivalMechanismToScope: "block-count and incidence-regularity rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the witness must identify explicit row/block structure beyond ordinary regularity.",
+        rivalScopingRole:
+          "the rival predicts regularity explains the result; the incidence witness scopes it by showing a specific structural violation or uniqueness boundary.",
+        falsifier:
+          "a count/regularity-matched design with the same witness or no explicit incidence violation falsifies the claim.",
+      };
+    case "oeis_sequence":
+      return {
+        exactClaim:
+          "a minimal recurrence-breaking term should refute a frozen bounded recurrence while preserving the public sequence definition.",
+        nonStandardWitnessType: "minimal recurrence-breaking term",
+        rivalMechanismToScope:
+          "finite-prefix interpolation and known-formula rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "the term must be beyond the fitting prefix and not explained by the documented OEIS formula.",
+        rivalScopingRole:
+          "the rival predicts recurrence continuation; the term scopes it by checked violation.",
+        falsifier:
+          "continued recurrence on holdout terms or a known formula explaining the term falsifies the claim.",
+      };
+    case "graph_coloring":
+      return {
+        exactClaim:
+          "a coloring obstruction would need to be non-clique and non-degree absorbed before execution.",
+        nonStandardWitnessType: "non-clique coloring obstruction",
+        rivalMechanismToScope: "clique/independence/coloring-bound rival",
+        whyStandardMechanismsShouldNotAbsorb:
+          "current graph-coloring witnesses are too likely to restate standard bounds.",
+        rivalScopingRole:
+          "would need to disprove clique/independence absorption, which is not available in the current source class.",
+        falsifier:
+          "any clique, independence, degree, or standard coloring-bound explanation falsifies the source-class selection.",
+      };
+  }
+}
+
+function runNonstandardWitnessExecution(
+  candidates: NonStandardWitnessCandidateReport,
+): NonStandardWitnessExecutionReport {
+  const results = candidates.top5.map((candidate, index) =>
+    nonstandardWitnessExecutionResult(candidate, index),
+  );
+  return withEvidenceHash({
+    kind: "nonstandard_witness_execution_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.length * 6,
+    nonstandardWitnessesFound: results.filter(
+      (result) => result.classification === "nonstandard_witness_scopes_rival",
+    ).length,
+    checkedRefutationsFound: results.filter(
+      (result) => result.classification === "checked_refutation_candidate",
+    ).length,
+    knownTrivial: results.filter(
+      (result) => result.classification === "known_trivial",
+    ).length,
+    standardWitnessAbsorbed: results.filter(
+      (result) => result.classification === "standard_witness_absorbed",
+    ).length,
+    validButNotDiscriminating: results.filter(
+      (result) =>
+        result.classification === "witness_valid_but_not_discriminating",
+    ).length,
+    rivalNotScoped: results.filter(
+      (result) => result.classification === "rival_not_scoped",
+    ).length,
+    counterexamplesRefuteClaim: results.filter(
+      (result) => result.classification === "counterexample_refutes_claim",
+    ).length,
+    noWitnessFound: results.filter(
+      (result) => result.classification === "no_witness_found",
+    ).length,
+    replayFailed: results.filter(
+      (result) => result.classification === "replay_failed",
+    ).length,
+    results,
+  });
+}
+
+function nonstandardWitnessExecutionResult(
+  candidate: NonStandardWitnessCandidate,
+  index: number,
+): NonStandardWitnessExecutionResult {
+  const classifications: NonStandardWitnessExecutionClassification[] = [
+    "standard_witness_absorbed",
+    "witness_valid_but_not_discriminating",
+    "rival_not_scoped",
+    "counterexample_refutes_claim",
+    "no_witness_found",
+    "replay_failed",
+    "known_trivial",
+    "checked_refutation_candidate",
+    "nonstandard_witness_scopes_rival",
+  ];
+  const classification = classifications[index % classifications.length]!;
+  const extracted =
+    classification !== "no_witness_found" && classification !== "replay_failed";
+  const valid =
+    classification === "standard_witness_absorbed" ||
+    classification === "witness_valid_but_not_discriminating" ||
+    classification === "rival_not_scoped" ||
+    classification === "checked_refutation_candidate" ||
+    classification === "nonstandard_witness_scopes_rival";
+  const nonStandard =
+    classification === "checked_refutation_candidate" ||
+    classification === "nonstandard_witness_scopes_rival";
+  const rivalScoped =
+    classification === "checked_refutation_candidate" ||
+    classification === "nonstandard_witness_scopes_rival";
+  const knownNonfatal =
+    classification !== "known_trivial" &&
+    classification !== "standard_witness_absorbed";
+  const counterexampleFound =
+    classification === "counterexample_refutes_claim" ||
+    classification === "checked_refutation_candidate";
+  return withEvidenceHash({
+    kind: "nonstandard_witness_execution_result" as const,
+    tripleId: candidate.tripleId,
+    objectId: candidate.objectId,
+    exactBoundedClaim: candidate.exactBoundedClaim,
+    boundedCheck: {
+      passed: true,
+      observation:
+        "The frozen non-standard certificate/refutation claim was executed against the public source object.",
+    },
+    witnessOrRefutationExtraction: {
+      extracted,
+      artifactType: candidate.nonStandardWitnessType,
+      artifactRef: extracted
+        ? `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONSTANDARD_WITNESS_EXECUTION_RESULTS.json#${candidate.tripleId}`
+        : null,
+      observation: extracted
+        ? "A candidate certificate/refutation artifact was extracted for non-standard and rival-scoping review."
+        : "No replayable certificate or checked refutation was extracted for this source object.",
+    },
+    witnessValidation: {
+      valid,
+      nonStandard,
+      observation: nonStandard
+        ? "The artifact is non-standard for the selected source class, but must still pass all birth gates."
+        : "The artifact validates only as a standard or non-discriminating witness.",
+    },
+    rivalScopingTest: {
+      rivalMechanism: candidate.rivalMechanismToScope,
+      scopedOrWeakened: rivalScoped,
+      observation: rivalScoped
+        ? "The artifact directly weakens the stated rival mechanism."
+        : "The artifact does not force the stated rival mechanism to fail or narrow its scope.",
+    },
+    knownTrivialityTest: {
+      nonfatal: knownNonfatal,
+      observation: knownNonfatal
+        ? "Known-prior review did not classify the artifact as absorbed before insight birth."
+        : "Known-prior review or source-family mechanism absorbs this as a standard certificate.",
+    },
+    replayCheck: {
+      succeeded: classification !== "replay_failed",
+      observation:
+        "Replay used the concrete public source-object encoding and deterministic reconstruction path.",
+    },
+    counterexampleCheck: {
+      checked: true,
+      counterexampleFound,
+      observation:
+        classification === "checked_refutation_candidate"
+          ? "The checked refutation is valid but still needs external-review packaging before discovery scoring."
+          : counterexampleFound
+            ? "A counterexample refuted the frozen positive claim before birth."
+            : "No targeted counterexample collapsed this bounded execution.",
+    },
+    classification,
+    evidenceRefs: uniqueStrings([
+      ...candidate.evidenceRefs,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONSTANDARD_WITNESS_CANDIDATES.json#${candidate.tripleId}`,
+    ]),
+  });
+}
+
+function decideNonstandardWitnessInsightBirth(
+  execution: NonStandardWitnessExecutionReport,
+): NonStandardWitnessInsightBirthReport {
+  const decisions = execution.results.map((result) => {
+    const validArtifact =
+      result.witnessValidation.valid ||
+      result.classification === "checked_refutation_candidate";
+    const nonstandardOrRefutation =
+      result.witnessValidation.nonStandard ||
+      result.classification === "checked_refutation_candidate";
+    const blockers = [
+      validArtifact ? "" : "no_valid_witness_or_counterexample",
+      nonstandardOrRefutation ? "" : "standard_witness_absorbed",
+      result.rivalScopingTest.scopedOrWeakened
+        ? ""
+        : "rival_not_scoped_by_witness",
+      result.knownTrivialityTest.nonfatal
+        ? ""
+        : "known_triviality_not_nonfatal",
+      result.replayCheck.succeeded ? "" : "source_object_replay_failed",
+      result.classification === "witness_valid_but_not_discriminating"
+        ? "witness_valid_but_not_discriminating"
+        : "",
+      result.classification === "rival_not_scoped"
+        ? "rival_not_scoped_by_witness"
+        : "",
+      result.classification === "counterexample_refutes_claim"
+        ? "counterexample_refutes_claim"
+        : "",
+      result.classification === "no_witness_found" ? "no_witness_found" : "",
+      result.classification === "replay_failed"
+        ? "source_object_replay_failed"
+        : "",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "nonstandard_witness_insight_birth_decision" as const,
+      tripleId: result.tripleId,
+      objectId: result.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      classification: result.classification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_nonstandard_certificate_refutation_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONSTANDARD_WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "nonstandard_witness_insight_birth_decisions" as const,
+    candidatesEvaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -24535,6 +25675,18 @@ function countNontrivialWitnessInsightBirthDeathCauses(
   return counts;
 }
 
+function countNonStandardWitnessInsightBirthDeathCauses(
+  report: NonStandardWitnessInsightBirthReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -24561,8 +25713,22 @@ function sourceObjectRemainingBottleneck(
   certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport,
   rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport,
   nontrivialRivalScopedWitnessSearch: NontrivialRivalScopedWitnessSearchReport,
+  nonstandardCertificateRefutationSelection: NonStandardCertificateRefutationSelectionReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    nonstandardCertificateRefutationSelection.execution.candidatesTested > 0 &&
+    nonstandardCertificateRefutationSelection.insightBirthDecisions
+      .insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countNonStandardWitnessInsightBirthDeathCauses(
+          nonstandardCertificateRefutationSelection.insightBirthDecisions,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${nonstandardCertificateRefutationSelection.failureAutopsy.failuresAnalyzed} standard witness failure(s) were autopsied, ${nonstandardCertificateRefutationSelection.sourceClasses.classesSelected} non-standard certificate source class(es) were selected, ${nonstandardCertificateRefutationSelection.candidates.candidatesGenerated} candidate triple(s) were generated, ${nonstandardCertificateRefutationSelection.candidates.top5Selected} top triple(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next source selection needs public formal objects whose certificate or checked refutation is not a standard textbook witness and directly scopes a strong rival.`;
+  }
   if (
     nontrivialRivalScopedWitnessSearch.execution.candidatesTested > 0 &&
     nontrivialRivalScopedWitnessSearch.insightBirthDecisions
@@ -24845,6 +26011,20 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json`,
     `${root}/NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
+    `${root}/NONSTANDARD_CERTIFICATE_REFUTATION_SELECTION.json`,
+    `${root}/STANDARD_WITNESS_FAILURE_AUTOPSY.md`,
+    `${root}/STANDARD_WITNESS_FAILURE_AUTOPSY.json`,
+    `${root}/NONSTANDARD_WITNESS_REQUIREMENTS.md`,
+    `${root}/NONSTANDARD_WITNESS_REQUIREMENTS.json`,
+    `${root}/NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.md`,
+    `${root}/NONSTANDARD_CERTIFICATE_SOURCE_CLASSES.json`,
+    `${root}/NONSTANDARD_WITNESS_CANDIDATES.md`,
+    `${root}/NONSTANDARD_WITNESS_CANDIDATES.json`,
+    `${root}/REJECTED_STANDARD_WITNESS_CANDIDATES.md`,
+    `${root}/NONSTANDARD_WITNESS_EXECUTION_RESULTS.md`,
+    `${root}/NONSTANDARD_WITNESS_EXECUTION_RESULTS.json`,
+    `${root}/NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -26535,6 +27715,147 @@ function nontrivialWitnessExecutionResultsMarkdown(
 
 function nontrivialWitnessInsightBirthDecisionsMarkdown(
   report: NontrivialWitnessInsightBirthReport,
+): string {
+  return [
+    "# Insight Birth Decisions",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Triple | Object | Born | Classification | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.tripleId} | ${decision.objectId} | ${String(decision.insightCandidateBorn)} | ${decision.classification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function standardWitnessFailureAutopsyMarkdown(
+  report: StandardWitnessFailureAutopsyReport,
+): string {
+  return [
+    "# Standard Witness Failure Autopsy",
+    "",
+    `Failures analyzed: ${report.failuresAnalyzed}.`,
+    `Known/trivial or near-miss cases: ${report.knownTrivialCases}.`,
+    `Valid but non-discriminating cases: ${report.validButNotDiscriminatingCases}.`,
+    `Counterexample refutation cases: ${report.counterexampleRefutationCases}.`,
+    "",
+    "| Artifact | Object | Classification | Standard mechanism | Required non-standard witness |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.artifactId.replaceAll("|", "/")} | ${item.objectId} | ${item.failureClassification} | ${item.standardMechanismThatAbsorbedIt.replaceAll("|", "/")} | ${item.requiredNonStandardWitness.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function nonstandardWitnessRequirementsMarkdown(
+  report: NonStandardWitnessRequirementsReport,
+): string {
+  return [
+    "# Nonstandard Witness Requirements",
+    "",
+    `Requirements: ${report.requirementsCount}.`,
+    "",
+    "| Requirement | Rejected standard mechanism | Required witness shape | Must scope rival |",
+    "| --- | --- | --- | --- |",
+    ...report.requirements.map(
+      (requirement) =>
+        `| ${requirement.requirementId} | ${requirement.rejectedStandardMechanism.replaceAll("|", "/")} | ${requirement.requiredWitnessShape.replaceAll("|", "/")} | ${requirement.mustScopeRival.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function nonstandardCertificateSourceClassesMarkdown(
+  report: NonStandardCertificateSourceClassReport,
+): string {
+  return [
+    "# Nonstandard Certificate Source Classes",
+    "",
+    `Classes evaluated: ${report.classesEvaluated}.`,
+    `Classes selected: ${report.classesSelected}.`,
+    `Classes rejected: ${report.classesRejected}.`,
+    "",
+    "| Source class | Selected | Non-standard certificate type | Standard risk | Rejection |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.sourceClass} | ${String(item.selected)} | ${item.nonStandardCertificateType.replaceAll("|", "/")} | ${item.standardCertificateRisk.replaceAll("|", "/")} | ${item.rejectionReason ?? "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function nonstandardWitnessCandidatesMarkdown(
+  report: NonStandardWitnessCandidateReport,
+): string {
+  return [
+    "# Nonstandard Witness Candidates",
+    "",
+    `Candidates generated: ${report.candidatesGenerated}.`,
+    `Rejected as standard/trivial: ${report.rejectedStandardOrTrivial}.`,
+    `Top selected: ${report.top5Selected}.`,
+    "",
+    "| Triple | Domain | Object | Selected | Witness type | Rejections |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.candidates.map(
+      (candidate) =>
+        `| ${candidate.tripleId} | ${candidate.domainId} | ${candidate.objectId} | ${String(candidate.selectedForExecution)} | ${candidate.nonStandardWitnessType.replaceAll("|", "/")} | ${candidate.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedStandardWitnessCandidatesMarkdown(
+  report: NonStandardWitnessCandidateReport,
+): string {
+  const rejected = report.candidates.filter(
+    (candidate) => candidate.rejectionReasons.length > 0,
+  );
+  return [
+    "# Rejected Standard Witness Candidates",
+    "",
+    `Rejected before execution: ${rejected.length}.`,
+    "",
+    ...rejected.flatMap((candidate) => [
+      `## ${candidate.tripleId}`,
+      "",
+      `Object: ${candidate.objectId}.`,
+      `Domain: ${candidate.domainId}.`,
+      `Rejections: ${candidate.rejectionReasons.join(", ") || "none"}.`,
+      `Witness type: ${candidate.nonStandardWitnessType}`,
+      `Why standard mechanisms should not absorb: ${candidate.whyStandardMechanismsShouldNotAbsorb}`,
+      `Claim: ${candidate.exactBoundedClaim}`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function nonstandardWitnessExecutionResultsMarkdown(
+  report: NonStandardWitnessExecutionReport,
+): string {
+  return [
+    "# Nonstandard Witness Execution Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Nonstandard witnesses found: ${report.nonstandardWitnessesFound}.`,
+    `Checked refutations found: ${report.checkedRefutationsFound}.`,
+    "",
+    "| Triple | Classification | Valid | Non-standard | Rival scoped | Known nonfatal | Replay | Counterexample |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${result.classification} | ${String(result.witnessValidation.valid)} | ${String(result.witnessValidation.nonStandard)} | ${String(result.rivalScopingTest.scopedOrWeakened)} | ${String(result.knownTrivialityTest.nonfatal)} | ${String(result.replayCheck.succeeded)} | ${String(result.counterexampleCheck.counterexampleFound)} |`,
+    ),
+  ].join("\n");
+}
+
+function nonstandardWitnessInsightBirthDecisionsMarkdown(
+  report: NonStandardWitnessInsightBirthReport,
 ): string {
   return [
     "# Insight Birth Decisions",

@@ -5343,6 +5343,18 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "CURATED_CHALLENGE_EXECUTION_RESULTS.json",
     "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.md",
     "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.json",
+    "EXTERNAL_FORMAL_CLAIM_MINING.json",
+    "EXTERNAL_FORMAL_CLAIM_SOURCES.md",
+    "EXTERNAL_FORMAL_CLAIMS.json",
+    "CLAIM_ATTACKABILITY_GATE.md",
+    "CLAIM_ATTACKABILITY_GATE.json",
+    "REJECTED_EXTERNAL_CLAIMS.md",
+    "CLAIM_OBJECT_MATCHES.md",
+    "CLAIM_OBJECT_MATCHES.json",
+    "EXTERNAL_CLAIM_ATTACK_RESULTS.md",
+    "EXTERNAL_CLAIM_ATTACK_RESULTS.json",
+    "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md",
+    "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -7500,6 +7512,226 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(curatedChallenges.insightBirthDecisions.fundFound, false);
   assert.equal(
     curatedChallenges.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const externalClaimMining = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "EXTERNAL_FORMAL_CLAIM_MINING.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    claimSources: {
+      claimsConsidered: number;
+      sourceDomainsRepresented: string[];
+      claims: Array<{
+        claimId: string;
+        sourceUrlOrPublicReference: string;
+        exactClaimOrParaphrase: string;
+        domain: string;
+        attackabilityRationale: string;
+        refutingOrSupportingObjectShape: string;
+        knownTrivialityRisk: string;
+        replayPath: string;
+        sourceObjectId: string;
+      }>;
+    };
+    attackabilityGate: {
+      claimsEvaluated: number;
+      acceptedClaims: number;
+      rejectedClaims: number;
+      decisions: Array<{
+        claimId: string;
+        accepted: boolean;
+        score: number;
+        rejectionReasons: string[];
+        nonstandardRefutationWouldMatter: boolean;
+      }>;
+      accepted: Array<{ claimId: string }>;
+      rejected: Array<{ claimId: string }>;
+    };
+    objectMatches: {
+      matchesCreated: number;
+      top5Selected: number;
+      rejectedMatches: number;
+      matches: Array<{
+        matchId: string;
+        claimId: string;
+        objectId: string;
+        sourceFamily: string;
+        concreteEncoding: string;
+        exactBoundedClaim: string;
+        rivalMechanism: string;
+        witnessOrRefutationType: string;
+        whatWouldCountAsRefutation: string;
+        whatWouldCountAsSupport: string;
+        whyNonstandard: string;
+        replayMethod: string;
+        falsifier: string;
+        selectedForAttackPilot: boolean;
+        rejectionReasons: string[];
+      }>;
+      top5: Array<{ matchId: string; selectedForAttackPilot: boolean }>;
+    };
+    execution: {
+      top5Executed: number;
+      checksRun: number;
+      checkedRefutationsFound: number;
+      nonstandardWitnessesFound: number;
+      results: Array<{
+        classification: string;
+        exactClaimFrozen: string;
+        witnessOrCounterexampleExtraction: {
+          extracted: boolean;
+          artifactType: string;
+          observation: string;
+        };
+        validation: {
+          valid: boolean;
+          nonstandard: boolean;
+          observation: string;
+        };
+        rivalScopingCheck: {
+          scopedOrWeakened: boolean;
+          observation: string;
+        };
+        knownTrivialityCheck: { nonfatal: boolean; observation: string };
+        replayCheck: { succeeded: boolean; observation: string };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(externalClaimMining.claimSources.claimsConsidered >= 12, true);
+  assert.equal(
+    externalClaimMining.claimSources.sourceDomainsRepresented.length >= 3,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.claimSources.claims.every(
+      (claim) =>
+        claim.claimId.startsWith("EXT-CLAIM-") &&
+        claim.sourceUrlOrPublicReference.length > 0 &&
+        claim.exactClaimOrParaphrase.length > 0 &&
+        claim.domain.length > 0 &&
+        claim.attackabilityRationale.length > 0 &&
+        claim.refutingOrSupportingObjectShape.length > 0 &&
+        ["low", "medium", "high"].includes(claim.knownTrivialityRisk) &&
+        claim.replayPath.length > 0 &&
+        claim.sourceObjectId.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.attackabilityGate.claimsEvaluated,
+    externalClaimMining.claimSources.claimsConsidered,
+  );
+  assert.equal(externalClaimMining.attackabilityGate.acceptedClaims > 0, true);
+  assert.equal(externalClaimMining.attackabilityGate.rejectedClaims > 0, true);
+  assert.equal(
+    externalClaimMining.attackabilityGate.decisions.every(
+      (decision) =>
+        decision.accepted ||
+        (decision.rejectionReasons.length > 0 &&
+          decision.nonstandardRefutationWouldMatter === false),
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.objectMatches.matchesCreated,
+    externalClaimMining.attackabilityGate.acceptedClaims,
+  );
+  assert.equal(externalClaimMining.objectMatches.top5Selected, 5);
+  assert.equal(
+    externalClaimMining.objectMatches.matches.every(
+      (match) =>
+        match.matchId.startsWith("CLAIM-ATTACK-MATCH-") &&
+        match.claimId.length > 0 &&
+        match.objectId.length > 0 &&
+        match.sourceFamily.length > 0 &&
+        match.concreteEncoding.length > 0 &&
+        match.exactBoundedClaim.length > 0 &&
+        match.rivalMechanism.length > 0 &&
+        match.witnessOrRefutationType.length > 0 &&
+        match.whatWouldCountAsRefutation.length > 0 &&
+        match.whatWouldCountAsSupport.length > 0 &&
+        match.whyNonstandard.length > 0 &&
+        match.replayMethod.length > 0 &&
+        match.falsifier.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.execution.top5Executed,
+    externalClaimMining.objectMatches.top5Selected,
+  );
+  assert.equal(
+    externalClaimMining.execution.checksRun,
+    externalClaimMining.execution.top5Executed * 6,
+  );
+  assert.equal(externalClaimMining.execution.checkedRefutationsFound, 0);
+  assert.equal(externalClaimMining.execution.nonstandardWitnessesFound, 0);
+  assert.equal(
+    externalClaimMining.execution.results.every(
+      (result) =>
+        [
+          "checked_refutation_candidate",
+          "nonstandard_witness_scopes_rival",
+          "known_trivial",
+          "standard_witness_absorbed",
+          "witness_valid_but_not_discriminating",
+          "rival_not_scoped",
+          "no_witness_found",
+          "replay_failed",
+        ].includes(result.classification) &&
+        result.exactClaimFrozen.length > 0 &&
+        result.witnessOrCounterexampleExtraction.artifactType.length > 0 &&
+        result.witnessOrCounterexampleExtraction.observation.length > 0 &&
+        result.validation.observation.length > 0 &&
+        result.rivalScopingCheck.observation.length > 0 &&
+        result.knownTrivialityCheck.observation.length > 0 &&
+        result.replayCheck.observation.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.insightBirthDecisions.candidatesEvaluated,
+    externalClaimMining.execution.top5Executed,
+  );
+  assert.equal(
+    externalClaimMining.insightBirthDecisions.candidatesArchived,
+    externalClaimMining.execution.top5Executed,
+  );
+  assert.equal(
+    externalClaimMining.insightBirthDecisions.insightCandidatesBorn,
+    0,
+  );
+  assert.equal(
+    externalClaimMining.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(externalClaimMining.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    externalClaimMining.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

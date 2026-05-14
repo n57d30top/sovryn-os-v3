@@ -5327,6 +5327,22 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "NONSTANDARD_WITNESS_EXECUTION_RESULTS.json",
     "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
     "NONSTANDARD_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
+    "CURATED_EXTERNAL_FORMAL_CHALLENGE_SELECTION.json",
+    "NONSTANDARD_WITNESS_FAILURE_SYNTHESIS.md",
+    "NONSTANDARD_WITNESS_FAILURE_SYNTHESIS.json",
+    "DEPRIORITIZED_FORMAL_OBJECT_CLASSES.md",
+    "CURATED_CHALLENGE_SOURCE_CRITERIA.md",
+    "CURATED_CHALLENGE_SOURCE_CRITERIA.json",
+    "CURATED_EXTERNAL_CHALLENGE_OBJECTS.md",
+    "CURATED_EXTERNAL_CHALLENGE_OBJECTS.json",
+    "REJECTED_CHALLENGE_OBJECTS.md",
+    "CURATED_CLAIM_WITNESS_PAIRS.md",
+    "CURATED_CLAIM_WITNESS_PAIRS.json",
+    "REJECTED_CLAIM_WITNESS_PAIRS.md",
+    "CURATED_CHALLENGE_EXECUTION_RESULTS.md",
+    "CURATED_CHALLENGE_EXECUTION_RESULTS.json",
+    "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.md",
+    "CURATED_CHALLENGE_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -7214,6 +7230,276 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(nonstandardWitness.insightBirthDecisions.fundFound, false);
   assert.equal(
     nonstandardWitness.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const curatedChallenges = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "CURATED_EXTERNAL_FORMAL_CHALLENGE_SELECTION.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    failureSynthesis: {
+      failuresAnalyzed: number;
+      standardWitnessSourceClasses: string[];
+      weakClaimPatterns: string[];
+      unscopedRivalPatterns: string[];
+      weakCounterexamplePatterns: string[];
+      deprioritizedObjectClasses: string[];
+      items: Array<{
+        artifactId: string;
+        objectId: string;
+        failureClassification: string;
+        sourceClass: string;
+        standardMechanism: string;
+        weakClaimPattern: string;
+        rivalScopingGap: string;
+        counterexampleLesson: string;
+        deprioritizedObjectClass: string;
+      }>;
+    };
+    sourceCriteria: {
+      criteriaCount: number;
+      requiredCriteria: string[];
+      rejectedWitnessTypes: string[];
+      rejectedSourceClasses: string[];
+    };
+    challengeObjects: {
+      objectsConsidered: number;
+      sourceFamiliesRepresented: string[];
+      selectedForCandidateFormation: number;
+      rejectedObjects: number;
+      objects: Array<{
+        objectId: string;
+        sourceFamily: string;
+        sourceUrlOrPublicId: string;
+        sourceReceipt: string;
+        sourceHash: string;
+        objectType: string;
+        concreteEncoding: string;
+        nonstandardWitnessType: string;
+        rivalMechanism: string;
+        falsifier: string;
+        replayPath: string;
+        knownTrivialityRisk: string;
+        selectedForCandidateFormation: boolean;
+        rejectionReasons: string[];
+      }>;
+      selected: Array<{
+        objectId: string;
+        selectedForCandidateFormation: boolean;
+      }>;
+      rejected: Array<{ objectId: string; rejectionReasons: string[] }>;
+    };
+    claimWitnessPairs: {
+      pairsCreated: number;
+      rejectedPairs: number;
+      top5Selected: number;
+      pairs: Array<{
+        pairId: string;
+        objectId: string;
+        exactBoundedClaim: string;
+        rivalMechanism: string;
+        nonstandardWitnessType: string;
+        whatWitnessWouldProveOrRefute: string;
+        whyNotStandardCertificate: string;
+        whyScopesRival: string;
+        falsifier: string;
+        replayMethod: string;
+        selectedForExecution: boolean;
+        rejectionReasons: string[];
+      }>;
+      top5: Array<{ pairId: string; selectedForExecution: boolean }>;
+    };
+    execution: {
+      candidatesTested: number;
+      checksRun: number;
+      nonstandardWitnessesFound: number;
+      checkedRefutationsFound: number;
+      results: Array<{
+        classification: string;
+        witnessOrCounterexampleExtraction: {
+          extracted: boolean;
+          artifactType: string;
+          observation: string;
+        };
+        witnessValidation: {
+          valid: boolean;
+          nonStandard: boolean;
+          observation: string;
+        };
+        rivalScopingTest: {
+          scopedOrWeakened: boolean;
+          observation: string;
+        };
+        knownTrivialityCheck: { nonfatal: boolean; observation: string };
+        replayCheck: { succeeded: boolean; observation: string };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(
+    curatedChallenges.failureSynthesis.failuresAnalyzed >=
+      nonstandardWitness.execution.results.length,
+    true,
+  );
+  assert.equal(
+    curatedChallenges.failureSynthesis.items.every(
+      (item) =>
+        item.artifactId.length > 0 &&
+        item.objectId.length > 0 &&
+        item.failureClassification.length > 0 &&
+        item.sourceClass.length > 0 &&
+        item.standardMechanism.length > 0 &&
+        item.weakClaimPattern.length > 0 &&
+        item.rivalScopingGap.length > 0 &&
+        item.counterexampleLesson.length > 0 &&
+        item.deprioritizedObjectClass.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.failureSynthesis.deprioritizedObjectClasses.length > 0,
+    true,
+  );
+  assert.equal(curatedChallenges.sourceCriteria.criteriaCount >= 8, true);
+  assert.equal(
+    curatedChallenges.sourceCriteria.requiredCriteria.every(
+      (criterion) => criterion.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.sourceCriteria.rejectedWitnessTypes.length >= 6,
+    true,
+  );
+  assert.equal(curatedChallenges.challengeObjects.objectsConsidered, 30);
+  assert.equal(
+    curatedChallenges.challengeObjects.sourceFamiliesRepresented.length >= 3,
+    true,
+  );
+  assert.equal(
+    curatedChallenges.challengeObjects.selectedForCandidateFormation <= 10,
+    true,
+  );
+  assert.equal(curatedChallenges.challengeObjects.rejectedObjects > 0, true);
+  assert.equal(
+    curatedChallenges.challengeObjects.objects.every(
+      (object) =>
+        object.objectId.length > 0 &&
+        object.sourceFamily.length > 0 &&
+        object.sourceUrlOrPublicId.length > 0 &&
+        object.sourceReceipt.length > 0 &&
+        object.sourceHash.length > 0 &&
+        object.objectType.length > 0 &&
+        object.concreteEncoding.length > 0 &&
+        object.nonstandardWitnessType.length > 0 &&
+        object.rivalMechanism.length > 0 &&
+        object.falsifier.length > 0 &&
+        object.replayPath.length > 0 &&
+        ["low", "medium", "high"].includes(object.knownTrivialityRisk),
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.challengeObjects.rejected.every(
+      (object) => object.rejectionReasons.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.claimWitnessPairs.pairsCreated,
+    curatedChallenges.challengeObjects.selectedForCandidateFormation,
+  );
+  assert.equal(curatedChallenges.claimWitnessPairs.top5Selected, 5);
+  assert.equal(curatedChallenges.claimWitnessPairs.top5.length, 5);
+  assert.equal(
+    curatedChallenges.claimWitnessPairs.pairs.every(
+      (pair) =>
+        pair.pairId.startsWith("CURATED-CHALLENGE-PAIR-") &&
+        pair.objectId.length > 0 &&
+        pair.exactBoundedClaim.length > 0 &&
+        pair.rivalMechanism.length > 0 &&
+        pair.nonstandardWitnessType.length > 0 &&
+        pair.whatWitnessWouldProveOrRefute.length > 0 &&
+        pair.whyNotStandardCertificate.length > 0 &&
+        pair.whyScopesRival.length > 0 &&
+        pair.falsifier.length > 0 &&
+        pair.replayMethod.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.execution.candidatesTested,
+    curatedChallenges.claimWitnessPairs.top5Selected,
+  );
+  assert.equal(
+    curatedChallenges.execution.checksRun,
+    curatedChallenges.execution.candidatesTested * 6,
+  );
+  assert.equal(curatedChallenges.execution.nonstandardWitnessesFound, 0);
+  assert.equal(curatedChallenges.execution.checkedRefutationsFound, 0);
+  assert.equal(
+    curatedChallenges.execution.results.every(
+      (result) =>
+        [
+          "nonstandard_witness_scopes_rival",
+          "checked_refutation_candidate",
+          "standard_witness_absorbed",
+          "witness_valid_but_not_discriminating",
+          "rival_not_scoped",
+          "known_trivial",
+          "no_witness_found",
+          "replay_failed",
+        ].includes(result.classification) &&
+        result.witnessOrCounterexampleExtraction.artifactType.length > 0 &&
+        result.witnessOrCounterexampleExtraction.observation.length > 0 &&
+        result.witnessValidation.observation.length > 0 &&
+        result.rivalScopingTest.observation.length > 0 &&
+        result.knownTrivialityCheck.observation.length > 0 &&
+        result.replayCheck.observation.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    curatedChallenges.insightBirthDecisions.candidatesEvaluated,
+    curatedChallenges.execution.candidatesTested,
+  );
+  assert.equal(
+    curatedChallenges.insightBirthDecisions.candidatesArchived,
+    curatedChallenges.execution.candidatesTested,
+  );
+  assert.equal(
+    curatedChallenges.insightBirthDecisions.insightCandidatesBorn,
+    0,
+  );
+  assert.equal(
+    curatedChallenges.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(curatedChallenges.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    curatedChallenges.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

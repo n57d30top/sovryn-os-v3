@@ -1,5 +1,9 @@
 # Final Blockers
 
-No stage can honestly be marked 100: validation killed or weakened the strongest benchmark lead, synthesis produced no new campaign-born InsightCandidate, and structural rules are not yet enforced as Strategy/Knowledge selection memory.
+Strategy memory now blocks repeated structural failures before execution, but no memory-gated benchmark/data claim survived recurrence, rival closure, and holdout pressure as a new InsightCandidate.
 
-Fund Gate failed gates: discovery_candidate_present, fund_candidate_draft_present, external_review_package_complete, strict_fund_gate_passed.
+Specific blockers:
+
+- Stage 2 remains unchanged because no memory-gated candidate survived as an InsightCandidate.
+- Stage 3 improves to 95 because structural rules were enforced and changed candidate selection.
+- Stage 1 remains below 100 because validation did not produce a supported externally reviewable discovery claim.

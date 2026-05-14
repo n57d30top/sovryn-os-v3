@@ -46,6 +46,10 @@ import {
   ThreeStageEpistemicCampaignService,
   type ThreeStageEpistemicCampaignReport,
 } from "./three-stage-epistemic-campaign-service.js";
+import {
+  StructuralStrategyMemoryGateService,
+  type StructuralStrategyMemoryGateReport,
+} from "./structural-strategy-memory-gate-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65925,6 +65929,11 @@ export class AutonomousDiscoveryDaemonService {
   async threeStageEpistemicCampaign(): Promise<ThreeStageEpistemicCampaignReport> {
     await this.ensureInitialized();
     return new ThreeStageEpistemicCampaignService(this.root).run();
+  }
+
+  async strategyMemoryGate(): Promise<StructuralStrategyMemoryGateReport> {
+    await this.ensureInitialized();
+    return new StructuralStrategyMemoryGateService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

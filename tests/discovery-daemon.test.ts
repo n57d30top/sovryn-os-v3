@@ -68,6 +68,7 @@ import {
 import { EightStageCompletionSprintService } from "../src/core/discovery-daemon/eight-stage-completion-sprint-service.js";
 import { StageSixHonest100Service } from "../src/core/discovery-daemon/stage-six-honest-100-service.js";
 import { ThreeStageEpistemicCampaignService } from "../src/core/discovery-daemon/three-stage-epistemic-campaign-service.js";
+import { StructuralStrategyMemoryGateService } from "../src/core/discovery-daemon/structural-strategy-memory-gate-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -132,6 +133,7 @@ const commands = [
   "eight-stage-sprint",
   "stage-six-honest-100",
   "three-stage-epistemic-campaign",
+  "strategy-memory-gate",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8551,6 +8553,76 @@ test("three-stage epistemic campaign writes required artifacts", async () => {
     await access(
       join(root, daemonRoot, "three-stage-epistemic-campaign", artifact),
     );
+  }
+});
+
+test("strategy memory gate enforces structural rules before execution", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.strategyMemoryGate();
+
+  assert.equal(report.kind, "structural_strategy_memory_gate_run");
+  assert.equal(
+    report.terminalStatus,
+    "productive_strategy_memory_continue_searching",
+  );
+  assert.equal(report.killRulesExtracted, 9);
+  assert.equal(report.claimsCollected, 10);
+  assert.equal(report.candidatesBlockedBeforeExecution, 7);
+  assert.equal(report.candidatesAllowedWithMaterialChange, 3);
+  assert.equal(report.top3Executed, 3);
+  assert.equal(report.insightCandidatesCreated, 0);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(report.memoryGateAffectedSelection, true);
+  assert.equal(
+    report.stageScores.find((stage) => stage.stage === 2)?.updatedScore,
+    76,
+  );
+  assert.equal(
+    (report.stageScores.find((stage) => stage.stage === 3)?.updatedScore ??
+      0) >= 95,
+    true,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "strategy-memory-gate", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "structural_strategy_memory_gate_run",
+  );
+});
+
+test("strategy memory gate writes required artifacts", async () => {
+  const root = await tempRoot();
+  const report = await new StructuralStrategyMemoryGateService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 20, true);
+  for (const artifact of [
+    "STRUCTURAL_KILL_RULES.md",
+    "STRUCTURAL_KILL_RULES.json",
+    "STRATEGY_MEMORY_GATE.md",
+    "STRATEGY_MEMORY_GATE_RESULTS.md",
+    "KNOWLEDGE_MEMORY_ENFORCEMENT.md",
+    "DEATH_CAUSE_MEMORY_UPDATE.md",
+    "NEXT_BEST_EXPERIMENTS_FROM_MEMORY.md",
+    "MEMORY_GATED_BENCHMARK_CLAIM_PASS.md",
+    "GROUP_TIME_ENTITY_SPLIT_RESULTS.md",
+    "RECURRENCE_AND_RIVAL_CLOSURE_RESULTS.md",
+    "THREE_STAGE_MEMORY_GATE_AUDIT.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+    "PROMPT_TO_ARTIFACT_CHECKLIST.md",
+  ]) {
+    await access(join(root, daemonRoot, "strategy-memory-gate", artifact));
   }
 });
 

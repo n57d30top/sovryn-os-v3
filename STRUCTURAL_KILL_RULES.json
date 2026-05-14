@@ -1,0 +1,93 @@
+[
+  {
+    "ruleId": "SKR-001",
+    "deathPattern": "single_task_fragility_signal",
+    "enforcedBlocker": "single-task benchmark fragility cannot be promoted without independent recurrence or severe bounded effect",
+    "materialChangeRequired": "new independent task family with group/time/entity split and recurrence support",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "EXTERNAL_CLAIM_VALIDATION_RESULTS.md#bench-frag-001-openml-3",
+    "evidenceRefs": [
+      "EXTERNAL_CLAIM_VALIDATION_RESULTS.md#bench-frag-001-openml-3"
+    ]
+  },
+  {
+    "ruleId": "SKR-002",
+    "deathPattern": "rival_theory_stronger",
+    "enforcedBlocker": "claims whose strongest rival remains maturity, source family, documentation, metric, or cadence are blocked",
+    "materialChangeRequired": "explicit rival-discriminating design where candidate and rival make different predictions",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "REPEATED_DEATH_CAUSE_SUMMARY.md#rival-theory-stronger",
+    "evidenceRefs": ["REPEATED_DEATH_CAUSE_SUMMARY.md#rival-theory-stronger"]
+  },
+  {
+    "ruleId": "SKR-003",
+    "deathPattern": "baseline_dominated",
+    "enforcedBlocker": "baseline domination is an early pre-execution death cause, not a late promotion caveat",
+    "materialChangeRequired": "predeclared reason that comparable null/simple baseline should not dominate",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "STRUCTURAL_PRINCIPLES.md#baseline-domination-is-early-death-cause",
+    "evidenceRefs": [
+      "STRUCTURAL_PRINCIPLES.md#baseline-domination-is-early-death-cause"
+    ]
+  },
+  {
+    "ruleId": "SKR-004",
+    "deathPattern": "known_trivial_or_source_family_documented",
+    "enforcedBlocker": "source-family recurrence and documented benchmark-family behavior are not novelty",
+    "materialChangeRequired": "external claim or public object whose value is not absorbed by source family documentation",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "STRUCTURAL_PRINCIPLES.md#source-family-recurrence-is-not-novelty",
+    "evidenceRefs": [
+      "STRUCTURAL_PRINCIPLES.md#source-family-recurrence-is-not-novelty"
+    ]
+  },
+  {
+    "ruleId": "SKR-005",
+    "deathPattern": "human_curated_input_required",
+    "enforcedBlocker": "formal challenge mining pauses unless a human-curated sharp falsifier or concrete high-value claim is supplied",
+    "materialChangeRequired": "exact external claim, falsifier, public object, and nonstandard witness value",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "FORMAL_PATH_DIMINISHING_RETURNS_DECISION.md#decision",
+    "evidenceRefs": ["FORMAL_PATH_DIMINISHING_RETURNS_DECISION.md#decision"]
+  },
+  {
+    "ruleId": "SKR-006",
+    "deathPattern": "no_valid_witness_or_counterexample",
+    "enforcedBlocker": "formal witness routes cannot execute when no concrete witness/refutation oracle exists",
+    "materialChangeRequired": "validatable certificate or checked counterexample that scopes a rival",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "SHARP_FALSIFIER_EXECUTION_RESULTS.md#death-causes",
+    "evidenceRefs": ["SHARP_FALSIFIER_EXECUTION_RESULTS.md#death-causes"]
+  },
+  {
+    "ruleId": "SKR-007",
+    "deathPattern": "standard_witness_absorbed",
+    "enforcedBlocker": "standard clique, coloring, SAT=yes, or model=yes certificates do not support discovery by themselves",
+    "materialChangeRequired": "nonstandard witness or refutation whose value is not a textbook certificate",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "NONSTANDARD_WITNESS_FAILURE_SYNTHESIS.md#standard-witness-absorbed",
+    "evidenceRefs": [
+      "NONSTANDARD_WITNESS_FAILURE_SYNTHESIS.md#standard-witness-absorbed"
+    ]
+  },
+  {
+    "ruleId": "SKR-008",
+    "deathPattern": "replay_failed",
+    "enforcedBlocker": "Product runtime replay and manifest replay cannot replace raw scientific or independent source replay",
+    "materialChangeRequired": "public raw inputs, source objects, or deterministic reconstruction sufficient for external replay",
+    "strategyAction": "block_before_execution",
+    "knowledgeMemorySource": "STRUCTURAL_PRINCIPLES.md#raw-scientific-replay-differs-from-product-runtime-replay",
+    "evidenceRefs": [
+      "STRUCTURAL_PRINCIPLES.md#raw-scientific-replay-differs-from-product-runtime-replay"
+    ]
+  },
+  {
+    "ruleId": "SKR-009",
+    "deathPattern": "weak_holdout_group_time_entity_support",
+    "enforcedBlocker": "benchmark/data claims require group, time, or entity split support before candidate birth",
+    "materialChangeRequired": "documented group/time/entity split manifest and recurrence/holdout evidence",
+    "strategyAction": "allow_only_with_material_change",
+    "knowledgeMemorySource": "BENCH_FRAG_RECURRENCE_RESULTS.md#holdout-support",
+    "evidenceRefs": ["BENCH_FRAG_RECURRENCE_RESULTS.md#holdout-support"]
+  }
+]

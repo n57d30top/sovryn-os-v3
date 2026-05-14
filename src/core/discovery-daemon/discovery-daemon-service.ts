@@ -54,6 +54,10 @@ import {
   MemoryGatedBenchmarkUpgradeService,
   type MemoryGatedBenchmarkUpgradeReport,
 } from "./memory-gated-benchmark-upgrade-service.js";
+import {
+  InsightTemporalRecurrencePromotionService,
+  type InsightTemporalPromotionReport,
+} from "./insight-temporal-recurrence-promotion-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65943,6 +65947,11 @@ export class AutonomousDiscoveryDaemonService {
   async memoryGatedBenchmarkUpgrade(): Promise<MemoryGatedBenchmarkUpgradeReport> {
     await this.ensureInitialized();
     return new MemoryGatedBenchmarkUpgradeService(this.root).run();
+  }
+
+  async insightTemporalRecurrencePromotion(): Promise<InsightTemporalPromotionReport> {
+    await this.ensureInitialized();
+    return new InsightTemporalRecurrencePromotionService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

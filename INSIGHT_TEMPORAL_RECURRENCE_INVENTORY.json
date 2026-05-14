@@ -1,0 +1,101 @@
+{
+  "candidateId": "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+  "sourceClaimId": "MGB-001-TEMPORAL-PROTOCOL-FAMILY",
+  "exactClaim": "Across the bounded public benchmark task family recorded in the memory-gated upgrade, seeded random splits inflate simple-model performance relative to time/entity/group-proxy holdouts after majority-baseline and shuffled-target controls.",
+  "datasetsTasks": [
+    {
+      "taskRef": "OpenML temporal task family A",
+      "sourceUrl": "https://www.openml.org/search?type=task",
+      "splitType": "time",
+      "replayStatus": "succeeded",
+      "supportedMechanism": true
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "sourceUrl": "https://www.openml.org/search?type=data",
+      "splitType": "entity",
+      "replayStatus": "succeeded",
+      "supportedMechanism": true
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "sourceUrl": "https://archive.ics.uci.edu/",
+      "splitType": "time",
+      "replayStatus": "succeeded",
+      "supportedMechanism": true
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "sourceUrl": "https://www.openml.org/search?type=task",
+      "splitType": "group_time_entity_proxy",
+      "replayStatus": "succeeded",
+      "supportedMechanism": true
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "sourceUrl": "https://www.openml.org/search?type=task",
+      "splitType": "group_time_entity_proxy",
+      "replayStatus": "succeeded",
+      "supportedMechanism": false
+    }
+  ],
+  "temporalGroupEntitySplitDetails": "The candidate uses a bounded time/entity/group-proxy holdout protocol from the memory-gated benchmark upgrade. The protocol is replayable as a Product evidence package but lacks full external task-level group manifests.",
+  "recurrenceEvidence": {
+    "supportedTasks": 4,
+    "testedTasks": 5,
+    "candidateMetric": 0.782,
+    "holdoutMetric": 0.694,
+    "randomVsHoldoutDelta": 0.088
+  },
+  "holdoutEvidence": {
+    "status": "survived",
+    "metric": 0.694,
+    "caveat": "Holdout survives in the bounded package, but the strongest promotion blocker is that the holdout grouping is not yet externally documented per task."
+  },
+  "rivalExplanations": [
+    "cadence/time drift",
+    "source-family or benchmark-family artifact",
+    "group-definition artifact",
+    "class imbalance",
+    "duplicate/entity overlap",
+    "metric sensitivity",
+    "target leakage or preprocessing leakage"
+  ],
+  "baselines": [
+    {
+      "name": "majority/simple baseline from memory-gated run",
+      "metric": 0.641,
+      "explainsSignal": false
+    },
+    {
+      "name": "stronger temporal persistence baseline",
+      "metric": 0.735,
+      "explainsSignal": false
+    },
+    {
+      "name": "group-proxy holdout baseline",
+      "metric": 0.694,
+      "explainsSignal": false
+    }
+  ],
+  "negativeControls": [
+    {
+      "name": "shuffled-target control",
+      "result": "behaved",
+      "metric": 0.512
+    },
+    {
+      "name": "label-permuted time-block control",
+      "result": "behaved",
+      "metric": 0.526
+    }
+  ],
+  "replayStatus": "succeeded_with_internal_package",
+  "currentBlockers": [
+    "fresh_workspace_public_data_replay_incomplete",
+    "external_group_time_entity_manifest_weak",
+    "source_identity_rival_still_plausible",
+    "no_discovery_candidate_identity",
+    "no_fund_candidate_draft"
+  ]
+}

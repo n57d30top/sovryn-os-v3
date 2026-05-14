@@ -1,0 +1,67 @@
+{
+  "candidateId": "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+  "exactClaim": "Across the bounded public benchmark task family recorded in the memory-gated upgrade, seeded random splits inflate simple-model performance relative to time/entity/group-proxy holdouts after majority-baseline and shuffled-target controls.",
+  "candidateStatus": "not_promoted_weakened",
+  "evidenceRefs": [
+    ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/INSIGHT_TEMPORAL_RECURRENCE_INVENTORY.md",
+    ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/PROMOTION_READINESS_REPORT.md",
+    ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/KILL_WEEK_PRESSURE_REPORT.md",
+    ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/RIVAL_EXPLANATION_RESULTS.md",
+    ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/NEGATIVE_CONTROL_RESULTS.md"
+  ],
+  "readinessGates": [
+    {
+      "gate": "exact_bounded_claim",
+      "status": "passed",
+      "evidence": "Across the bounded public benchmark task family recorded in the memory-gated upgrade, seeded random splits inflate simple-model performance relative to time/entity/group-proxy holdouts after majority-baseline and shuffled-target controls."
+    },
+    {
+      "gate": "public_data_tasks",
+      "status": "weak",
+      "evidence": "public task families are cited, but concrete per-task manifests are not yet sufficient for DiscoveryCandidate review"
+    },
+    {
+      "gate": "reproducible_loading",
+      "status": "weak",
+      "evidence": "internal Product package replay succeeds; independent fresh-workspace public-data replay is not complete"
+    },
+    {
+      "gate": "recurrence_more_than_one_task",
+      "status": "passed",
+      "evidence": "4/5 bounded tasks support the mechanism"
+    },
+    {
+      "gate": "holdout_survival",
+      "status": "passed",
+      "evidence": "Holdout survives in the bounded package, but the strongest promotion blocker is that the holdout grouping is not yet externally documented per task."
+    },
+    {
+      "gate": "baseline_comparison",
+      "status": "passed",
+      "evidence": "simple baseline does not dominate"
+    },
+    {
+      "gate": "rival_closure",
+      "status": "weak",
+      "evidence": "cadence rival is scoped, but source-identity/group-definition rivals remain plausible"
+    },
+    {
+      "gate": "negative_controls",
+      "status": "passed",
+      "evidence": "shuffled-target and label-permuted controls behave near baseline"
+    },
+    {
+      "gate": "limitations",
+      "status": "passed",
+      "evidence": "limitations are explicit and non-overclaiming"
+    },
+    {
+      "gate": "claim_evidence_bindings",
+      "status": "passed",
+      "evidence": ".sovryn/discovery-daemon/insight-temporal-recurrence-promotion/external-review-package/INSIGHT-BENCH-TEMPORAL-RECURRENCE-001/CLAIM_EVIDENCE_BINDINGS.json"
+    }
+  ],
+  "noOverclaim": true,
+  "discoveryCandidateCreated": false,
+  "fundFound": false
+}

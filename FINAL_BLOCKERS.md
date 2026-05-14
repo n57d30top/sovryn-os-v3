@@ -1,5 +1,5 @@
 # Final Blockers
 
-One memory-gated benchmark/data claim reached internal InsightCandidate status, but no DiscoveryCandidate or FundCandidateDraft exists because external-review promotion, kill-week pressure, and discovery-scored Fund packaging were not yet run.
+INSIGHT-BENCH-TEMPORAL-RECURRENCE-001 survives as a weakened internal InsightCandidate, but DiscoveryCandidate promotion is blocked by incomplete fresh-workspace public replay and weak externally documented group/time/entity manifests.
 
-No Fund was created. The born InsightCandidate remains internal until promotion readiness, external-review packaging, kill-week pressure, and Fund Gate execution are complete.
+The candidate is not killed as useless, but it is not discovery-scored. No fake Fund was created.

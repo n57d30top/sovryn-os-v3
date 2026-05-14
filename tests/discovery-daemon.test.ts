@@ -70,6 +70,7 @@ import { StageSixHonest100Service } from "../src/core/discovery-daemon/stage-six
 import { ThreeStageEpistemicCampaignService } from "../src/core/discovery-daemon/three-stage-epistemic-campaign-service.js";
 import { StructuralStrategyMemoryGateService } from "../src/core/discovery-daemon/structural-strategy-memory-gate-service.js";
 import { MemoryGatedBenchmarkUpgradeService } from "../src/core/discovery-daemon/memory-gated-benchmark-upgrade-service.js";
+import { InsightTemporalRecurrencePromotionService } from "../src/core/discovery-daemon/insight-temporal-recurrence-promotion-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -136,6 +137,7 @@ const commands = [
   "three-stage-epistemic-campaign",
   "strategy-memory-gate",
   "memory-gated-benchmark-upgrade",
+  "insight-temporal-recurrence-promotion",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8692,6 +8694,79 @@ test("memory-gated benchmark upgrade writes required artifacts and public-safe i
       daemonRoot,
       "memory-gated-benchmark-upgrade",
       "review-packages",
+      "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+      "CLAIM_EVIDENCE_BINDINGS.json",
+    ),
+  );
+});
+
+test("insight temporal recurrence promotion pressures candidate without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.memoryGatedBenchmarkUpgrade();
+
+  const report = await service.insightTemporalRecurrencePromotion();
+
+  assert.equal(report.kind, "insight_temporal_recurrence_promotion");
+  assert.equal(report.candidateId, "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001");
+  assert.equal(report.candidateStatus, "not_promoted_weakened");
+  assert.equal(report.killWeekResult, "weakened");
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.fundCandidateDraftCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageScores.find((stage) => stage.stage === 2)?.updatedScore,
+    86,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "insight-temporal-recurrence-promotion", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "insight_temporal_recurrence_promotion",
+  );
+});
+
+test("insight temporal recurrence promotion writes required artifacts and review package", async () => {
+  const root = await tempRoot();
+  await new MemoryGatedBenchmarkUpgradeService(root).run();
+  const report = await new InsightTemporalRecurrencePromotionService(
+    root,
+  ).run();
+
+  assert.equal(report.artifactRefs.length >= 25, true);
+  for (const artifact of [
+    "INSIGHT_TEMPORAL_RECURRENCE_INVENTORY.md",
+    "INSIGHT_TEMPORAL_RECURRENCE_INVENTORY.json",
+    "PROMOTION_READINESS_REPORT.md",
+    "PROMOTION_READINESS_DECISION.md",
+    "KILL_WEEK_PRESSURE_REPORT.md",
+    "BASELINE_DOMINANCE_RESULTS.md",
+    "RIVAL_EXPLANATION_RESULTS.md",
+    "NEGATIVE_CONTROL_RESULTS.md",
+    "EXTERNAL_REVIEW_PACKAGE_STATUS.md",
+    "DISCOVERY_PROMOTION_DECISION.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "insight-temporal-recurrence-promotion", artifact),
+    );
+  }
+  await access(
+    join(
+      root,
+      daemonRoot,
+      "insight-temporal-recurrence-promotion",
+      "external-review-package",
       "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
       "CLAIM_EVIDENCE_BINDINGS.json",
     ),

@@ -1,3 +1,3 @@
 # Next Action
 
-Run focused promotion readiness on INSIGHT-BENCH-TEMPORAL-RECURRENCE-001 only: external review package hardening, kill-week, stronger recurrence replay, and Fund Gate if it survives.
+Either acquire concrete public task manifests with documented time/entity groups for the same mechanism or downgrade this candidate permanently before searching adjacent benchmark-fragility claims.

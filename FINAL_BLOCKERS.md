@@ -1,6 +1,6 @@
 # Final Blockers
 
-Task-receipt-first gate is enforced and source-family-only evidence is blocked, but the top receipt-complete benchmark claims did not satisfy recurrence, holdout, rival, and negative-control requirements for InsightCandidate birth.
+INSIGHT-BENCH-TRIAGE-SELECTIVITY-001 remains an InsightCandidate. Blockers: plausible_retention_not_independent_across_at_least_two_tasks.
 
-DiscoveryCandidates created: 0
-FUND_FOUND: no
+Fund Gate passed: no
+Failed gates: discovery_candidate_present

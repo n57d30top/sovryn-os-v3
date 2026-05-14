@@ -1,0 +1,85 @@
+[
+  {
+    "hardSeedId": "RF-HARDSEED-001-219",
+    "sourceClaimId": "TRB-001-OPENML-219",
+    "sourceTaskId": 219,
+    "sourceDatasetName": "electricity",
+    "seedType": "baseline_dominated_case",
+    "measuredSignal": {
+      "baselineMetric": 0.583,
+      "modelRandomSplitMetric": 0.574,
+      "holdoutMetric": 0.57,
+      "randomVsHoldoutDelta": 0.004,
+      "modelVsBaselineDelta": -0.009,
+      "negativeControlBehaved": true
+    },
+    "reusableLesson": "Baseline dominance was visible from replay metrics: model-vs-majority delta -0.009 did not clear the birth threshold.",
+    "evidenceRefs": [
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/FRESH_PUBLIC_REPLAY_RESULTS.json#TRB-001-OPENML-219",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/INSIGHT_BIRTH_DECISIONS.json#TRB-001-OPENML-219",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/RECEIPT_FIRST_BENCHMARK_CLAIMS.json#TRB-001-OPENML-219"
+    ]
+  },
+  {
+    "hardSeedId": "RF-HARDSEED-002-3",
+    "sourceClaimId": "TRB-002-OPENML-3",
+    "sourceTaskId": 3,
+    "sourceDatasetName": "kr-vs-kp",
+    "seedType": "baseline_dominated_case",
+    "measuredSignal": {
+      "baselineMetric": 0.526,
+      "modelRandomSplitMetric": 0.474,
+      "holdoutMetric": 0.524,
+      "randomVsHoldoutDelta": -0.049,
+      "modelVsBaselineDelta": -0.051,
+      "negativeControlBehaved": true
+    },
+    "reusableLesson": "Baseline dominance was visible from replay metrics: model-vs-majority delta -0.051 did not clear the birth threshold.",
+    "evidenceRefs": [
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/FRESH_PUBLIC_REPLAY_RESULTS.json#TRB-002-OPENML-3",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/INSIGHT_BIRTH_DECISIONS.json#TRB-002-OPENML-3",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/RECEIPT_FIRST_BENCHMARK_CLAIMS.json#TRB-002-OPENML-3"
+    ]
+  },
+  {
+    "hardSeedId": "RF-HARDSEED-003-32",
+    "sourceClaimId": "TRB-003-OPENML-32",
+    "sourceTaskId": 32,
+    "sourceDatasetName": "pendigits",
+    "seedType": "recurrence_not_supported_case",
+    "measuredSignal": {
+      "baselineMetric": 0.1,
+      "modelRandomSplitMetric": 0.236,
+      "holdoutMetric": 0,
+      "randomVsHoldoutDelta": 0.236,
+      "modelVsBaselineDelta": 0.136,
+      "negativeControlBehaved": true
+    },
+    "reusableLesson": "A single strong holdout delta (0.236) is insufficient without independent task recurrence.",
+    "evidenceRefs": [
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/FRESH_PUBLIC_REPLAY_RESULTS.json#TRB-003-OPENML-32",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/INSIGHT_BIRTH_DECISIONS.json#TRB-003-OPENML-32",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/RECEIPT_FIRST_BENCHMARK_CLAIMS.json#TRB-003-OPENML-32"
+    ]
+  },
+  {
+    "hardSeedId": "RF-HARDSEED-004-REPLAY-SUFFICIENCY",
+    "sourceClaimId": "cross-cutting",
+    "sourceTaskId": 0,
+    "sourceDatasetName": "receipt-first replay negatives",
+    "seedType": "public_replay_negative_control",
+    "measuredSignal": {
+      "baselineMetric": 0.403,
+      "modelRandomSplitMetric": 0.428,
+      "holdoutMetric": 0.365,
+      "randomVsHoldoutDelta": 0.064,
+      "modelVsBaselineDelta": 0.025,
+      "negativeControlBehaved": true
+    },
+    "reusableLesson": "Public replay can succeed while the claim still dies; Synthesizer selection must predict death causes before deep validation, not merely validate receipts.",
+    "evidenceRefs": [
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/FRESH_PUBLIC_REPLAY_RESULTS.json",
+      ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery/INSIGHT_BIRTH_DECISIONS.json"
+    ]
+  }
+]

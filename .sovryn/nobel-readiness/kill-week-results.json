@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_kill_week",
-  "attackedAt": "2026-05-14T20:30:09.455Z",
+  "attackedAt": "2026-05-14T21:52:05.703Z",
   "attacks": [
     {
       "attackId": "NR-KILL-001",
@@ -309,5 +309,5 @@
     "NR-CAND-064": 0.4,
     "NR-CAND-070": 0.43
   },
-  "evidenceHash": "d1c8c9d3b7538de6a6002b6a6455c3bdeeb1b8fab77cda4aca75a8261e0afd8c"
+  "evidenceHash": "5212cffb14a526be522b1f0113d3c6a8c00cf6cd6ba1779680548ba8512674a6"
 }

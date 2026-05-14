@@ -1,5 +1,5 @@
 # Next Action
 
-Keep the old temporal recurrence candidate archived and search only adjacent benchmark claims with concrete task IDs, raw-data receipts, documented split keys, deterministic split manifests, and public replay commands from birth.
+Improve positive selection so V1 retains independent plausible non-control claims across multiple receipt-complete tasks before promotion.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/task-receipt-first-benchmark-discovery-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-promotion-continue-searching.json

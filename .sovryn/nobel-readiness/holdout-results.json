@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_holdout_counterexample_gauntlet",
-  "generatedAt": "2026-05-14T20:30:09.452Z",
+  "generatedAt": "2026-05-14T21:52:05.700Z",
   "holdouts": [
     {
       "kind": "nobel_readiness_holdout_result",
@@ -591,5 +591,5 @@
       "evidenceHash": "844f4cc65d9ad1a09422b328f6a2020bd6d5af2a48c715ba4169330d72966c3c"
     }
   ],
-  "evidenceHash": "d834cee9742a6a7db9cb91dc749bf0df44a07052476dc1c84114171c3baf337e"
+  "evidenceHash": "f5b0bbfced98a23184ff42034ac9ae02bc0990b1e4862febd6f99b76d2ea54fb"
 }

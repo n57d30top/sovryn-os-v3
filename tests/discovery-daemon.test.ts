@@ -73,6 +73,11 @@ import { MemoryGatedBenchmarkUpgradeService } from "../src/core/discovery-daemon
 import { InsightTemporalRecurrencePromotionService } from "../src/core/discovery-daemon/insight-temporal-recurrence-promotion-service.js";
 import { InsightTemporalReplayRepairService } from "../src/core/discovery-daemon/insight-temporal-replay-repair-service.js";
 import { TaskReceiptFirstBenchmarkDiscoveryService } from "../src/core/discovery-daemon/task-receipt-first-benchmark-discovery-service.js";
+import {
+  ReceiptFirstSelectivityChallengeService,
+  ReceiptFirstSelectivityPromotionService,
+  ReceiptFirstSynthesisService,
+} from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -142,6 +147,9 @@ const commands = [
   "insight-temporal-recurrence-promotion",
   "insight-temporal-replay-repair",
   "task-receipt-first-benchmark",
+  "receipt-first-synthesis",
+  "receipt-first-selectivity",
+  "receipt-first-selectivity-promotion",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8954,6 +8962,220 @@ test("task-receipt-first benchmark discovery writes archival, gate, replay, and 
         typeof claim.replayCommand === "string",
     ),
     true,
+  );
+});
+
+test("receipt-first synthesis turns negative validator hardseeds into a bounded triage method", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.taskReceiptFirstBenchmarkDiscovery();
+
+  const report = await service.receiptFirstSynthesis();
+
+  assert.equal(report.kind, "receipt_first_synthesis");
+  assert.equal(report.methodSynthesized, true);
+  assert.equal(report.hardSeedsExtracted >= 4, true);
+  assert.equal(report.holdoutTasksTested, 10);
+  assert.equal(report.publicReplaySuccesses, 10);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageScores.find((score) => score.stage === 1)?.updatedScore,
+    100,
+  );
+  assert.equal(
+    report.stageScores.find((score) => score.stage === 3)?.updatedScore,
+    99,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-synthesis", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_synthesis",
+  );
+});
+
+test("receipt-first synthesis writes hardseed method holdout and decision artifacts", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  const report = await new ReceiptFirstSynthesisService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 14, true);
+  for (const artifact of [
+    "RECEIPT_FIRST_HARDSEEDS.md",
+    "RECEIPT_FIRST_HARDSEEDS.json",
+    "SYNTHESIZED_BENCHMARK_TRIAGE_METHOD.md",
+    "SYNTHESIS_METHOD_SPEC.json",
+    "SYNTHESIS_HOLDOUT_TASKS.md",
+    "SYNTHESIS_HOLDOUT_RESULTS.json",
+    "SYNTHESIS_BASELINE_COMPARISON.md",
+    "SYNTHESIS_ABLATION_RESULTS.md",
+    "SYNTHESIS_NEGATIVE_CONTROLS.md",
+    "SYNTHESIS_INSIGHT_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(join(root, daemonRoot, "receipt-first-synthesis", artifact));
+  }
+  const holdout = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-synthesis",
+        "SYNTHESIS_HOLDOUT_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(holdout.length, 10);
+  assert.equal(
+    holdout.every(
+      (row) => row.taskId !== 219 && row.taskId !== 3 && row.taskId !== 32,
+    ),
+    true,
+  );
+  assert.equal(
+    holdout.every((row) => typeof row.triageScore === "number"),
+    true,
+  );
+});
+
+test("receipt-first selectivity challenge compares mixed claims against reject-all", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  const report = await new ReceiptFirstSelectivityChallengeService(root).run();
+
+  assert.equal(report.kind, "receipt_first_synthesizer_selectivity_challenge");
+  assert.equal(report.claimsCollected, 20);
+  assert.equal(report.weakClaims, 10);
+  assert.equal(report.plausibleClaims, 5);
+  assert.equal(report.positiveControlClaims, 5);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(typeof report.baselineComparison.rejectAllAccuracy, "number");
+  assert.equal(typeof report.baselineComparison.methodAccuracy, "number");
+
+  for (const artifact of [
+    "SELECTIVITY_BENCHMARK_CLAIMS.md",
+    "SELECTIVITY_BENCHMARK_CLAIMS.json",
+    "SELECTIVITY_EVALUATION_PROTOCOL.md",
+    "SELECTIVITY_TRIAGE_RESULTS.md",
+    "SELECTIVITY_DEEP_VALIDATION_RESULTS.md",
+    "SYNTHESIZER_SELECTIVITY_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(join(root, daemonRoot, "receipt-first-selectivity", artifact));
+  }
+
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-selectivity",
+        "SELECTIVITY_BENCHMARK_CLAIMS.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(
+    claims.filter((claim) => claim.selectivityClass === "positive_control")
+      .length,
+    5,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-selectivity", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_synthesizer_selectivity_challenge",
+  );
+});
+
+test("receipt-first selectivity promotion gauntlet pressures larger mixed benchmark", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSelectivityChallengeService(root).run();
+  const report = await new ReceiptFirstSelectivityPromotionService(root).run();
+
+  assert.equal(report.kind, "receipt_first_selectivity_promotion_gauntlet");
+  assert.equal(
+    report.insightCandidateId,
+    "INSIGHT-BENCH-TRIAGE-SELECTIVITY-001",
+  );
+  assert.equal(report.claimsTested, 50);
+  assert.equal(report.weakClaims, 25);
+  assert.equal(report.plausibleClaims, 15);
+  assert.equal(report.positiveControlClaims, 10);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(typeof report.falseRejectionRate, "number");
+  assert.equal(typeof report.deepValidationYield, "number");
+  assert.equal(typeof report.baselineComparison.rejectAllAccuracy, "number");
+  assert.equal(
+    report.stageScores.find((score) => score.stage === 1)?.updatedScore,
+    100,
+  );
+
+  for (const artifact of [
+    "TRIAGE_SELECTIVITY_INVENTORY.md",
+    "TRIAGE_SELECTIVITY_INVENTORY.json",
+    "MIXED_RECEIPT_BENCHMARK_50.md",
+    "MIXED_RECEIPT_BENCHMARK_50.json",
+    "TRIAGE_SELECTIVITY_PRESSURE_RESULTS.md",
+    "TRIAGE_BASELINE_COMPARISON.md",
+    "TRIAGE_DEEP_VALIDATION_RESULTS.md",
+    "PLAUSIBLE_CLAIM_RETENTION_REPORT.md",
+    "FALSE_REJECTION_ANALYSIS.md",
+    "TRIAGE_PROMOTION_DECISION.md",
+    "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-selectivity-promotion", artifact),
+    );
+  }
+
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-selectivity-promotion",
+        "MIXED_RECEIPT_BENCHMARK_50.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(
+    claims.filter((claim) => claim.selectivityClass === "plausible").length,
+    15,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-selectivity-promotion", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_selectivity_promotion_gauntlet",
   );
 });
 

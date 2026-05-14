@@ -1,0 +1,110 @@
+{
+  "insightCandidateId": "INSIGHT-BENCH-TRIAGE-SELECTIVITY-001",
+  "exactMethodClaim": "A receipt-first benchmark triage score using baseline margin, holdout delta, split-key adequacy, recurrence potential, negative-control sanity, and source-family penalties predicts weak benchmark/data claims before deep validation better than random, source-family-only, task-size, and simple-baseline-only heuristics on bounded OpenML holdout tasks.",
+  "decisionRule": {
+    "scoreThreshold": 0.62,
+    "components": [
+      {
+        "name": "baseline_margin",
+        "weight": 0.28,
+        "rationale": "Claims with model-vs-baseline delta <= 0.04 repeatedly died as baseline_dominated."
+      },
+      {
+        "name": "holdout_delta",
+        "weight": 0.24,
+        "rationale": "A fragility claim needs a nontrivial random-vs-group/time/entity holdout gap."
+      },
+      {
+        "name": "recurrence_potential",
+        "weight": 0.18,
+        "rationale": "Single-task effects are demoted unless the same mechanism appears across independent tasks."
+      },
+      {
+        "name": "split_adequacy",
+        "weight": 0.14,
+        "rationale": "Group/time/entity claims require documented keys and deterministic split manifests."
+      },
+      {
+        "name": "negative_control_sanity",
+        "weight": 0.1,
+        "rationale": "Shuffled-target or negative controls must behave before deep validation."
+      },
+      {
+        "name": "source_family_penalty",
+        "weight": 0.06,
+        "rationale": "Repeated same-family patterns are penalized unless supported by a concrete receipt and independent recurrence path."
+      }
+    ]
+  },
+  "selectedClaims": ["SEL-POS-003-OPENML-32"],
+  "rejectedClaims": [
+    "SEL-WEAK-001-OPENML-6",
+    "SEL-WEAK-002-OPENML-11",
+    "SEL-WEAK-003-OPENML-12",
+    "SEL-WEAK-004-OPENML-14",
+    "SEL-WEAK-005-OPENML-15",
+    "SEL-WEAK-006-OPENML-16",
+    "SEL-WEAK-007-OPENML-18",
+    "SEL-WEAK-008-OPENML-22",
+    "SEL-WEAK-009-OPENML-23",
+    "SEL-WEAK-010-OPENML-28",
+    "SEL-PLAUS-001-OPENML-29",
+    "SEL-PLAUS-002-OPENML-31",
+    "SEL-PLAUS-003-OPENML-37",
+    "SEL-PLAUS-004-OPENML-45",
+    "SEL-PLAUS-005-OPENML-3902",
+    "SEL-POS-001-OPENML-219",
+    "SEL-POS-002-OPENML-3",
+    "SEL-POS-004-OPENML-3917",
+    "SEL-POS-005-OPENML-10101"
+  ],
+  "positiveControls": [
+    "SEL-POS-001-OPENML-219",
+    "SEL-POS-002-OPENML-3",
+    "SEL-POS-003-OPENML-32",
+    "SEL-POS-004-OPENML-3917",
+    "SEL-POS-005-OPENML-10101"
+  ],
+  "plausibleClaims": [
+    "SEL-PLAUS-001-OPENML-29",
+    "SEL-PLAUS-002-OPENML-31",
+    "SEL-PLAUS-003-OPENML-37",
+    "SEL-PLAUS-004-OPENML-45",
+    "SEL-PLAUS-005-OPENML-3902"
+  ],
+  "falseRejections": [
+    "SEL-POS-001-OPENML-219",
+    "SEL-POS-002-OPENML-3",
+    "SEL-POS-004-OPENML-3917",
+    "SEL-POS-005-OPENML-10101"
+  ],
+  "baselines": [
+    "reject-all",
+    "random selection",
+    "task-size heuristic",
+    "baseline-only heuristic",
+    "source-family-only heuristic"
+  ],
+  "replayStatus": {
+    "publicReplaySuccesses": 20,
+    "claimsCollected": 20
+  },
+  "currentBlockers": [
+    "high_false_rejection_rate",
+    "positive_control_retention_dominates_current_signal",
+    "no DiscoveryCandidate package yet"
+  ],
+  "priorEvidenceRefs": [
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SELECTIVITY_BENCHMARK_CLAIMS.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SELECTIVITY_BENCHMARK_CLAIMS.json",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SELECTIVITY_EVALUATION_PROTOCOL.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SELECTIVITY_TRIAGE_RESULTS.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SELECTIVITY_DEEP_VALIDATION_RESULTS.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/SYNTHESIZER_SELECTIVITY_DECISION.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/UPDATED_THREE_STAGE_SCORECARD.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/FINAL_BLOCKERS.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/NEXT_ACTION.md",
+    ".sovryn/discovery-daemon/receipt-first-selectivity/latest.json",
+    ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-continue-searching.json"
+  ]
+}

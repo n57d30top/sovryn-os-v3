@@ -66,6 +66,14 @@ import {
   TaskReceiptFirstBenchmarkDiscoveryService,
   type TaskReceiptFirstBenchmarkReport,
 } from "./task-receipt-first-benchmark-discovery-service.js";
+import {
+  ReceiptFirstSelectivityChallengeService,
+  ReceiptFirstSelectivityPromotionService,
+  ReceiptFirstSynthesisService,
+  type ReceiptFirstSelectivityReport,
+  type ReceiptFirstSelectivityPromotionReport,
+  type ReceiptFirstSynthesisReport,
+} from "./receipt-first-synthesis-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65974,6 +65982,39 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<TaskReceiptFirstBenchmarkReport> {
     await this.ensureInitialized();
     return new TaskReceiptFirstBenchmarkDiscoveryService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async receiptFirstSynthesis(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<ReceiptFirstSynthesisReport> {
+    await this.ensureInitialized();
+    return new ReceiptFirstSynthesisService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async receiptFirstSelectivityChallenge(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<ReceiptFirstSelectivityReport> {
+    await this.ensureInitialized();
+    return new ReceiptFirstSelectivityChallengeService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async receiptFirstSelectivityPromotion(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<ReceiptFirstSelectivityPromotionReport> {
+    await this.ensureInitialized();
+    return new ReceiptFirstSelectivityPromotionService(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
   }

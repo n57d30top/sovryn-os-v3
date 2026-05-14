@@ -1,0 +1,71 @@
+{
+  "methodId": "RECEIPT_FIRST_BENCHMARK_TRIAGE_V1",
+  "exactMethodClaim": "A receipt-first benchmark triage score using baseline margin, holdout delta, split-key adequacy, recurrence potential, negative-control sanity, and source-family penalties predicts weak benchmark/data claims before deep validation better than random, source-family-only, task-size, and simple-baseline-only heuristics on bounded OpenML holdout tasks.",
+  "inputRequirements": [
+    "concrete OpenML task ID and dataset ID",
+    "raw-data receipt URL/hash",
+    "target variable",
+    "deterministic split manifest",
+    "quick public replay metrics",
+    "negative-control metric",
+    "group/time/entity keys when the claim depends on them"
+  ],
+  "decisionRule": {
+    "scoreThreshold": 0.62,
+    "components": [
+      {
+        "name": "baseline_margin",
+        "weight": 0.28,
+        "rationale": "Claims with model-vs-baseline delta <= 0.04 repeatedly died as baseline_dominated."
+      },
+      {
+        "name": "holdout_delta",
+        "weight": 0.24,
+        "rationale": "A fragility claim needs a nontrivial random-vs-group/time/entity holdout gap."
+      },
+      {
+        "name": "recurrence_potential",
+        "weight": 0.18,
+        "rationale": "Single-task effects are demoted unless the same mechanism appears across independent tasks."
+      },
+      {
+        "name": "split_adequacy",
+        "weight": 0.14,
+        "rationale": "Group/time/entity claims require documented keys and deterministic split manifests."
+      },
+      {
+        "name": "negative_control_sanity",
+        "weight": 0.1,
+        "rationale": "Shuffled-target or negative controls must behave before deep validation."
+      },
+      {
+        "name": "source_family_penalty",
+        "weight": 0.06,
+        "rationale": "Repeated same-family patterns are penalized unless supported by a concrete receipt and independent recurrence path."
+      }
+    ]
+  },
+  "baselines": [
+    "random selection",
+    "source-family-only selection",
+    "task-size heuristic",
+    "simple baseline-only heuristic"
+  ],
+  "rivalExplanations": [
+    "The method only learned to reject all claims.",
+    "Task size explains all prediction quality.",
+    "Simple baseline margin alone explains prediction quality.",
+    "Source family explains selection quality."
+  ],
+  "failureCases": [
+    "All holdout tasks replay-fail.",
+    "Method ties or loses to simple-baseline-only heuristic.",
+    "Method advances a source-family-only or receipt-incomplete claim.",
+    "Negative controls do not behave."
+  ],
+  "limitations": [
+    "This is a bounded OpenML benchmark-methodology candidate, not a scientific discovery Fund.",
+    "No external validation is claimed.",
+    "The method is trained from a small negative HardSeed set and needs more receipt-complete holdouts before DiscoveryCandidate promotion."
+  ]
+}

@@ -1,3 +1,5 @@
 # Next Action
 
-Acquire or construct concrete public task manifests for this same temporal recurrence claim before any further promotion attempt; otherwise permanently downgrade the candidate and search adjacent benchmark-fragility claims with concrete task IDs from birth.
+Keep the old temporal recurrence candidate archived and search only adjacent benchmark claims with concrete task IDs, raw-data receipts, documented split keys, deterministic split manifests, and public replay commands from birth.
+
+Checkpoint: .sovryn/discovery-daemon/checkpoints/task-receipt-first-benchmark-discovery-continue-searching.json

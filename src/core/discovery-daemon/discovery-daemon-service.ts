@@ -62,6 +62,10 @@ import {
   InsightTemporalReplayRepairService,
   type TemporalReplayRepairReport,
 } from "./insight-temporal-replay-repair-service.js";
+import {
+  TaskReceiptFirstBenchmarkDiscoveryService,
+  type TaskReceiptFirstBenchmarkReport,
+} from "./task-receipt-first-benchmark-discovery-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65961,6 +65965,17 @@ export class AutonomousDiscoveryDaemonService {
   async insightTemporalReplayRepair(): Promise<TemporalReplayRepairReport> {
     await this.ensureInitialized();
     return new InsightTemporalReplayRepairService(this.root).run();
+  }
+
+  async taskReceiptFirstBenchmarkDiscovery(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<TaskReceiptFirstBenchmarkReport> {
+    await this.ensureInitialized();
+    return new TaskReceiptFirstBenchmarkDiscoveryService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

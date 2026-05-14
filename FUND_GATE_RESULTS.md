@@ -1,12 +1,10 @@
 # Fund Gate Results
 
-Passed: false.
-Status: continue_searching.
+Passed: no
+Status: continue_searching
+Failed gates: candidate_present
 
-Failed gates:
+DiscoveryCandidates created: 0
+FUND_FOUND: no
 
-- fresh_workspace_public_data_replay
-- complete_group_time_entity_manifests
-- rival_closure_complete
-- discovery_candidate_present
-- fund_candidate_draft_present
+No fake `FUND_FOUND.md` or `fund-candidate.json` was created.

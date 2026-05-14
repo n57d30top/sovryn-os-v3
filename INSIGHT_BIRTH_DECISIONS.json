@@ -1,0 +1,23 @@
+[
+  {
+    "claimId": "TRB-001-OPENML-219",
+    "insightCandidateBirth": "blocked",
+    "insightCandidateId": null,
+    "blocker": "baseline_dominated",
+    "rationale": "Simple baseline explains the measured target outcome."
+  },
+  {
+    "claimId": "TRB-002-OPENML-3",
+    "insightCandidateBirth": "blocked",
+    "insightCandidateId": null,
+    "blocker": "baseline_dominated",
+    "rationale": "Simple baseline explains the measured target outcome."
+  },
+  {
+    "claimId": "TRB-003-OPENML-32",
+    "insightCandidateBirth": "blocked",
+    "insightCandidateId": null,
+    "blocker": "recurrence_not_supported",
+    "rationale": "Top-3 receipt-complete execution did not show two independent tasks supporting the same mechanism."
+  }
+]

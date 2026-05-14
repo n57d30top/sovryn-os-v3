@@ -1,0 +1,7 @@
+# Receipt First Top 3 Results
+
+| Claim              | Public replay | Baseline | Random | Holdout |  Delta | Rival              | Recurrence    | Notes                                                                                                                                                                                     |
+| ------------------ | ------------- | -------: | -----: | ------: | -----: | ------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TRB-001-OPENML-219 | replay_passed |    0.583 |  0.574 |   0.570 |  0.004 | stronger           | not_supported | On OpenML task 219 (electricity), chronological date/period holdout will reduce a simple public replay model relative to seeded random split after majority and shuffled-target controls. |
+| TRB-002-OPENML-3   | replay_passed |    0.526 |  0.474 |   0.524 | -0.049 | stronger           | not_supported | On OpenML task 3 (kr-vs-kp), holding out the public first board-feature group will expose random split inflation beyond majority and shuffled-target controls.                            |
+| TRB-003-OPENML-32  | replay_passed |    0.100 |  0.236 |   0.000 |  0.236 | scoped_or_weakened | not_supported | On OpenML task 32 (pendigits), feature-bucket holdout over input1 will expose distribution shift not visible under seeded random split.                                                   |

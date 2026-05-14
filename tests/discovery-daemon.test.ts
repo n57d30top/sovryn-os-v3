@@ -72,6 +72,7 @@ import { StructuralStrategyMemoryGateService } from "../src/core/discovery-daemo
 import { MemoryGatedBenchmarkUpgradeService } from "../src/core/discovery-daemon/memory-gated-benchmark-upgrade-service.js";
 import { InsightTemporalRecurrencePromotionService } from "../src/core/discovery-daemon/insight-temporal-recurrence-promotion-service.js";
 import { InsightTemporalReplayRepairService } from "../src/core/discovery-daemon/insight-temporal-replay-repair-service.js";
+import { TaskReceiptFirstBenchmarkDiscoveryService } from "../src/core/discovery-daemon/task-receipt-first-benchmark-discovery-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -140,6 +141,7 @@ const commands = [
   "memory-gated-benchmark-upgrade",
   "insight-temporal-recurrence-promotion",
   "insight-temporal-replay-repair",
+  "task-receipt-first-benchmark",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8851,6 +8853,108 @@ test("insight temporal replay repair writes public replay manifests and gap arti
     ),
   );
   assert.equal(replay.status, "replay_blocked");
+});
+
+test("task-receipt-first benchmark discovery archives source-family candidate and enforces receipt gate", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.memoryGatedBenchmarkUpgrade();
+  await service.insightTemporalRecurrencePromotion();
+  await service.insightTemporalReplayRepair();
+
+  const report = await service.taskReceiptFirstBenchmarkDiscovery();
+
+  assert.equal(report.kind, "task_receipt_first_benchmark_discovery");
+  assert.equal(report.oldCandidateArchived, true);
+  assert.equal(report.gateEnforced, true);
+  assert.equal(report.claimsCollected >= 20, true);
+  assert.equal(report.acceptedReceiptCompleteClaims >= 20, true);
+  assert.equal(report.sourceFamilyOnlyRejected >= 5, true);
+  assert.equal(report.top3Executed, 3);
+  assert.equal(report.publicReplaySuccesses, 3);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageScores.find((score) => score.stage === 1)?.updatedScore,
+    100,
+  );
+  assert.equal(
+    report.stageScores.find((score) => score.stage === 3)?.updatedScore,
+    99,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "task-receipt-first-benchmark", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "task_receipt_first_benchmark_discovery",
+  );
+});
+
+test("task-receipt-first benchmark discovery writes archival, gate, replay, and insight artifacts", async () => {
+  const root = await tempRoot();
+  await new MemoryGatedBenchmarkUpgradeService(root).run();
+  await new InsightTemporalRecurrencePromotionService(root).run();
+  await new InsightTemporalReplayRepairService(root).run();
+  const report = await new TaskReceiptFirstBenchmarkDiscoveryService(
+    root,
+  ).run();
+
+  assert.equal(report.artifactRefs.length >= 18, true);
+  for (const artifact of [
+    "TEMPORAL_RECURRENCE_ARCHIVAL_DECISION.md",
+    "PUBLIC_REPLAY_BLOCKER_RECORD.md",
+    "TASK_RECEIPT_FIRST_GATE.md",
+    "TASK_RECEIPT_FIRST_GATE_RESULTS.md",
+    "RECEIPT_FIRST_BENCHMARK_CLAIMS.md",
+    "REJECTED_SOURCE_FAMILY_ONLY_CLAIMS.md",
+    "RECEIPT_FIRST_TOP3_RESULTS.md",
+    "FRESH_PUBLIC_REPLAY_RESULTS.md",
+    "INSIGHT_BIRTH_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(
+        root,
+        daemonRoot,
+        "task-receipt-first-benchmark-discovery",
+        artifact,
+      ),
+    );
+  }
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "task-receipt-first-benchmark-discovery",
+        "RECEIPT_FIRST_BENCHMARK_CLAIMS.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  const accepted = claims.filter((claim) => claim.gateDecision === "accepted");
+  assert.equal(
+    accepted.every(
+      (claim) =>
+        typeof claim.taskId === "number" &&
+        typeof claim.datasetId === "number" &&
+        typeof claim.rawDataReceiptUrl === "string" &&
+        typeof claim.rawDataReceiptHash === "string" &&
+        typeof claim.deterministicSplitManifest === "string" &&
+        typeof claim.replayCommand === "string",
+    ),
+    true,
+  );
 });
 
 test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {

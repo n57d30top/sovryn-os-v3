@@ -1,0 +1,80 @@
+[
+  {
+    "claimId": "TRB-001-OPENML-219",
+    "taskId": 219,
+    "datasetId": 151,
+    "datasetName": "electricity",
+    "replayStatus": "replay_passed",
+    "liveDataLoaded": true,
+    "rowsLoaded": 45312,
+    "featuresLoaded": 8,
+    "sourceReceiptHash": "6fa8d043f07018304fb7df9dfb45dd8c7493adc31668984925cd7b4bc8103d5c",
+    "splitManifestHash": "dfe0f2e677b2e0c7345e0cbb591bf08797236919b44b71d4ef9c26ea4d5d7adc",
+    "baselineMetric": 0.583,
+    "modelRandomSplitMetric": 0.574,
+    "holdoutMetric": 0.57,
+    "randomVsHoldoutDelta": 0.004,
+    "modelVsBaselineDelta": -0.009,
+    "negativeControlMetric": 0.571,
+    "negativeControlBehaved": true,
+    "recurrenceSupported": false,
+    "holdoutStatus": "failed",
+    "rivalStatus": "stronger",
+    "publicReplayNotes": [
+      "loaded public OpenML task 219 and raw ARFF https://openml.org/data/v1/download/2419/electricity.arff",
+      "target=class; attributes=9; rows=45312"
+    ]
+  },
+  {
+    "claimId": "TRB-002-OPENML-3",
+    "taskId": 3,
+    "datasetId": 3,
+    "datasetName": "kr-vs-kp",
+    "replayStatus": "replay_passed",
+    "liveDataLoaded": true,
+    "rowsLoaded": 3196,
+    "featuresLoaded": 36,
+    "sourceReceiptHash": "c4dec394f67cfc90dad9f80b74b609a30aeed2419b211da8cd68ea113ad850b8",
+    "splitManifestHash": "8a71992a38afb790177dd3e86dce2a6466a52064a546957050ad1434bc1de5b1",
+    "baselineMetric": 0.526,
+    "modelRandomSplitMetric": 0.474,
+    "holdoutMetric": 0.524,
+    "randomVsHoldoutDelta": -0.049,
+    "modelVsBaselineDelta": -0.051,
+    "negativeControlMetric": 0.533,
+    "negativeControlBehaved": true,
+    "recurrenceSupported": false,
+    "holdoutStatus": "failed",
+    "rivalStatus": "stronger",
+    "publicReplayNotes": [
+      "loaded public OpenML task 3 and raw ARFF https://openml.org/data/v1/download/3/kr-vs-kp.arff",
+      "target=class; attributes=37; rows=3196"
+    ]
+  },
+  {
+    "claimId": "TRB-003-OPENML-32",
+    "taskId": 32,
+    "datasetId": 32,
+    "datasetName": "pendigits",
+    "replayStatus": "replay_passed",
+    "liveDataLoaded": true,
+    "rowsLoaded": 10992,
+    "featuresLoaded": 16,
+    "sourceReceiptHash": "93d8cd7cba9b4510580a09088d2d1088e12b073dfbfc83955dc1eac3c3ba25e3",
+    "splitManifestHash": "f331441f704e57df027d1eb2b2b385a29542074349446cd7076f3166ca08dc15",
+    "baselineMetric": 0.1,
+    "modelRandomSplitMetric": 0.236,
+    "holdoutMetric": 0,
+    "randomVsHoldoutDelta": 0.236,
+    "modelVsBaselineDelta": 0.136,
+    "negativeControlMetric": 0.092,
+    "negativeControlBehaved": true,
+    "recurrenceSupported": false,
+    "holdoutStatus": "survived",
+    "rivalStatus": "scoped_or_weakened",
+    "publicReplayNotes": [
+      "loaded public OpenML task 32 and raw ARFF https://openml.org/data/v1/download/32/pendigits.arff",
+      "target=class; attributes=17; rows=10992"
+    ]
+  }
+]

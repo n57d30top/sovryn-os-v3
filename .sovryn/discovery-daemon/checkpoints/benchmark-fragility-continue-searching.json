@@ -1,0 +1,31 @@
+{
+  "kind": "benchmark_fragility_checkpoint",
+  "status": "continue_searching_checkpointed",
+  "fundFound": false,
+  "benchmarkTasksSelected": 20,
+  "claimsFrozen": 10,
+  "claimsExecuted": 10,
+  "hardSeedsBorn": 1,
+  "insightCandidatesBorn": 1,
+  "discoveryCandidatesCreated": 0,
+  "nextAction": "Deepen the born OpenML split-leakage InsightCandidate with stricter source-family holdouts, stronger baselines, and cross-task recurrence before any DiscoveryCandidate promotion.",
+  "artifactRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_TASK_SELECTION.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_TASK_SELECTION.json",
+    ".sovryn/discovery-daemon/benchmark-fragility/FROZEN_BENCHMARK_FRAGILITY_CLAIMS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/FROZEN_BENCHMARK_FRAGILITY_CLAIMS.json",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_BASELINE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_CONTROL_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_HOLDOUT_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_REPLAY_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_RIVAL_PRESSURE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_RECURRENCE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_HARDSEED_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_INSIGHT_CANDIDATE_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/DISCOVERY_PROMOTION_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/FUND_GATE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/NEXT_CHECKPOINT.md",
+    ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-continue-searching.json"
+  ],
+  "evidenceHash": "a8758025717fc7b03fc95963db253b21dddfc2d7a9a88fbe0604114850ce2828"
+}

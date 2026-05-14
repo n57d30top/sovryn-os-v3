@@ -28,6 +28,10 @@ import { CrossDomainEvidenceRoutingService } from "../route/cross-domain-evidenc
 import { ScienceService } from "../science/science-service.js";
 import { StrategyService } from "../strategy/strategy-service.js";
 import { TemporalEvaluationFragilityService } from "../temporal/temporal-evaluation-fragility-service.js";
+import {
+  BenchmarkProtocolFragilityPilotService,
+  type BenchmarkFragilityPilotReport,
+} from "./benchmark-fragility-pilot-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65823,6 +65827,17 @@ export class AutonomousDiscoveryDaemonService {
   async sourceObjectEngineAudit(): Promise<SourceObjectDiscoveryEngineAuditReport> {
     await this.ensureInitialized();
     return new SourceObjectFirstDiscoveryEngine(this.root).audit();
+  }
+
+  async benchmarkFragilityPilot(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<BenchmarkFragilityPilotReport> {
+    await this.ensureInitialized();
+    return new BenchmarkProtocolFragilityPilotService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
   }
 
   async discoveryAnchorSelect(): Promise<DiscoveryGradeAnchorSelectionReport> {

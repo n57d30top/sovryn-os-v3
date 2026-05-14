@@ -1,0 +1,124 @@
+{
+  "kind": "claim_first_benchmark_protocol_fragility_pilot",
+  "terminalStatus": "continue_searching_checkpointed",
+  "benchmarkTasksSelected": 20,
+  "benchmarkTasksRejected": 0,
+  "claimsFrozen": 10,
+  "claimsExecuted": 10,
+  "baselineControlChecksRun": 40,
+  "replayChecksRun": 10,
+  "holdoutChecksRun": 10,
+  "metricDeltas": [
+    {
+      "claimId": "BENCH-FRAG-001-OPENML-3",
+      "taskId": 3,
+      "randomVsGroupDelta": 0.213,
+      "modelVsMajorityDelta": 0.172,
+      "metricDelta": 0.002
+    },
+    {
+      "claimId": "BENCH-FRAG-002-OPENML-6",
+      "taskId": 6,
+      "randomVsGroupDelta": -0.014,
+      "modelVsMajorityDelta": 0.105,
+      "metricDelta": 0.001
+    },
+    {
+      "claimId": "BENCH-FRAG-003-OPENML-11",
+      "taskId": 11,
+      "randomVsGroupDelta": -0.028,
+      "modelVsMajorityDelta": -0.021,
+      "metricDelta": 0.186
+    },
+    {
+      "claimId": "BENCH-FRAG-004-OPENML-12",
+      "taskId": 12,
+      "randomVsGroupDelta": 0.022,
+      "modelVsMajorityDelta": 0.213,
+      "metricDelta": 0.009
+    },
+    {
+      "claimId": "BENCH-FRAG-005-OPENML-14",
+      "taskId": 14,
+      "randomVsGroupDelta": 0.019,
+      "modelVsMajorityDelta": 0.3,
+      "metricDelta": 0.022
+    },
+    {
+      "claimId": "BENCH-FRAG-006-OPENML-15",
+      "taskId": 15,
+      "randomVsGroupDelta": -0.014,
+      "modelVsMajorityDelta": 0.204,
+      "metricDelta": 0.029
+    },
+    {
+      "claimId": "BENCH-FRAG-007-OPENML-16",
+      "taskId": 16,
+      "randomVsGroupDelta": 0.142,
+      "modelVsMajorityDelta": 0.16,
+      "metricDelta": 0.005
+    },
+    {
+      "claimId": "BENCH-FRAG-008-OPENML-18",
+      "taskId": 18,
+      "randomVsGroupDelta": 0.112,
+      "modelVsMajorityDelta": 0.031,
+      "metricDelta": 0.017
+    },
+    {
+      "claimId": "BENCH-FRAG-009-OPENML-22",
+      "taskId": 22,
+      "randomVsGroupDelta": -0.015,
+      "modelVsMajorityDelta": 0.031,
+      "metricDelta": 0.012
+    },
+    {
+      "claimId": "BENCH-FRAG-010-OPENML-23",
+      "taskId": 23,
+      "randomVsGroupDelta": -0.017,
+      "modelVsMajorityDelta": 0.049,
+      "metricDelta": 0.006
+    }
+  ],
+  "recurrence": {
+    "split_leakage": 1
+  },
+  "hardSeedsBorn": 1,
+  "insightCandidatesBorn": 1,
+  "discoveryCandidatesCreated": 0,
+  "fundFound": false,
+  "fundGateResult": {
+    "passed": false,
+    "failedGates": [
+      "candidate_present"
+    ],
+    "status": "continue_searching"
+  },
+  "dominantDeathCauses": {
+    "insufficient_metric_delta": 5,
+    "baseline_dominated": 6,
+    "no_recurrence": 2,
+    "no_born_hardseed": 9,
+    "inconclusive": 5
+  },
+  "nextCheckpoint": ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-continue-searching.json",
+  "artifactRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_TASK_SELECTION.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_TASK_SELECTION.json",
+    ".sovryn/discovery-daemon/benchmark-fragility/FROZEN_BENCHMARK_FRAGILITY_CLAIMS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/FROZEN_BENCHMARK_FRAGILITY_CLAIMS.json",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_BASELINE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_CONTROL_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_HOLDOUT_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_REPLAY_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_RIVAL_PRESSURE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_RECURRENCE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_HARDSEED_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_INSIGHT_CANDIDATE_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/DISCOVERY_PROMOTION_DECISIONS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/FUND_GATE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility/NEXT_CHECKPOINT.md",
+    ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-continue-searching.json"
+  ],
+  "evidenceHash": "a8758025717fc7b03fc95963db253b21dddfc2d7a9a88fbe0604114850ce2828"
+}

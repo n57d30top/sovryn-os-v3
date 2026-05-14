@@ -61,6 +61,7 @@ import {
   type MechanismCandidateType,
   type OutcomeBearingCandidateSpec,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
+import { BenchmarkProtocolFragilityPilotService } from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -112,6 +113,7 @@ const commands = [
   "formal-anchor-audit",
   "formal-anchor-pressure",
   "source-object-engine",
+  "benchmark-fragility",
   "discovery-anchor-select",
   "discovery-anchor-audit",
   "discovery-anchor-source-load",
@@ -8208,6 +8210,77 @@ test("discover-daemon source-object-engine CLI is bounded and silent", async () 
   assert.equal(audit.ok, true);
   const auditData = audit.data as Record<string, unknown>;
   assert.equal(auditData.passed, true);
+});
+
+test("benchmark fragility pilot freezes claims and fails closed without fake Fund", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+
+  const report = await service.benchmarkFragilityPilot();
+
+  assert.equal(report.kind, "claim_first_benchmark_protocol_fragility_pilot");
+  assert.equal(report.benchmarkTasksSelected >= 20, true);
+  assert.equal(report.claimsFrozen >= 10, true);
+  assert.equal(report.claimsExecuted, report.claimsFrozen);
+  assert.equal(report.baselineControlChecksRun >= 30, true);
+  assert.equal(report.replayChecksRun >= 10, true);
+  assert.equal(report.holdoutChecksRun >= 5, true);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundFound, false);
+  assert.deepEqual(report.fundGateResult.failedGates, ["candidate_present"]);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const tasks = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "benchmark-fragility",
+        "BENCHMARK_TASK_SELECTION.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<{ taskId?: number; sourceUrl?: string }>;
+  assert.equal(tasks.length >= 20, true);
+  assert.equal(
+    tasks.every((task) => task.taskId && task.sourceUrl),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "benchmark-fragility", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "claim_first_benchmark_protocol_fragility_pilot",
+  );
+});
+
+test("benchmark fragility pilot service writes required review artifacts", async () => {
+  const root = await tempRoot();
+  const report = await new BenchmarkProtocolFragilityPilotService(root).run();
+  assert.equal(report.artifactRefs.length >= 15, true);
+  for (const artifact of [
+    "BENCHMARK_BASELINE_RESULTS.md",
+    "BENCHMARK_CONTROL_RESULTS.md",
+    "BENCHMARK_HOLDOUT_RESULTS.md",
+    "BENCHMARK_REPLAY_RESULTS.md",
+    "BENCHMARK_RIVAL_PRESSURE_RESULTS.md",
+    "BENCHMARK_RECURRENCE_RESULTS.md",
+    "BENCHMARK_HARDSEED_DECISIONS.md",
+    "BENCHMARK_INSIGHT_CANDIDATE_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    await access(join(root, daemonRoot, "benchmark-fragility", artifact));
+  }
 });
 
 test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {

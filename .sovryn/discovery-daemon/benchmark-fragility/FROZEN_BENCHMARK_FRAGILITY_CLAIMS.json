@@ -1,0 +1,202 @@
+[
+  {
+    "claimId": "BENCH-FRAG-001-OPENML-3",
+    "taskId": 3,
+    "datasetId": 3,
+    "taskName": "kr-vs-kp",
+    "exactClaim": "On OpenML task 3 (kr-vs-kp), split leakage will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "split_leakage",
+    "candidatePrediction": "Random-split performance exceeds stronger split or control performance by at least 0.08.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-002-OPENML-6",
+    "taskId": 6,
+    "datasetId": 6,
+    "taskName": "letter",
+    "exactClaim": "On OpenML task 6 (letter), metric sensitivity will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "metric_sensitivity",
+    "candidatePrediction": "Accuracy and balanced accuracy diverge by at least 0.08.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-003-OPENML-11",
+    "taskId": 11,
+    "datasetId": 11,
+    "taskName": "balance-scale",
+    "exactClaim": "On OpenML task 11 (balance-scale), class imbalance artifact will produce a predeclared metric delta of at least 0.10 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "class_imbalance_artifact",
+    "candidatePrediction": "Majority-class baseline explains most of the headline metric unless balanced accuracy is used.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.1,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-004-OPENML-12",
+    "taskId": 12,
+    "datasetId": 12,
+    "taskName": "mfeat-factors",
+    "exactClaim": "On OpenML task 12 (mfeat-factors), contamination duplicate leakage will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "contamination_duplicate_leakage",
+    "candidatePrediction": "Exact or near-duplicate feature signatures inflate random-split performance relative to group holdout.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-005-OPENML-14",
+    "taskId": 14,
+    "datasetId": 14,
+    "taskName": "mfeat-fourier",
+    "exactClaim": "On OpenML task 14 (mfeat-fourier), protocol fragility under repeated splits will produce a predeclared metric delta of at least 0.06 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "protocol_fragility_under_repeated_splits",
+    "candidatePrediction": "Repeated random splits vary enough to exceed 0.06 instability.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.06,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-006-OPENML-15",
+    "taskId": 15,
+    "datasetId": 15,
+    "taskName": "breast-w",
+    "exactClaim": "On OpenML task 15 (breast-w), target encoding leakage will produce a predeclared metric delta of at least 0.10 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "target_encoding_leakage",
+    "candidatePrediction": "Random-split performance exceeds stronger split or control performance by at least 0.10.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.1,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-007-OPENML-16",
+    "taskId": 16,
+    "datasetId": 16,
+    "taskName": "mfeat-karhunen",
+    "exactClaim": "On OpenML task 16 (mfeat-karhunen), train test distribution shift will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "train_test_distribution_shift",
+    "candidatePrediction": "Random-split performance exceeds stronger split or control performance by at least 0.08.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-008-OPENML-18",
+    "taskId": 18,
+    "datasetId": 18,
+    "taskName": "mfeat-morphological",
+    "exactClaim": "On OpenML task 18 (mfeat-morphological), group family leakage will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "group_family_leakage",
+    "candidatePrediction": "Random-split performance exceeds stronger split or control performance by at least 0.08.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-009-OPENML-22",
+    "taskId": 22,
+    "datasetId": 22,
+    "taskName": "mfeat-zernike",
+    "exactClaim": "On OpenML task 22 (mfeat-zernike), metric sensitivity will produce a predeclared metric delta of at least 0.08 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "metric_sensitivity",
+    "candidatePrediction": "Accuracy and balanced accuracy diverge by at least 0.08.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.08,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  },
+  {
+    "claimId": "BENCH-FRAG-010-OPENML-23",
+    "taskId": 23,
+    "datasetId": 23,
+    "taskName": "cmc",
+    "exactClaim": "On OpenML task 23 (cmc), protocol fragility under repeated splits will produce a predeclared metric delta of at least 0.06 after simple baselines and negative controls are run.",
+    "fragilityMechanism": "protocol_fragility_under_repeated_splits",
+    "candidatePrediction": "Repeated random splits vary enough to exceed 0.06 instability.",
+    "rivalSimpleExplanation": "The observed delta is fully explained by majority-class baseline, dataset size, ordinary class imbalance, or metric choice rather than protocol fragility.",
+    "falsifier": "The claim is killed if the majority/simple model baseline explains the metric, the shuffled-target control remains high, replay fails, or the stronger split/control removes the delta.",
+    "expectedMetricDelta": 0.06,
+    "baselineThatCouldKillIt": "majority baseline plus one-feature lookup model under repeated random splits",
+    "holdoutReplayPlan": "compare deterministic random split to feature-family/group holdout and replay the same computation from the public OpenML task and dataset receipts",
+    "whatIsNotClaimed": [
+      "not a new ML algorithm",
+      "not a universal benchmark law",
+      "not external validation",
+      "not a Fund unless full discovery-scored Fund Gate passes"
+    ]
+  }
+]

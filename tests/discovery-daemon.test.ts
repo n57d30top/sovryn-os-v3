@@ -76,6 +76,7 @@ import { TaskReceiptFirstBenchmarkDiscoveryService } from "../src/core/discovery
 import {
   ReceiptFirstSelectivityChallengeService,
   ReceiptFirstSelectivityPromotionService,
+  ReceiptFirstSelectivityV2Service,
   ReceiptFirstSynthesisService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
@@ -150,6 +151,7 @@ const commands = [
   "receipt-first-synthesis",
   "receipt-first-selectivity",
   "receipt-first-selectivity-promotion",
+  "receipt-first-selectivity-v2",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9176,6 +9178,84 @@ test("receipt-first selectivity promotion gauntlet pressures larger mixed benchm
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_selectivity_promotion_gauntlet",
+  );
+});
+
+test("receipt-first selectivity v2 suppresses same-task plausible concentration", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSelectivityChallengeService(root).run();
+  await new ReceiptFirstSelectivityPromotionService(root).run();
+
+  const report = await new ReceiptFirstSelectivityV2Service(root).run();
+
+  assert.equal(
+    report.kind,
+    "receipt_first_selectivity_v2_independence_challenge",
+  );
+  assert.equal(report.claimsTested, 60);
+  assert.ok(report.openMlTasksTested >= 10);
+  assert.ok(report.weakClaims >= 20);
+  assert.ok(report.plausibleClaims >= 20);
+  assert.ok(report.positiveControlClaims >= 10);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(typeof report.v2Comparison.v2Accuracy, "number");
+  assert.equal(typeof report.v2Comparison.rejectAllAccuracy, "number");
+
+  for (const artifact of [
+    "TRIAGE_INDEPENDENCE_AUDIT.md",
+    "OPENML32_CONCENTRATION_ANALYSIS.md",
+    "TRIAGE_METHOD_V2_SPEC.md",
+    "TRIAGE_METHOD_V2_DIFF.md",
+    "INDEPENDENT_OPENML_BENCHMARK_60.md",
+    "INDEPENDENT_OPENML_BENCHMARK_60.json",
+    "TRIAGE_V2_SELECTIVITY_RESULTS.md",
+    "TRIAGE_V2_BASELINE_COMPARISON.md",
+    "TRIAGE_V2_DEEP_VALIDATION_RESULTS.md",
+    "INDEPENDENT_TASK_RETENTION_REPORT.md",
+    "TRIAGE_V2_PROMOTION_DECISION.md",
+    "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-selectivity-v2", artifact),
+    );
+  }
+
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-selectivity-v2",
+        "INDEPENDENT_OPENML_BENCHMARK_60.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<{ selectivityClass: string; taskId: number }>;
+  const plausible = claims.filter(
+    (claim) => claim.selectivityClass === "plausible",
+  );
+  const maxPlausibleTaskShare = Math.max(
+    ...[...new Set(plausible.map((claim) => claim.taskId))].map(
+      (taskId) =>
+        plausible.filter((claim) => claim.taskId === taskId).length /
+        plausible.length,
+    ),
+  );
+  assert.ok(maxPlausibleTaskShare <= 0.2);
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-selectivity-v2", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_selectivity_v2_independence_challenge",
   );
 });
 

@@ -1,5 +1,5 @@
 # Next Action
 
-Improve positive selection so V1 retains independent plausible non-control claims across multiple receipt-complete tasks before promotion.
+Keep V2 as a selectivity improvement candidate only if future receipt-complete holdouts produce two independent plausible non-control survivors; otherwise pivot to a richer benchmark/data-quality source class.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-promotion-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v2-continue-searching.json

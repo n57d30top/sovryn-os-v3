@@ -32,4 +32,10 @@ The current validated product state must be committed and pushed before starting
 
 ## Persistence decision
 
-Commit and push this validated product state, then continue with the independent OpenML task selectivity V2 work.
+The pre-V2 product state was committed and pushed before the independent OpenML task selectivity V2 work began.
+
+- Product commit: `b4ca222cebaf31d03e03e20bf750307bd300fa5b`
+- Remote: `origin/main`
+- Corpus commit: none
+
+The V2 work in this goal is tracked separately in the current working tree and must be committed after verification.

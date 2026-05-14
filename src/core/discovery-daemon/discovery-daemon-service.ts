@@ -3901,6 +3901,89 @@ export type ExternalClaimMiningInsightBirthReport = {
   evidenceHash: string;
 };
 
+export type SoftExternalClaimAutopsyEntry = {
+  kind: "soft_external_claim_autopsy_entry";
+  claimId: string;
+  source: string;
+  exactClaimOrParaphrase: string;
+  matchedObject: string;
+  whyPassedEarlierGates: string;
+  priorTop3Executed: boolean;
+  priorExecutionClassification:
+    | ExternalClaimAttackClassification
+    | "not_executed";
+  whyNoWitnessOrRefutationWasFound: string;
+  falsifierTooSoft: boolean;
+  witnessTypeStandardOrTrivial: boolean;
+  rivalActuallyTestable: boolean;
+  objectMatchWeak: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type SoftExternalClaimAutopsyReport = {
+  kind: "soft_external_claim_autopsy";
+  claimsAnalyzed: number;
+  priorTop3ExecutionsAnalyzed: number;
+  softFalsifierClaims: number;
+  standardOrTrivialWitnessClaims: number;
+  nonTestableRivalClaims: number;
+  weakObjectMatchClaims: number;
+  entries: SoftExternalClaimAutopsyEntry[];
+  evidenceHash: string;
+};
+
+export type SharpFalsifierSignalKind =
+  | "explicit_falsifier_condition"
+  | "concrete_hard_instance_claim"
+  | "concrete_minimality_claim"
+  | "concrete_uniqueness_or_existence_claim"
+  | "concrete_recurrence_formula_claim"
+  | "concrete_solver_heuristic_failure_object"
+  | "concrete_automata_distinguishing_word"
+  | "concrete_design_incidence_violation"
+  | "concrete_graph_obstruction_refutation";
+
+export type SharpFalsifierGateDecision = {
+  kind: "sharp_falsifier_gate_decision";
+  claimId: string;
+  matchId: string;
+  accepted: boolean;
+  score: number;
+  signalKind: SharpFalsifierSignalKind | "none";
+  explicitFalsifier: string;
+  expectedWitnessOrRefutationType: string;
+  rivalMechanism: string;
+  sourceObject: string;
+  rejectionReasons: string[];
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type SharpFalsifierGateReport = {
+  kind: "sharp_falsifier_gate";
+  claimsEvaluated: number;
+  acceptedClaims: number;
+  rejectedClaims: number;
+  top3Selected: number;
+  decisions: SharpFalsifierGateDecision[];
+  accepted: SharpFalsifierGateDecision[];
+  rejected: SharpFalsifierGateDecision[];
+  top3: SharpFalsifierGateDecision[];
+  evidenceHash: string;
+};
+
+export type SharpFalsifierClaimSourcesReport = {
+  kind: "sharp_falsifier_claim_sources";
+  claimsExtracted: number;
+  acceptedClaims: number;
+  rejectedClaims: number;
+  sourceClassesRepresented: ExternalClaimSourceClass[];
+  accepted: ExternalFormalClaimSource[];
+  rejected: ExternalFormalClaimSource[];
+  evidenceHash: string;
+};
+
 export type ExternalFormalClaimMiningReport = {
   kind: "external_formal_claim_mining";
   claimSourceHarvest: ExternalClaimSourceHarvestReport;
@@ -3910,6 +3993,9 @@ export type ExternalFormalClaimMiningReport = {
   objectMatches: ExternalClaimObjectMatchReport;
   oracleGate: ExternalClaimOracleGateReport;
   highValueSourcePrioritization: HighValueExternalClaimSourcePrioritizationReport;
+  softClaimAutopsy: SoftExternalClaimAutopsyReport;
+  sharpFalsifierGate: SharpFalsifierGateReport;
+  sharpFalsifierClaimSources: SharpFalsifierClaimSourcesReport;
   execution: ExternalClaimAttackExecutionReport;
   insightBirthDecisions: ExternalClaimMiningInsightBirthReport;
   evidenceHash: string;
@@ -17169,13 +17255,50 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.sourceObject.length > 0 &&
               (decision.accepted || decision.rejectionReasons.length > 0),
           ) &&
+          externalFormalClaimMining.softClaimAutopsy.claimsAnalyzed ===
+            externalFormalClaimMining.claimSources.claimsConsidered &&
+          externalFormalClaimMining.softClaimAutopsy
+            .priorTop3ExecutionsAnalyzed <= 3 &&
+          externalFormalClaimMining.softClaimAutopsy.entries.every(
+            (entry) =>
+              entry.whyPassedEarlierGates.length > 0 &&
+              entry.whyNoWitnessOrRefutationWasFound.length > 0,
+          ) &&
+          externalFormalClaimMining.sharpFalsifierGate.claimsEvaluated ===
+            externalFormalClaimMining.claimSources.claimsConsidered &&
+          externalFormalClaimMining.sharpFalsifierGate.acceptedClaims <= 5 &&
+          externalFormalClaimMining.sharpFalsifierGate.acceptedClaims > 0 &&
+          externalFormalClaimMining.sharpFalsifierGate.rejectedClaims > 0 &&
+          externalFormalClaimMining.sharpFalsifierGate.top3Selected <= 3 &&
+          externalFormalClaimMining.sharpFalsifierGate.top3Selected > 0 &&
+          externalFormalClaimMining.sharpFalsifierGate.decisions.every(
+            (decision) =>
+              decision.claimId.length > 0 &&
+              decision.explicitFalsifier.length > 0 &&
+              decision.expectedWitnessOrRefutationType.length > 0 &&
+              decision.rivalMechanism.length > 0 &&
+              decision.sourceObject.length > 0 &&
+              (decision.accepted || decision.rejectionReasons.length > 0),
+          ) &&
+          externalFormalClaimMining.sharpFalsifierGate.top3.every(
+            (decision) =>
+              !externalFormalClaimMining.softClaimAutopsy.entries.some(
+                (entry) =>
+                  entry.claimId === decision.claimId && entry.priorTop3Executed,
+              ),
+          ) &&
+          externalFormalClaimMining.sharpFalsifierClaimSources
+            .claimsExtracted ===
+            externalFormalClaimMining.claimSources.claimsConsidered &&
+          externalFormalClaimMining.sharpFalsifierClaimSources
+            .acceptedClaims ===
+            externalFormalClaimMining.sharpFalsifierGate.acceptedClaims &&
           externalFormalClaimMining.highValueSourcePrioritization
             .top3Selected <= 3 &&
           externalFormalClaimMining.highValueSourcePrioritization.top3Selected >
             0 &&
           externalFormalClaimMining.objectMatches.top3Selected ===
-            externalFormalClaimMining.highValueSourcePrioritization
-              .top3Selected &&
+            externalFormalClaimMining.sharpFalsifierGate.top3Selected &&
           externalFormalClaimMining.objectMatches.top3.every(
             (match) =>
               match.exactBoundedClaim.length > 0 &&
@@ -17201,7 +17324,7 @@ export class SourceObjectFirstDiscoveryEngine {
             (decision) =>
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
-        "External formal claim mining must start from public attackable claims, reject claims without explicit oracles/value, execute only top-three high-value claim attacks, and fail closed before InsightCandidate birth.",
+        "External formal claim mining must autopsy soft claims, require sharp external falsifiers, execute only top-three sharp claim attacks, and fail closed before InsightCandidate birth.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -18591,6 +18714,16 @@ export class SourceObjectFirstDiscoveryEngine {
       input.externalFormalClaimMining,
     );
     await writeJson(
+      join(root, "SOFT_CLAIM_FAILURE_MATRIX.json"),
+      input.externalFormalClaimMining.softClaimAutopsy,
+    );
+    await writeText(
+      join(root, "SOFT_EXTERNAL_CLAIM_AUTOPSY.md"),
+      softExternalClaimAutopsyMarkdown(
+        input.externalFormalClaimMining.softClaimAutopsy,
+      ),
+    );
+    await writeJson(
       join(root, "EXTERNAL_CLAIM_SOURCE_HARVEST.json"),
       input.externalFormalClaimMining.claimSourceHarvest,
     );
@@ -18672,6 +18805,32 @@ export class SourceObjectFirstDiscoveryEngine {
         input.externalFormalClaimMining.oracleGate,
       ),
     );
+    await writeJson(
+      join(root, "SHARP_FALSIFIER_GATE.json"),
+      input.externalFormalClaimMining.sharpFalsifierGate,
+    );
+    await writeText(
+      join(root, "SHARP_FALSIFIER_GATE.md"),
+      sharpFalsifierGateMarkdown(
+        input.externalFormalClaimMining.sharpFalsifierGate,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_SOFT_CLAIMS.md"),
+      rejectedSoftClaimsMarkdown(
+        input.externalFormalClaimMining.sharpFalsifierGate,
+      ),
+    );
+    await writeJson(
+      join(root, "SHARP_FALSIFIER_CLAIMS.json"),
+      input.externalFormalClaimMining.sharpFalsifierClaimSources,
+    );
+    await writeText(
+      join(root, "SHARP_FALSIFIER_CLAIM_SOURCES.md"),
+      sharpFalsifierClaimSourcesMarkdown(
+        input.externalFormalClaimMining.sharpFalsifierClaimSources,
+      ),
+    );
     await writeText(
       join(root, "HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md"),
       highValueExternalClaimSourcesMarkdown(
@@ -18727,6 +18886,16 @@ export class SourceObjectFirstDiscoveryEngine {
     await writeText(
       join(root, "HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.md"),
       highValueClaimAttackResultsMarkdown(
+        input.externalFormalClaimMining.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "SHARP_FALSIFIER_EXECUTION_RESULTS.json"),
+      input.externalFormalClaimMining.execution,
+    );
+    await writeText(
+      join(root, "SHARP_FALSIFIER_EXECUTION_RESULTS.md"),
+      sharpFalsifierExecutionResultsMarkdown(
         input.externalFormalClaimMining.execution,
       ),
     );
@@ -26461,13 +26630,37 @@ function runExternalFormalClaimMining(
   const oracleGate = externalClaimOracleGate(rawObjectMatches, failureAutopsy);
   const highValueSourcePrioritization =
     highValueExternalClaimSourcePrioritization(oracleGate, rawObjectMatches);
-  const objectMatches = selectHighValueExternalClaimObjectMatches(
+  const softHighValueObjectMatches = selectHighValueExternalClaimObjectMatches(
     rawObjectMatches,
     new Set(
       highValueSourcePrioritization.highValueClaimSources.map(
         (decision) => decision.matchId,
       ),
     ),
+  );
+  const softHighValueExecution = runExternalClaimAttackExecution(
+    softHighValueObjectMatches,
+  );
+  const softClaimAutopsy = softExternalClaimAutopsy(
+    claimSources,
+    rawObjectMatches,
+    oracleGate,
+    softHighValueObjectMatches,
+    softHighValueExecution,
+  );
+  const sharpFalsifierGate = sharpFalsifierGateForExternalClaims(
+    claimSources,
+    rawObjectMatches,
+    oracleGate,
+    softClaimAutopsy,
+  );
+  const sharpFalsifierClaimSources = sharpFalsifierClaimSourcesReport(
+    claimSources,
+    sharpFalsifierGate,
+  );
+  const objectMatches = selectHighValueExternalClaimObjectMatches(
+    rawObjectMatches,
+    new Set(sharpFalsifierGate.top3.map((decision) => decision.matchId)),
   );
   const execution = runExternalClaimAttackExecution(objectMatches);
   const insightBirthDecisions =
@@ -26481,6 +26674,9 @@ function runExternalFormalClaimMining(
     objectMatches,
     oracleGate,
     highValueSourcePrioritization,
+    softClaimAutopsy,
+    sharpFalsifierGate,
+    sharpFalsifierClaimSources,
     execution,
     insightBirthDecisions,
   });
@@ -27738,6 +27934,401 @@ function selectHighValueExternalClaimObjectMatches(
   });
 }
 
+function softExternalClaimAutopsy(
+  claimSources: ExternalFormalClaimSourceReport,
+  matches: ExternalClaimObjectMatchReport,
+  oracleGate: ExternalClaimOracleGateReport,
+  priorTop3Matches: ExternalClaimObjectMatchReport,
+  priorExecution: ExternalClaimAttackExecutionReport,
+): SoftExternalClaimAutopsyReport {
+  const matchByClaimId = new Map(
+    matches.matches.map((match) => [match.claimId, match]),
+  );
+  const oracleByClaimId = new Map(
+    oracleGate.decisions.map((decision) => [decision.claimId, decision]),
+  );
+  const priorTop3ClaimIds = new Set(
+    priorTop3Matches.top3.map((match) => match.claimId),
+  );
+  const priorResultByClaimId = new Map(
+    priorExecution.results.map((result) => [result.claimId, result]),
+  );
+  const entries = claimSources.claims.map((claim) => {
+    const match = matchByClaimId.get(claim.claimId);
+    const oracleDecision = oracleByClaimId.get(claim.claimId);
+    const priorResult = priorResultByClaimId.get(claim.claimId);
+    const priorExecutionClassification:
+      | ExternalClaimAttackClassification
+      | "not_executed" = priorResult?.classification ?? "not_executed";
+    const falsifierTooSoft = softExternalClaimFalsifierTooSoft(claim, match);
+    const witnessTypeStandardOrTrivial =
+      softExternalClaimWitnessIsStandardOrTrivial(claim, match);
+    const rivalActuallyTestable =
+      Boolean(match?.rivalMechanism) &&
+      !match?.rivalMechanism.includes("source-family") &&
+      !match?.rivalMechanism.includes("source family");
+    const objectMatchWeak =
+      !match ||
+      match.rejectionReasons.length > 0 ||
+      match.concreteEncoding.length === 0 ||
+      match.replayMethod.length === 0;
+    return withEvidenceHash({
+      kind: "soft_external_claim_autopsy_entry" as const,
+      claimId: claim.claimId,
+      source: claim.sourceUrlOrPublicReference,
+      exactClaimOrParaphrase: claim.exactClaimOrParaphrase,
+      matchedObject: match?.objectId ?? claim.sourceObjectId,
+      whyPassedEarlierGates: oracleDecision?.accepted
+        ? "The claim had a concrete object, replay path, explicit oracle text, and nonstandard witness-value statement under the earlier broad oracle/value gate."
+        : `The claim did not pass the earlier oracle/value gate: ${oracleDecision?.rejectionReasons.join(", ") || "not evaluated"}.`,
+      priorTop3Executed: priorTop3ClaimIds.has(claim.claimId),
+      priorExecutionClassification,
+      whyNoWitnessOrRefutationWasFound: softExternalClaimNoWitnessReason(
+        priorExecutionClassification,
+      ),
+      falsifierTooSoft,
+      witnessTypeStandardOrTrivial,
+      rivalActuallyTestable,
+      objectMatchWeak,
+      evidenceRefs: uniqueStrings([
+        ...claim.evidenceRefs,
+        ...(match?.evidenceRefs ?? []),
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.json#${claim.claimId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "soft_external_claim_autopsy" as const,
+    claimsAnalyzed: entries.length,
+    priorTop3ExecutionsAnalyzed: entries.filter(
+      (entry) => entry.priorTop3Executed,
+    ).length,
+    softFalsifierClaims: entries.filter((entry) => entry.falsifierTooSoft)
+      .length,
+    standardOrTrivialWitnessClaims: entries.filter(
+      (entry) => entry.witnessTypeStandardOrTrivial,
+    ).length,
+    nonTestableRivalClaims: entries.filter(
+      (entry) => !entry.rivalActuallyTestable,
+    ).length,
+    weakObjectMatchClaims: entries.filter((entry) => entry.objectMatchWeak)
+      .length,
+    entries,
+  });
+}
+
+function softExternalClaimFalsifierTooSoft(
+  claim: ExternalFormalClaimSource,
+  match: ExternalClaimObjectMatch | undefined,
+): boolean {
+  const text =
+    `${claim.exactClaimOrParaphrase} ${claim.falsifier} ${match?.falsifier ?? ""}`.toLowerCase();
+  const sharpTerms = [
+    "minimal",
+    "core",
+    "unsat",
+    "contradiction",
+    "distinguishing word",
+    "first failing",
+    "held-out",
+    "recurrence",
+    "uniqueness",
+    "incidence",
+    "branch-set",
+    "obstruction",
+    "fragment",
+    "ablation",
+  ];
+  const softTerms = ["interesting", "representative", "useful", "benchmark"];
+  return (
+    !sharpTerms.some((term) => text.includes(term)) ||
+    (softTerms.some((term) => text.includes(term)) &&
+      !text.includes("falsifier") &&
+      !text.includes("failure"))
+  );
+}
+
+function softExternalClaimWitnessIsStandardOrTrivial(
+  claim: ExternalFormalClaimSource,
+  match: ExternalClaimObjectMatch | undefined,
+): boolean {
+  const text =
+    `${claim.expectedWitnessOrRefutationType} ${match?.witnessOrRefutationType ?? ""}`.toLowerCase();
+  return (
+    text.includes("standard") ||
+    text.includes("coloring certificate") ||
+    text.includes("satisfying assignment") ||
+    text.includes("generic model")
+  );
+}
+
+function softExternalClaimNoWitnessReason(
+  classification: ExternalClaimAttackClassification | "not_executed",
+): string {
+  if (classification === "not_executed") {
+    return "The claim was not in the previous top-three execution set; it still needs a sharper falsifier gate before execution.";
+  }
+  if (classification === "no_valid_witness_or_counterexample") {
+    return "The executed claim did not yield a concrete checked witness or refutation artifact.";
+  }
+  if (classification === "rival_not_scoped") {
+    return "The produced artifact remained compatible with the strongest rival mechanism.";
+  }
+  if (classification === "standard_witness_absorbed") {
+    return "The artifact was absorbed by standard certificate or known source-family behavior.";
+  }
+  if (classification === "known_trivial") {
+    return "Known/triviality review absorbed the claim before InsightCandidate birth.";
+  }
+  if (classification === "replay_failed") {
+    return "The claim did not retain a public replay path through execution.";
+  }
+  if (classification === "no_witness_found") {
+    return "Bounded execution found no witness under the frozen claim and replay path.";
+  }
+  return "The prior artifact did not satisfy all valid, nonstandard, rival-scoping, replay, and known/triviality requirements.";
+}
+
+function sharpFalsifierGateForExternalClaims(
+  claimSources: ExternalFormalClaimSourceReport,
+  matches: ExternalClaimObjectMatchReport,
+  oracleGate: ExternalClaimOracleGateReport,
+  softAutopsy: SoftExternalClaimAutopsyReport,
+): SharpFalsifierGateReport {
+  const matchByClaimId = new Map(
+    matches.matches.map((match) => [match.claimId, match]),
+  );
+  const oracleByClaimId = new Map(
+    oracleGate.decisions.map((decision) => [decision.claimId, decision]),
+  );
+  const softByClaimId = new Map(
+    softAutopsy.entries.map((entry) => [entry.claimId, entry]),
+  );
+  const rawDecisions = claimSources.claims.map((claim) => {
+    const match = matchByClaimId.get(claim.claimId);
+    const oracleDecision = oracleByClaimId.get(claim.claimId);
+    const softEntry = softByClaimId.get(claim.claimId);
+    const signalKind = sharpFalsifierSignalKind(claim, match);
+    const rejectionReasons = uniqueStrings([
+      oracleDecision?.accepted ? "" : "oracle_value_gate_failed",
+      softEntry?.priorTop3Executed ? "previous_soft_top3_already_failed" : "",
+      match ? "" : "missing_claim_object_match",
+      signalKind === "none" ? "missing_sharp_falsifier_signal" : "",
+      claim.falsifier.length > 0 ? "" : "missing_explicit_falsifier",
+      sharpFalsifierDirectlyTiedToSource(claim, match)
+        ? ""
+        : "falsifier_not_tied_to_external_claim",
+      match?.concreteEncoding.length ? "" : "missing_concrete_object",
+      match?.replayMethod.length ? "" : "missing_replay_path",
+      softEntry?.falsifierTooSoft ? "falsifier_too_soft" : "",
+      softEntry?.witnessTypeStandardOrTrivial
+        ? "standard_or_trivial_witness_type"
+        : "",
+      softEntry && !softEntry.rivalActuallyTestable ? "rival_not_testable" : "",
+      softEntry?.objectMatchWeak ? "weak_object_match" : "",
+      claim.knownTrivialityRisk === "high"
+        ? "known_triviality_likely_absorbs_result"
+        : "",
+      sharpFalsifierGenericSoftLanguage(claim)
+        ? "claim_is_generic_soft_source_text"
+        : "",
+    ]).filter(Boolean);
+    const score =
+      20 +
+      sharpFalsifierSignalScore(signalKind) -
+      rejectionReasons.length * 4 -
+      (claim.knownTrivialityRisk === "medium" ? 2 : 0) +
+      (oracleDecision?.score ?? 0);
+    return withEvidenceHash({
+      kind: "sharp_falsifier_gate_decision" as const,
+      claimId: claim.claimId,
+      matchId: match?.matchId ?? "",
+      accepted: false,
+      score,
+      signalKind,
+      explicitFalsifier: claim.falsifier,
+      expectedWitnessOrRefutationType:
+        match?.witnessOrRefutationType ?? claim.expectedWitnessOrRefutationType,
+      rivalMechanism: match?.rivalMechanism ?? claim.strongestRivalMechanism,
+      sourceObject: match?.objectId ?? claim.sourceObjectId,
+      rejectionReasons,
+      evidenceRefs: uniqueStrings([
+        ...claim.evidenceRefs,
+        ...(match?.evidenceRefs ?? []),
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/SOFT_CLAIM_FAILURE_MATRIX.json#${claim.claimId}`,
+      ]),
+    });
+  });
+  const selectedIds = new Set(
+    rawDecisions
+      .filter((decision) => decision.rejectionReasons.length === 0)
+      .sort(
+        (left, right) =>
+          right.score - left.score || left.claimId.localeCompare(right.claimId),
+      )
+      .slice(0, 5)
+      .map((decision) => decision.claimId),
+  );
+  const decisions = rawDecisions.map((decision) => {
+    const accepted = selectedIds.has(decision.claimId);
+    return withEvidenceHash({
+      ...decision,
+      accepted,
+      rejectionReasons: accepted
+        ? []
+        : decision.rejectionReasons.length > 0
+          ? decision.rejectionReasons
+          : ["not_selected_after_sharp_falsifier_top5_cap"],
+    });
+  });
+  const accepted = decisions.filter((decision) => decision.accepted);
+  const rejected = decisions.filter((decision) => !decision.accepted);
+  return withEvidenceHash({
+    kind: "sharp_falsifier_gate" as const,
+    claimsEvaluated: decisions.length,
+    acceptedClaims: accepted.length,
+    rejectedClaims: rejected.length,
+    top3Selected: accepted.slice(0, 3).length,
+    decisions,
+    accepted,
+    rejected,
+    top3: accepted.slice(0, 3),
+  });
+}
+
+function sharpFalsifierSignalKind(
+  claim: ExternalFormalClaimSource,
+  match: ExternalClaimObjectMatch | undefined,
+): SharpFalsifierSignalKind | "none" {
+  const text = normalizeWhitespace(
+    `${claim.exactClaimOrParaphrase} ${claim.falsifier} ${claim.successOracle} ${claim.expectedWitnessOrRefutationType} ${match?.witnessOrRefutationType ?? ""}`,
+  ).toLowerCase();
+  if (
+    text.includes("minimal") ||
+    text.includes("shortest") ||
+    text.includes("first failing")
+  ) {
+    return "concrete_minimality_claim";
+  }
+  if (text.includes("hard") || text.includes("challenge")) {
+    return "concrete_hard_instance_claim";
+  }
+  if (text.includes("unsat") || text.includes("core")) {
+    return "concrete_solver_heuristic_failure_object";
+  }
+  if (text.includes("distinguishing word")) {
+    return "concrete_automata_distinguishing_word";
+  }
+  if (text.includes("recurrence") || text.includes("formula")) {
+    return "concrete_recurrence_formula_claim";
+  }
+  if (text.includes("uniqueness") || text.includes("existence")) {
+    return "concrete_uniqueness_or_existence_claim";
+  }
+  if (text.includes("incidence") || text.includes("violation")) {
+    return "concrete_design_incidence_violation";
+  }
+  if (
+    text.includes("obstruction") ||
+    text.includes("minor") ||
+    text.includes("branch-set")
+  ) {
+    return "concrete_graph_obstruction_refutation";
+  }
+  if (text.includes("falsifier") || text.includes("failure")) {
+    return "explicit_falsifier_condition";
+  }
+  return "none";
+}
+
+function sharpFalsifierDirectlyTiedToSource(
+  claim: ExternalFormalClaimSource,
+  match: ExternalClaimObjectMatch | undefined,
+): boolean {
+  const text =
+    `${claim.falsifier} ${claim.successOracle} ${claim.failureOracle} ${match?.falsifier ?? ""}`.toLowerCase();
+  return (
+    text.includes("public") ||
+    text.includes("concrete") ||
+    text.includes("held-out") ||
+    text.includes("source") ||
+    text.includes("replay") ||
+    text.includes("transition") ||
+    text.includes("incidence") ||
+    text.includes("graph6") ||
+    text.includes("cnf") ||
+    text.includes("smt")
+  );
+}
+
+function sharpFalsifierGenericSoftLanguage(
+  claim: ExternalFormalClaimSource,
+): boolean {
+  const claimText = claim.exactClaimOrParaphrase.toLowerCase();
+  const hasSoftOnlyTerm =
+    claimText.includes("interesting") ||
+    claimText.includes("representative") ||
+    claimText.includes("useful") ||
+    claimText === "benchmark";
+  const hasSharpTerm =
+    claimText.includes("minimal") ||
+    claimText.includes("uniqueness") ||
+    claimText.includes("recurrence") ||
+    claimText.includes("distinguishing") ||
+    claimText.includes("core") ||
+    claimText.includes("obstruction") ||
+    claimText.includes("incidence") ||
+    claimText.includes("fragment");
+  return hasSoftOnlyTerm && !hasSharpTerm;
+}
+
+function sharpFalsifierSignalScore(
+  signalKind: SharpFalsifierSignalKind | "none",
+): number {
+  const scores: Record<SharpFalsifierSignalKind | "none", number> = {
+    none: -10,
+    explicit_falsifier_condition: 4,
+    concrete_hard_instance_claim: 5,
+    concrete_minimality_claim: 8,
+    concrete_uniqueness_or_existence_claim: 8,
+    concrete_recurrence_formula_claim: 7,
+    concrete_solver_heuristic_failure_object: 7,
+    concrete_automata_distinguishing_word: 9,
+    concrete_design_incidence_violation: 9,
+    concrete_graph_obstruction_refutation: 6,
+  };
+  return scores[signalKind];
+}
+
+function sharpFalsifierClaimSourcesReport(
+  claimSources: ExternalFormalClaimSourceReport,
+  gate: SharpFalsifierGateReport,
+): SharpFalsifierClaimSourcesReport {
+  const acceptedIds = new Set(
+    gate.accepted.map((decision) => decision.claimId),
+  );
+  const rejectedIds = new Set(
+    gate.rejected.map((decision) => decision.claimId),
+  );
+  const accepted = claimSources.claims.filter((claim) =>
+    acceptedIds.has(claim.claimId),
+  );
+  const rejected = claimSources.claims.filter((claim) =>
+    rejectedIds.has(claim.claimId),
+  );
+  return withEvidenceHash({
+    kind: "sharp_falsifier_claim_sources" as const,
+    claimsExtracted: claimSources.claimsConsidered,
+    acceptedClaims: accepted.length,
+    rejectedClaims: rejected.length,
+    sourceClassesRepresented: uniqueStrings(
+      claimSources.claims.map((claim) => claim.sourceClass),
+    ) as ExternalClaimSourceClass[],
+    accepted,
+    rejected,
+  });
+}
+
 function runExternalClaimAttackExecution(
   matches: ExternalClaimObjectMatchReport,
 ): ExternalClaimAttackExecutionReport {
@@ -28874,7 +29465,7 @@ function sourceObjectRemainingBottleneck(
           externalFormalClaimMining.insightBirthDecisions,
         ),
       ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
-    return `${externalFormalClaimMining.claimSources.claimsConsidered} external formal claim(s) were mined from safe public source references, ${externalFormalClaimMining.attackabilityGate.acceptedClaims} passed the broad attackability gate, ${externalFormalClaimMining.oracleGate.acceptedClaims} passed the oracle/value gate, ${externalFormalClaimMining.execution.top3Executed} high-value claim attack pilot(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next step needs external claims where the predeclared refutation/witness is expected to be non-standard, replayable, and strong enough to make the rival fail before execution.`;
+    return `${externalFormalClaimMining.claimSources.claimsConsidered} external formal claim(s) were mined from safe public source references, ${externalFormalClaimMining.attackabilityGate.acceptedClaims} passed the broad attackability gate, ${externalFormalClaimMining.oracleGate.acceptedClaims} passed the oracle/value gate, ${externalFormalClaimMining.sharpFalsifierGate.acceptedClaims} passed the sharp-falsifier gate, ${externalFormalClaimMining.execution.top3Executed} sharp-falsifier claim attack pilot(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next step needs external source text with a concrete falsifier and a replayable nonstandard witness/refutation that is likely to exist before execution.`;
   }
   if (
     curatedExternalFormalChallengeSelection.execution.candidatesTested > 0 &&
@@ -29231,6 +29822,13 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/HIGH_VALUE_CLAIM_GATE.md`,
     `${root}/HIGH_VALUE_CLAIM_GATE.json`,
     `${root}/REJECTED_NO_ORACLE_CLAIMS.md`,
+    `${root}/SOFT_EXTERNAL_CLAIM_AUTOPSY.md`,
+    `${root}/SOFT_CLAIM_FAILURE_MATRIX.json`,
+    `${root}/SHARP_FALSIFIER_GATE.md`,
+    `${root}/SHARP_FALSIFIER_GATE.json`,
+    `${root}/REJECTED_SOFT_CLAIMS.md`,
+    `${root}/SHARP_FALSIFIER_CLAIM_SOURCES.md`,
+    `${root}/SHARP_FALSIFIER_CLAIMS.json`,
     `${root}/HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md`,
     `${root}/DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md`,
     `${root}/CLAIM_OBJECT_MATCHES.md`,
@@ -29243,6 +29841,8 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/HIGH_VALUE_CLAIM_ATTACK_RESULTS.json`,
     `${root}/HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.md`,
     `${root}/HIGH_VALUE_EXTERNAL_CLAIM_EXECUTION_RESULTS.json`,
+    `${root}/SHARP_FALSIFIER_EXECUTION_RESULTS.md`,
+    `${root}/SHARP_FALSIFIER_EXECUTION_RESULTS.json`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
@@ -31286,6 +31886,91 @@ function externalClaimSourceHarvestMarkdown(
   ].join("\n");
 }
 
+function softExternalClaimAutopsyMarkdown(
+  report: SoftExternalClaimAutopsyReport,
+): string {
+  return [
+    "# Soft External Claim Autopsy",
+    "",
+    `Claims analyzed: ${report.claimsAnalyzed}.`,
+    `Prior top-3 executions analyzed: ${report.priorTop3ExecutionsAnalyzed}.`,
+    `Soft falsifier claims: ${report.softFalsifierClaims}.`,
+    `Standard or trivial witness claims: ${report.standardOrTrivialWitnessClaims}.`,
+    `Non-testable rival claims: ${report.nonTestableRivalClaims}.`,
+    `Weak object-match claims: ${report.weakObjectMatchClaims}.`,
+    "",
+    "| Claim | Prior top-3 | Prior result | Falsifier soft | Witness standard | Rival testable | Object weak | Why no witness/refutation |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.entries.map(
+      (entry) =>
+        `| ${entry.claimId} | ${String(entry.priorTop3Executed)} | ${entry.priorExecutionClassification} | ${String(entry.falsifierTooSoft)} | ${String(entry.witnessTypeStandardOrTrivial)} | ${String(entry.rivalActuallyTestable)} | ${String(entry.objectMatchWeak)} | ${entry.whyNoWitnessOrRefutationWasFound.replaceAll("|", "/")} |`,
+    ),
+    "",
+    "This autopsy explains why broad external-claim gates were insufficient. It does not create InsightCandidates or DiscoveryCandidates.",
+  ].join("\n");
+}
+
+function sharpFalsifierGateMarkdown(report: SharpFalsifierGateReport): string {
+  return [
+    "# Sharp Falsifier Gate",
+    "",
+    `Claims evaluated: ${report.claimsEvaluated}.`,
+    `Accepted claims: ${report.acceptedClaims}.`,
+    `Rejected claims: ${report.rejectedClaims}.`,
+    `Top-3 selected for execution: ${report.top3Selected}.`,
+    "",
+    "| Claim | Match | Accepted | Score | Signal kind | Falsifier | Rejections |",
+    "| --- | --- | --- | ---: | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.claimId} | ${decision.matchId || "none"} | ${String(decision.accepted)} | ${decision.score} | ${decision.signalKind} | ${decision.explicitFalsifier.replaceAll("|", "/")} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+    ),
+    "",
+    "A claim may enter execution only when the falsifier/refutation path is explicit before execution and bound to a concrete replayable object.",
+  ].join("\n");
+}
+
+function rejectedSoftClaimsMarkdown(report: SharpFalsifierGateReport): string {
+  return [
+    "# Rejected Soft Claims",
+    "",
+    `Rejected claims: ${report.rejectedClaims}.`,
+    "",
+    ...report.rejected.flatMap((decision) => [
+      `## ${decision.claimId}`,
+      "",
+      `Match: ${decision.matchId || "none"}.`,
+      `Signal kind: ${decision.signalKind}.`,
+      `Rejected because: ${decision.rejectionReasons.join(", ") || "unknown"}.`,
+      `Expected witness/refutation: ${decision.expectedWitnessOrRefutationType}`,
+      `Rival mechanism: ${decision.rivalMechanism}`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function sharpFalsifierClaimSourcesMarkdown(
+  report: SharpFalsifierClaimSourcesReport,
+): string {
+  return [
+    "# Sharp Falsifier Claim Sources",
+    "",
+    `Claims extracted: ${report.claimsExtracted}.`,
+    `Accepted through sharp-falsifier gate: ${report.acceptedClaims}.`,
+    `Rejected by sharp-falsifier gate: ${report.rejectedClaims}.`,
+    `Source classes represented: ${report.sourceClassesRepresented.join(", ") || "none"}.`,
+    "",
+    "| Claim | Source class | Domain | Object | Falsifier | Witness/refutation |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.accepted.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.sourceClass} | ${claim.domain} | ${claim.concreteObjectOrFileId} | ${claim.falsifier.replaceAll("|", "/")} | ${claim.expectedWitnessOrRefutationType.replaceAll("|", "/")} |`,
+    ),
+    "",
+    "Accepted claims are still only attack targets. They do not become InsightCandidates unless execution finds a valid, nonstandard, rival-scoping, replayable witness or refutation.",
+  ].join("\n");
+}
+
 function externalFormalClaimSourcesMarkdown(
   report: ExternalFormalClaimSourceReport,
 ): string {
@@ -31514,6 +32199,28 @@ function highValueClaimAttackResultsMarkdown(
       (result) =>
         `| ${result.matchId} | ${result.classification} | ${String(result.witnessOrCounterexampleExtraction.extracted)} | ${String(result.validation.valid)} | ${String(result.validation.nonstandard)} | ${String(result.rivalScopingCheck.scopedOrWeakened)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} |`,
     ),
+  ].join("\n");
+}
+
+function sharpFalsifierExecutionResultsMarkdown(
+  report: ExternalClaimAttackExecutionReport,
+): string {
+  return [
+    "# Sharp Falsifier Execution Results",
+    "",
+    `Top-3 executed: ${report.top3Executed}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Checked refutations found: ${report.checkedRefutationsFound}.`,
+    `Nonstandard witnesses found: ${report.nonstandardWitnessesFound}.`,
+    "",
+    "| Match | Classification | Extracted | Valid | Nonstandard | Rival scoped | Known nonfatal | Replay |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.matchId} | ${result.classification} | ${String(result.witnessOrCounterexampleExtraction.extracted)} | ${String(result.validation.valid)} | ${String(result.validation.nonstandard)} | ${String(result.rivalScopingCheck.scopedOrWeakened)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} |`,
+    ),
+    "",
+    "These are the only executed sharp-falsifier claim attacks for this run.",
   ].join("\n");
 }
 

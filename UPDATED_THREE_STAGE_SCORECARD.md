@@ -1,7 +1,7 @@
 # Updated Three-Stage Scorecard
 
-| Stage | Name                            | Previous | Updated | 100? | Exact blocker                                 |
-| ----: | ------------------------------- | -------: | ------: | ---- | --------------------------------------------- |
-|     1 | Unbreakable Validator           |       98 |      99 | no   | fresh_workspace_public_replay_not_closed      |
-|     2 | Autonomous Synthesizer          |       84 |      86 | no   | InsightCandidate_packaged_but_not_promoted    |
-|     3 | Structural Understanding Engine |       96 |      97 | no   | strategy_memory_needs_public_manifest_closure |
+| Stage | Name                            | Previous | Updated | 100? | Exact blocker                                       |
+| ----: | ------------------------------- | -------: | ------: | ---- | --------------------------------------------------- |
+|     1 | Unbreakable Validator           |       99 |      99 | no   | public_raw_replay_blocked_by_missing_task_manifests |
+|     2 | Autonomous Synthesizer          |       86 |      86 | no   | no_discovery_candidate_or_fund_candidate_draft      |
+|     3 | Structural Understanding Engine |       97 |      98 | no   | blocker_root_cause_is_now_precisely_manifest_bound  |

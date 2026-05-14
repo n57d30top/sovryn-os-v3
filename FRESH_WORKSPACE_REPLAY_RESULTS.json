@@ -1,0 +1,35 @@
+{
+  "candidateId": "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+  "status": "replay_blocked",
+  "freshWorkspacePath": ".sovryn/discovery-daemon/insight-temporal-replay-repair/fresh-workspace",
+  "priorInternalResult": {
+    "supportedTasks": 4,
+    "testedTasks": 5,
+    "candidateMetric": 0.782,
+    "holdoutMetric": 0.694,
+    "randomVsHoldoutDelta": 0.088
+  },
+  "steps": [
+    {
+      "step": "reload public data",
+      "status": "blocked",
+      "evidence": "no concrete task/data IDs or raw-data receipts are bound"
+    },
+    {
+      "step": "reconstruct splits from manifests",
+      "status": "blocked",
+      "evidence": "5/5 manifests are blocking"
+    },
+    {
+      "step": "rerun baselines and holdouts",
+      "status": "blocked",
+      "evidence": "baseline/holdout rerun requires raw rows, target schema, and split rows"
+    },
+    {
+      "step": "rerun recurrence and negative controls",
+      "status": "blocked",
+      "evidence": "recurrence cannot be independently recomputed from source-family URLs"
+    }
+  ],
+  "comparisonWithPrior": "Prior Product-package recurrence remains recorded, but public fresh-workspace replay did not produce an independent measurement."
+}

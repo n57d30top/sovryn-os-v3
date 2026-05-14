@@ -1,3 +1,3 @@
 # Next Action
 
-Either acquire concrete public task manifests with documented time/entity groups for the same mechanism or downgrade this candidate permanently before searching adjacent benchmark-fragility claims.
+Acquire or construct concrete public task manifests for this same temporal recurrence claim before any further promotion attempt; otherwise permanently downgrade the candidate and search adjacent benchmark-fragility claims with concrete task IDs from birth.

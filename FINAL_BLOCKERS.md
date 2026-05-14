@@ -1,5 +1,5 @@
 # Final Blockers
 
-INSIGHT-BENCH-TEMPORAL-RECURRENCE-001 survives as a weakened internal InsightCandidate, but DiscoveryCandidate promotion is blocked by incomplete fresh-workspace public replay and weak externally documented group/time/entity manifests.
+Public replay repair remains blocked because the current candidate evidence cites public source-family URLs but does not bind concrete public task IDs, raw data receipts, group keys, time keys, entity keys, or deterministic split manifests for each supporting task.
 
-The candidate is not killed as useless, but it is not discovery-scored. No fake Fund was created.
+No fake Fund was created. The candidate remains below DiscoveryCandidate readiness.

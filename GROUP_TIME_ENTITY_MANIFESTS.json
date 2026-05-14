@@ -1,0 +1,92 @@
+[
+  {
+    "taskRef": "OpenML temporal task family A",
+    "sourceUrl": "https://www.openml.org/search?type=task",
+    "sourceReceiptHash": "d2070d8e90a04293e5327209e88c3ad6b3bd6b25f98608fa66e7ee8b63ef3695",
+    "manifestStatus": "blocking",
+    "groupKeyDefinition": null,
+    "timeKeyDefinition": null,
+    "entityKeyDefinition": null,
+    "splitConstruction": "not reconstructible from current public evidence because the task ref is family-level or protocol-level rather than a concrete object",
+    "leakageExclusions": [
+      "cannot verify entity leakage exclusion without entity key",
+      "cannot verify temporal leakage exclusion without time key",
+      "cannot verify source identity leakage without concrete source object IDs"
+    ],
+    "duplicateEntityOverlapCheck": "blocked: duplicate/entity overlap cannot be recomputed without raw rows or entity keys",
+    "publicDataAvailability": "public_source_family_only",
+    "blockingReason": "public source is inspectable as a family URL, but the exact task/data object and group/time/entity fields are not externally bound"
+  },
+  {
+    "taskRef": "OpenML entity task family B",
+    "sourceUrl": "https://www.openml.org/search?type=data",
+    "sourceReceiptHash": "1dc612858df8ad8d2715ba7ca15b7027bbe9a7eec76aeb14ef4ee07c7c05ffbb",
+    "manifestStatus": "blocking",
+    "groupKeyDefinition": null,
+    "timeKeyDefinition": null,
+    "entityKeyDefinition": null,
+    "splitConstruction": "not reconstructible from current public evidence because the task ref is family-level or protocol-level rather than a concrete object",
+    "leakageExclusions": [
+      "cannot verify entity leakage exclusion without entity key",
+      "cannot verify temporal leakage exclusion without time key",
+      "cannot verify source identity leakage without concrete source object IDs"
+    ],
+    "duplicateEntityOverlapCheck": "blocked: duplicate/entity overlap cannot be recomputed without raw rows or entity keys",
+    "publicDataAvailability": "public_source_family_only",
+    "blockingReason": "public source is inspectable as a family URL, but the exact task/data object and group/time/entity fields are not externally bound"
+  },
+  {
+    "taskRef": "UCI-style time-indexed benchmark C",
+    "sourceUrl": "https://archive.ics.uci.edu/",
+    "sourceReceiptHash": "e5491bf119fe0f067d6882a0ae321fac58ececd9dc6a3d778cc4378e0e8a4ae6",
+    "manifestStatus": "blocking",
+    "groupKeyDefinition": null,
+    "timeKeyDefinition": null,
+    "entityKeyDefinition": null,
+    "splitConstruction": "not reconstructible from current public evidence because the task ref is family-level or protocol-level rather than a concrete object",
+    "leakageExclusions": [
+      "cannot verify entity leakage exclusion without entity key",
+      "cannot verify temporal leakage exclusion without time key",
+      "cannot verify source identity leakage without concrete source object IDs"
+    ],
+    "duplicateEntityOverlapCheck": "blocked: duplicate/entity overlap cannot be recomputed without raw rows or entity keys",
+    "publicDataAvailability": "public_source_family_only",
+    "blockingReason": "public source is inspectable as a family URL, but the exact task/data object and group/time/entity fields are not externally bound"
+  },
+  {
+    "taskRef": "OpenML repeated task family D",
+    "sourceUrl": "https://www.openml.org/search?type=task",
+    "sourceReceiptHash": "15b4cbb066424c0d2deccfd5a1dfddf02d680eb50040e05da8799b82249ed1d5",
+    "manifestStatus": "blocking",
+    "groupKeyDefinition": null,
+    "timeKeyDefinition": null,
+    "entityKeyDefinition": null,
+    "splitConstruction": "not reconstructible from current public evidence because the task ref is family-level or protocol-level rather than a concrete object",
+    "leakageExclusions": [
+      "cannot verify entity leakage exclusion without entity key",
+      "cannot verify temporal leakage exclusion without time key",
+      "cannot verify source identity leakage without concrete source object IDs"
+    ],
+    "duplicateEntityOverlapCheck": "blocked: duplicate/entity overlap cannot be recomputed without raw rows or entity keys",
+    "publicDataAvailability": "public_source_family_only",
+    "blockingReason": "public source is inspectable as a family URL, but the exact task/data object and group/time/entity fields are not externally bound"
+  },
+  {
+    "taskRef": "Public protocol holdout family E",
+    "sourceUrl": "https://www.openml.org/search?type=task",
+    "sourceReceiptHash": "af66ab52ab07eb975cd9bd4323faae74f6ff7fcc6b98aafe47dbc7fcc52ad669",
+    "manifestStatus": "blocking",
+    "groupKeyDefinition": null,
+    "timeKeyDefinition": null,
+    "entityKeyDefinition": null,
+    "splitConstruction": "not reconstructible from current public evidence because the task ref is family-level or protocol-level rather than a concrete object",
+    "leakageExclusions": [
+      "cannot verify entity leakage exclusion without entity key",
+      "cannot verify temporal leakage exclusion without time key",
+      "cannot verify source identity leakage without concrete source object IDs"
+    ],
+    "duplicateEntityOverlapCheck": "blocked: duplicate/entity overlap cannot be recomputed without raw rows or entity keys",
+    "publicDataAvailability": "public_source_family_only",
+    "blockingReason": "public source is inspectable as a family URL, but the exact task/data object and group/time/entity fields are not externally bound"
+  }
+]

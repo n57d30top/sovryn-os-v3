@@ -1,0 +1,229 @@
+{
+  "candidateId": "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001",
+  "replayGaps": [
+    {
+      "taskRef": "OpenML temporal task family A",
+      "gap": "no concrete public task ID or dataset ID"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "gap": "no raw-data receipt/hash"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "gap": "no executable public data loading command"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "gap": "no deterministic split manifest"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "gap": "no concrete public task ID or dataset ID"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "gap": "no raw-data receipt/hash"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "gap": "no executable public data loading command"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "gap": "no deterministic split manifest"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "gap": "no concrete public task ID or dataset ID"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "gap": "no raw-data receipt/hash"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "gap": "no executable public data loading command"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "gap": "no deterministic split manifest"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "gap": "no concrete public task ID or dataset ID"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "gap": "no raw-data receipt/hash"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "gap": "no executable public data loading command"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "gap": "no deterministic split manifest"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "gap": "no concrete public task ID or dataset ID"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "gap": "no raw-data receipt/hash"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "gap": "no executable public data loading command"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "gap": "no deterministic split manifest"
+    }
+  ],
+  "missingManifests": [
+    {
+      "taskRef": "OpenML temporal task family A",
+      "manifest": "group key manifest"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "manifest": "time key manifest"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "manifest": "entity key manifest"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "manifest": "train/holdout split rows"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "manifest": "target/feature schema"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "manifest": "group key manifest"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "manifest": "time key manifest"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "manifest": "entity key manifest"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "manifest": "train/holdout split rows"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "manifest": "target/feature schema"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "manifest": "group key manifest"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "manifest": "time key manifest"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "manifest": "entity key manifest"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "manifest": "train/holdout split rows"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "manifest": "target/feature schema"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "manifest": "group key manifest"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "manifest": "time key manifest"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "manifest": "entity key manifest"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "manifest": "train/holdout split rows"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "manifest": "target/feature schema"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "manifest": "group key manifest"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "manifest": "time key manifest"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "manifest": "entity key manifest"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "manifest": "train/holdout split rows"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "manifest": "target/feature schema"
+    }
+  ],
+  "nonPublicOrWeakAssumptions": [
+    {
+      "taskRef": "OpenML temporal task family A",
+      "assumption": "source-family URL is not enough to reconstruct the exact supporting task"
+    },
+    {
+      "taskRef": "OpenML temporal task family A",
+      "assumption": "bounded Product package replay cannot substitute for fresh public-data replay"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "assumption": "source-family URL is not enough to reconstruct the exact supporting task"
+    },
+    {
+      "taskRef": "OpenML entity task family B",
+      "assumption": "bounded Product package replay cannot substitute for fresh public-data replay"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "assumption": "source-family URL is not enough to reconstruct the exact supporting task"
+    },
+    {
+      "taskRef": "UCI-style time-indexed benchmark C",
+      "assumption": "bounded Product package replay cannot substitute for fresh public-data replay"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "assumption": "source-family URL is not enough to reconstruct the exact supporting task"
+    },
+    {
+      "taskRef": "OpenML repeated task family D",
+      "assumption": "bounded Product package replay cannot substitute for fresh public-data replay"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "assumption": "source-family URL is not enough to reconstruct the exact supporting task"
+    },
+    {
+      "taskRef": "Public protocol holdout family E",
+      "assumption": "bounded Product package replay cannot substitute for fresh public-data replay"
+    }
+  ]
+}

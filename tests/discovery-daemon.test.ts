@@ -71,6 +71,7 @@ import { ThreeStageEpistemicCampaignService } from "../src/core/discovery-daemon
 import { StructuralStrategyMemoryGateService } from "../src/core/discovery-daemon/structural-strategy-memory-gate-service.js";
 import { MemoryGatedBenchmarkUpgradeService } from "../src/core/discovery-daemon/memory-gated-benchmark-upgrade-service.js";
 import { InsightTemporalRecurrencePromotionService } from "../src/core/discovery-daemon/insight-temporal-recurrence-promotion-service.js";
+import { InsightTemporalReplayRepairService } from "../src/core/discovery-daemon/insight-temporal-replay-repair-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -138,6 +139,7 @@ const commands = [
   "strategy-memory-gate",
   "memory-gated-benchmark-upgrade",
   "insight-temporal-recurrence-promotion",
+  "insight-temporal-replay-repair",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8771,6 +8773,84 @@ test("insight temporal recurrence promotion writes required artifacts and review
       "CLAIM_EVIDENCE_BINDINGS.json",
     ),
   );
+});
+
+test("insight temporal replay repair blocks promotion when public manifests are missing", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.memoryGatedBenchmarkUpgrade();
+  await service.insightTemporalRecurrencePromotion();
+
+  const report = await service.insightTemporalReplayRepair();
+
+  assert.equal(report.kind, "insight_temporal_replay_repair");
+  assert.equal(report.candidateId, "INSIGHT-BENCH-TEMPORAL-RECURRENCE-001");
+  assert.equal(report.publicReplayStatus, "replay_blocked");
+  assert.equal(report.manifestCompleteness.complete, false);
+  assert.equal(report.manifestCompleteness.blockingManifests > 0, true);
+  assert.equal(report.candidateStatus, "not_promoted_replay_blocked");
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.fundCandidateDraftCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.equal(
+    report.stageScores.find((stage) => stage.stage === 3)?.updatedScore,
+    98,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+
+  const cli = await executeCli(
+    ["discover-daemon", "insight-temporal-replay-repair", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "insight_temporal_replay_repair",
+  );
+});
+
+test("insight temporal replay repair writes public replay manifests and gap artifacts", async () => {
+  const root = await tempRoot();
+  await new MemoryGatedBenchmarkUpgradeService(root).run();
+  await new InsightTemporalRecurrencePromotionService(root).run();
+  const report = await new InsightTemporalReplayRepairService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 18, true);
+  for (const artifact of [
+    "TEMPORAL_RECURRENCE_PUBLIC_REPLAY_INVENTORY.md",
+    "TEMPORAL_RECURRENCE_REPLAY_GAPS.json",
+    "GROUP_TIME_ENTITY_MANIFESTS.md",
+    "GROUP_TIME_ENTITY_MANIFESTS.json",
+    "PUBLIC_SOURCE_RECEIPTS.json",
+    "FRESH_WORKSPACE_REPLAY_REPORT.md",
+    "FRESH_WORKSPACE_REPLAY_RESULTS.json",
+    "RIVAL_CLOSURE_REPAIR_REPORT.md",
+    "BASELINE_AND_NEGATIVE_CONTROL_RESULTS.md",
+    "PROMOTION_REEVALUATION_DECISION.md",
+    "EXTERNAL_REVIEW_PACKAGE_STATUS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "insight-temporal-replay-repair", artifact),
+    );
+  }
+  const replay = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "insight-temporal-replay-repair",
+        "FRESH_WORKSPACE_REPLAY_RESULTS.json",
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(replay.status, "replay_blocked");
 });
 
 test("mechanism-first generator run blocks pressure-weak outputs before hard-seed birth", async () => {

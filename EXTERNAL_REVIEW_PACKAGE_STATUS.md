@@ -1,10 +1,8 @@
 # External Review Package Status
 
-Status: public_safe_with_major_caveats.
+Status: not upgraded.
 
-Review package root: .sovryn/discovery-daemon/insight-temporal-recurrence-promotion/external-review-package/INSIGHT-BENCH-TEMPORAL-RECURRENCE-001
-
-Tracked review package copy: INSIGHT_TEMPORAL_REVIEW_PACKAGE/
+The prior public-safe review package remains inspectable with major caveats, but this repair did not close public replay or group/time/entity manifest blockers.
 
 DiscoveryCandidate created: false.
 FundCandidateDraft created: false.

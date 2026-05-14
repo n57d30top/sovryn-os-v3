@@ -58,6 +58,10 @@ import {
   InsightTemporalRecurrencePromotionService,
   type InsightTemporalPromotionReport,
 } from "./insight-temporal-recurrence-promotion-service.js";
+import {
+  InsightTemporalReplayRepairService,
+  type TemporalReplayRepairReport,
+} from "./insight-temporal-replay-repair-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65952,6 +65956,11 @@ export class AutonomousDiscoveryDaemonService {
   async insightTemporalRecurrencePromotion(): Promise<InsightTemporalPromotionReport> {
     await this.ensureInitialized();
     return new InsightTemporalRecurrencePromotionService(this.root).run();
+  }
+
+  async insightTemporalReplayRepair(): Promise<TemporalReplayRepairReport> {
+    await this.ensureInitialized();
+    return new InsightTemporalReplayRepairService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

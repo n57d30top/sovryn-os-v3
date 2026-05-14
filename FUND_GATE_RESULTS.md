@@ -5,8 +5,8 @@ Status: continue_searching.
 
 Failed gates:
 
+- fresh_workspace_public_data_replay
+- complete_group_time_entity_manifests
+- rival_closure_complete
 - discovery_candidate_present
 - fund_candidate_draft_present
-- kill_week_not_survived_cleanly
-- fresh_workspace_replay_incomplete
-- external_group_time_entity_manifest_weak

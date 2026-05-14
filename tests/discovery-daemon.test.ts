@@ -65,6 +65,7 @@ import {
   BenchmarkFragilityRecurrenceGauntletService,
   BenchmarkProtocolFragilityPilotService,
 } from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
+import { EightStageCompletionSprintService } from "../src/core/discovery-daemon/eight-stage-completion-sprint-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -126,6 +127,7 @@ const commands = [
   "raw-insight-gate-closure",
   "overnight-completion",
   "overnight-min-runtime",
+  "eight-stage-sprint",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -8343,6 +8345,74 @@ test("benchmark fragility recurrence gauntlet writes required artifacts", async 
     await access(
       join(root, daemonRoot, "benchmark-fragility-recurrence", artifact),
     );
+  }
+});
+
+test("eight-stage completion sprint reports stage six blocker without fake fund", async () => {
+  const root = await tempRoot();
+  await new BenchmarkProtocolFragilityPilotService(root).run();
+  await new BenchmarkFragilityRecurrenceGauntletService(root).run();
+
+  const report = await new EightStageCompletionSprintService(root).run();
+
+  assert.equal(report.kind, "eight_stage_100_completion_sprint");
+  assert.equal(report.fundFound, false);
+  assert.equal(report.discoveryCandidatesCreated, 0);
+  assert.equal(report.fundCandidateDraftsCreated, 0);
+  assert.equal(
+    report.stageScores.find((stage) => stage.stage === 6)?.score,
+    76,
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "eight-stage-sprint", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "eight_stage_100_completion_sprint",
+  );
+});
+
+test("eight-stage completion sprint writes required artifacts", async () => {
+  const root = await tempRoot();
+  const report = await new EightStageCompletionSprintService(root).run();
+
+  assert.equal(report.artifactRefs.length >= 25, true);
+  for (const artifact of [
+    "EIGHT_STAGE_BASELINE_AUDIT.md",
+    "STAGE_COMPLETION_MATRIX.md",
+    "STAGE_BLOCKERS.md",
+    "STAGE_1_100_REPORT.md",
+    "STAGE_2_100_REPORT.md",
+    "STAGE_3_100_REPORT.md",
+    "STAGE_4_100_REPORT.md",
+    "STAGE_5_100_REPORT.md",
+    "DISCOVERY_LOOP_ANALYSIS.md",
+    "STRATEGY_RESET_DECISION.md",
+    "FORMAL_REFUTATION_TRACK_REPORT.md",
+    "BENCHMARK_FRAGILITY_TRACK_REPORT.md",
+    "SOFTWARE_DATASET_RELIABILITY_TRACK_REPORT.md",
+    "MIXED_DISCOVERY_SELECTION.md",
+    "DISCOVERY_CANDIDATE_GAUNTLET.md",
+    "CANDIDATE_CLASSIFICATION_REPORT.md",
+    "FUND_GATE_RESULTS.md",
+    "RESEARCH_STRATEGY_100_REPORT.md",
+    "KNOWLEDGE_ENGINE_100_REPORT.md",
+    "NEXT_4_WEEK_RESEARCH_PROGRAM.md",
+    "EIGHT_STAGE_FINAL_AUDIT.md",
+    "FINAL_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "FINAL_COMPLETION_DECISION.md",
+    "PROMPT_TO_ARTIFACT_CHECKLIST.md",
+  ]) {
+    await access(join(root, daemonRoot, "eight-stage-sprint", artifact));
   }
 });
 

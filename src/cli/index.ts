@@ -235,6 +235,7 @@ Commands:
   sovryn discover-daemon raw-insight-gate-closure [--json]
   sovryn discover-daemon overnight-completion [--json]
   sovryn discover-daemon overnight-min-runtime [--min-runtime-ms N] [--runtime-limit-ms N] [--heartbeat-ms N] [--generator-variant-limit N] [--stagnation-iteration-limit N] [--json]
+  sovryn discover-daemon eight-stage-sprint [--json]
   sovryn discover-daemon cycle [--mode hard-seed-only] [--json]
   sovryn discover-daemon candidate-status [--json]
   sovryn discover-daemon graveyard [--json]
@@ -1997,6 +1998,8 @@ async function discoverDaemonCommand(
           ? flagInt(parsed.flags, "--generator-variant-limit", 5)
           : undefined,
       });
+    case "eight-stage-sprint":
+      return service.eightStageSprint();
     case "cycle":
       return service.cycle({
         mode:

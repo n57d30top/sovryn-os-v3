@@ -34,6 +34,10 @@ import {
   type BenchmarkFragilityClosureReport,
   type BenchmarkFragilityPilotReport,
 } from "./benchmark-fragility-pilot-service.js";
+import {
+  EightStageCompletionSprintService,
+  type EightStageCompletionSprintReport,
+} from "./eight-stage-completion-sprint-service.js";
 
 export type DiscoveryDaemonInternalStatus =
   | "no_signal"
@@ -65898,6 +65902,11 @@ export class AutonomousDiscoveryDaemonService {
       this.root,
       options,
     ).run();
+  }
+
+  async eightStageSprint(): Promise<EightStageCompletionSprintReport> {
+    await this.ensureInitialized();
+    return new EightStageCompletionSprintService(this.root).run();
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

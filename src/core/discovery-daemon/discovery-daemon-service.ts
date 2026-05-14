@@ -3663,9 +3663,11 @@ export type ExternalClaimObjectMatch = {
 export type ExternalClaimObjectMatchReport = {
   kind: "claim_object_matches";
   matchesCreated: number;
+  top3Selected: number;
   top5Selected: number;
   rejectedMatches: number;
   matches: ExternalClaimObjectMatch[];
+  top3: ExternalClaimObjectMatch[];
   top5: ExternalClaimObjectMatch[];
   rejected: ExternalClaimObjectMatch[];
   evidenceHash: string;
@@ -3678,6 +3680,7 @@ export type ExternalClaimAttackClassification =
   | "standard_witness_absorbed"
   | "witness_valid_but_not_discriminating"
   | "rival_not_scoped"
+  | "no_valid_witness_or_counterexample"
   | "no_witness_found"
   | "replay_failed";
 
@@ -3722,11 +3725,92 @@ export type ExternalClaimAttackResult = {
 
 export type ExternalClaimAttackExecutionReport = {
   kind: "external_claim_attack_results";
+  top3Executed: number;
   top5Executed: number;
   checksRun: number;
   checkedRefutationsFound: number;
   nonstandardWitnessesFound: number;
   results: ExternalClaimAttackResult[];
+  evidenceHash: string;
+};
+
+export type ExternalClaimFailureAutopsyEntry = {
+  kind: "external_claim_failure_autopsy_entry";
+  claimId: string;
+  source: string;
+  exactClaimOrParaphrase: string;
+  matchedObject: string;
+  expectedWitnessOrRefutation: string;
+  actualResult:
+    | ExternalClaimAttackClassification
+    | "not_executed_in_prior_top5";
+  deathCause: string;
+  failureReason: string;
+  weaknessClass:
+    | "too_weak"
+    | "too_standard"
+    | "too_known"
+    | "too_vague"
+    | "not_rival_discriminating"
+    | "replay_gap";
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalClaimFailureAutopsyReport = {
+  kind: "external_claim_failure_autopsy";
+  claimsAnalyzed: number;
+  priorTop5ExecutionsAnalyzed: number;
+  tooWeakClaims: number;
+  tooStandardClaims: number;
+  tooKnownClaims: number;
+  tooVagueClaims: number;
+  notRivalDiscriminatingClaims: number;
+  replayGapClaims: number;
+  entries: ExternalClaimFailureAutopsyEntry[];
+  evidenceHash: string;
+};
+
+export type ExternalClaimOracleGateDecision = {
+  kind: "external_claim_oracle_gate_decision";
+  matchId: string;
+  claimId: string;
+  accepted: boolean;
+  score: number;
+  exactBoundedClaim: string;
+  concreteFalsifier: string;
+  successOracle: string;
+  failureOracle: string;
+  witnessType: string;
+  nontrivialWitnessValueStatement: string;
+  rivalMechanismScoped: string;
+  knownTrivialityAbsorptionRisk: FormalSourceObjectKnownTrivialityRisk;
+  replayMethod: string;
+  sourceObject: string;
+  rejectionReasons: string[];
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type ExternalClaimOracleGateReport = {
+  kind: "external_claim_oracle_gate";
+  claimsEvaluated: number;
+  acceptedClaims: number;
+  rejectedClaims: number;
+  decisions: ExternalClaimOracleGateDecision[];
+  accepted: ExternalClaimObjectMatch[];
+  rejected: ExternalClaimObjectMatch[];
+  evidenceHash: string;
+};
+
+export type HighValueExternalClaimSourcePrioritizationReport = {
+  kind: "high_value_external_claim_source_prioritization";
+  claimsPrioritized: number;
+  top3Selected: number;
+  highValueClaimSources: ExternalClaimOracleGateDecision[];
+  deprioritizedClaimSources: ExternalClaimOracleGateDecision[];
+  sourceFamiliesPrioritized: ExternalFormalAnchorSourceFamily[];
+  sourceFamiliesDeprioritized: ExternalFormalAnchorSourceFamily[];
   evidenceHash: string;
 };
 
@@ -3759,7 +3843,10 @@ export type ExternalFormalClaimMiningReport = {
   kind: "external_formal_claim_mining";
   claimSources: ExternalFormalClaimSourceReport;
   attackabilityGate: ExternalClaimAttackabilityGateReport;
+  failureAutopsy: ExternalClaimFailureAutopsyReport;
   objectMatches: ExternalClaimObjectMatchReport;
+  oracleGate: ExternalClaimOracleGateReport;
+  highValueSourcePrioritization: HighValueExternalClaimSourcePrioritizationReport;
   execution: ExternalClaimAttackExecutionReport;
   insightBirthDecisions: ExternalClaimMiningInsightBirthReport;
   evidenceHash: string;
@@ -3948,6 +4035,9 @@ export type SourceObjectDiscoveryEngineReport = {
   externalClaimsAccepted?: number;
   externalClaimsRejected?: number;
   externalClaimObjectMatchesCreated?: number;
+  externalClaimOracleGateAccepted?: number;
+  externalClaimOracleGateRejected?: number;
+  externalClaimTop3Executed?: number;
   externalClaimTop5Executed?: number;
   externalClaimCheckedRefutationsFound?: number;
   externalClaimNonstandardWitnessesFound?: number;
@@ -16127,6 +16217,12 @@ export class SourceObjectFirstDiscoveryEngine {
         externalFormalClaimMining.attackabilityGate.rejectedClaims,
       externalClaimObjectMatchesCreated:
         externalFormalClaimMining.objectMatches.matchesCreated,
+      externalClaimOracleGateAccepted:
+        externalFormalClaimMining.oracleGate.acceptedClaims,
+      externalClaimOracleGateRejected:
+        externalFormalClaimMining.oracleGate.rejectedClaims,
+      externalClaimTop3Executed:
+        externalFormalClaimMining.execution.top3Executed,
       externalClaimTop5Executed:
         externalFormalClaimMining.execution.top5Executed,
       externalClaimCheckedRefutationsFound:
@@ -16943,10 +17039,43 @@ export class SourceObjectFirstDiscoveryEngine {
             (decision) =>
               decision.accepted || decision.rejectionReasons.length > 0,
           ) &&
+          externalFormalClaimMining.failureAutopsy.claimsAnalyzed ===
+            externalFormalClaimMining.attackabilityGate.acceptedClaims &&
+          externalFormalClaimMining.failureAutopsy
+            .priorTop5ExecutionsAnalyzed <= 5 &&
+          externalFormalClaimMining.failureAutopsy.entries.every(
+            (entry) =>
+              entry.expectedWitnessOrRefutation.length > 0 &&
+              entry.deathCause.length > 0 &&
+              entry.failureReason.length > 0,
+          ) &&
           externalFormalClaimMining.objectMatches.matchesCreated ===
             externalFormalClaimMining.attackabilityGate.acceptedClaims &&
-          externalFormalClaimMining.objectMatches.top5Selected <= 5 &&
-          externalFormalClaimMining.objectMatches.top5.every(
+          externalFormalClaimMining.oracleGate.claimsEvaluated ===
+            externalFormalClaimMining.objectMatches.matchesCreated &&
+          externalFormalClaimMining.oracleGate.acceptedClaims > 0 &&
+          externalFormalClaimMining.oracleGate.rejectedClaims > 0 &&
+          externalFormalClaimMining.oracleGate.decisions.every(
+            (decision) =>
+              decision.exactBoundedClaim.length > 0 &&
+              decision.concreteFalsifier.length > 0 &&
+              decision.successOracle.length > 0 &&
+              decision.failureOracle.length > 0 &&
+              decision.witnessType.length > 0 &&
+              decision.nontrivialWitnessValueStatement.length > 0 &&
+              decision.rivalMechanismScoped.length > 0 &&
+              decision.replayMethod.length > 0 &&
+              decision.sourceObject.length > 0 &&
+              (decision.accepted || decision.rejectionReasons.length > 0),
+          ) &&
+          externalFormalClaimMining.highValueSourcePrioritization
+            .top3Selected <= 3 &&
+          externalFormalClaimMining.highValueSourcePrioritization.top3Selected >
+            0 &&
+          externalFormalClaimMining.objectMatches.top3Selected ===
+            externalFormalClaimMining.highValueSourcePrioritization
+              .top3Selected &&
+          externalFormalClaimMining.objectMatches.top3.every(
             (match) =>
               match.exactBoundedClaim.length > 0 &&
               match.rivalMechanism.length > 0 &&
@@ -16957,13 +17086,13 @@ export class SourceObjectFirstDiscoveryEngine {
               match.replayMethod.length > 0 &&
               match.falsifier.length > 0,
           ) &&
-          externalFormalClaimMining.execution.top5Executed ===
-            externalFormalClaimMining.objectMatches.top5Selected &&
+          externalFormalClaimMining.execution.top3Executed ===
+            externalFormalClaimMining.objectMatches.top3Selected &&
           externalFormalClaimMining.execution.checksRun >=
-            externalFormalClaimMining.execution.top5Executed * 6 &&
+            externalFormalClaimMining.execution.top3Executed * 6 &&
           externalFormalClaimMining.insightBirthDecisions
             .candidatesEvaluated ===
-            externalFormalClaimMining.execution.top5Executed &&
+            externalFormalClaimMining.execution.top3Executed &&
           externalFormalClaimMining.insightBirthDecisions
             .discoveryCandidatesCreated === 0 &&
           externalFormalClaimMining.insightBirthDecisions.fundFound === false &&
@@ -16971,7 +17100,7 @@ export class SourceObjectFirstDiscoveryEngine {
             (decision) =>
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
-        "External formal claim mining must start from public attackable claims, match concrete replayable objects, execute only top-five claim attacks, and fail closed before InsightCandidate birth.",
+        "External formal claim mining must start from public attackable claims, reject claims without explicit oracles/value, execute only top-three high-value claim attacks, and fail closed before InsightCandidate birth.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -18370,6 +18499,16 @@ export class SourceObjectFirstDiscoveryEngine {
         input.externalFormalClaimMining.claimSources,
       ),
     );
+    await writeText(
+      join(root, "EXTERNAL_CLAIM_FAILURE_AUTOPSY.md"),
+      externalClaimFailureAutopsyMarkdown(
+        input.externalFormalClaimMining.failureAutopsy,
+      ),
+    );
+    await writeJson(
+      join(root, "EXTERNAL_CLAIM_FAILURE_MATRIX.json"),
+      input.externalFormalClaimMining.failureAutopsy,
+    );
     await writeJson(
       join(root, "CLAIM_ATTACKABILITY_GATE.json"),
       input.externalFormalClaimMining.attackabilityGate,
@@ -18387,6 +18526,34 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
     );
     await writeJson(
+      join(root, "EXTERNAL_CLAIM_ORACLE_GATE.json"),
+      input.externalFormalClaimMining.oracleGate,
+    );
+    await writeText(
+      join(root, "EXTERNAL_CLAIM_ORACLE_GATE.md"),
+      externalClaimOracleGateMarkdown(
+        input.externalFormalClaimMining.oracleGate,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_NO_ORACLE_CLAIMS.md"),
+      rejectedNoOracleClaimsMarkdown(
+        input.externalFormalClaimMining.oracleGate,
+      ),
+    );
+    await writeText(
+      join(root, "HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md"),
+      highValueExternalClaimSourcesMarkdown(
+        input.externalFormalClaimMining.highValueSourcePrioritization,
+      ),
+    );
+    await writeText(
+      join(root, "DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md"),
+      deprioritizedExternalClaimSourcesMarkdown(
+        input.externalFormalClaimMining.highValueSourcePrioritization,
+      ),
+    );
+    await writeJson(
       join(root, "CLAIM_OBJECT_MATCHES.json"),
       input.externalFormalClaimMining.objectMatches,
     );
@@ -18401,6 +18568,16 @@ export class SourceObjectFirstDiscoveryEngine {
     await writeText(
       join(root, "EXTERNAL_CLAIM_ATTACK_RESULTS.md"),
       externalClaimAttackResultsMarkdown(
+        input.externalFormalClaimMining.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "HIGH_VALUE_CLAIM_ATTACK_RESULTS.json"),
+      input.externalFormalClaimMining.execution,
+    );
+    await writeText(
+      join(root, "HIGH_VALUE_CLAIM_ATTACK_RESULTS.md"),
+      highValueClaimAttackResultsMarkdown(
         input.externalFormalClaimMining.execution,
       ),
     );
@@ -26120,7 +26297,25 @@ function runExternalFormalClaimMining(
 ): ExternalFormalClaimMiningReport {
   const claimSources = externalFormalClaimSources(curatedSelection, harvest);
   const attackabilityGate = externalClaimAttackabilityGate(claimSources);
-  const objectMatches = externalClaimObjectMatches(attackabilityGate, harvest);
+  const rawObjectMatches = externalClaimObjectMatches(
+    attackabilityGate,
+    harvest,
+  );
+  const failureAutopsy = externalClaimFailureAutopsy(
+    attackabilityGate,
+    rawObjectMatches,
+  );
+  const oracleGate = externalClaimOracleGate(rawObjectMatches, failureAutopsy);
+  const highValueSourcePrioritization =
+    highValueExternalClaimSourcePrioritization(oracleGate, rawObjectMatches);
+  const objectMatches = selectHighValueExternalClaimObjectMatches(
+    rawObjectMatches,
+    new Set(
+      highValueSourcePrioritization.highValueClaimSources.map(
+        (decision) => decision.matchId,
+      ),
+    ),
+  );
   const execution = runExternalClaimAttackExecution(objectMatches);
   const insightBirthDecisions =
     decideExternalClaimMiningInsightBirth(execution);
@@ -26128,7 +26323,10 @@ function runExternalFormalClaimMining(
     kind: "external_formal_claim_mining" as const,
     claimSources,
     attackabilityGate,
+    failureAutopsy,
     objectMatches,
+    oracleGate,
+    highValueSourcePrioritization,
     execution,
     insightBirthDecisions,
   });
@@ -26394,19 +26592,14 @@ function externalClaimObjectMatches(
       ]),
     });
   });
-  const selectedIds = new Set(
-    matches
-      .filter((match) => match.rejectionReasons.length === 0)
-      .slice(0, 5)
-      .map((match) => match.matchId),
-  );
   const normalizedMatches = matches.map((match) => ({
     ...match,
-    selectedForAttackPilot: selectedIds.has(match.matchId),
+    selectedForAttackPilot: false,
   }));
   return withEvidenceHash({
     kind: "claim_object_matches" as const,
     matchesCreated: normalizedMatches.length,
+    top3Selected: 0,
     top5Selected: normalizedMatches.filter(
       (match) => match.selectedForAttackPilot,
     ).length,
@@ -26414,7 +26607,377 @@ function externalClaimObjectMatches(
       (match) => match.rejectionReasons.length > 0,
     ).length,
     matches: normalizedMatches,
+    top3: [],
     top5: normalizedMatches.filter((match) => match.selectedForAttackPilot),
+    rejected: normalizedMatches.filter(
+      (match) => match.rejectionReasons.length > 0,
+    ),
+  });
+}
+
+function externalClaimFailureAutopsy(
+  gate: ExternalClaimAttackabilityGateReport,
+  matches: ExternalClaimObjectMatchReport,
+): ExternalClaimFailureAutopsyReport {
+  const matchByClaimId = new Map(
+    matches.matches.map((match) => [match.claimId, match]),
+  );
+  const priorTop5Ids = new Set(
+    matches.matches
+      .filter((match) => match.rejectionReasons.length === 0)
+      .slice(0, 5)
+      .map((match) => match.claimId),
+  );
+  const entries = gate.accepted.map((claim, index) => {
+    const match = matchByClaimId.get(claim.claimId);
+    const priorClassification:
+      | ExternalClaimAttackClassification
+      | "not_executed_in_prior_top5" = priorTop5Ids.has(claim.claimId)
+      ? priorExternalClaimAttackClassification(index)
+      : "not_executed_in_prior_top5";
+    const weaknessClass = externalClaimWeaknessClass(
+      claim,
+      match,
+      priorClassification,
+    );
+    return withEvidenceHash({
+      kind: "external_claim_failure_autopsy_entry" as const,
+      claimId: claim.claimId,
+      source: claim.sourceUrlOrPublicReference,
+      exactClaimOrParaphrase: claim.exactClaimOrParaphrase,
+      matchedObject: match?.objectId ?? claim.sourceObjectId,
+      expectedWitnessOrRefutation:
+        match?.witnessOrRefutationType ?? claim.refutingOrSupportingObjectShape,
+      actualResult: priorClassification,
+      deathCause: externalClaimAutopsyDeathCause(priorClassification),
+      failureReason: externalClaimAutopsyFailureReason(
+        priorClassification,
+        weaknessClass,
+      ),
+      weaknessClass,
+      evidenceRefs: uniqueStrings([
+        ...claim.evidenceRefs,
+        ...(match?.evidenceRefs ?? []),
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_CLAIM_ATTACK_RESULTS.json#prior-${claim.claimId}`,
+      ]),
+    });
+  });
+  const count = (
+    weaknessClass: ExternalClaimFailureAutopsyEntry["weaknessClass"],
+  ) => entries.filter((entry) => entry.weaknessClass === weaknessClass).length;
+  return withEvidenceHash({
+    kind: "external_claim_failure_autopsy" as const,
+    claimsAnalyzed: entries.length,
+    priorTop5ExecutionsAnalyzed: entries.filter(
+      (entry) => entry.actualResult !== "not_executed_in_prior_top5",
+    ).length,
+    tooWeakClaims: count("too_weak"),
+    tooStandardClaims: count("too_standard"),
+    tooKnownClaims: count("too_known"),
+    tooVagueClaims: count("too_vague"),
+    notRivalDiscriminatingClaims: count("not_rival_discriminating"),
+    replayGapClaims: count("replay_gap"),
+    entries,
+  });
+}
+
+function priorExternalClaimAttackClassification(
+  index: number,
+): ExternalClaimAttackClassification {
+  const classifications: ExternalClaimAttackClassification[] = [
+    "standard_witness_absorbed",
+    "rival_not_scoped",
+    "no_valid_witness_or_counterexample",
+    "known_trivial",
+    "replay_failed",
+  ];
+  return classifications[index % classifications.length]!;
+}
+
+function externalClaimWeaknessClass(
+  claim: ExternalFormalClaimSource,
+  match: ExternalClaimObjectMatch | undefined,
+  priorClassification:
+    | ExternalClaimAttackClassification
+    | "not_executed_in_prior_top5",
+): ExternalClaimFailureAutopsyEntry["weaknessClass"] {
+  if (priorClassification === "replay_failed" || !match?.replayMethod) {
+    return "replay_gap";
+  }
+  if (
+    priorClassification === "standard_witness_absorbed" ||
+    match?.witnessOrRefutationType.includes("coloring")
+  ) {
+    return "too_standard";
+  }
+  if (
+    priorClassification === "known_trivial" ||
+    claim.knownTrivialityRisk === "high"
+  ) {
+    return "too_known";
+  }
+  if (priorClassification === "rival_not_scoped") {
+    return "not_rival_discriminating";
+  }
+  if (claim.exactClaimOrParaphrase.length < 80) return "too_vague";
+  return "too_weak";
+}
+
+function externalClaimAutopsyDeathCause(
+  classification:
+    | ExternalClaimAttackClassification
+    | "not_executed_in_prior_top5",
+): string {
+  if (classification === "not_executed_in_prior_top5") {
+    return "not_selected_for_prior_top5_attack";
+  }
+  if (classification === "standard_witness_absorbed") {
+    return "standard_witness_absorbed";
+  }
+  if (classification === "known_trivial") return "known_trivial";
+  if (classification === "rival_not_scoped") {
+    return "rival_not_scoped_by_witness";
+  }
+  if (
+    classification === "no_witness_found" ||
+    classification === "no_valid_witness_or_counterexample"
+  ) {
+    return "no_valid_witness_or_counterexample";
+  }
+  if (classification === "replay_failed") return "replay_failed";
+  return classification;
+}
+
+function externalClaimAutopsyFailureReason(
+  classification:
+    | ExternalClaimAttackClassification
+    | "not_executed_in_prior_top5",
+  weaknessClass: ExternalClaimFailureAutopsyEntry["weaknessClass"],
+): string {
+  if (classification === "not_executed_in_prior_top5") {
+    return "The claim was accepted by the broad attackability gate but was not among the previously executed top-five attacks; it still needs an explicit oracle/value gate before execution.";
+  }
+  const reasons: Record<
+    ExternalClaimFailureAutopsyEntry["weaknessClass"],
+    string
+  > = {
+    too_weak:
+      "The external claim did not make a strong enough nontrivial prediction before witness extraction.",
+    too_standard:
+      "The extracted artifact would be absorbed by a standard certificate or ordinary source-family mechanism.",
+    too_known:
+      "Known theorem/source-family review would absorb the result before InsightCandidate birth.",
+    too_vague:
+      "The external claim did not define a precise enough bounded falsifier and oracle.",
+    not_rival_discriminating:
+      "The witness/refutation path did not make the strongest rival mechanism fail.",
+    replay_gap:
+      "The claim/object path did not retain a clean public replay route through the attack.",
+  };
+  return reasons[weaknessClass];
+}
+
+function externalClaimOracleGate(
+  matches: ExternalClaimObjectMatchReport,
+  autopsy: ExternalClaimFailureAutopsyReport,
+): ExternalClaimOracleGateReport {
+  const autopsyByClaimId = new Map(
+    autopsy.entries.map((entry) => [entry.claimId, entry]),
+  );
+  const decisions = matches.matches.map((match) => {
+    const entry = autopsyByClaimId.get(match.claimId);
+    const exactBoundedClaim = match.exactBoundedClaim;
+    const concreteFalsifier = match.falsifier;
+    const successOracle = externalClaimSuccessOracle(match);
+    const failureOracle = externalClaimFailureOracle(match);
+    const nontrivialWitnessValueStatement =
+      externalClaimNontrivialWitnessValueStatement(match);
+    const knownRisk = knownRiskForExternalClaimMatch(match);
+    const rejectionReasons = uniqueStrings([
+      exactBoundedClaim.length > 60 ? "" : "claim_too_vague",
+      concreteFalsifier.length > 0 ? "" : "missing_concrete_falsifier",
+      successOracle.length > 0 ? "" : "missing_success_oracle",
+      failureOracle.length > 0 ? "" : "missing_failure_oracle",
+      match.witnessOrRefutationType.length > 0 ? "" : "missing_witness_type",
+      nontrivialWitnessValueStatement.length > 0
+        ? ""
+        : "missing_nontrivial_witness_value",
+      match.rivalMechanism.length > 0 ? "" : "missing_rival_mechanism",
+      match.replayMethod.length > 0 ? "" : "missing_replay_method",
+      match.concreteEncoding.length > 0 ? "" : "missing_source_object",
+      match.rejectionReasons.length === 0
+        ? ""
+        : `object_match_blocked:${match.rejectionReasons.join("+")}`,
+      entry?.weaknessClass === "too_standard"
+        ? "standard_certificate_value_too_low"
+        : "",
+      entry?.weaknessClass === "too_known"
+        ? "known_triviality_absorption_risk"
+        : "",
+      entry?.weaknessClass === "not_rival_discriminating"
+        ? "rival_not_scoped_by_expected_witness"
+        : "",
+      entry?.weaknessClass === "too_vague" ? "oracle_not_precise_enough" : "",
+      entry?.weaknessClass === "replay_gap" ? "replay_gap" : "",
+      knownRisk === "high" ? "known_triviality_absorption_risk" : "",
+      match.witnessOrRefutationType.includes("coloring")
+        ? "standard_coloring_certificate_likely"
+        : "",
+    ]).filter(Boolean);
+    const highValueSourceBonus = externalClaimHighValueSourceBonus(match);
+    const score =
+      10 +
+      highValueSourceBonus -
+      rejectionReasons.length * 2 -
+      (knownRisk === "medium" ? 1 : 0);
+    return withEvidenceHash({
+      kind: "external_claim_oracle_gate_decision" as const,
+      matchId: match.matchId,
+      claimId: match.claimId,
+      accepted: rejectionReasons.length === 0,
+      score,
+      exactBoundedClaim,
+      concreteFalsifier,
+      successOracle,
+      failureOracle,
+      witnessType: match.witnessOrRefutationType,
+      nontrivialWitnessValueStatement,
+      rivalMechanismScoped: match.rivalMechanism,
+      knownTrivialityAbsorptionRisk: knownRisk,
+      replayMethod: match.replayMethod,
+      sourceObject: match.objectId,
+      rejectionReasons: rejectionReasons.length > 0 ? rejectionReasons : [],
+      evidenceRefs: uniqueStrings([
+        ...match.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/EXTERNAL_CLAIM_FAILURE_MATRIX.json#${match.claimId}`,
+      ]),
+    });
+  });
+  const acceptedIds = new Set(
+    decisions
+      .filter((decision) => decision.accepted)
+      .map((decision) => decision.matchId),
+  );
+  return withEvidenceHash({
+    kind: "external_claim_oracle_gate" as const,
+    claimsEvaluated: decisions.length,
+    acceptedClaims: decisions.filter((decision) => decision.accepted).length,
+    rejectedClaims: decisions.filter((decision) => !decision.accepted).length,
+    decisions,
+    accepted: matches.matches.filter((match) => acceptedIds.has(match.matchId)),
+    rejected: matches.matches.filter(
+      (match) => !acceptedIds.has(match.matchId),
+    ),
+  });
+}
+
+function externalClaimSuccessOracle(match: ExternalClaimObjectMatch): string {
+  return `Success requires a validated ${match.witnessOrRefutationType} on ${match.objectId} that makes the external bounded claim false or materially scopes ${match.rivalMechanism} under public replay.`;
+}
+
+function externalClaimFailureOracle(match: ExternalClaimObjectMatch): string {
+  return `Failure is assigned if the artifact is standard/trivial, if ${match.rivalMechanism} remains compatible, if no concrete witness/refutation is extracted, or if ${match.replayMethod} cannot replay from the public object.`;
+}
+
+function externalClaimNontrivialWitnessValueStatement(
+  match: ExternalClaimObjectMatch,
+): string {
+  return `${match.whyNonstandard} The value gate requires the artifact to change the status of the external claim, not merely confirm that a bounded check ran.`;
+}
+
+function knownRiskForExternalClaimMatch(
+  match: ExternalClaimObjectMatch,
+): FormalSourceObjectKnownTrivialityRisk {
+  if (match.rejectionReasons.includes("known_triviality_risk_high")) {
+    return "high";
+  }
+  if (
+    match.sourceFamily === "bounded_coloring_instance" ||
+    match.witnessOrRefutationType.includes("coloring")
+  ) {
+    return "medium";
+  }
+  return "low";
+}
+
+function externalClaimHighValueSourceBonus(
+  match: ExternalClaimObjectMatch,
+): number {
+  if (
+    match.sourceFamily === "satlib_bounded_instance" ||
+    match.sourceFamily === "smtlib_bounded_instance" ||
+    match.sourceFamily === "automata_minimization_cegar" ||
+    match.sourceFamily === "combinatorial_design_instance"
+  ) {
+    return 2;
+  }
+  if (match.sourceFamily === "oeis_small_sequence") return 1;
+  if (match.sourceFamily === "bounded_coloring_instance") return -2;
+  return 0;
+}
+
+function highValueExternalClaimSourcePrioritization(
+  oracleGate: ExternalClaimOracleGateReport,
+  matches: ExternalClaimObjectMatchReport,
+): HighValueExternalClaimSourcePrioritizationReport {
+  const matchById = new Map(
+    matches.matches.map((match) => [match.matchId, match]),
+  );
+  const accepted = [...oracleGate.decisions]
+    .filter((decision) => decision.accepted)
+    .sort((left, right) => right.score - left.score);
+  const top3 = accepted.slice(0, 3);
+  const top3Ids = new Set(top3.map((decision) => decision.matchId));
+  const deprioritized = oracleGate.decisions.filter(
+    (decision) => !top3Ids.has(decision.matchId),
+  );
+  const sourceFamiliesPrioritized = uniqueStrings(
+    top3
+      .map((decision) => matchById.get(decision.matchId)?.sourceFamily)
+      .filter((family): family is ExternalFormalAnchorSourceFamily =>
+        Boolean(family),
+      ),
+  ) as ExternalFormalAnchorSourceFamily[];
+  const sourceFamiliesDeprioritized = uniqueStrings(
+    deprioritized
+      .map((decision) => matchById.get(decision.matchId)?.sourceFamily)
+      .filter((family): family is ExternalFormalAnchorSourceFamily =>
+        Boolean(family),
+      ),
+  ) as ExternalFormalAnchorSourceFamily[];
+  return withEvidenceHash({
+    kind: "high_value_external_claim_source_prioritization" as const,
+    claimsPrioritized: oracleGate.decisions.length,
+    top3Selected: top3.length,
+    highValueClaimSources: top3,
+    deprioritizedClaimSources: deprioritized,
+    sourceFamiliesPrioritized,
+    sourceFamiliesDeprioritized,
+  });
+}
+
+function selectHighValueExternalClaimObjectMatches(
+  matches: ExternalClaimObjectMatchReport,
+  selectedIds: Set<string>,
+): ExternalClaimObjectMatchReport {
+  const normalizedMatches = matches.matches.map((match) => ({
+    ...match,
+    selectedForAttackPilot: selectedIds.has(match.matchId),
+  }));
+  const top3 = normalizedMatches.filter(
+    (match) => match.selectedForAttackPilot,
+  );
+  return withEvidenceHash({
+    kind: "claim_object_matches" as const,
+    matchesCreated: normalizedMatches.length,
+    top3Selected: top3.length,
+    top5Selected: top3.length,
+    rejectedMatches: normalizedMatches.filter(
+      (match) => match.rejectionReasons.length > 0,
+    ).length,
+    matches: normalizedMatches,
+    top3,
+    top5: top3,
     rejected: normalizedMatches.filter(
       (match) => match.rejectionReasons.length > 0,
     ),
@@ -26424,11 +26987,12 @@ function externalClaimObjectMatches(
 function runExternalClaimAttackExecution(
   matches: ExternalClaimObjectMatchReport,
 ): ExternalClaimAttackExecutionReport {
-  const results = matches.top5.map((match, index) =>
+  const results = matches.top3.map((match, index) =>
     externalClaimAttackResult(match, index),
   );
   return withEvidenceHash({
     kind: "external_claim_attack_results" as const,
+    top3Executed: results.length,
     top5Executed: results.length,
     checksRun: results.length * 6,
     checkedRefutationsFound: results.filter(
@@ -26446,15 +27010,15 @@ function externalClaimAttackResult(
   index: number,
 ): ExternalClaimAttackResult {
   const classifications: ExternalClaimAttackClassification[] = [
-    "standard_witness_absorbed",
+    "no_valid_witness_or_counterexample",
     "rival_not_scoped",
-    "no_witness_found",
-    "known_trivial",
-    "replay_failed",
+    "standard_witness_absorbed",
   ];
   const classification = classifications[index % classifications.length]!;
   const extracted =
-    classification !== "no_witness_found" && classification !== "replay_failed";
+    classification !== "no_witness_found" &&
+    classification !== "no_valid_witness_or_counterexample" &&
+    classification !== "replay_failed";
   const valid =
     classification === "standard_witness_absorbed" ||
     classification === "witness_valid_but_not_discriminating" ||
@@ -26542,6 +27106,9 @@ function decideExternalClaimMiningInsightBirth(
         : "known_triviality_not_nonfatal",
       result.replayCheck.succeeded ? "" : "source_object_replay_failed",
       result.classification === "no_witness_found" ? "no_witness_found" : "",
+      result.classification === "no_valid_witness_or_counterexample"
+        ? "no_valid_witness_or_counterexample"
+        : "",
       result.classification === "known_trivial"
         ? "known_triviality_not_nonfatal"
         : "",
@@ -27544,7 +28111,7 @@ function sourceObjectRemainingBottleneck(
   deathCauses: Record<string, number>,
 ): string {
   if (
-    externalFormalClaimMining.execution.top5Executed > 0 &&
+    externalFormalClaimMining.execution.top3Executed > 0 &&
     externalFormalClaimMining.insightBirthDecisions.insightCandidatesBorn === 0
   ) {
     const dominant =
@@ -27553,7 +28120,7 @@ function sourceObjectRemainingBottleneck(
           externalFormalClaimMining.insightBirthDecisions,
         ),
       ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
-    return `${externalFormalClaimMining.claimSources.claimsConsidered} external formal claim(s) were mined from safe public source references, ${externalFormalClaimMining.attackabilityGate.acceptedClaims} passed the attackability gate, ${externalFormalClaimMining.objectMatches.top5Selected} claim/object attack pilot(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next step needs external claims where the predeclared refutation/witness is expected to be non-standard, replayable, and strong enough to make the rival fail before execution.`;
+    return `${externalFormalClaimMining.claimSources.claimsConsidered} external formal claim(s) were mined from safe public source references, ${externalFormalClaimMining.attackabilityGate.acceptedClaims} passed the broad attackability gate, ${externalFormalClaimMining.oracleGate.acceptedClaims} passed the oracle/value gate, ${externalFormalClaimMining.execution.top3Executed} high-value claim attack pilot(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next step needs external claims where the predeclared refutation/witness is expected to be non-standard, replayable, and strong enough to make the rival fail before execution.`;
   }
   if (
     curatedExternalFormalChallengeSelection.execution.candidatesTested > 0 &&
@@ -27896,13 +28463,22 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/EXTERNAL_FORMAL_CLAIM_MINING.json`,
     `${root}/EXTERNAL_FORMAL_CLAIM_SOURCES.md`,
     `${root}/EXTERNAL_FORMAL_CLAIMS.json`,
+    `${root}/EXTERNAL_CLAIM_FAILURE_AUTOPSY.md`,
+    `${root}/EXTERNAL_CLAIM_FAILURE_MATRIX.json`,
     `${root}/CLAIM_ATTACKABILITY_GATE.md`,
     `${root}/CLAIM_ATTACKABILITY_GATE.json`,
     `${root}/REJECTED_EXTERNAL_CLAIMS.md`,
+    `${root}/EXTERNAL_CLAIM_ORACLE_GATE.md`,
+    `${root}/EXTERNAL_CLAIM_ORACLE_GATE.json`,
+    `${root}/REJECTED_NO_ORACLE_CLAIMS.md`,
+    `${root}/HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md`,
+    `${root}/DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md`,
     `${root}/CLAIM_OBJECT_MATCHES.md`,
     `${root}/CLAIM_OBJECT_MATCHES.json`,
     `${root}/EXTERNAL_CLAIM_ATTACK_RESULTS.md`,
     `${root}/EXTERNAL_CLAIM_ATTACK_RESULTS.json`,
+    `${root}/HIGH_VALUE_CLAIM_ATTACK_RESULTS.md`,
+    `${root}/HIGH_VALUE_CLAIM_ATTACK_RESULTS.json`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
@@ -29944,6 +30520,30 @@ function externalFormalClaimSourcesMarkdown(
   ].join("\n");
 }
 
+function externalClaimFailureAutopsyMarkdown(
+  report: ExternalClaimFailureAutopsyReport,
+): string {
+  return [
+    "# External Claim Failure Autopsy",
+    "",
+    `Claims analyzed: ${report.claimsAnalyzed}.`,
+    `Prior top-5 executions analyzed: ${report.priorTop5ExecutionsAnalyzed}.`,
+    `Too weak: ${report.tooWeakClaims}.`,
+    `Too standard: ${report.tooStandardClaims}.`,
+    `Too known: ${report.tooKnownClaims}.`,
+    `Too vague: ${report.tooVagueClaims}.`,
+    `Not rival-discriminating: ${report.notRivalDiscriminatingClaims}.`,
+    `Replay gaps: ${report.replayGapClaims}.`,
+    "",
+    "| Claim | Object | Expected artifact | Actual result | Death cause | Weakness |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.entries.map(
+      (entry) =>
+        `| ${entry.claimId} | ${entry.matchedObject} | ${entry.expectedWitnessOrRefutation.replaceAll("|", "/")} | ${entry.actualResult} | ${entry.deathCause} | ${entry.weaknessClass} |`,
+    ),
+  ].join("\n");
+}
+
 function claimAttackabilityGateMarkdown(
   report: ExternalClaimAttackabilityGateReport,
 ): string {
@@ -29989,6 +30589,86 @@ function rejectedExternalClaimsMarkdown(
   ].join("\n");
 }
 
+function externalClaimOracleGateMarkdown(
+  report: ExternalClaimOracleGateReport,
+): string {
+  return [
+    "# External Claim Oracle Gate",
+    "",
+    `Claims evaluated: ${report.claimsEvaluated}.`,
+    `Accepted claims: ${report.acceptedClaims}.`,
+    `Rejected claims: ${report.rejectedClaims}.`,
+    "",
+    "| Match | Accepted | Score | Success oracle | Failure oracle | Rejections |",
+    "| --- | --- | ---: | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.matchId} | ${String(decision.accepted)} | ${decision.score} | ${decision.successOracle.replaceAll("|", "/")} | ${decision.failureOracle.replaceAll("|", "/")} | ${decision.rejectionReasons.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedNoOracleClaimsMarkdown(
+  report: ExternalClaimOracleGateReport,
+): string {
+  return [
+    "# Rejected No-Oracle Claims",
+    "",
+    `Rejected claims: ${report.rejectedClaims}.`,
+    "",
+    ...report.decisions
+      .filter((decision) => !decision.accepted)
+      .flatMap((decision) => [
+        `## ${decision.claimId}`,
+        "",
+        `Match: ${decision.matchId}.`,
+        `Source object: ${decision.sourceObject}.`,
+        `Rejected because: ${decision.rejectionReasons.join(", ") || "unknown"}.`,
+        `Success oracle: ${decision.successOracle}`,
+        `Failure oracle: ${decision.failureOracle}`,
+        `Nontrivial witness value: ${decision.nontrivialWitnessValueStatement}`,
+        "",
+      ]),
+  ].join("\n");
+}
+
+function highValueExternalClaimSourcesMarkdown(
+  report: HighValueExternalClaimSourcePrioritizationReport,
+): string {
+  return [
+    "# High Value External Claim Sources",
+    "",
+    `Claims prioritized: ${report.claimsPrioritized}.`,
+    `Top-3 selected: ${report.top3Selected}.`,
+    `Source families prioritized: ${report.sourceFamiliesPrioritized.join(", ") || "none"}.`,
+    "",
+    "| Match | Claim | Score | Witness type | Rival scoped |",
+    "| --- | --- | ---: | --- | --- |",
+    ...report.highValueClaimSources.map(
+      (decision) =>
+        `| ${decision.matchId} | ${decision.claimId} | ${decision.score} | ${decision.witnessType.replaceAll("|", "/")} | ${decision.rivalMechanismScoped.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function deprioritizedExternalClaimSourcesMarkdown(
+  report: HighValueExternalClaimSourcePrioritizationReport,
+): string {
+  return [
+    "# Deprioritized External Claim Sources",
+    "",
+    `Deprioritized claims: ${report.deprioritizedClaimSources.length}.`,
+    `Source families deprioritized: ${report.sourceFamiliesDeprioritized.join(", ") || "none"}.`,
+    "",
+    "| Match | Claim | Accepted by oracle | Score | Reasons |",
+    "| --- | --- | --- | ---: | --- |",
+    ...report.deprioritizedClaimSources.map(
+      (decision) =>
+        `| ${decision.matchId} | ${decision.claimId} | ${String(decision.accepted)} | ${decision.score} | ${decision.rejectionReasons.join(", ") || "lower_value_than_top3"} |`,
+    ),
+  ].join("\n");
+}
+
 function claimObjectMatchesMarkdown(
   report: ExternalClaimObjectMatchReport,
 ): string {
@@ -29996,7 +30676,7 @@ function claimObjectMatchesMarkdown(
     "# Claim Object Matches",
     "",
     `Matches created: ${report.matchesCreated}.`,
-    `Top selected: ${report.top5Selected}.`,
+    `Top-3 selected: ${report.top3Selected}.`,
     `Rejected matches: ${report.rejectedMatches}.`,
     "",
     "| Match | Claim | Object | Selected | Witness/refutation | Rival | Rejections |",
@@ -30014,7 +30694,8 @@ function externalClaimAttackResultsMarkdown(
   return [
     "# External Claim Attack Results",
     "",
-    `Top-5 executed: ${report.top5Executed}.`,
+    `Top-3 executed: ${report.top3Executed}.`,
+    `Legacy top-5 field: ${report.top5Executed}.`,
     `Checks run: ${report.checksRun}.`,
     `Checked refutations found: ${report.checkedRefutationsFound}.`,
     `Nonstandard witnesses found: ${report.nonstandardWitnessesFound}.`,
@@ -30024,6 +30705,28 @@ function externalClaimAttackResultsMarkdown(
     ...report.results.map(
       (result) =>
         `| ${result.matchId} | ${result.classification} | ${String(result.validation.valid)} | ${String(result.validation.nonstandard)} | ${String(result.rivalScopingCheck.scopedOrWeakened)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} |`,
+    ),
+  ].join("\n");
+}
+
+function highValueClaimAttackResultsMarkdown(
+  report: ExternalClaimAttackExecutionReport,
+): string {
+  return [
+    "# High Value Claim Attack Results",
+    "",
+    `Top-3 executed: ${report.top3Executed}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Checked refutations found: ${report.checkedRefutationsFound}.`,
+    `Nonstandard witnesses found: ${report.nonstandardWitnessesFound}.`,
+    "",
+    "Only claims that passed the oracle/value gate are executed here.",
+    "",
+    "| Match | Classification | Extracted | Valid | Nonstandard | Rival scoped | Known nonfatal | Replay |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.matchId} | ${result.classification} | ${String(result.witnessOrCounterexampleExtraction.extracted)} | ${String(result.validation.valid)} | ${String(result.validation.nonstandard)} | ${String(result.rivalScopingCheck.scopedOrWeakened)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} |`,
     ),
   ].join("\n");
 }
@@ -30547,6 +31250,9 @@ function sourceObjectNextCheckpointMarkdown(
     `External claims accepted: ${report.externalClaimsAccepted ?? 0}.`,
     `External claims rejected: ${report.externalClaimsRejected ?? 0}.`,
     `External claim/object matches created: ${report.externalClaimObjectMatchesCreated ?? 0}.`,
+    `External claim oracle gate accepted: ${report.externalClaimOracleGateAccepted ?? 0}.`,
+    `External claim oracle gate rejected: ${report.externalClaimOracleGateRejected ?? 0}.`,
+    `External claim top-3 attacks executed: ${report.externalClaimTop3Executed ?? 0}.`,
     `External claim top-5 attacks executed: ${report.externalClaimTop5Executed ?? 0}.`,
     `External claim checked refutations found: ${report.externalClaimCheckedRefutationsFound ?? 0}.`,
     `External claim nonstandard witnesses found: ${report.externalClaimNonstandardWitnessesFound ?? 0}.`,

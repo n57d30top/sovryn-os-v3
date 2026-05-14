@@ -5346,13 +5346,22 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "EXTERNAL_FORMAL_CLAIM_MINING.json",
     "EXTERNAL_FORMAL_CLAIM_SOURCES.md",
     "EXTERNAL_FORMAL_CLAIMS.json",
+    "EXTERNAL_CLAIM_FAILURE_AUTOPSY.md",
+    "EXTERNAL_CLAIM_FAILURE_MATRIX.json",
     "CLAIM_ATTACKABILITY_GATE.md",
     "CLAIM_ATTACKABILITY_GATE.json",
     "REJECTED_EXTERNAL_CLAIMS.md",
+    "EXTERNAL_CLAIM_ORACLE_GATE.md",
+    "EXTERNAL_CLAIM_ORACLE_GATE.json",
+    "REJECTED_NO_ORACLE_CLAIMS.md",
+    "HIGH_VALUE_EXTERNAL_CLAIM_SOURCES.md",
+    "DEPRIORITIZED_EXTERNAL_CLAIM_SOURCES.md",
     "CLAIM_OBJECT_MATCHES.md",
     "CLAIM_OBJECT_MATCHES.json",
     "EXTERNAL_CLAIM_ATTACK_RESULTS.md",
     "EXTERNAL_CLAIM_ATTACK_RESULTS.json",
+    "HIGH_VALUE_CLAIM_ATTACK_RESULTS.md",
+    "HIGH_VALUE_CLAIM_ATTACK_RESULTS.json",
     "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.md",
     "EXTERNAL_CLAIM_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
@@ -7559,8 +7568,53 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
       accepted: Array<{ claimId: string }>;
       rejected: Array<{ claimId: string }>;
     };
+    failureAutopsy: {
+      claimsAnalyzed: number;
+      priorTop5ExecutionsAnalyzed: number;
+      entries: Array<{
+        claimId: string;
+        expectedWitnessOrRefutation: string;
+        actualResult: string;
+        deathCause: string;
+        failureReason: string;
+        weaknessClass: string;
+      }>;
+    };
+    oracleGate: {
+      claimsEvaluated: number;
+      acceptedClaims: number;
+      rejectedClaims: number;
+      decisions: Array<{
+        matchId: string;
+        claimId: string;
+        accepted: boolean;
+        score: number;
+        exactBoundedClaim: string;
+        concreteFalsifier: string;
+        successOracle: string;
+        failureOracle: string;
+        witnessType: string;
+        nontrivialWitnessValueStatement: string;
+        rivalMechanismScoped: string;
+        replayMethod: string;
+        sourceObject: string;
+        rejectionReasons: string[];
+      }>;
+    };
+    highValueSourcePrioritization: {
+      claimsPrioritized: number;
+      top3Selected: number;
+      highValueClaimSources: Array<{
+        matchId: string;
+        claimId: string;
+        score: number;
+        accepted: boolean;
+      }>;
+      deprioritizedClaimSources: Array<{ matchId: string; claimId: string }>;
+    };
     objectMatches: {
       matchesCreated: number;
+      top3Selected: number;
       top5Selected: number;
       rejectedMatches: number;
       matches: Array<{
@@ -7580,9 +7634,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
         selectedForAttackPilot: boolean;
         rejectionReasons: string[];
       }>;
+      top3: Array<{ matchId: string; selectedForAttackPilot: boolean }>;
       top5: Array<{ matchId: string; selectedForAttackPilot: boolean }>;
     };
     execution: {
+      top3Executed: number;
       top5Executed: number;
       checksRun: number;
       checkedRefutationsFound: number;
@@ -7660,7 +7716,80 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     externalClaimMining.objectMatches.matchesCreated,
     externalClaimMining.attackabilityGate.acceptedClaims,
   );
-  assert.equal(externalClaimMining.objectMatches.top5Selected, 5);
+  assert.equal(
+    externalClaimMining.failureAutopsy.claimsAnalyzed,
+    externalClaimMining.attackabilityGate.acceptedClaims,
+  );
+  assert.equal(
+    externalClaimMining.failureAutopsy.priorTop5ExecutionsAnalyzed <= 5,
+    true,
+  );
+  assert.equal(
+    externalClaimMining.failureAutopsy.entries.every(
+      (entry) =>
+        entry.claimId.length > 0 &&
+        entry.expectedWitnessOrRefutation.length > 0 &&
+        entry.actualResult.length > 0 &&
+        entry.deathCause.length > 0 &&
+        entry.failureReason.length > 0 &&
+        [
+          "too_weak",
+          "too_standard",
+          "too_known",
+          "too_vague",
+          "not_rival_discriminating",
+          "replay_gap",
+        ].includes(entry.weaknessClass),
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.oracleGate.claimsEvaluated,
+    externalClaimMining.objectMatches.matchesCreated,
+  );
+  assert.equal(externalClaimMining.oracleGate.acceptedClaims > 0, true);
+  assert.equal(externalClaimMining.oracleGate.rejectedClaims > 0, true);
+  assert.equal(
+    externalClaimMining.oracleGate.decisions.every(
+      (decision) =>
+        decision.matchId.length > 0 &&
+        decision.claimId.length > 0 &&
+        decision.exactBoundedClaim.length > 0 &&
+        decision.concreteFalsifier.length > 0 &&
+        decision.successOracle.length > 0 &&
+        decision.failureOracle.length > 0 &&
+        decision.witnessType.length > 0 &&
+        decision.nontrivialWitnessValueStatement.length > 0 &&
+        decision.rivalMechanismScoped.length > 0 &&
+        decision.replayMethod.length > 0 &&
+        decision.sourceObject.length > 0 &&
+        (decision.accepted || decision.rejectionReasons.length > 0),
+    ),
+    true,
+  );
+  assert.equal(
+    externalClaimMining.highValueSourcePrioritization.claimsPrioritized,
+    externalClaimMining.oracleGate.claimsEvaluated,
+  );
+  assert.equal(
+    externalClaimMining.highValueSourcePrioritization.top3Selected,
+    3,
+  );
+  assert.equal(
+    externalClaimMining.highValueSourcePrioritization.highValueClaimSources
+      .length,
+    3,
+  );
+  assert.equal(
+    externalClaimMining.highValueSourcePrioritization.highValueClaimSources.every(
+      (decision) => decision.accepted && decision.score > 0,
+    ),
+    true,
+  );
+  assert.equal(externalClaimMining.objectMatches.top3Selected, 3);
+  assert.equal(externalClaimMining.objectMatches.top5Selected, 3);
+  assert.equal(externalClaimMining.objectMatches.top3.length, 3);
+  assert.equal(externalClaimMining.objectMatches.top5.length, 3);
   assert.equal(
     externalClaimMining.objectMatches.matches.every(
       (match) =>
@@ -7681,12 +7810,16 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     true,
   );
   assert.equal(
+    externalClaimMining.execution.top3Executed,
+    externalClaimMining.objectMatches.top3Selected,
+  );
+  assert.equal(
     externalClaimMining.execution.top5Executed,
-    externalClaimMining.objectMatches.top5Selected,
+    externalClaimMining.objectMatches.top3Selected,
   );
   assert.equal(
     externalClaimMining.execution.checksRun,
-    externalClaimMining.execution.top5Executed * 6,
+    externalClaimMining.execution.top3Executed * 6,
   );
   assert.equal(externalClaimMining.execution.checkedRefutationsFound, 0);
   assert.equal(externalClaimMining.execution.nonstandardWitnessesFound, 0);
@@ -7700,6 +7833,7 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
           "standard_witness_absorbed",
           "witness_valid_but_not_discriminating",
           "rival_not_scoped",
+          "no_valid_witness_or_counterexample",
           "no_witness_found",
           "replay_failed",
         ].includes(result.classification) &&
@@ -7715,11 +7849,11 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   );
   assert.equal(
     externalClaimMining.insightBirthDecisions.candidatesEvaluated,
-    externalClaimMining.execution.top5Executed,
+    externalClaimMining.execution.top3Executed,
   );
   assert.equal(
     externalClaimMining.insightBirthDecisions.candidatesArchived,
-    externalClaimMining.execution.top5Executed,
+    externalClaimMining.execution.top3Executed,
   );
   assert.equal(
     externalClaimMining.insightBirthDecisions.insightCandidatesBorn,

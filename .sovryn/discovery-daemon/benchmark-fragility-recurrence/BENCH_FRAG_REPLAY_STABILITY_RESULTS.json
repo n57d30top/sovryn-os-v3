@@ -1,0 +1,28 @@
+{
+  "candidateId": "BENCH-FRAG-001-OPENML-3",
+  "taskId": 3,
+  "liveDataLoaded": true,
+  "rowsLoaded": 3196,
+  "featuresLoaded": 36,
+  "targetVariable": "class",
+  "repeatedRandomMean": 0.664,
+  "repeatedRandomStddev": 0.007,
+  "repeatedGroupMean": 0.594,
+  "repeatedGroupStddev": 0.089,
+  "meanDelta": 0.069,
+  "deltaStddev": 0.089,
+  "ciLower": 0.014,
+  "ciUpper": 0.124,
+  "majorityBaselineMean": 0.489,
+  "simpleModelMean": 0.664,
+  "shuffledTargetMean": 0.493,
+  "classBalanceMajorityShare": 0.489,
+  "duplicateLeakageRatioMean": 0,
+  "aboveThreshold": false,
+  "replaySucceeded": true,
+  "negativeControlBehaved": true,
+  "sourceReceiptHash": "5f8348f6603b65248337d556b284babaf027e771e35d77fdc9dd1ac32b4a86e3",
+  "notes": [
+    "loaded public OpenML ARFF from https://openml.org/data/v1/download/3/kr-vs-kp.arff"
+  ]
+}

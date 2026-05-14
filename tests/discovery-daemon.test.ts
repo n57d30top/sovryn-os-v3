@@ -61,7 +61,10 @@ import {
   type MechanismCandidateType,
   type OutcomeBearingCandidateSpec,
 } from "../src/core/discovery-daemon/discovery-daemon-service.js";
-import { BenchmarkProtocolFragilityPilotService } from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
+import {
+  BenchmarkFragilityRecurrenceGauntletService,
+  BenchmarkProtocolFragilityPilotService,
+} from "../src/core/discovery-daemon/benchmark-fragility-pilot-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
 const commands = [
@@ -114,6 +117,7 @@ const commands = [
   "formal-anchor-pressure",
   "source-object-engine",
   "benchmark-fragility",
+  "benchmark-fragility-recurrence",
   "discovery-anchor-select",
   "discovery-anchor-audit",
   "discovery-anchor-source-load",
@@ -8280,6 +8284,65 @@ test("benchmark fragility pilot service writes required review artifacts", async
     "NEXT_CHECKPOINT.md",
   ]) {
     await access(join(root, daemonRoot, "benchmark-fragility", artifact));
+  }
+});
+
+test("benchmark fragility recurrence gauntlet profiles candidate and fails closed", async () => {
+  const root = await tempRoot();
+  const service = new AutonomousDiscoveryDaemonService(root);
+  await service.init();
+  await service.benchmarkFragilityPilot();
+
+  const report = await service.benchmarkFragilityRecurrence();
+
+  assert.equal(
+    report.kind,
+    "benchmark_fragility_recurrence_review_package_gauntlet",
+  );
+  assert.equal(report.candidateId, "BENCH-FRAG-001-OPENML-3");
+  assert.equal(report.taskId, 3);
+  assert.equal(report.recurrenceTasksTested >= 10, true);
+  assert.equal(report.fundFound, false);
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "benchmark-fragility-recurrence", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "benchmark_fragility_recurrence_review_package_gauntlet",
+  );
+});
+
+test("benchmark fragility recurrence gauntlet writes required artifacts", async () => {
+  const root = await tempRoot();
+  await new BenchmarkProtocolFragilityPilotService(root).run();
+  const report = await new BenchmarkFragilityRecurrenceGauntletService(
+    root,
+  ).run();
+  assert.equal(report.artifactRefs.length >= 10, true);
+  for (const artifact of [
+    "BENCH_FRAG_CANDIDATE_PROFILE.md",
+    "BENCH_FRAG_CANDIDATE_PROFILE.json",
+    "BENCH_FRAG_REPLAY_STABILITY_RESULTS.md",
+    "BENCH_FRAG_REPLAY_STABILITY_RESULTS.json",
+    "BENCH_FRAG_RIVAL_EXPLANATION_RESULTS.md",
+    "BENCH_FRAG_RECURRENCE_TASKS.md",
+    "BENCH_FRAG_RECURRENCE_RESULTS.md",
+    "BENCH_FRAG_PROMOTION_DECISION.md",
+    "BENCH_FRAG_REVIEW_PACKAGE_STATUS.md",
+    "FUND_GATE_RESULTS.md",
+    "NEXT_CHECKPOINT.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "benchmark-fragility-recurrence", artifact),
+    );
   }
 });
 

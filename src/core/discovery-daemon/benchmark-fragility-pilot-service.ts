@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeJson } from "../../shared/fs.js";
+import { readJson, writeJson } from "../../shared/fs.js";
 
 export type BenchmarkFragilityMechanism =
   | "split_leakage"
@@ -154,6 +154,36 @@ export type BenchmarkFragilityPilotReport = {
   evidenceHash: string;
 };
 
+export type BenchmarkFragilityClosureReport = {
+  kind: "benchmark_fragility_recurrence_review_package_gauntlet";
+  terminalStatus: "continue_searching_checkpointed" | "FUND_FOUND";
+  candidateId: string;
+  taskId: number;
+  datasetId: number;
+  replayStabilitySupported: boolean;
+  meanRandomVsGroupDelta: number;
+  recurrenceTasksTested: number;
+  recurrentTasksSupported: number;
+  rivalExplanationsWeakened: number;
+  rivalExplanationsStillPlausible: number;
+  rivalExplanationsStronger: number;
+  discoveryCandidateCreated: boolean;
+  fundFound: boolean;
+  promotionDecision:
+    | "promote_to_discovery_candidate"
+    | "single_task_fragility_signal"
+    | "kill";
+  fundGateResult: {
+    passed: boolean;
+    failedGates: string[];
+    status: "continue_searching" | "FUND_FOUND";
+  };
+  remainingBottleneck: string;
+  nextCheckpoint: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type RunOptions = {
   liveOpenMl?: boolean;
 };
@@ -162,6 +192,14 @@ type ParsedDataset = {
   rows: string[][];
   attributes: string[];
   targetIndex: number;
+};
+
+type LoadedOpenMlDataset = {
+  parsed: ParsedDataset;
+  targetVariable: string;
+  datasetId: number;
+  dataUrl: string;
+  sourceReceiptHash: string;
 };
 
 type SplitMetrics = {
@@ -173,6 +211,8 @@ type SplitMetrics = {
 };
 
 const artifactRoot = ".sovryn/discovery-daemon/benchmark-fragility";
+const closureArtifactRoot =
+  ".sovryn/discovery-daemon/benchmark-fragility-recurrence";
 
 const TASK_CATALOG: BenchmarkTaskSelection[] = [
   task(
@@ -587,6 +627,773 @@ export class BenchmarkProtocolFragilityPilotService {
   }
 }
 
+export class BenchmarkFragilityRecurrenceGauntletService {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: RunOptions = {},
+  ): Promise<BenchmarkFragilityClosureReport> {
+    const claims = await this.loadFrozenClaims();
+    const candidateClaim =
+      claims.find((claim) => claim.claimId === "BENCH-FRAG-001-OPENML-3") ??
+      freezeClaims(TASK_CATALOG.slice(0, 1))[0]!;
+    const candidateTask = TASK_CATALOG.find(
+      (taskItem) => taskItem.taskId === candidateClaim.taskId,
+    )!;
+    const priorReport = await this.loadPriorReport();
+    const priorDelta =
+      priorReport?.metricDeltas.find(
+        (metric) => metric.claimId === candidateClaim.claimId,
+      )?.randomVsGroupDelta ?? 0;
+
+    const profile = {
+      candidateId: candidateClaim.claimId,
+      taskId: candidateClaim.taskId,
+      datasetId: candidateClaim.datasetId,
+      datasetName: candidateClaim.taskName,
+      targetVariable: candidateTask.targetVariable,
+      metric: candidateTask.metric,
+      modelUsed:
+        "one-feature categorical lookup baseline selected by train balanced accuracy",
+      randomSplitProtocol:
+        "70/30 seeded random split; stability replay seeds 17-59",
+      groupHoldoutSplitProtocol:
+        "first-feature value family holdout with rotating group offsets",
+      groupVariableOrRule:
+        "feature-0 value bucket, deterministic source-object group proxy",
+      randomVsGroupDelta: round(priorDelta),
+      modelVsMajorityDelta:
+        priorReport?.metricDeltas.find(
+          (metric) => metric.claimId === candidateClaim.claimId,
+        )?.modelVsMajorityDelta ?? 0,
+      baselineControlRefs: [
+        `${artifactRoot}/BENCHMARK_BASELINE_RESULTS.md#bench-frag-001-openml-3`,
+        `${artifactRoot}/BENCHMARK_CONTROL_RESULTS.md#bench-frag-001-openml-3`,
+      ],
+      replayRefs: [
+        `${artifactRoot}/BENCHMARK_REPLAY_RESULTS.md#bench-frag-001-openml-3`,
+      ],
+      currentMissingGates: [
+        "cross_task_recurrence",
+        "rival_group_definition_artifact",
+        "external_review_package",
+        "discovery_candidate_identity",
+      ],
+    };
+
+    const stability = await this.replayCandidateStability(
+      candidateClaim,
+      options,
+    );
+    const rivals = rivalExplanationResults(stability);
+    const recurrence = await this.runRecurrenceSearch(candidateClaim, options);
+    const recurrentTasksSupported = recurrence.filter(
+      (result) => result.mechanismSupported,
+    ).length;
+    const strongerRivals = rivals.filter(
+      (rival) => rival.classification === "stronger",
+    ).length;
+    const stillPlausibleRivals = rivals.filter(
+      (rival) => rival.classification === "still_plausible",
+    ).length;
+    const replayStabilitySupported =
+      stability.meanDelta >= candidateClaim.expectedMetricDelta &&
+      stability.negativeControlBehaved &&
+      stability.replaySucceeded;
+    const promotionDecision: BenchmarkFragilityClosureReport["promotionDecision"] =
+      replayStabilitySupported &&
+      recurrentTasksSupported >= 2 &&
+      strongerRivals === 0 &&
+      stillPlausibleRivals === 0
+        ? "promote_to_discovery_candidate"
+        : replayStabilitySupported
+          ? "single_task_fragility_signal"
+          : "kill";
+    const discoveryCandidateCreated =
+      promotionDecision === "promote_to_discovery_candidate";
+    const fundGate = discoveryCandidateCreated
+      ? {
+          passed: false,
+          failedGates: [
+            "external_review_package",
+            "12_plus_predictions",
+            "fresh_independent_holdout_package",
+          ],
+          status: "continue_searching" as const,
+        }
+      : {
+          passed: false,
+          failedGates: ["candidate_present"],
+          status: "continue_searching" as const,
+        };
+    const nextCheckpoint =
+      ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-recurrence-continue-searching.json";
+    const artifactRefs = closureArtifactRefs(nextCheckpoint);
+    const remainingBottleneck = discoveryCandidateCreated
+      ? "benchmark fragility recurrence exists, but external-review package and full Fund Gate prediction/holdout requirements remain open"
+      : promotionDecision === "single_task_fragility_signal"
+        ? "OpenML-3 replay is stable, but recurrence/rival scoping is not yet strong enough for DiscoveryCandidate promotion"
+        : "OpenML-3 split-fragility replay did not remain stable above the frozen threshold";
+    const reportWithoutHash = {
+      kind: "benchmark_fragility_recurrence_review_package_gauntlet" as const,
+      terminalStatus: "continue_searching_checkpointed" as const,
+      candidateId: candidateClaim.claimId,
+      taskId: candidateClaim.taskId,
+      datasetId: candidateClaim.datasetId,
+      replayStabilitySupported,
+      meanRandomVsGroupDelta: round(stability.meanDelta),
+      recurrenceTasksTested: recurrence.length,
+      recurrentTasksSupported,
+      rivalExplanationsWeakened: rivals.filter(
+        (rival) => rival.classification === "weakened",
+      ).length,
+      rivalExplanationsStillPlausible: stillPlausibleRivals,
+      rivalExplanationsStronger: strongerRivals,
+      discoveryCandidateCreated,
+      fundFound: false,
+      promotionDecision,
+      fundGateResult: fundGate,
+      remainingBottleneck,
+      nextCheckpoint,
+      artifactRefs,
+    };
+    const report: BenchmarkFragilityClosureReport = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence(reportWithoutHash),
+    };
+    await this.writeClosureArtifacts({
+      profile,
+      candidateClaim,
+      stability,
+      rivals,
+      recurrence,
+      report,
+    });
+    return report;
+  }
+
+  private async loadFrozenClaims(): Promise<FrozenBenchmarkFragilityClaim[]> {
+    try {
+      return await readJson<FrozenBenchmarkFragilityClaim[]>(
+        join(this.root, artifactRoot, "FROZEN_BENCHMARK_FRAGILITY_CLAIMS.json"),
+      );
+    } catch {
+      return freezeClaims(TASK_CATALOG.slice(0, 10));
+    }
+  }
+
+  private async loadPriorReport(): Promise<BenchmarkFragilityPilotReport | null> {
+    try {
+      return await readJson<BenchmarkFragilityPilotReport>(
+        join(this.root, artifactRoot, "latest.json"),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private async replayCandidateStability(
+    claim: FrozenBenchmarkFragilityClaim,
+    options: RunOptions,
+  ): Promise<BenchmarkReplayStabilityResult> {
+    if (!options.liveOpenMl) return deterministicReplayStability(claim);
+    try {
+      const loaded = await loadOpenMlParsedDataset({
+        taskId: claim.taskId,
+        datasetId: claim.datasetId,
+        targetVariable: "class",
+      });
+      const randomSeeds = [17, 23, 29, 31, 37, 41, 43, 47, 53, 59];
+      const randomMetrics = randomSeeds.map((seed) =>
+        evaluateSplit(
+          loaded.parsed,
+          splitIndices(loaded.parsed.rows.length, 0.7, seed),
+        ),
+      );
+      const groupMetrics = randomSeeds.map((_seed, offset) =>
+        evaluateSplit(
+          loaded.parsed,
+          groupHoldoutSplitWithOffset(loaded.parsed, offset),
+        ),
+      );
+      const deltas = randomMetrics.map(
+        (metric, index) =>
+          metric.modelMetric - (groupMetrics[index]?.modelMetric ?? 0),
+      );
+      const shuffledControls = randomSeeds.map((seed) =>
+        evaluateShuffledTarget(
+          loaded.parsed,
+          splitIndices(loaded.parsed.rows.length, 0.7, seed + 101),
+        ),
+      );
+      const meanDelta = average(deltas);
+      const deltaStddev = stddev(deltas);
+      const ciHalfWidth = 1.96 * (deltaStddev / Math.sqrt(deltas.length));
+      return {
+        candidateId: claim.claimId,
+        taskId: claim.taskId,
+        liveDataLoaded: true,
+        rowsLoaded: loaded.parsed.rows.length,
+        featuresLoaded: loaded.parsed.attributes.length - 1,
+        targetVariable: loaded.targetVariable,
+        repeatedRandomMean: round(
+          average(randomMetrics.map((metric) => metric.modelMetric)),
+        ),
+        repeatedRandomStddev: round(
+          stddev(randomMetrics.map((metric) => metric.modelMetric)),
+        ),
+        repeatedGroupMean: round(
+          average(groupMetrics.map((metric) => metric.modelMetric)),
+        ),
+        repeatedGroupStddev: round(
+          stddev(groupMetrics.map((metric) => metric.modelMetric)),
+        ),
+        meanDelta: round(meanDelta),
+        deltaStddev: round(deltaStddev),
+        ciLower: round(meanDelta - ciHalfWidth),
+        ciUpper: round(meanDelta + ciHalfWidth),
+        majorityBaselineMean: round(
+          average(randomMetrics.map((metric) => metric.majorityBaseline)),
+        ),
+        simpleModelMean: round(
+          average(randomMetrics.map((metric) => metric.modelMetric)),
+        ),
+        shuffledTargetMean: round(
+          average(shuffledControls.map((metric) => metric.modelMetric)),
+        ),
+        classBalanceMajorityShare: round(
+          average(randomMetrics.map((metric) => metric.majorityBaseline)),
+        ),
+        duplicateLeakageRatioMean: round(
+          average(randomMetrics.map((metric) => metric.duplicateLeakageRatio)),
+        ),
+        aboveThreshold:
+          meanDelta >= claim.expectedMetricDelta && meanDelta - ciHalfWidth > 0,
+        replaySucceeded: true,
+        negativeControlBehaved:
+          average(shuffledControls.map((metric) => metric.modelMetric)) <=
+          average(randomMetrics.map((metric) => metric.majorityBaseline)) +
+            0.08,
+        sourceReceiptHash: loaded.sourceReceiptHash,
+        notes: [`loaded public OpenML ARFF from ${loaded.dataUrl}`],
+      };
+    } catch (error) {
+      return {
+        ...deterministicReplayStability(claim),
+        liveDataLoaded: false,
+        replaySucceeded: false,
+        aboveThreshold: false,
+        notes: [
+          `live OpenML replay failed: ${error instanceof Error ? error.message : String(error)}`,
+        ],
+      };
+    }
+  }
+
+  private async runRecurrenceSearch(
+    candidateClaim: FrozenBenchmarkFragilityClaim,
+    options: RunOptions,
+  ): Promise<BenchmarkRecurrenceTaskResult[]> {
+    const recurrenceTasks = TASK_CATALOG.filter(
+      (taskItem) => taskItem.taskId !== candidateClaim.taskId,
+    ).slice(0, 10);
+    const results: BenchmarkRecurrenceTaskResult[] = [];
+    for (const taskItem of recurrenceTasks) {
+      const claim = splitLeakageRecurrenceClaim(taskItem);
+      const execution = options.liveOpenMl
+        ? await this.executeLiveOrDeterministic(claim)
+        : deterministicBenchmarkResult(claim, [
+            "deterministic recurrence screening; use --live-openml for public OpenML replay",
+          ]);
+      const mechanismSupported =
+        execution.replaySucceeded &&
+        execution.negativeControlBehaved &&
+        execution.randomVsGroupDelta >= candidateClaim.expectedMetricDelta &&
+        execution.modelVsMajorityDelta > 0.04 &&
+        execution.shuffledTargetControlMetric <=
+          execution.majorityBaseline + 0.08;
+      results.push({
+        claimId: claim.claimId,
+        taskId: taskItem.taskId,
+        datasetId: taskItem.datasetId,
+        taskName: taskItem.name,
+        randomVsGroupDelta: execution.randomVsGroupDelta,
+        modelVsMajorityDelta: execution.modelVsMajorityDelta,
+        majorityBaseline: execution.majorityBaseline,
+        shuffledTargetControlMetric: execution.shuffledTargetControlMetric,
+        duplicateLeakageRatio: execution.duplicateLeakageRatio,
+        replaySucceeded: execution.replaySucceeded,
+        negativeControlBehaved: execution.negativeControlBehaved,
+        mechanismSupported,
+        classification: mechanismSupported
+          ? "mechanism_supported"
+          : !execution.replaySucceeded
+            ? "replay_failed"
+            : execution.modelVsMajorityDelta <= 0.04
+              ? "baseline_dominated"
+              : "not_recurrent",
+        notes: execution.notes,
+      });
+    }
+    return results;
+  }
+
+  private async executeLiveOrDeterministic(
+    claim: FrozenBenchmarkFragilityClaim,
+  ): Promise<BenchmarkExecutionResult> {
+    try {
+      return await executeLiveOpenMlClaim(claim);
+    } catch (error) {
+      return deterministicBenchmarkResult(claim, [
+        `live OpenML replay failed: ${error instanceof Error ? error.message : String(error)}`,
+      ]);
+    }
+  }
+
+  private async writeClosureArtifacts(input: {
+    profile: BenchmarkFragilityCandidateProfile;
+    candidateClaim: FrozenBenchmarkFragilityClaim;
+    stability: BenchmarkReplayStabilityResult;
+    rivals: BenchmarkRivalExplanationResult[];
+    recurrence: BenchmarkRecurrenceTaskResult[];
+    report: BenchmarkFragilityClosureReport;
+  }): Promise<void> {
+    const dir = join(this.root, closureArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "BENCH_FRAG_CANDIDATE_PROFILE.md"),
+      candidateProfileMarkdown(input.profile),
+    );
+    await writeJson(
+      join(dir, "BENCH_FRAG_CANDIDATE_PROFILE.json"),
+      input.profile,
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_REPLAY_STABILITY_RESULTS.md"),
+      replayStabilityMarkdown(input.stability),
+    );
+    await writeJson(
+      join(dir, "BENCH_FRAG_REPLAY_STABILITY_RESULTS.json"),
+      input.stability,
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_RIVAL_EXPLANATION_RESULTS.md"),
+      rivalExplanationMarkdown(input.rivals),
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_RECURRENCE_TASKS.md"),
+      recurrenceTasksMarkdown(input.recurrence),
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_RECURRENCE_RESULTS.md"),
+      recurrenceResultsMarkdown(input.recurrence),
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_PROMOTION_DECISION.md"),
+      promotionDecisionMarkdown(input.report),
+    );
+    await writeText(
+      join(dir, "BENCH_FRAG_REVIEW_PACKAGE_STATUS.md"),
+      reviewPackageStatusMarkdown(input.report),
+    );
+    await writeText(
+      join(dir, "FUND_GATE_RESULTS.md"),
+      fundGateMarkdown(input.report),
+    );
+    await writeText(
+      join(dir, "NEXT_CHECKPOINT.md"),
+      `# Next Checkpoint\n\nCheckpoint: ${input.report.nextCheckpoint}\n\nStatus: ${input.report.terminalStatus}.\n\nRemaining bottleneck: ${input.report.remainingBottleneck}.\n`,
+    );
+    await writeJson(join(this.root, input.report.nextCheckpoint), {
+      kind: "benchmark_fragility_recurrence_checkpoint",
+      status: input.report.terminalStatus,
+      candidateId: input.report.candidateId,
+      promotionDecision: input.report.promotionDecision,
+      discoveryCandidateCreated: input.report.discoveryCandidateCreated,
+      fundFound: input.report.fundFound,
+      remainingBottleneck: input.report.remainingBottleneck,
+      artifactRefs: input.report.artifactRefs,
+      evidenceHash: input.report.evidenceHash,
+    });
+    await writeJson(join(dir, "latest.json"), input.report);
+  }
+}
+
+type BenchmarkFragilityCandidateProfile = {
+  candidateId: string;
+  taskId: number;
+  datasetId: number;
+  datasetName: string;
+  targetVariable: string;
+  metric: BenchmarkTaskSelection["metric"];
+  modelUsed: string;
+  randomSplitProtocol: string;
+  groupHoldoutSplitProtocol: string;
+  groupVariableOrRule: string;
+  randomVsGroupDelta: number;
+  modelVsMajorityDelta: number;
+  baselineControlRefs: string[];
+  replayRefs: string[];
+  currentMissingGates: string[];
+};
+
+type BenchmarkReplayStabilityResult = {
+  candidateId: string;
+  taskId: number;
+  liveDataLoaded: boolean;
+  rowsLoaded: number;
+  featuresLoaded: number;
+  targetVariable: string;
+  repeatedRandomMean: number;
+  repeatedRandomStddev: number;
+  repeatedGroupMean: number;
+  repeatedGroupStddev: number;
+  meanDelta: number;
+  deltaStddev: number;
+  ciLower: number;
+  ciUpper: number;
+  majorityBaselineMean: number;
+  simpleModelMean: number;
+  shuffledTargetMean: number;
+  classBalanceMajorityShare: number;
+  duplicateLeakageRatioMean: number;
+  aboveThreshold: boolean;
+  replaySucceeded: boolean;
+  negativeControlBehaved: boolean;
+  sourceReceiptHash: string;
+  notes: string[];
+};
+
+type BenchmarkRivalExplanationResult = {
+  rival: string;
+  classification: "weakened" | "still_plausible" | "stronger" | "inconclusive";
+  rationale: string;
+};
+
+type BenchmarkRecurrenceTaskResult = {
+  claimId: string;
+  taskId: number;
+  datasetId: number;
+  taskName: string;
+  randomVsGroupDelta: number;
+  modelVsMajorityDelta: number;
+  majorityBaseline: number;
+  shuffledTargetControlMetric: number;
+  duplicateLeakageRatio: number;
+  replaySucceeded: boolean;
+  negativeControlBehaved: boolean;
+  mechanismSupported: boolean;
+  classification:
+    | "mechanism_supported"
+    | "not_recurrent"
+    | "baseline_dominated"
+    | "replay_failed";
+  notes: string[];
+};
+
+function deterministicReplayStability(
+  claim: FrozenBenchmarkFragilityClaim,
+): BenchmarkReplayStabilityResult {
+  const base = deterministicBenchmarkResult(claim, [
+    "deterministic replay stability fixture; use --live-openml for public OpenML replay",
+  ]);
+  const deltas = [17, 23, 29, 31, 37, 41, 43, 47, 53, 59].map((seed) =>
+    round(
+      base.randomVsGroupDelta +
+        deterministicFraction(`${claim.claimId}:delta:${seed}`, -0.025, 0.025),
+    ),
+  );
+  const meanDelta = average(deltas);
+  const deltaStddev = stddev(deltas);
+  const ciHalfWidth = 1.96 * (deltaStddev / Math.sqrt(deltas.length));
+  return {
+    candidateId: claim.claimId,
+    taskId: claim.taskId,
+    liveDataLoaded: false,
+    rowsLoaded: base.rowsLoaded,
+    featuresLoaded: base.featuresLoaded,
+    targetVariable: base.targetVariable,
+    repeatedRandomMean: base.modelRandomSplitMetric,
+    repeatedRandomStddev: base.repeatedSplitStddev,
+    repeatedGroupMean: round(base.modelRandomSplitMetric - meanDelta),
+    repeatedGroupStddev: round(deltaStddev),
+    meanDelta: round(meanDelta),
+    deltaStddev: round(deltaStddev),
+    ciLower: round(meanDelta - ciHalfWidth),
+    ciUpper: round(meanDelta + ciHalfWidth),
+    majorityBaselineMean: base.majorityBaseline,
+    simpleModelMean: base.modelRandomSplitMetric,
+    shuffledTargetMean: base.shuffledTargetControlMetric,
+    classBalanceMajorityShare: base.majorityBaseline,
+    duplicateLeakageRatioMean: base.duplicateLeakageRatio,
+    aboveThreshold:
+      meanDelta >= claim.expectedMetricDelta && meanDelta - ciHalfWidth > 0,
+    replaySucceeded: base.replaySucceeded,
+    negativeControlBehaved: base.negativeControlBehaved,
+    sourceReceiptHash: base.sourceReceiptHash,
+    notes: base.notes,
+  };
+}
+
+function splitLeakageRecurrenceClaim(
+  taskItem: BenchmarkTaskSelection,
+): FrozenBenchmarkFragilityClaim {
+  return {
+    claimId: `BENCH-FRAG-REC-OPENML-${taskItem.taskId}`,
+    taskId: taskItem.taskId,
+    datasetId: taskItem.datasetId,
+    taskName: taskItem.name,
+    exactClaim: `On comparable OpenML task ${taskItem.taskId} (${taskItem.name}), the split-leakage mechanism will produce a random-vs-group delta of at least 0.08 under the same public replay protocol.`,
+    fragilityMechanism: "split_leakage",
+    candidatePrediction:
+      "Random-split performance exceeds feature-family group holdout performance by at least 0.08 while shuffled-target control remains near majority baseline.",
+    rivalSimpleExplanation:
+      "The observed delta is fully explained by majority-class baseline, metric choice, dataset size, or an artificial group definition.",
+    falsifier:
+      "The recurrence claim is killed if replay fails, model-vs-majority delta is negligible, negative control stays high, or random-vs-group delta is below 0.08.",
+    expectedMetricDelta: 0.08,
+    baselineThatCouldKillIt:
+      "majority baseline plus one-feature lookup model under repeated random splits",
+    holdoutReplayPlan:
+      "replay public OpenML rows and compare seeded random split against feature-family group holdout",
+    whatIsNotClaimed: [
+      "not a universal benchmark law",
+      "not an external validation",
+      "not a discovery Fund without full Fund Gate pass",
+    ],
+  };
+}
+
+function rivalExplanationResults(
+  stability: BenchmarkReplayStabilityResult,
+): BenchmarkRivalExplanationResult[] {
+  const result = (
+    rival: string,
+    classification: BenchmarkRivalExplanationResult["classification"],
+    rationale: string,
+  ): BenchmarkRivalExplanationResult => ({ rival, classification, rationale });
+  return [
+    result(
+      "class imbalance",
+      stability.classBalanceMajorityShare >= 0.65
+        ? "still_plausible"
+        : "weakened",
+      stability.classBalanceMajorityShare >= 0.65
+        ? "Majority-class share is high enough that class imbalance remains a plausible contributor."
+        : "Majority baseline is not high enough to explain the split delta alone.",
+    ),
+    result(
+      "dataset size artifact",
+      stability.rowsLoaded < 700 || stability.deltaStddev >= 0.08
+        ? "still_plausible"
+        : "weakened",
+      "Rows loaded and replay variance were compared against a small-sample instability threshold.",
+    ),
+    result(
+      "group definition artifact",
+      stability.repeatedGroupStddev >= 0.06 ? "still_plausible" : "weakened",
+      "The holdout is a feature-family proxy rather than a documented external group, so high group-offset sensitivity keeps this rival alive.",
+    ),
+    result(
+      "metric artifact",
+      Math.abs(stability.repeatedRandomMean - stability.simpleModelMean) >= 0.08
+        ? "still_plausible"
+        : "weakened",
+      "Replay compared the primary balanced metric against simple model behavior.",
+    ),
+    result(
+      "model instability",
+      stability.repeatedRandomStddev >= 0.08 ? "still_plausible" : "weakened",
+      "Repeated random-split variance tests whether the signal is mostly seed instability.",
+    ),
+    result(
+      "duplicate/near-duplicate leakage",
+      stability.duplicateLeakageRatioMean >= 0.1 ? "stronger" : "weakened",
+      "Exact feature-signature overlap between train and test estimates duplicate leakage pressure.",
+    ),
+    result(
+      "target encoding leakage",
+      stability.negativeControlBehaved ? "weakened" : "stronger",
+      "Shuffled-target control should fall near majority baseline if target leakage is not dominating.",
+    ),
+    result(
+      "preprocessing artifact",
+      stability.liveDataLoaded ? "inconclusive" : "still_plausible",
+      "The pilot uses minimal categorical parsing and one-feature lookup; stronger preprocessing audits are still needed before discovery promotion.",
+    ),
+  ];
+}
+
+function closureArtifactRefs(nextCheckpoint: string): string[] {
+  return [
+    `${closureArtifactRoot}/BENCH_FRAG_CANDIDATE_PROFILE.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_CANDIDATE_PROFILE.json`,
+    `${closureArtifactRoot}/BENCH_FRAG_REPLAY_STABILITY_RESULTS.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_REPLAY_STABILITY_RESULTS.json`,
+    `${closureArtifactRoot}/BENCH_FRAG_RIVAL_EXPLANATION_RESULTS.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_RECURRENCE_TASKS.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_RECURRENCE_RESULTS.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_PROMOTION_DECISION.md`,
+    `${closureArtifactRoot}/BENCH_FRAG_REVIEW_PACKAGE_STATUS.md`,
+    `${closureArtifactRoot}/FUND_GATE_RESULTS.md`,
+    `${closureArtifactRoot}/NEXT_CHECKPOINT.md`,
+    nextCheckpoint,
+  ];
+}
+
+function candidateProfileMarkdown(
+  profile: BenchmarkFragilityCandidateProfile,
+): string {
+  return [
+    "# Benchmark Fragility Candidate Profile",
+    "",
+    `Candidate ID: ${profile.candidateId}`,
+    `OpenML task ID: ${profile.taskId}`,
+    `Dataset: ${profile.datasetId} / ${profile.datasetName}`,
+    `Target variable: ${profile.targetVariable}`,
+    `Metric: ${profile.metric}`,
+    `Model used: ${profile.modelUsed}`,
+    `Random split protocol: ${profile.randomSplitProtocol}`,
+    `Group/holdout protocol: ${profile.groupHoldoutSplitProtocol}`,
+    `Group variable/rule: ${profile.groupVariableOrRule}`,
+    `Prior random-vs-group delta: ${profile.randomVsGroupDelta.toFixed(3)}`,
+    `Prior model-vs-majority delta: ${profile.modelVsMajorityDelta.toFixed(3)}`,
+    "",
+    "## Evidence refs",
+    "",
+    ...profile.baselineControlRefs.map((ref) => `- ${ref}`),
+    ...profile.replayRefs.map((ref) => `- ${ref}`),
+    "",
+    "## Current missing gates",
+    "",
+    ...profile.currentMissingGates.map((gate) => `- ${gate}`),
+    "",
+  ].join("\n");
+}
+
+function replayStabilityMarkdown(
+  stability: BenchmarkReplayStabilityResult,
+): string {
+  return [
+    "# Benchmark Fragility Replay Stability Results",
+    "",
+    "| Candidate | Rows | Features | Random Mean | Group Mean | Mean Delta | Delta Std | 95% CI | Majority | Shuffled | Duplicate Ratio | Above Threshold |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |",
+    `| ${stability.candidateId} | ${stability.rowsLoaded} | ${stability.featuresLoaded} | ${stability.repeatedRandomMean.toFixed(3)} | ${stability.repeatedGroupMean.toFixed(3)} | ${stability.meanDelta.toFixed(3)} | ${stability.deltaStddev.toFixed(3)} | [${stability.ciLower.toFixed(3)}, ${stability.ciUpper.toFixed(3)}] | ${stability.majorityBaselineMean.toFixed(3)} | ${stability.shuffledTargetMean.toFixed(3)} | ${stability.duplicateLeakageRatioMean.toFixed(3)} | ${String(stability.aboveThreshold)} |`,
+    "",
+    `Replay succeeded: ${String(stability.replaySucceeded)}.`,
+    `Negative control behaved: ${String(stability.negativeControlBehaved)}.`,
+    `Source receipt hash: ${stability.sourceReceiptHash}.`,
+    "",
+    ...stability.notes.map((note) => `- ${note}`),
+    "",
+  ].join("\n");
+}
+
+function rivalExplanationMarkdown(
+  rivals: BenchmarkRivalExplanationResult[],
+): string {
+  return [
+    "# Benchmark Fragility Rival Explanation Results",
+    "",
+    "| Rival explanation | Classification | Rationale |",
+    "| --- | --- | --- |",
+    ...rivals.map(
+      (rival) =>
+        `| ${rival.rival} | ${rival.classification} | ${rival.rationale} |`,
+    ),
+    "",
+  ].join("\n");
+}
+
+function recurrenceTasksMarkdown(
+  recurrence: BenchmarkRecurrenceTaskResult[],
+): string {
+  return [
+    "# Benchmark Fragility Recurrence Tasks",
+    "",
+    `Comparable public OpenML tasks tested: ${recurrence.length}.`,
+    "",
+    "| Claim | Task | Dataset | Name | Replay |",
+    "| --- | ---: | ---: | --- | --- |",
+    ...recurrence.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.datasetId} | ${result.taskName} | ${String(result.replaySucceeded)} |`,
+    ),
+    "",
+  ].join("\n");
+}
+
+function recurrenceResultsMarkdown(
+  recurrence: BenchmarkRecurrenceTaskResult[],
+): string {
+  const supported = recurrence.filter((result) => result.mechanismSupported);
+  return [
+    "# Benchmark Fragility Recurrence Results",
+    "",
+    `Supported recurrent tasks: ${supported.length}.`,
+    "",
+    "| Claim | Task | Delta | Model-Majority | Majority | Shuffled | Duplicate Ratio | Classification |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...recurrence.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.randomVsGroupDelta.toFixed(3)} | ${result.modelVsMajorityDelta.toFixed(3)} | ${result.majorityBaseline.toFixed(3)} | ${result.shuffledTargetControlMetric.toFixed(3)} | ${result.duplicateLeakageRatio.toFixed(3)} | ${result.classification} |`,
+    ),
+    "",
+    supported.length >= 2
+      ? "Recurrence threshold passed, pending rival-scoping and promotion gates."
+      : "Recurrence threshold did not pass; the candidate remains a single-task or weakly recurrent fragility signal.",
+    "",
+  ].join("\n");
+}
+
+function promotionDecisionMarkdown(
+  report: BenchmarkFragilityClosureReport,
+): string {
+  return [
+    "# Benchmark Fragility Promotion Decision",
+    "",
+    `Promotion decision: ${report.promotionDecision}.`,
+    `DiscoveryCandidate created: ${String(report.discoveryCandidateCreated)}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    `Replay stability supported: ${String(report.replayStabilitySupported)}.`,
+    `Recurrent tasks supported: ${report.recurrentTasksSupported}/${report.recurrenceTasksTested}.`,
+    `Rivals weakened/still plausible/stronger: ${report.rivalExplanationsWeakened}/${report.rivalExplanationsStillPlausible}/${report.rivalExplanationsStronger}.`,
+    "",
+    `Remaining bottleneck: ${report.remainingBottleneck}.`,
+    "",
+  ].join("\n");
+}
+
+function reviewPackageStatusMarkdown(
+  report: BenchmarkFragilityClosureReport,
+): string {
+  return [
+    "# Benchmark Fragility Review Package Status",
+    "",
+    report.discoveryCandidateCreated
+      ? "A DiscoveryCandidate-level package is still incomplete; Fund Gate remains failed closed."
+      : "No DiscoveryCandidate package was built because recurrence/rival gates did not close.",
+    "",
+    "No external validation is claimed. No benchmark fragility Fund was published.",
+    "",
+  ].join("\n");
+}
+
+function fundGateMarkdown(report: BenchmarkFragilityClosureReport): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(report.fundGateResult.passed)}.`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ")}.`,
+    `Status: ${report.fundGateResult.status}.`,
+    "",
+    "No fake `FUND_FOUND.md` or `fund-candidate.json` was created.",
+    "",
+  ].join("\n");
+}
+
 function task(
   taskId: number,
   datasetId: number,
@@ -682,15 +1489,13 @@ function mechanismExpectedDelta(
 async function executeLiveOpenMlClaim(
   claim: FrozenBenchmarkFragilityClaim,
 ): Promise<BenchmarkExecutionResult> {
-  const taskJson = await fetchJson(openMlApiUrl(`task/${claim.taskId}`));
-  const targetVariable = targetFromTaskJson(taskJson) ?? "class";
-  const datasetId = datasetIdFromTaskJson(taskJson) ?? claim.datasetId;
-  const dataJson = await fetchJson(openMlApiUrl(`data/${datasetId}`));
-  const dataUrl = String(dataJson.data_set_description?.url ?? "");
-  if (!dataUrl)
-    throw new Error(`OpenML dataset ${datasetId} has no download URL`);
-  const arff = await fetchText(dataUrl);
-  const parsed = parseArff(arff, targetVariable);
+  const loaded = await loadOpenMlParsedDataset({
+    taskId: claim.taskId,
+    datasetId: claim.datasetId,
+    targetVariable: "class",
+  });
+  const { parsed, targetVariable, datasetId, dataUrl, sourceReceiptHash } =
+    loaded;
   const random = evaluateSplit(
     parsed,
     splitIndices(parsed.rows.length, 0.7, 17),
@@ -707,15 +1512,6 @@ async function executeLiveOpenMlClaim(
   );
   const repeatedMean = average(repeated);
   const repeatedStddev = stddev(repeated);
-  const sourceReceiptHash = sha256(
-    JSON.stringify({
-      taskUrl: openMlApiUrl(`task/${claim.taskId}`),
-      dataUrl,
-      rows: parsed.rows.length,
-      attributes: parsed.attributes,
-      targetVariable,
-    }),
-  );
   return {
     claimId: claim.claimId,
     taskId: claim.taskId,
@@ -744,6 +1540,32 @@ async function executeLiveOpenMlClaim(
       shuffled.modelMetric <= random.majorityBaseline + 0.08,
     notes: [`loaded public OpenML ARFF from ${dataUrl}`],
   };
+}
+
+async function loadOpenMlParsedDataset(input: {
+  taskId: number;
+  datasetId: number;
+  targetVariable: string;
+}): Promise<LoadedOpenMlDataset> {
+  const taskJson = await fetchJson(openMlApiUrl(`task/${input.taskId}`));
+  const targetVariable = targetFromTaskJson(taskJson) ?? input.targetVariable;
+  const datasetId = datasetIdFromTaskJson(taskJson) ?? input.datasetId;
+  const dataJson = await fetchJson(openMlApiUrl(`data/${datasetId}`));
+  const dataUrl = String(dataJson.data_set_description?.url ?? "");
+  if (!dataUrl)
+    throw new Error(`OpenML dataset ${datasetId} has no download URL`);
+  const arff = await fetchText(dataUrl);
+  const parsed = parseArff(arff, targetVariable);
+  const sourceReceiptHash = sha256(
+    JSON.stringify({
+      taskUrl: openMlApiUrl(`task/${input.taskId}`),
+      dataUrl,
+      rows: parsed.rows.length,
+      attributes: parsed.attributes,
+      targetVariable,
+    }),
+  );
+  return { parsed, targetVariable, datasetId, dataUrl, sourceReceiptHash };
 }
 
 function deterministicBenchmarkResult(
@@ -1150,6 +1972,16 @@ function groupHoldoutSplit(parsed: ParsedDataset): {
   train: number[];
   test: number[];
 } {
+  return groupHoldoutSplitWithOffset(parsed, 0);
+}
+
+function groupHoldoutSplitWithOffset(
+  parsed: ParsedDataset,
+  offset: number,
+): {
+  train: number[];
+  test: number[];
+} {
   const featureIndex = parsed.targetIndex === 0 ? 1 : 0;
   const groups = new Map<string, number[]>();
   parsed.rows.forEach((row, index) => {
@@ -1164,7 +1996,7 @@ function groupHoldoutSplit(parsed: ParsedDataset): {
   const test: number[] = [];
   const train: number[] = [];
   sortedGroups.forEach(([_key, indices], groupIndex) => {
-    if (groupIndex % 5 === 0) test.push(...indices);
+    if ((groupIndex + offset) % 5 === 0) test.push(...indices);
     else train.push(...indices);
   });
   if (test.length === 0 || train.length === 0)

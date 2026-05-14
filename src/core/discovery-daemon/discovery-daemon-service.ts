@@ -29,7 +29,9 @@ import { ScienceService } from "../science/science-service.js";
 import { StrategyService } from "../strategy/strategy-service.js";
 import { TemporalEvaluationFragilityService } from "../temporal/temporal-evaluation-fragility-service.js";
 import {
+  BenchmarkFragilityRecurrenceGauntletService,
   BenchmarkProtocolFragilityPilotService,
+  type BenchmarkFragilityClosureReport,
   type BenchmarkFragilityPilotReport,
 } from "./benchmark-fragility-pilot-service.js";
 
@@ -65836,6 +65838,17 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<BenchmarkFragilityPilotReport> {
     await this.ensureInitialized();
     return new BenchmarkProtocolFragilityPilotService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async benchmarkFragilityRecurrence(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<BenchmarkFragilityClosureReport> {
+    await this.ensureInitialized();
+    return new BenchmarkFragilityRecurrenceGauntletService(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
   }

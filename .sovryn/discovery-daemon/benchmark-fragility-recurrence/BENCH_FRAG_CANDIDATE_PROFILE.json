@@ -1,0 +1,27 @@
+{
+  "candidateId": "BENCH-FRAG-001-OPENML-3",
+  "taskId": 3,
+  "datasetId": 3,
+  "datasetName": "kr-vs-kp",
+  "targetVariable": "class",
+  "metric": "accuracy",
+  "modelUsed": "one-feature categorical lookup baseline selected by train balanced accuracy",
+  "randomSplitProtocol": "70/30 seeded random split; stability replay seeds 17-59",
+  "groupHoldoutSplitProtocol": "first-feature value family holdout with rotating group offsets",
+  "groupVariableOrRule": "feature-0 value bucket, deterministic source-object group proxy",
+  "randomVsGroupDelta": 0.213,
+  "modelVsMajorityDelta": 0.172,
+  "baselineControlRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_BASELINE_RESULTS.md#bench-frag-001-openml-3",
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_CONTROL_RESULTS.md#bench-frag-001-openml-3"
+  ],
+  "replayRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility/BENCHMARK_REPLAY_RESULTS.md#bench-frag-001-openml-3"
+  ],
+  "currentMissingGates": [
+    "cross_task_recurrence",
+    "rival_group_definition_artifact",
+    "external_review_package",
+    "discovery_candidate_identity"
+  ]
+}

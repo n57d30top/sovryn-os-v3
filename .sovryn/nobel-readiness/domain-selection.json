@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_domain_selection",
-  "generatedAt": "2026-05-14T12:55:21.501Z",
+  "generatedAt": "2026-05-14T13:21:33.786Z",
   "considered": [
     {
       "domainId": "formal_mathematics_conjecture_discovery",
@@ -367,5 +367,5 @@
       "rejectionReason": "Deferred to keep this readiness run to exactly four domains with enough execution depth."
     }
   ],
-  "evidenceHash": "9d01f5df328a92e7758f53c6f6d3d15e99407f8122a1eb5e89936b1d0ba49d67"
+  "evidenceHash": "0becbdd0d7d31dfbd0961c01c2b9ed1e56d53da66340caf3f775b8588e045fd4"
 }

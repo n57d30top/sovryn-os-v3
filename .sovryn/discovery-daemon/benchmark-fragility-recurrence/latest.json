@@ -1,0 +1,41 @@
+{
+  "kind": "benchmark_fragility_recurrence_review_package_gauntlet",
+  "terminalStatus": "continue_searching_checkpointed",
+  "candidateId": "BENCH-FRAG-001-OPENML-3",
+  "taskId": 3,
+  "datasetId": 3,
+  "replayStabilitySupported": false,
+  "meanRandomVsGroupDelta": 0.069,
+  "recurrenceTasksTested": 10,
+  "recurrentTasksSupported": 1,
+  "rivalExplanationsWeakened": 5,
+  "rivalExplanationsStillPlausible": 2,
+  "rivalExplanationsStronger": 0,
+  "discoveryCandidateCreated": false,
+  "fundFound": false,
+  "promotionDecision": "kill",
+  "fundGateResult": {
+    "passed": false,
+    "failedGates": [
+      "candidate_present"
+    ],
+    "status": "continue_searching"
+  },
+  "remainingBottleneck": "OpenML-3 split-fragility replay did not remain stable above the frozen threshold",
+  "nextCheckpoint": ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-recurrence-continue-searching.json",
+  "artifactRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_CANDIDATE_PROFILE.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_CANDIDATE_PROFILE.json",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REPLAY_STABILITY_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REPLAY_STABILITY_RESULTS.json",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RIVAL_EXPLANATION_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RECURRENCE_TASKS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RECURRENCE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_PROMOTION_DECISION.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REVIEW_PACKAGE_STATUS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/FUND_GATE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/NEXT_CHECKPOINT.md",
+    ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-recurrence-continue-searching.json"
+  ],
+  "evidenceHash": "0bb09ab0d36fbb1196274109a72d0124a5ab1cc2dbd44debe83abd71e4a871da"
+}

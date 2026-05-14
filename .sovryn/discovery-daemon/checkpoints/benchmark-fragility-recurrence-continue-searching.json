@@ -1,0 +1,24 @@
+{
+  "kind": "benchmark_fragility_recurrence_checkpoint",
+  "status": "continue_searching_checkpointed",
+  "candidateId": "BENCH-FRAG-001-OPENML-3",
+  "promotionDecision": "kill",
+  "discoveryCandidateCreated": false,
+  "fundFound": false,
+  "remainingBottleneck": "OpenML-3 split-fragility replay did not remain stable above the frozen threshold",
+  "artifactRefs": [
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_CANDIDATE_PROFILE.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_CANDIDATE_PROFILE.json",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REPLAY_STABILITY_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REPLAY_STABILITY_RESULTS.json",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RIVAL_EXPLANATION_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RECURRENCE_TASKS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_RECURRENCE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_PROMOTION_DECISION.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/BENCH_FRAG_REVIEW_PACKAGE_STATUS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/FUND_GATE_RESULTS.md",
+    ".sovryn/discovery-daemon/benchmark-fragility-recurrence/NEXT_CHECKPOINT.md",
+    ".sovryn/discovery-daemon/checkpoints/benchmark-fragility-recurrence-continue-searching.json"
+  ],
+  "evidenceHash": "0bb09ab0d36fbb1196274109a72d0124a5ab1cc2dbd44debe83abd71e4a871da"
+}

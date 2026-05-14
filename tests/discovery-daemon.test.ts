@@ -5301,6 +5301,18 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
     "RIVAL_SCOPED_WITNESS_RESULTS.json",
     "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
     "RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
+    "NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json",
+    "RIVAL_SCOPING_NEAR_MISS_AUTOPSY.md",
+    "RIVAL_SCOPING_NEAR_MISS_AUTOPSY.json",
+    "NONTRIVIAL_WITNESS_PRE_GATE.md",
+    "NONTRIVIAL_WITNESS_PRE_GATE.json",
+    "REJECTED_TRIVIAL_WITNESS_TRIPLES.md",
+    "NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.md",
+    "NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.json",
+    "NONTRIVIAL_WITNESS_EXECUTION_RESULTS.md",
+    "NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json",
+    "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.md",
+    "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.json",
     "SOURCE_OBJECT_INSIGHT_CLOSURE.md",
     "INSIGHT_CANDIDATE_DECISIONS.md",
@@ -6738,6 +6750,213 @@ test("discover-daemon source-object-engine runs source-object-first waves withou
   assert.equal(rivalScopedWitness.insightBirthDecisions.fundFound, false);
   assert.equal(
     rivalScopedWitness.insightBirthDecisions.decisions.every(
+      (decision) =>
+        !decision.insightCandidateBorn &&
+        decision.blockers.length > 0 &&
+        decision.archiveReason.length > 0,
+    ),
+    true,
+  );
+  const nontrivialWitness = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "source-object-first",
+        "NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    nearMissAutopsy: {
+      nearMissesAnalyzed: number;
+      items: Array<{
+        witnessId: string;
+        sourceObject: string;
+        exactClaim: string;
+        rivalMechanismScoped: string;
+        whyKnownTrivialityFatal: string;
+        absorbingKnownMechanism: string;
+        avoidingWitnessRequirement: string;
+      }>;
+    };
+    preGate: {
+      candidatesEvaluated: number;
+      passed: number;
+      rejected: number;
+      top5Selected: number;
+      decisions: Array<{
+        tripleId: string;
+        exactBoundedClaim: string;
+        concreteSourceObject: string;
+        witnessType: string;
+        rivalMechanism: string;
+        whyNontrivialIfFound: string;
+        knownPriorCheck: string;
+        baselineSimpleMechanismCheck: string;
+        replayPath: string;
+        falsifier: string;
+        passed: boolean;
+        selectedForExecution: boolean;
+        rejectionReasons: string[];
+      }>;
+    };
+    candidates: {
+      candidatesGenerated: number;
+      rejectedByPreGate: number;
+      top5Selected: number;
+      candidates: Array<{
+        tripleId: string;
+        exactBoundedClaim: string;
+        witnessType: string;
+        rivalMechanism: string;
+        whyNontrivialIfFound: string;
+        knownPriorCheck: string;
+        baselineSimpleMechanismCheck: string;
+        selectedForExecution: boolean;
+      }>;
+      top5: Array<{ tripleId: string }>;
+    };
+    execution: {
+      candidatesTested: number;
+      checksRun: number;
+      nontrivialWitnessesFound: number;
+      results: Array<{
+        classification: string;
+        witnessValidation: { valid: boolean; observation: string };
+        rivalScopingCheck: {
+          scopedOrWeakened: boolean;
+          observation: string;
+        };
+        knownTrivialityCheck: { nonfatal: boolean; observation: string };
+        replayCheck: { succeeded: boolean; observation: string };
+        counterexampleCheck: {
+          checked: boolean;
+          counterexampleFound: boolean;
+          observation: string;
+        };
+      }>;
+    };
+    insightBirthDecisions: {
+      candidatesEvaluated: number;
+      candidatesArchived: number;
+      insightCandidatesBorn: number;
+      discoveryCandidatesCreated: number;
+      fundFound: boolean;
+      decisions: Array<{
+        insightCandidateBorn: boolean;
+        blockers: string[];
+        archiveReason: string;
+      }>;
+    };
+  };
+  assert.equal(nontrivialWitness.nearMissAutopsy.nearMissesAnalyzed, 1);
+  assert.equal(
+    nontrivialWitness.nearMissAutopsy.items.every(
+      (item) =>
+        item.witnessId.length > 0 &&
+        item.sourceObject.length > 0 &&
+        item.exactClaim.length > 0 &&
+        item.rivalMechanismScoped.length > 0 &&
+        item.whyKnownTrivialityFatal.length > 0 &&
+        item.absorbingKnownMechanism.length > 0 &&
+        item.avoidingWitnessRequirement.length > 0,
+    ),
+    true,
+  );
+  assert.equal(nontrivialWitness.preGate.candidatesEvaluated <= 10, true);
+  assert.equal(nontrivialWitness.preGate.rejected > 0, true);
+  assert.equal(nontrivialWitness.preGate.top5Selected, 5);
+  assert.equal(
+    nontrivialWitness.preGate.decisions.every(
+      (decision) =>
+        decision.tripleId.startsWith("NONTRIVIAL-RIVAL-") &&
+        decision.exactBoundedClaim.length > 0 &&
+        decision.concreteSourceObject.length > 0 &&
+        decision.witnessType.length > 0 &&
+        decision.rivalMechanism.length > 0 &&
+        decision.whyNontrivialIfFound.length > 0 &&
+        decision.knownPriorCheck.length > 0 &&
+        decision.baselineSimpleMechanismCheck.length > 0 &&
+        decision.replayPath.length > 0 &&
+        decision.falsifier.length > 0 &&
+        (decision.passed || decision.rejectionReasons.length > 0),
+    ),
+    true,
+  );
+  assert.equal(
+    nontrivialWitness.candidates.candidatesGenerated,
+    nontrivialWitness.preGate.candidatesEvaluated,
+  );
+  assert.equal(
+    nontrivialWitness.candidates.rejectedByPreGate,
+    nontrivialWitness.preGate.rejected,
+  );
+  assert.equal(nontrivialWitness.candidates.top5Selected, 5);
+  assert.equal(nontrivialWitness.candidates.top5.length, 5);
+  assert.equal(
+    nontrivialWitness.candidates.candidates.every(
+      (candidate) =>
+        candidate.tripleId.startsWith("NONTRIVIAL-RIVAL-") &&
+        candidate.exactBoundedClaim.length > 0 &&
+        candidate.witnessType.length > 0 &&
+        candidate.rivalMechanism.length > 0 &&
+        candidate.whyNontrivialIfFound.length > 0 &&
+        candidate.knownPriorCheck.length > 0 &&
+        candidate.baselineSimpleMechanismCheck.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    nontrivialWitness.execution.candidatesTested,
+    nontrivialWitness.candidates.top5Selected,
+  );
+  assert.equal(
+    nontrivialWitness.execution.checksRun,
+    nontrivialWitness.execution.candidatesTested * 6,
+  );
+  assert.equal(nontrivialWitness.execution.nontrivialWitnessesFound, 0);
+  assert.equal(
+    nontrivialWitness.execution.results.every(
+      (result) =>
+        [
+          "nontrivial_witness_scopes_rival",
+          "known_trivial",
+          "witness_valid_but_not_discriminating",
+          "rival_not_scoped",
+          "counterexample_refutes_claim",
+          "no_witness_found",
+          "replay_failed",
+        ].includes(result.classification) &&
+        result.witnessValidation.observation.length > 0 &&
+        result.rivalScopingCheck.observation.length > 0 &&
+        result.knownTrivialityCheck.observation.length > 0 &&
+        result.replayCheck.succeeded &&
+        result.replayCheck.observation.length > 0 &&
+        result.counterexampleCheck.checked &&
+        result.counterexampleCheck.observation.length > 0,
+    ),
+    true,
+  );
+  assert.equal(
+    nontrivialWitness.insightBirthDecisions.candidatesEvaluated,
+    nontrivialWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    nontrivialWitness.insightBirthDecisions.candidatesArchived,
+    nontrivialWitness.execution.candidatesTested,
+  );
+  assert.equal(
+    nontrivialWitness.insightBirthDecisions.insightCandidatesBorn,
+    0,
+  );
+  assert.equal(
+    nontrivialWitness.insightBirthDecisions.discoveryCandidatesCreated,
+    0,
+  );
+  assert.equal(nontrivialWitness.insightBirthDecisions.fundFound, false);
+  assert.equal(
+    nontrivialWitness.insightBirthDecisions.decisions.every(
       (decision) =>
         !decision.insightCandidateBorn &&
         decision.blockers.length > 0 &&

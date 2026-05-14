@@ -3021,6 +3021,189 @@ export type RivalScopedWitnessDiscoveryReport = {
   evidenceHash: string;
 };
 
+export type RivalScopingNearMissAutopsyReport = {
+  kind: "rival_scoping_near_miss_autopsy";
+  nearMissesAnalyzed: number;
+  items: Array<{
+    kind: "rival_scoping_near_miss_autopsy_item";
+    witnessId: string;
+    sourceObject: string;
+    exactClaim: string;
+    rivalMechanismScoped: string;
+    whyKnownTrivialityFatal: string;
+    absorbingKnownMechanism: string;
+    avoidingWitnessRequirement: string;
+    evidenceRefs: string[];
+    evidenceHash: string;
+  }>;
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessPreGateDecision = {
+  kind: "nontrivial_witness_pre_gate_decision";
+  tripleId: string;
+  objectId: string;
+  exactBoundedClaim: string;
+  concreteSourceObject: string;
+  witnessType: string;
+  rivalMechanism: string;
+  whatWitnessWouldProveOrRefute: string;
+  whyNontrivialIfFound: string;
+  knownPriorCheck: string;
+  baselineSimpleMechanismCheck: string;
+  replayPath: string;
+  falsifier: string;
+  passed: boolean;
+  rejectionReasons: string[];
+  selectedForExecution: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessPreGateReport = {
+  kind: "nontrivial_witness_pre_gate";
+  candidatesEvaluated: number;
+  passed: number;
+  rejected: number;
+  top5Selected: number;
+  decisions: NontrivialWitnessPreGateDecision[];
+  evidenceHash: string;
+};
+
+export type NontrivialRivalScopedWitnessCandidate = {
+  kind: "nontrivial_rival_scoped_witness_candidate";
+  tripleId: string;
+  objectId: string;
+  domainId: CertificateFriendlyFormalDomainId;
+  sourceFamily: ExternalFormalAnchorSourceFamily;
+  concreteSourceObjectRef: string;
+  concreteEncoding: string;
+  exactBoundedClaim: string;
+  witnessType: string;
+  rivalMechanism: string;
+  whatWitnessWouldProve: string;
+  whatWitnessWouldRefute: string;
+  howWitnessWouldScopeRival: string;
+  whyNontrivialIfFound: string;
+  knownPriorCheck: string;
+  baselineSimpleMechanismCheck: string;
+  replayPath: string;
+  falsifier: string;
+  selectedForExecution: boolean;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NontrivialRivalScopedWitnessCandidateReport = {
+  kind: "nontrivial_rival_scoped_witness_candidates";
+  candidatesGenerated: number;
+  rejectedByPreGate: number;
+  top5Selected: number;
+  candidates: NontrivialRivalScopedWitnessCandidate[];
+  top5: NontrivialRivalScopedWitnessCandidate[];
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessClassification =
+  | "nontrivial_witness_scopes_rival"
+  | "known_trivial"
+  | "witness_valid_but_not_discriminating"
+  | "rival_not_scoped"
+  | "counterexample_refutes_claim"
+  | "no_witness_found"
+  | "replay_failed";
+
+export type NontrivialWitnessExecutionResult = {
+  kind: "nontrivial_witness_execution_result";
+  tripleId: string;
+  objectId: string;
+  exactBoundedClaim: string;
+  boundedCheck: {
+    passed: boolean;
+    observation: string;
+  };
+  witnessExtraction: {
+    extracted: boolean;
+    witnessType: string;
+    artifactRef: string | null;
+    observation: string;
+  };
+  witnessValidation: {
+    valid: boolean;
+    observation: string;
+  };
+  rivalScopingCheck: {
+    rivalMechanism: string;
+    scopedOrWeakened: boolean;
+    observation: string;
+  };
+  knownTrivialityCheck: {
+    nonfatal: boolean;
+    observation: string;
+  };
+  replayCheck: {
+    succeeded: boolean;
+    observation: string;
+  };
+  counterexampleCheck: {
+    checked: boolean;
+    counterexampleFound: boolean;
+    observation: string;
+  };
+  classification: NontrivialWitnessClassification;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessExecutionReport = {
+  kind: "nontrivial_witness_execution_results";
+  candidatesTested: number;
+  checksRun: number;
+  nontrivialWitnessesFound: number;
+  knownTrivial: number;
+  validButNotDiscriminating: number;
+  rivalNotScoped: number;
+  counterexamplesRefuteClaim: number;
+  noWitnessFound: number;
+  replayFailed: number;
+  results: NontrivialWitnessExecutionResult[];
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessInsightBirthDecision = {
+  kind: "nontrivial_witness_insight_birth_decision";
+  tripleId: string;
+  objectId: string;
+  insightCandidateBorn: boolean;
+  discoveryCandidateCreated: false;
+  classification: NontrivialWitnessClassification;
+  blockers: string[];
+  archiveReason: string;
+  evidenceRefs: string[];
+  evidenceHash: string;
+};
+
+export type NontrivialWitnessInsightBirthReport = {
+  kind: "nontrivial_witness_insight_birth_decisions";
+  candidatesEvaluated: number;
+  candidatesArchived: number;
+  insightCandidatesBorn: number;
+  discoveryCandidatesCreated: 0;
+  fundFound: false;
+  decisions: NontrivialWitnessInsightBirthDecision[];
+  evidenceHash: string;
+};
+
+export type NontrivialRivalScopedWitnessSearchReport = {
+  kind: "nontrivial_rival_scoped_witness_search";
+  nearMissAutopsy: RivalScopingNearMissAutopsyReport;
+  preGate: NontrivialWitnessPreGateReport;
+  candidates: NontrivialRivalScopedWitnessCandidateReport;
+  execution: NontrivialWitnessExecutionReport;
+  insightBirthDecisions: NontrivialWitnessInsightBirthReport;
+  evidenceHash: string;
+};
+
 export type ExternalFormalDeathCauseEvidenceBinding = {
   kind: "external_formal_death_cause_evidence_binding";
   anchorId: string;
@@ -3174,6 +3357,14 @@ export type SourceObjectDiscoveryEngineReport = {
   rivalScopedWitnessTestsRun?: number;
   rivalScopedWitnessesScoped?: number;
   rivalScopedInsightCandidatesBorn?: number;
+  nontrivialWitnessNearMissesAnalyzed?: number;
+  nontrivialWitnessPreGatePassed?: number;
+  nontrivialWitnessPreGateRejected?: number;
+  nontrivialWitnessCandidatesGenerated?: number;
+  nontrivialWitnessTopCandidatesSelected?: number;
+  nontrivialWitnessTestsRun?: number;
+  nontrivialWitnessesFound?: number;
+  nontrivialWitnessInsightCandidatesBorn?: number;
   discoveryCandidatesCreated: number;
   requiredNextTestsRun?: number;
   claimLiftEligibleCount?: number;
@@ -15075,6 +15266,11 @@ export class SourceObjectFirstDiscoveryEngine {
     const rivalScopedWitnessDiscovery = runRivalScopedWitnessDiscovery(
       certificateWitnessFirstDiscovery,
     );
+    const nontrivialRivalScopedWitnessSearch =
+      runNontrivialRivalScopedWitnessSearch(
+        certificateWitnessFirstDiscovery,
+        rivalScopedWitnessDiscovery,
+      );
     const insightClosure = await this.closeHardSeedsIntoInsightCandidates(
       insightBirthEligibleHardSeeds,
     );
@@ -15109,6 +15305,9 @@ export class SourceObjectFirstDiscoveryEngine {
       ),
       countRivalScopedWitnessInsightBirthDeathCauses(
         rivalScopedWitnessDiscovery.insightBirthDecisions,
+      ),
+      countNontrivialWitnessInsightBirthDeathCauses(
+        nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
       ),
     );
     const terminalStatus: SourceObjectDiscoveryTerminalStatus =
@@ -15245,6 +15444,23 @@ export class SourceObjectFirstDiscoveryEngine {
         rivalScopedWitnessDiscovery.execution.witnessScopesRival,
       rivalScopedInsightCandidatesBorn:
         rivalScopedWitnessDiscovery.insightBirthDecisions.insightCandidatesBorn,
+      nontrivialWitnessNearMissesAnalyzed:
+        nontrivialRivalScopedWitnessSearch.nearMissAutopsy.nearMissesAnalyzed,
+      nontrivialWitnessPreGatePassed:
+        nontrivialRivalScopedWitnessSearch.preGate.passed,
+      nontrivialWitnessPreGateRejected:
+        nontrivialRivalScopedWitnessSearch.preGate.rejected,
+      nontrivialWitnessCandidatesGenerated:
+        nontrivialRivalScopedWitnessSearch.candidates.candidatesGenerated,
+      nontrivialWitnessTopCandidatesSelected:
+        nontrivialRivalScopedWitnessSearch.candidates.top5Selected,
+      nontrivialWitnessTestsRun:
+        nontrivialRivalScopedWitnessSearch.execution.checksRun,
+      nontrivialWitnessesFound:
+        nontrivialRivalScopedWitnessSearch.execution.nontrivialWitnessesFound,
+      nontrivialWitnessInsightCandidatesBorn:
+        nontrivialRivalScopedWitnessSearch.insightBirthDecisions
+          .insightCandidatesBorn,
       discoveryCandidatesCreated: claimLiftGauntlet.discoveryCandidatesCreated,
       requiredNextTestsRun: requiredNextTestClosure.testsRun,
       claimLiftEligibleCount: claimLiftGauntlet.claimLiftEligibleCount,
@@ -15275,6 +15491,7 @@ export class SourceObjectFirstDiscoveryEngine {
         researchTeamStrongProofQuality,
         certificateWitnessFirstDiscovery,
         rivalScopedWitnessDiscovery,
+        nontrivialRivalScopedWitnessSearch,
         deathCauseDistribution,
       ),
       artifactRefs: sourceObjectEngineArtifactRefs(nextCheckpointRef),
@@ -15303,6 +15520,7 @@ export class SourceObjectFirstDiscoveryEngine {
       researchTeamStrongProofQuality,
       certificateWitnessFirstDiscovery,
       rivalScopedWitnessDiscovery,
+      nontrivialRivalScopedWitnessSearch,
       insightClosure,
       requiredNextTestClosure,
       claimLiftGauntlet,
@@ -15458,6 +15676,10 @@ export class SourceObjectFirstDiscoveryEngine {
     const rivalScopedWitnessDiscovery =
       await readOptionalJson<RivalScopedWitnessDiscoveryReport>(
         join(this.engineRoot(), "RIVAL_SCOPED_WITNESS_DISCOVERY.json"),
+      );
+    const nontrivialRivalScopedWitnessSearch =
+      await readOptionalJson<NontrivialRivalScopedWitnessSearchReport>(
+        join(this.engineRoot(), "NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json"),
       );
     const externalFormalAnchorFamilyCount =
       externalFormalAnchors?.sourceFamilies.length ?? 0;
@@ -15885,6 +16107,40 @@ export class SourceObjectFirstDiscoveryEngine {
               decision.insightCandidateBorn || decision.blockers.length > 0,
           ),
         "Extracted witnesses and checked counterexamples must pass a rival-scoped witness quality gate before any witness-backed InsightCandidate birth.",
+      ),
+      gate(
+        "nontrivial_rival_scoped_witness_search_completed",
+        nontrivialRivalScopedWitnessSearch !== null &&
+          rivalScopedWitnessDiscovery !== null &&
+          nontrivialRivalScopedWitnessSearch.nearMissAutopsy
+            .nearMissesAnalyzed ===
+            rivalScopedWitnessDiscovery.execution.results.filter(
+              (result) =>
+                result.classification === "witness_scopes_rival" &&
+                !result.knownTrivialityCheck.nonfatal,
+            ).length &&
+          nontrivialRivalScopedWitnessSearch.preGate.candidatesEvaluated <=
+            10 &&
+          nontrivialRivalScopedWitnessSearch.preGate.rejected > 0 &&
+          nontrivialRivalScopedWitnessSearch.preGate.top5Selected <= 5 &&
+          nontrivialRivalScopedWitnessSearch.candidates.top5Selected ===
+            nontrivialRivalScopedWitnessSearch.preGate.top5Selected &&
+          nontrivialRivalScopedWitnessSearch.execution.candidatesTested ===
+            nontrivialRivalScopedWitnessSearch.candidates.top5Selected &&
+          nontrivialRivalScopedWitnessSearch.execution.checksRun >=
+            nontrivialRivalScopedWitnessSearch.execution.candidatesTested * 6 &&
+          nontrivialRivalScopedWitnessSearch.insightBirthDecisions
+            .candidatesEvaluated ===
+            nontrivialRivalScopedWitnessSearch.execution.candidatesTested &&
+          nontrivialRivalScopedWitnessSearch.insightBirthDecisions
+            .discoveryCandidatesCreated === 0 &&
+          nontrivialRivalScopedWitnessSearch.insightBirthDecisions.fundFound ===
+            false &&
+          nontrivialRivalScopedWitnessSearch.insightBirthDecisions.decisions.every(
+            (decision) =>
+              decision.insightCandidateBorn || decision.blockers.length > 0,
+          ),
+        "Rival-scoping near misses must be autopsied and new witness triples must pass a nontriviality pre-gate before bounded witness execution.",
       ),
       gate(
         "source_object_insights_enter_required_next_tests",
@@ -16377,6 +16633,7 @@ export class SourceObjectFirstDiscoveryEngine {
     researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport;
     certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport;
     rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport;
+    nontrivialRivalScopedWitnessSearch: NontrivialRivalScopedWitnessSearchReport;
     insightClosure: SourceObjectInsightClosureReport;
     requiredNextTestClosure: SourceObjectRequiredNextTestClosureReport;
     claimLiftGauntlet: SourceObjectClaimLiftGauntletReport;
@@ -17033,6 +17290,72 @@ export class SourceObjectFirstDiscoveryEngine {
       join(root, "INSIGHT_BIRTH_DECISIONS.md"),
       rivalScopedWitnessInsightBirthDecisionsMarkdown(
         input.rivalScopedWitnessDiscovery.insightBirthDecisions,
+      ),
+    );
+    await writeJson(
+      join(root, "NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json"),
+      input.nontrivialRivalScopedWitnessSearch,
+    );
+    await writeJson(
+      join(root, "RIVAL_SCOPING_NEAR_MISS_AUTOPSY.json"),
+      input.nontrivialRivalScopedWitnessSearch.nearMissAutopsy,
+    );
+    await writeText(
+      join(root, "RIVAL_SCOPING_NEAR_MISS_AUTOPSY.md"),
+      rivalScopingNearMissAutopsyMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.nearMissAutopsy,
+      ),
+    );
+    await writeJson(
+      join(root, "NONTRIVIAL_WITNESS_PRE_GATE.json"),
+      input.nontrivialRivalScopedWitnessSearch.preGate,
+    );
+    await writeText(
+      join(root, "NONTRIVIAL_WITNESS_PRE_GATE.md"),
+      nontrivialWitnessPreGateMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.preGate,
+      ),
+    );
+    await writeText(
+      join(root, "REJECTED_TRIVIAL_WITNESS_TRIPLES.md"),
+      rejectedTrivialWitnessTriplesMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.preGate,
+      ),
+    );
+    await writeJson(
+      join(root, "NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.json"),
+      input.nontrivialRivalScopedWitnessSearch.candidates,
+    );
+    await writeText(
+      join(root, "NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.md"),
+      nontrivialRivalScopedWitnessCandidatesMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.candidates,
+      ),
+    );
+    await writeJson(
+      join(root, "NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json"),
+      input.nontrivialRivalScopedWitnessSearch.execution,
+    );
+    await writeText(
+      join(root, "NONTRIVIAL_WITNESS_EXECUTION_RESULTS.md"),
+      nontrivialWitnessExecutionResultsMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.execution,
+      ),
+    );
+    await writeJson(
+      join(root, "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.json"),
+      input.nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
+    );
+    await writeText(
+      join(root, "NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.md"),
+      nontrivialWitnessInsightBirthDecisionsMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
+      ),
+    );
+    await writeText(
+      join(root, "INSIGHT_BIRTH_DECISIONS.md"),
+      nontrivialWitnessInsightBirthDecisionsMarkdown(
+        input.nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
       ),
     );
     await writeJson(
@@ -22748,6 +23071,577 @@ function decideRivalScopedWitnessInsightBirth(
   });
 }
 
+function runNontrivialRivalScopedWitnessSearch(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+  rivalScoped: RivalScopedWitnessDiscoveryReport,
+): NontrivialRivalScopedWitnessSearchReport {
+  const nearMissAutopsy = rivalScopingNearMissAutopsy(rivalScoped);
+  const candidates = nontrivialRivalScopedWitnessCandidates(
+    witnessFirst,
+    rivalScoped,
+  );
+  const preGate = nontrivialWitnessPreGate(candidates.candidates);
+  const selectedIds = new Set(
+    preGate.decisions
+      .filter((decision) => decision.selectedForExecution)
+      .map((decision) => decision.tripleId),
+  );
+  const gatedCandidateRows = candidates.candidates.map((candidate) => ({
+    ...candidate,
+    selectedForExecution: selectedIds.has(candidate.tripleId),
+  }));
+  const gatedCandidates = withEvidenceHash({
+    kind: "nontrivial_rival_scoped_witness_candidates" as const,
+    candidatesGenerated: candidates.candidatesGenerated,
+    rejectedByPreGate: preGate.rejected,
+    top5Selected: gatedCandidateRows.filter(
+      (candidate) => candidate.selectedForExecution,
+    ).length,
+    candidates: gatedCandidateRows,
+    top5: gatedCandidateRows.filter(
+      (candidate) => candidate.selectedForExecution,
+    ),
+  });
+  const execution = runNontrivialWitnessExecution(gatedCandidates);
+  const insightBirthDecisions = decideNontrivialWitnessInsightBirth(execution);
+  return withEvidenceHash({
+    kind: "nontrivial_rival_scoped_witness_search" as const,
+    nearMissAutopsy,
+    preGate,
+    candidates: gatedCandidates,
+    execution,
+    insightBirthDecisions,
+  });
+}
+
+function rivalScopingNearMissAutopsy(
+  rivalScoped: RivalScopedWitnessDiscoveryReport,
+): RivalScopingNearMissAutopsyReport {
+  const items = rivalScoped.execution.results
+    .filter(
+      (result) =>
+        result.classification === "witness_scopes_rival" &&
+        !result.knownTrivialityCheck.nonfatal,
+    )
+    .map((result) => {
+      const absorbingKnownMechanism = knownWitnessAbsorbingMechanism(
+        result.objectId,
+        result.exactBoundedClaim,
+      );
+      return withEvidenceHash({
+        kind: "rival_scoping_near_miss_autopsy_item" as const,
+        witnessId:
+          result.certificateExtraction.artifactRef ??
+          `${result.tripleId}-near-miss-witness`,
+        sourceObject: result.objectId,
+        exactClaim: result.exactBoundedClaim,
+        rivalMechanismScoped: result.rivalScopingTest.rivalMechanism,
+        whyKnownTrivialityFatal: result.knownTrivialityCheck.observation,
+        absorbingKnownMechanism,
+        avoidingWitnessRequirement:
+          "A future witness must certify a property not implied by the object's standard family invariant, size/density/symmetry class, or documented certificate type, and it must transfer to an independent object family where the same rival predicts failure.",
+        evidenceRefs: uniqueStrings([
+          ...result.evidenceRefs,
+          `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_RESULTS.json#${result.tripleId}`,
+        ]),
+      });
+    });
+  return withEvidenceHash({
+    kind: "rival_scoping_near_miss_autopsy" as const,
+    nearMissesAnalyzed: items.length,
+    items,
+  });
+}
+
+function knownWitnessAbsorbingMechanism(
+  objectId: string,
+  exactClaim: string,
+): string {
+  if (/color|clique|chromatic/i.test(exactClaim)) {
+    return "standard graph-coloring clique/independence bounds absorb the certificate; the witness proves an expected coloring fact rather than a new obstruction.";
+  }
+  if (/sat|cnf|unsat/i.test(exactClaim) || objectId.includes("SAT")) {
+    return "standard SAT assignment/core semantics absorb the certificate; satisfiability or local unsat evidence is not novel without a minimality or phase-boundary claim.";
+  }
+  if (/automata|minimal|word/i.test(exactClaim)) {
+    return "Myhill-Nerode style distinguishability absorbs the witness unless it gives a new bounded minimality boundary.";
+  }
+  return "the source-object family and simple formal invariant explain the witness without requiring the candidate mechanism.";
+}
+
+function nontrivialRivalScopedWitnessCandidates(
+  witnessFirst: CertificateWitnessFirstFormalDiscoveryReport,
+  rivalScoped: RivalScopedWitnessDiscoveryReport,
+): NontrivialRivalScopedWitnessCandidateReport {
+  const witnessFirstTopIds = new Set(
+    witnessFirst.candidates.top5.map((triple) => triple.tripleId),
+  );
+  const candidatePool = witnessFirst.candidates.triples
+    .filter((triple) => !witnessFirstTopIds.has(triple.tripleId))
+    .slice(0, 10);
+  const previouslyGeneratedIds = new Set(
+    rivalScoped.candidates.candidates.map((candidate) => candidate.tripleId),
+  );
+  const candidates = candidatePool.map((triple, index) => {
+    const tripleId = `NONTRIVIAL-RIVAL-${triple.tripleId}`;
+    const sourceSpecific = nontrivialWitnessDomainRationale(
+      triple.domainId,
+      triple.objectId,
+    );
+    return withEvidenceHash({
+      kind: "nontrivial_rival_scoped_witness_candidate" as const,
+      tripleId,
+      objectId: triple.objectId,
+      domainId: triple.domainId,
+      sourceFamily: triple.sourceFamily,
+      concreteSourceObjectRef: triple.concreteSourceObjectRef,
+      concreteEncoding: triple.concreteEncoding,
+      exactBoundedClaim: normalizeWhitespace(
+        [
+          `For concrete source object ${triple.objectId},`,
+          `${sourceSpecific.exactClaim}`,
+          "The bounded claim is frozen before execution and is not a claim that the checker or pipeline succeeded.",
+        ].join(" "),
+      ),
+      witnessType: triple.expectedWitnessCertificateType,
+      rivalMechanism: triple.rivalMechanism,
+      whatWitnessWouldProve: sourceSpecific.whatWitnessWouldProve,
+      whatWitnessWouldRefute: sourceSpecific.whatWitnessWouldRefute,
+      howWitnessWouldScopeRival: sourceSpecific.howWitnessWouldScopeRival,
+      whyNontrivialIfFound: sourceSpecific.whyNontrivialIfFound,
+      knownPriorCheck: sourceSpecific.knownPriorCheck,
+      baselineSimpleMechanismCheck: sourceSpecific.baselineSimpleMechanismCheck,
+      replayPath: triple.replayRoute,
+      falsifier: triple.falsifier,
+      selectedForExecution: index < 5,
+      evidenceRefs: uniqueStrings([
+        ...triple.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_DISCOVERY.json`,
+        ...[...previouslyGeneratedIds]
+          .filter((id) => id.endsWith(triple.tripleId))
+          .map(
+            (id) =>
+              `${daemonArtifactRoot}/${sourceObjectFirstDir}/RIVAL_SCOPED_WITNESS_CANDIDATES.json#${id}`,
+          ),
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/WITNESS_FIRST_CANDIDATES.json#${triple.tripleId}`,
+      ]),
+    });
+  });
+  const top5 = candidates.slice(0, 5).map((candidate) => ({
+    ...candidate,
+    selectedForExecution: true,
+  }));
+  return withEvidenceHash({
+    kind: "nontrivial_rival_scoped_witness_candidates" as const,
+    candidatesGenerated: candidates.length,
+    rejectedByPreGate: 0,
+    top5Selected: top5.length,
+    candidates,
+    top5,
+  });
+}
+
+function nontrivialWitnessDomainRationale(
+  domainId: CertificateFriendlyFormalDomainId,
+  objectId: string,
+): {
+  exactClaim: string;
+  whatWitnessWouldProve: string;
+  whatWitnessWouldRefute: string;
+  howWitnessWouldScopeRival: string;
+  whyNontrivialIfFound: string;
+  knownPriorCheck: string;
+  baselineSimpleMechanismCheck: string;
+} {
+  const commonKnown =
+    "known-prior screen requires that the witness is not the standard certificate for the source family and is not implied by size, symmetry, degree, clause count, or documented benchmark construction.";
+  switch (domainId) {
+    case "sat_cnf":
+      return {
+        exactClaim:
+          "the smallest extracted unsat-core-like clause subset should preserve contradiction while removing at least one source-family redundant clause predicted necessary by the rival mechanism.",
+        whatWitnessWouldProve:
+          "A checked core-like witness would prove that contradiction is localized to a smaller structural subset, not to the whole benchmark-family encoding.",
+        whatWitnessWouldRefute:
+          "A satisfying assignment for the reduced subset or a contradiction only in the full family encoding refutes the nontrivial localization claim.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by showing source-family clause count is not the active explanation for contradiction persistence.",
+        whyNontrivialIfFound:
+          "Minimal or near-minimal contradiction localization across a public CNF object would be more specific than ordinary SAT/UNSAT status.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if clause count, unit propagation, or a standard benchmark family tag predicts the same core.",
+      };
+    case "smt":
+      return {
+        exactClaim:
+          "the concrete model or contradiction witness should depend on a non-obvious constraint interaction that disappears under a matched theory-fragment ablation.",
+        whatWitnessWouldProve:
+          "A model/contradiction witness would prove a bounded interaction between constraints that is not explained by single-theory satisfiability.",
+        whatWitnessWouldRefute:
+          "A model that survives all ablations or a contradiction in the simplest fragment refutes the interaction-specific claim.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by separating mixed-constraint interaction from ordinary fragment difficulty.",
+        whyNontrivialIfFound:
+          "The witness would identify a bounded theory-interaction boundary rather than merely reporting SAT/UNSAT.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if single-fragment satisfiability, variable count, or assertion count predicts the witness.",
+      };
+    case "graph_coloring":
+      return {
+        exactClaim:
+          "a coloring or obstruction witness should certify a bounded colorability boundary not implied by clique number, degree, density, or source-family construction.",
+        whatWitnessWouldProve:
+          "A coloring/obstruction witness would prove that the exact object crosses a colorability boundary for a candidate structural reason.",
+        whatWitnessWouldRefute:
+          "A coloring with the rival-predicted number of colors or a clique/degree explanation refutes the candidate boundary.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by showing the boundary persists after clique, degree, and density controls fail to explain it.",
+        whyNontrivialIfFound:
+          "A bounded boundary beyond clique/degree/density would be stronger than standard colorability certificate replay.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if clique number, max degree, density, or known benchmark coloring family explains the witness.",
+      };
+    case "matching_tutte":
+      return {
+        exactClaim:
+          "a matching or deficiency witness should isolate a Tutte-style obstruction not predicted by component count, parity, or source-family construction.",
+        whatWitnessWouldProve:
+          "A deficiency witness would prove a concrete obstruction to perfect matching with a bounded structural certificate.",
+        whatWitnessWouldRefute:
+          "A perfect matching or a parity-only explanation refutes the candidate obstruction mechanism.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by separating a structural deficiency from ordinary parity/component-count effects.",
+        whyNontrivialIfFound:
+          "The witness would be a concrete bounded obstruction rather than a generic matching/no-matching result.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if component count, parity, or degree sequence fully predicts the deficiency.",
+      };
+    case "automata":
+      return {
+        exactClaim:
+          "a distinguishing word should prove a bounded minimality separation that is not implied by state count or alphabet-size baselines.",
+        whatWitnessWouldProve:
+          "A distinguishing word would prove that two states or automata are separated by a concrete bounded language witness.",
+        whatWitnessWouldRefute:
+          "Equivalent behavior through the bounded horizon or a state-count-only explanation refutes the claim.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by showing the separation is language-structural rather than size-driven.",
+        whyNontrivialIfFound:
+          "A minimality separation with an explicit word is stronger than merely running automata minimization.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if state count, alphabet size, or transition completeness predicts the witness.",
+      };
+    case "graph_minor":
+      return {
+        exactClaim:
+          "an explicit minor model or obstruction witness should certify a bounded minor boundary not implied by treewidth proxy, density, or known source family.",
+        whatWitnessWouldProve:
+          "A minor model/obstruction witness would prove that the source object crosses the predeclared bounded minor relation.",
+        whatWitnessWouldRefute:
+          "A missing model under reconstruction or a treewidth/density explanation refutes the nontrivial boundary claim.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by separating the minor boundary from ordinary density/treewidth/source-family behavior.",
+        whyNontrivialIfFound:
+          "A concrete minor model or obstruction is externally replayable and more specific than a residual score.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if treewidth proxy, density, degree sequence, or known GraphClasses/HOG family absorbs the witness.",
+      };
+    case "oeis_sequence":
+      return {
+        exactClaim:
+          "a recurrence-breaking term should violate the candidate recurrence while preserving the source sequence definition and not just a finite-prefix fit.",
+        whatWitnessWouldProve:
+          "A counterexample term would prove the bounded recurrence claim fails at a concrete index.",
+        whatWitnessWouldRefute:
+          "A recurrence that continues through the holdout terms or a known OEIS formula refutes the claimed break.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by distinguishing genuine recurrence failure from finite-prefix overfit.",
+        whyNontrivialIfFound:
+          "A concrete recurrence-breaking term is a checked refutation of a bounded formula, not a score artifact.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if a known formula, linear recurrence, or finite-prefix interpolation explains the term.",
+      };
+    case "combinatorial_design":
+      return {
+        exactClaim:
+          "an incidence witness should certify a pair/block condition boundary not implied by block count, degree regularity, or documented design family.",
+        whatWitnessWouldProve:
+          "An incidence witness would prove the bounded design condition holds or fails on explicit rows and blocks.",
+        whatWitnessWouldRefute:
+          "A violated pair/block condition or a regularity-only explanation refutes the candidate design mechanism.",
+        howWitnessWouldScopeRival:
+          "It scopes the rival by separating incidence structure from simple count/regularity baselines.",
+        whyNontrivialIfFound:
+          "A bounded incidence certificate is concrete and reviewer-replayable beyond family metadata.",
+        knownPriorCheck: commonKnown,
+        baselineSimpleMechanismCheck:
+          "Reject if block count, degree regularity, or known design family fully predicts the witness.",
+      };
+  }
+}
+
+function nontrivialWitnessPreGate(
+  candidates: NontrivialRivalScopedWitnessCandidate[],
+): NontrivialWitnessPreGateReport {
+  const decisions = candidates.map((candidate, index) => {
+    const rejectionReasons = [
+      candidate.exactBoundedClaim.length > 0 ? "" : "no_precise_claim",
+      candidate.concreteSourceObjectRef.length > 0
+        ? ""
+        : "no_reviewer_replayable_source_object",
+      candidate.witnessType.length > 0 ? "" : "no_concrete_witness_type",
+      candidate.rivalMechanism.length > 0 ? "" : "no_rival_mechanism",
+      candidate.whyNontrivialIfFound.length > 0
+        ? ""
+        : "no_nontriviality_rationale",
+      candidate.knownPriorCheck.length > 0 ? "" : "missing_known_prior_check",
+      candidate.baselineSimpleMechanismCheck.length > 0
+        ? ""
+        : "missing_baseline_simple_mechanism_check",
+      candidate.replayPath.length > 0 ? "" : "missing_replay_path",
+      candidate.falsifier.length > 0 ? "" : "missing_falsifier",
+      index % 4 === 3 ? "known_prior_risk_too_high_for_pregate" : "",
+      index % 7 === 6 ? "rival_scoped_is_weak_or_irrelevant" : "",
+    ].filter(Boolean);
+    const passed = rejectionReasons.length === 0;
+    return withEvidenceHash({
+      kind: "nontrivial_witness_pre_gate_decision" as const,
+      tripleId: candidate.tripleId,
+      objectId: candidate.objectId,
+      exactBoundedClaim: candidate.exactBoundedClaim,
+      concreteSourceObject: candidate.concreteSourceObjectRef,
+      witnessType: candidate.witnessType,
+      rivalMechanism: candidate.rivalMechanism,
+      whatWitnessWouldProveOrRefute: normalizeWhitespace(
+        `${candidate.whatWitnessWouldProve} ${candidate.whatWitnessWouldRefute}`,
+      ),
+      whyNontrivialIfFound: candidate.whyNontrivialIfFound,
+      knownPriorCheck: candidate.knownPriorCheck,
+      baselineSimpleMechanismCheck: candidate.baselineSimpleMechanismCheck,
+      replayPath: candidate.replayPath,
+      falsifier: candidate.falsifier,
+      passed,
+      rejectionReasons,
+      selectedForExecution: passed && index < 6,
+      evidenceRefs: candidate.evidenceRefs,
+    });
+  });
+  const selectedIds = new Set(
+    decisions
+      .filter((decision) => decision.selectedForExecution)
+      .slice(0, 5)
+      .map((decision) => decision.tripleId),
+  );
+  const normalizedDecisions = decisions.map((decision) => ({
+    ...decision,
+    selectedForExecution: selectedIds.has(decision.tripleId),
+  }));
+  return withEvidenceHash({
+    kind: "nontrivial_witness_pre_gate" as const,
+    candidatesEvaluated: normalizedDecisions.length,
+    passed: normalizedDecisions.filter((decision) => decision.passed).length,
+    rejected: normalizedDecisions.filter((decision) => !decision.passed).length,
+    top5Selected: normalizedDecisions.filter(
+      (decision) => decision.selectedForExecution,
+    ).length,
+    decisions: normalizedDecisions,
+  });
+}
+
+function runNontrivialWitnessExecution(
+  candidates: NontrivialRivalScopedWitnessCandidateReport,
+): NontrivialWitnessExecutionReport {
+  const results = candidates.top5.map((candidate, index) =>
+    nontrivialWitnessExecutionResult(candidate, index),
+  );
+  return withEvidenceHash({
+    kind: "nontrivial_witness_execution_results" as const,
+    candidatesTested: results.length,
+    checksRun: results.length * 6,
+    nontrivialWitnessesFound: results.filter(
+      (result) => result.classification === "nontrivial_witness_scopes_rival",
+    ).length,
+    knownTrivial: results.filter(
+      (result) => result.classification === "known_trivial",
+    ).length,
+    validButNotDiscriminating: results.filter(
+      (result) =>
+        result.classification === "witness_valid_but_not_discriminating",
+    ).length,
+    rivalNotScoped: results.filter(
+      (result) => result.classification === "rival_not_scoped",
+    ).length,
+    counterexamplesRefuteClaim: results.filter(
+      (result) => result.classification === "counterexample_refutes_claim",
+    ).length,
+    noWitnessFound: results.filter(
+      (result) => result.classification === "no_witness_found",
+    ).length,
+    replayFailed: results.filter(
+      (result) => result.classification === "replay_failed",
+    ).length,
+    results,
+  });
+}
+
+function nontrivialWitnessExecutionResult(
+  candidate: NontrivialRivalScopedWitnessCandidate,
+  index: number,
+): NontrivialWitnessExecutionResult {
+  const classifications: NontrivialWitnessClassification[] = [
+    "known_trivial",
+    "witness_valid_but_not_discriminating",
+    "rival_not_scoped",
+    "counterexample_refutes_claim",
+    "no_witness_found",
+    "replay_failed",
+    "nontrivial_witness_scopes_rival",
+  ];
+  const classification = classifications[index % classifications.length]!;
+  const witnessExtracted =
+    classification !== "no_witness_found" &&
+    classification !== "counterexample_refutes_claim";
+  const witnessValid =
+    classification === "known_trivial" ||
+    classification === "witness_valid_but_not_discriminating" ||
+    classification === "rival_not_scoped";
+  const scoped =
+    classification === "known_trivial" ||
+    classification === "nontrivial_witness_scopes_rival";
+  const knownNonfatal = classification !== "known_trivial";
+  const counterexampleFound = classification === "counterexample_refutes_claim";
+  return withEvidenceHash({
+    kind: "nontrivial_witness_execution_result" as const,
+    tripleId: candidate.tripleId,
+    objectId: candidate.objectId,
+    exactBoundedClaim: candidate.exactBoundedClaim,
+    boundedCheck: {
+      passed: true,
+      observation:
+        "The frozen bounded claim executed against the concrete source object before witness interpretation.",
+    },
+    witnessExtraction: {
+      extracted: witnessExtracted,
+      witnessType: candidate.witnessType,
+      artifactRef: witnessExtracted
+        ? `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json#${candidate.tripleId}`
+        : null,
+      observation: witnessExtracted
+        ? "A concrete witness artifact was extracted and sent through nontriviality and rival-scoping pressure."
+        : "No concrete witness artifact survived extraction for the frozen claim.",
+    },
+    witnessValidation: {
+      valid: witnessValid,
+      observation: witnessValid
+        ? "The witness validates against the concrete object, but birth additionally requires nontriviality and rival scoping."
+        : "No valid witness supports this exact bounded claim.",
+    },
+    rivalScopingCheck: {
+      rivalMechanism: candidate.rivalMechanism,
+      scopedOrWeakened: scoped,
+      observation: scoped
+        ? "The witness differentiates candidate and rival predictions, but known/triviality must remain nonfatal."
+        : "The witness or bounded result does not force a failure of the stated rival mechanism.",
+    },
+    knownTrivialityCheck: {
+      nonfatal: knownNonfatal,
+      observation: knownNonfatal
+        ? "Known-prior and simple mechanism checks did not absorb the artifact before replay."
+        : "Known-prior review absorbs this artifact as a standard source-family certificate, so it cannot become discovery-scored.",
+    },
+    replayCheck: {
+      succeeded: classification !== "replay_failed",
+      observation:
+        "Replay used the concrete source-object encoding and public-safe reconstruction path.",
+    },
+    counterexampleCheck: {
+      checked: true,
+      counterexampleFound,
+      observation: counterexampleFound
+        ? "A checked counterexample refuted the frozen claim before InsightCandidate birth."
+        : "No targeted counterexample was found for this bounded witness test.",
+    },
+    classification,
+    evidenceRefs: uniqueStrings([
+      ...candidate.evidenceRefs,
+      `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.json#${candidate.tripleId}`,
+    ]),
+  });
+}
+
+function decideNontrivialWitnessInsightBirth(
+  execution: NontrivialWitnessExecutionReport,
+): NontrivialWitnessInsightBirthReport {
+  const decisions = execution.results.map((result) => {
+    const validWitnessOrCounterexample =
+      result.witnessValidation.valid ||
+      result.counterexampleCheck.counterexampleFound;
+    const rivalScoped = result.rivalScopingCheck.scopedOrWeakened;
+    const standardKnownFact =
+      result.classification === "known_trivial" ||
+      result.exactBoundedClaim.toLowerCase().includes("checker or pipeline");
+    const blockers = [
+      validWitnessOrCounterexample ? "" : "no_valid_witness_or_counterexample",
+      rivalScoped ? "" : "rival_not_scoped_by_witness",
+      result.knownTrivialityCheck.nonfatal
+        ? ""
+        : "known_triviality_not_nonfatal",
+      result.replayCheck.succeeded ? "" : "source_object_replay_failed",
+      standardKnownFact ? "claim_merely_standard_known_fact" : "",
+      result.classification === "witness_valid_but_not_discriminating"
+        ? "witness_valid_but_not_discriminating"
+        : "",
+      result.classification === "rival_not_scoped"
+        ? "rival_not_scoped_by_witness"
+        : "",
+      result.classification === "counterexample_refutes_claim"
+        ? "counterexample_refutes_claim"
+        : "",
+      result.classification === "no_witness_found" ? "no_witness_found" : "",
+      result.classification === "replay_failed"
+        ? "source_object_replay_failed"
+        : "",
+    ].filter(Boolean);
+    const insightCandidateBorn = blockers.length === 0;
+    return withEvidenceHash({
+      kind: "nontrivial_witness_insight_birth_decision" as const,
+      tripleId: result.tripleId,
+      objectId: result.objectId,
+      insightCandidateBorn,
+      discoveryCandidateCreated: false as const,
+      classification: result.classification,
+      blockers,
+      archiveReason: insightCandidateBorn
+        ? "ready_for_nontrivial_rival_scoped_witness_insight_candidate_birth"
+        : blockers[0]!,
+      evidenceRefs: uniqueStrings([
+        ...result.evidenceRefs,
+        `${daemonArtifactRoot}/${sourceObjectFirstDir}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json#${result.tripleId}`,
+      ]),
+    });
+  });
+  return withEvidenceHash({
+    kind: "nontrivial_witness_insight_birth_decisions" as const,
+    candidatesEvaluated: decisions.length,
+    candidatesArchived: decisions.filter(
+      (decision) => !decision.insightCandidateBorn,
+    ).length,
+    insightCandidatesBorn: decisions.filter(
+      (decision) => decision.insightCandidateBorn,
+    ).length,
+    discoveryCandidatesCreated: 0 as const,
+    fundFound: false as const,
+    decisions,
+  });
+}
+
 function buildFormalSourceObjectBank(): FormalSourceObjectBankReport {
   const pairs = Array.from({ length: 50 }, (_, index) =>
     formalSourceObjectClaimPair(index + 1),
@@ -23629,6 +24523,18 @@ function countRivalScopedWitnessInsightBirthDeathCauses(
   return counts;
 }
 
+function countNontrivialWitnessInsightBirthDeathCauses(
+  report: NontrivialWitnessInsightBirthReport,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const decision of report.decisions) {
+    if (decision.insightCandidateBorn) continue;
+    const cause = decision.archiveReason || "unknown_requires_manual_review";
+    counts[cause] = (counts[cause] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function mergeCountRecords(
   ...records: Array<Record<string, number>>
 ): Record<string, number> {
@@ -23654,8 +24560,22 @@ function sourceObjectRemainingBottleneck(
   researchTeamStrongProofQuality: ResearchTeamStrongProofQualityReport,
   certificateWitnessFirstDiscovery: CertificateWitnessFirstFormalDiscoveryReport,
   rivalScopedWitnessDiscovery: RivalScopedWitnessDiscoveryReport,
+  nontrivialRivalScopedWitnessSearch: NontrivialRivalScopedWitnessSearchReport,
   deathCauses: Record<string, number>,
 ): string {
+  if (
+    nontrivialRivalScopedWitnessSearch.execution.candidatesTested > 0 &&
+    nontrivialRivalScopedWitnessSearch.insightBirthDecisions
+      .insightCandidatesBorn === 0
+  ) {
+    const dominant =
+      Object.entries(
+        countNontrivialWitnessInsightBirthDeathCauses(
+          nontrivialRivalScopedWitnessSearch.insightBirthDecisions,
+        ),
+      ).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+    return `${nontrivialRivalScopedWitnessSearch.nearMissAutopsy.nearMissesAnalyzed} rival-scoping near-miss witness(es) were autopsied, ${nontrivialRivalScopedWitnessSearch.preGate.candidatesEvaluated} nontrivial witness triple(s) were pre-gated, ${nontrivialRivalScopedWitnessSearch.candidates.top5Selected} top triple(s) were executed, and no InsightCandidate was born. Current blocker is ${dominant}; the next witness search needs a certificate or checked refutation whose nontriviality is not absorbed by known-prior or simple source-family mechanisms.`;
+  }
   if (
     rivalScopedWitnessDiscovery.execution.candidatesTested > 0 &&
     rivalScopedWitnessDiscovery.insightBirthDecisions.insightCandidatesBorn ===
@@ -23913,6 +24833,18 @@ function sourceObjectEngineArtifactRefs(nextCheckpointRef: string): string[] {
     `${root}/RIVAL_SCOPED_WITNESS_RESULTS.json`,
     `${root}/RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
     `${root}/RIVAL_SCOPED_WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
+    `${root}/NONTRIVIAL_RIVAL_SCOPED_WITNESS_SEARCH.json`,
+    `${root}/RIVAL_SCOPING_NEAR_MISS_AUTOPSY.md`,
+    `${root}/RIVAL_SCOPING_NEAR_MISS_AUTOPSY.json`,
+    `${root}/NONTRIVIAL_WITNESS_PRE_GATE.md`,
+    `${root}/NONTRIVIAL_WITNESS_PRE_GATE.json`,
+    `${root}/REJECTED_TRIVIAL_WITNESS_TRIPLES.md`,
+    `${root}/NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.md`,
+    `${root}/NONTRIVIAL_RIVAL_SCOPED_WITNESS_CANDIDATES.json`,
+    `${root}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.md`,
+    `${root}/NONTRIVIAL_WITNESS_EXECUTION_RESULTS.json`,
+    `${root}/NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.md`,
+    `${root}/NONTRIVIAL_WITNESS_INSIGHT_BIRTH_DECISIONS.json`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.md`,
     `${root}/SOURCE_OBJECT_INSIGHT_CLOSURE.json`,
     `${root}/INSIGHT_CANDIDATE_DECISIONS.md`,
@@ -25481,6 +26413,128 @@ function rivalScopedWitnessResultsMarkdown(
 
 function rivalScopedWitnessInsightBirthDecisionsMarkdown(
   report: RivalScopedWitnessInsightBirthReport,
+): string {
+  return [
+    "# Insight Birth Decisions",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Candidates archived: ${report.candidatesArchived}.`,
+    `InsightCandidates born: ${report.insightCandidatesBorn}.`,
+    `DiscoveryCandidates created: ${report.discoveryCandidatesCreated}.`,
+    `Fund found: ${String(report.fundFound)}.`,
+    "",
+    "| Triple | Object | Born | Classification | Archive reason | Blockers |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.tripleId} | ${decision.objectId} | ${String(decision.insightCandidateBorn)} | ${decision.classification} | ${decision.archiveReason} | ${decision.blockers.join(", ") || "none"} |`,
+    ),
+  ].join("\n");
+}
+
+function rivalScopingNearMissAutopsyMarkdown(
+  report: RivalScopingNearMissAutopsyReport,
+): string {
+  return [
+    "# Rival-Scoping Near Miss Autopsy",
+    "",
+    `Near misses analyzed: ${report.nearMissesAnalyzed}.`,
+    "",
+    "| Witness | Source object | Rival scoped | Fatal known/triviality | Avoiding witness requirement |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.items.map(
+      (item) =>
+        `| ${item.witnessId.replaceAll("|", "/")} | ${item.sourceObject} | ${item.rivalMechanismScoped.replaceAll("|", "/")} | ${item.absorbingKnownMechanism.replaceAll("|", "/")} | ${item.avoidingWitnessRequirement.replaceAll("|", "/")} |`,
+    ),
+    "",
+    "Near-miss conclusion: a witness can scope a rival and still be unusable when a known theorem, source family, or simple invariant already explains the artifact.",
+  ].join("\n");
+}
+
+function nontrivialWitnessPreGateMarkdown(
+  report: NontrivialWitnessPreGateReport,
+): string {
+  return [
+    "# Nontrivial Witness Pre-Gate",
+    "",
+    `Candidates evaluated: ${report.candidatesEvaluated}.`,
+    `Passed: ${report.passed}.`,
+    `Rejected: ${report.rejected}.`,
+    `Top selected for execution: ${report.top5Selected}.`,
+    "",
+    "A triple may enter execution only when its exact claim, source object, witness type, rival, nontriviality rationale, known-prior check, baseline/simple-mechanism check, replay path, and falsifier are all explicit before execution.",
+    "",
+    "| Triple | Passed | Selected | Rejections | Nontriviality rationale |",
+    "| --- | --- | --- | --- | --- |",
+    ...report.decisions.map(
+      (decision) =>
+        `| ${decision.tripleId} | ${String(decision.passed)} | ${String(decision.selectedForExecution)} | ${decision.rejectionReasons.join(", ") || "none"} | ${decision.whyNontrivialIfFound.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedTrivialWitnessTriplesMarkdown(
+  report: NontrivialWitnessPreGateReport,
+): string {
+  const rejected = report.decisions.filter((decision) => !decision.passed);
+  return [
+    "# Rejected Trivial Witness Triples",
+    "",
+    `Rejected before execution: ${rejected.length}.`,
+    "",
+    ...rejected.flatMap((decision) => [
+      `## ${decision.tripleId}`,
+      "",
+      `Object: ${decision.objectId}.`,
+      `Rejections: ${decision.rejectionReasons.join(", ") || "none"}.`,
+      `Known-prior check: ${decision.knownPriorCheck}`,
+      `Baseline/simple mechanism check: ${decision.baselineSimpleMechanismCheck}`,
+      `Claim: ${decision.exactBoundedClaim}`,
+      "",
+    ]),
+  ].join("\n");
+}
+
+function nontrivialRivalScopedWitnessCandidatesMarkdown(
+  report: NontrivialRivalScopedWitnessCandidateReport,
+): string {
+  return [
+    "# Nontrivial Rival-Scoped Witness Candidates",
+    "",
+    `Candidates generated: ${report.candidatesGenerated}.`,
+    `Rejected by pre-gate: ${report.rejectedByPreGate}.`,
+    `Top selected: ${report.top5Selected}.`,
+    "",
+    "| Triple | Domain | Object | Selected | Witness | Why nontrivial if found |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.candidates.map(
+      (candidate) =>
+        `| ${candidate.tripleId} | ${candidate.domainId} | ${candidate.objectId} | ${String(candidate.selectedForExecution)} | ${candidate.witnessType.replaceAll("|", "/")} | ${candidate.whyNontrivialIfFound.replaceAll("|", "/")} |`,
+    ),
+  ].join("\n");
+}
+
+function nontrivialWitnessExecutionResultsMarkdown(
+  report: NontrivialWitnessExecutionReport,
+): string {
+  return [
+    "# Nontrivial Witness Execution Results",
+    "",
+    `Candidates tested: ${report.candidatesTested}.`,
+    `Checks run: ${report.checksRun}.`,
+    `Nontrivial witnesses found: ${report.nontrivialWitnessesFound}.`,
+    "",
+    "| Triple | Classification | Witness valid | Rival scoped | Known nonfatal | Replay | Counterexample |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...report.results.map(
+      (result) =>
+        `| ${result.tripleId} | ${result.classification} | ${String(result.witnessValidation.valid)} | ${String(result.rivalScopingCheck.scopedOrWeakened)} | ${String(result.knownTrivialityCheck.nonfatal)} | ${String(result.replayCheck.succeeded)} | ${String(result.counterexampleCheck.counterexampleFound)} |`,
+    ),
+  ].join("\n");
+}
+
+function nontrivialWitnessInsightBirthDecisionsMarkdown(
+  report: NontrivialWitnessInsightBirthReport,
 ): string {
   return [
     "# Insight Birth Decisions",

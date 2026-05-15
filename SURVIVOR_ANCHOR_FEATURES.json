@@ -1,0 +1,20 @@
+{
+  "anchorClaimId": "SA-PLAUS-003-OPENML-32",
+  "taskId": 32,
+  "datasetId": 32,
+  "datasetName": "pendigits",
+  "rowsLoaded": 10992,
+  "featuresLoaded": 16,
+  "splitProtocolFeature": "input1_bucket / first public ARFF feature holdout",
+  "baselineBehavior": "model-vs-baseline=0.093 with baseline=0.094",
+  "rivalBehavior": "rival=scoped_or_weakened; holdout=survived; random-vs-holdout=0.187",
+  "negativeControlBehavior": "negative-control=0.106; behaved=yes",
+  "survivalPredictiveFeatures": [
+    "concrete OpenML task and data receipt",
+    "first-feature group-style holdout is reconstructible from raw ARFF",
+    "random split margin remains above majority baseline",
+    "stronger holdout reduces the random split signal enough to expose protocol fragility",
+    "shuffled-target negative control stays below the real-label replay margin",
+    "rival mechanism is scoped by live raw replay rather than deterministic proxy metrics"
+  ]
+}

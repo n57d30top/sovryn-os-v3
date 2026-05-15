@@ -1,5 +1,5 @@
 # Next Action
 
-Do not promote these survivors; source or replay stronger survivor-adjacent claims only after public raw replay can pass on at least two independent tasks.
+Pressure the bounded DiscoveryCandidate package with external-review inspectability, FundCandidateDraft construction, and full Fund Gate; do not write FUND_FOUND unless that gate passes.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/survivor-adjacent-promotion-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/second-independent-survivor-continue-searching.json

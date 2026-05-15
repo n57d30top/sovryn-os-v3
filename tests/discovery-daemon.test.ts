@@ -82,6 +82,7 @@ import {
   ReceiptFirstSelectivityV4Service,
   ReceiptFirstSurvivalPotentialService,
   ReceiptFirstSynthesisService,
+  SecondIndependentSurvivorSearchService,
   SurvivorAdjacentExternalClaimHarvestService,
   SurvivorAdjacentPromotionReadinessService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
@@ -164,6 +165,7 @@ const commands = [
   "deep-validation-gold-set-calibration",
   "survivor-adjacent-claims",
   "survivor-adjacent-promotion",
+  "second-independent-survivor",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9728,6 +9730,76 @@ test("survivor-adjacent promotion pressures selected survivors without fake Fund
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "survivor_adjacent_promotion_readiness",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+});
+
+test("second independent survivor search archives weakened survivors and blocks fake Fund", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new DeepValidationGoldSetCalibrationService(root).run();
+  await new SurvivorAdjacentExternalClaimHarvestService(root).run();
+  await new SurvivorAdjacentPromotionReadinessService(root).run();
+
+  const report = await new SecondIndependentSurvivorSearchService(root).run();
+
+  assert.equal(report.kind, "second_independent_survivor_search");
+  assert.equal(report.anchorClaimId, "SA-PLAUS-003-OPENML-32");
+  assert.equal(report.independentClaimsCollected >= 40, true);
+  assert.equal(report.independentTasksCollected >= 20, true);
+  assert.equal(report.topReplayClaims, 8);
+  assert.equal(report.additionalPublicRawReplaySurvivors, 0);
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.fundCandidateDraftCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+
+  for (const artifact of [
+    "WEAKENED_SURVIVOR_ARCHIVE.md",
+    "WEAKENED_SURVIVOR_DEATH_CAUSES.json",
+    "OPENML32_SURVIVOR_ANCHOR_PROFILE.md",
+    "SURVIVOR_ANCHOR_FEATURES.json",
+    "INDEPENDENT_SURVIVOR_CLAIMS.md",
+    "REJECTED_SURVIVOR_CLAIMS.md",
+    "INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md",
+    "RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md",
+    "SECOND_SURVIVOR_DECISION.md",
+    "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+    "FUND_GATE_RESULTS.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "second-independent-survivor", artifact),
+    );
+  }
+
+  const deathCauses = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "second-independent-survivor",
+        "WEAKENED_SURVIVOR_DEATH_CAUSES.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(Array.isArray(deathCauses), true);
+
+  const cli = await executeCli(
+    ["discover-daemon", "second-independent-survivor", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "second_independent_survivor_search",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

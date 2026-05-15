@@ -1,0 +1,5 @@
+# Reviewer Summary
+
+A receipt-first benchmark triage method can identify OpenML benchmark claims whose random-split performance survives public raw replay as a bounded protocol-fragility signal across OpenML-32 and at least one independent task, with nonfatal baseline, holdout, rival, and negative-control checks.
+
+This is a bounded review package for benchmark-methodology triage evidence. It is not external validation, not a broad claim about OpenML, and not a Fund notification.

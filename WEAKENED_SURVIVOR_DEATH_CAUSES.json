@@ -1,0 +1,46 @@
+[
+  {
+    "claimId": "SA-PLAUS-001-OPENML-28",
+    "taskId": 28,
+    "datasetName": "optdigits",
+    "priorSurvivorEvidence": "prior deterministic survivor margins: model-vs-baseline=0.178, random-vs-holdout=0.095, negative-control=0.496",
+    "liveReplayResult": "replay_weakened",
+    "rivalHoldoutReason": "live rival=stronger; holdout=failed; model-vs-baseline=0.008; random-vs-holdout=0.013; negative-control-behaved=yes",
+    "deathCause": "baseline_dominated",
+    "materialRetestPossible": false,
+    "materialRetestRationale": "No material retest is allowed without changing the claim scope, so it remains archived."
+  },
+  {
+    "claimId": "SA-PLAUS-005-OPENML-22",
+    "taskId": 22,
+    "datasetName": "mfeat-zernike",
+    "priorSurvivorEvidence": "prior deterministic survivor margins: model-vs-baseline=0.178, random-vs-holdout=0.095, negative-control=0.484",
+    "liveReplayResult": "replay_weakened",
+    "rivalHoldoutReason": "live rival=stronger; holdout=failed; model-vs-baseline=0.003; random-vs-holdout=-0.007; negative-control-behaved=yes",
+    "deathCause": "baseline_dominated",
+    "materialRetestPossible": false,
+    "materialRetestRationale": "No material retest is allowed without changing the claim scope, so it remains archived."
+  },
+  {
+    "claimId": "SA-PLAUS-006-OPENML-16",
+    "taskId": 16,
+    "datasetName": "mfeat-karhunen",
+    "priorSurvivorEvidence": "prior deterministic survivor margins: model-vs-baseline=0.178, random-vs-holdout=0.095, negative-control=0.472",
+    "liveReplayResult": "replay_weakened",
+    "rivalHoldoutReason": "live rival=stronger; holdout=failed; model-vs-baseline=0.003; random-vs-holdout=-0.007; negative-control-behaved=yes",
+    "deathCause": "baseline_dominated",
+    "materialRetestPossible": false,
+    "materialRetestRationale": "No material retest is allowed without changing the claim scope, so it remains archived."
+  },
+  {
+    "claimId": "SA-PLAUS-004-OPENML-45",
+    "taskId": 45,
+    "datasetName": "splice",
+    "priorSurvivorEvidence": "prior deterministic survivor margins: model-vs-baseline=0.160, random-vs-holdout=0.113, negative-control=0.460",
+    "liveReplayResult": "replay_weakened",
+    "rivalHoldoutReason": "live rival=stronger; holdout=failed; model-vs-baseline=0.005; random-vs-holdout=0.006; negative-control-behaved=yes",
+    "deathCause": "baseline_dominated",
+    "materialRetestPossible": false,
+    "materialRetestRationale": "No material retest is allowed without changing the claim scope, so it remains archived."
+  }
+]

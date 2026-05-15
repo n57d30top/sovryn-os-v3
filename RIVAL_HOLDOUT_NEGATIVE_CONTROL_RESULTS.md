@@ -1,0 +1,12 @@
+# Rival, Holdout, And Negative-Control Results
+
+| Claim                     | Rival              | Holdout  | Negative behaved | Recurrence               | Replay notes                                                                                                                             |
+| ------------------------- | ------------------ | -------- | ---------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| SECOND-SURV-001-OPENML-59 | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 59 and raw ARFF https://openml.org/data/v1/download/61/iris.arff; target=class; attributes=5; rows=150         |
+| SECOND-SURV-002-OPENML-55 | stronger           | survived | yes              | recurrence_supported (6) | loaded public OpenML task 55 and raw ARFF https://openml.org/data/v1/download/56/vote.arff; target=Class; attributes=17; rows=435        |
+| SECOND-SURV-003-OPENML-7  | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 7 and raw ARFF https://openml.org/data/v1/download/7/audiology.arff; target=class; attributes=70; rows=226     |
+| SECOND-SURV-004-OPENML-9  | still_plausible    | survived | no               | recurrence_supported (6) | loaded public OpenML task 9 and raw ARFF https://openml.org/data/v1/download/9/autos.arff; target=symboling; attributes=26; rows=205     |
+| SECOND-SURV-005-OPENML-53 | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 53 and raw ARFF https://openml.org/data/v1/download/54/vehicle.arff; target=Class; attributes=19; rows=846     |
+| SECOND-SURV-006-OPENML-36 | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 36 and raw ARFF https://openml.org/data/v1/download/36/segment.arff; target=class; attributes=20; rows=2310    |
+| SECOND-SURV-007-OPENML-43 | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 43 and raw ARFF https://openml.org/data/v1/download/44/spambase.arff; target=class; attributes=58; rows=4601   |
+| SECOND-SURV-008-OPENML-15 | scoped_or_weakened | survived | yes              | recurrence_supported (6) | loaded public OpenML task 15 and raw ARFF https://openml.org/data/v1/download/52350/breast-w.arff; target=Class; attributes=10; rows=699 |

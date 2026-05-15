@@ -1,0 +1,49 @@
+{
+  "claim": "A receipt-first benchmark triage method can identify OpenML benchmark claims whose random-split performance survives public raw replay as a bounded protocol-fragility signal across OpenML-32 and at least one independent task, with nonfatal baseline, holdout, rival, and negative-control checks.",
+  "anchor": "SA-PLAUS-003-OPENML-32",
+  "additionalSurvivors": [
+    "SECOND-SURV-001-OPENML-59",
+    "SECOND-SURV-003-OPENML-7",
+    "SECOND-SURV-005-OPENML-53",
+    "SECOND-SURV-006-OPENML-36",
+    "SECOND-SURV-007-OPENML-43",
+    "SECOND-SURV-008-OPENML-15"
+  ],
+  "resultKind": "discovery_candidate_readiness_package",
+  "fundFound": false,
+  "evidenceRefs": [
+    ".sovryn/discovery-daemon/second-independent-survivor/WEAKENED_SURVIVOR_ARCHIVE.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/WEAKENED_SURVIVOR_DEATH_CAUSES.json",
+    ".sovryn/discovery-daemon/second-independent-survivor/OPENML32_SURVIVOR_ANCHOR_PROFILE.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SURVIVOR_ANCHOR_FEATURES.json",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_CLAIMS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/REJECTED_SURVIVOR_CLAIMS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_DECISION.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/UPDATED_THREE_STAGE_SCORECARD.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/FINAL_BLOCKERS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/NEXT_ACTION.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/FUND_GATE_RESULTS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/REVIEWER_SUMMARY.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/EXACT_CLAIM.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/METHOD.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/DATASETS_AND_TASKS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/REPRODUCE.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/BASELINES_AND_RIVALS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/HOLDOUT_NEGATIVE_CONTROLS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/LIMITATIONS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE/CLAIM_EVIDENCE_BINDINGS.json",
+    ".sovryn/discovery-daemon/second-independent-survivor/latest.json",
+    ".sovryn/discovery-daemon/checkpoints/second-independent-survivor-continue-searching.json"
+  ],
+  "noOverclaim": [
+    "no Nobel claim",
+    "no Einstein-level claim",
+    "no breakthrough claim",
+    "no external validation claim",
+    "no external adoption claim",
+    "no legal, medical, wet-lab, or unsafe claim"
+  ]
+}

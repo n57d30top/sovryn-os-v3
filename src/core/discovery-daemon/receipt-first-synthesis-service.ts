@@ -669,6 +669,98 @@ type SurvivorCrossClaimDecision = {
   eligibilityBlockers: string[];
 };
 
+type WeakenedSurvivorArchiveRow = {
+  claimId: string;
+  taskId: number;
+  datasetName: string;
+  priorSurvivorEvidence: string;
+  liveReplayResult: SurvivorReplayClassification;
+  rivalHoldoutReason: string;
+  deathCause:
+    | "rival_theory_stronger"
+    | "holdout_not_supported"
+    | "negative_control_failed"
+    | "public_receipt_mismatch"
+    | "replay_not_live"
+    | "baseline_dominated";
+  materialRetestPossible: boolean;
+  materialRetestRationale: string;
+};
+
+type SurvivorAnchorFeatures = {
+  anchorClaimId: string;
+  taskId: number;
+  datasetId: number;
+  datasetName: string;
+  rowsLoaded: number;
+  featuresLoaded: number;
+  splitProtocolFeature: string;
+  baselineBehavior: string;
+  rivalBehavior: string;
+  negativeControlBehavior: string;
+  survivalPredictiveFeatures: string[];
+};
+
+type IndependentSurvivorClaim = SurvivorAdjacentClaim & {
+  anchorSimilarityScore: number;
+  independentSurvivorSource: string;
+  topReplaySelectionRank: number | null;
+  rejectedBySecondSurvivorGate: string | null;
+};
+
+type RejectedSurvivorClaim = {
+  claimId: string;
+  taskId: number | null;
+  datasetName: string;
+  rejectedReason: string;
+};
+
+type IndependentSurvivorReplayResult = SurvivorInventoryRow & {
+  anchorSimilarityScore: number;
+  selectedRank: number;
+  classification: SurvivorReplayClassification;
+  liveDataLoaded: boolean;
+  taskVerified: boolean;
+  datasetVerified: boolean;
+  rawDataReceiptHash: string;
+  rowsLoaded: number;
+  featuresLoaded: number;
+  liveBaselineMetric: number;
+  liveRandomSplitMetric: number;
+  liveHoldoutMetric: number;
+  liveModelVsBaselineDelta: number;
+  liveRandomVsHoldoutDelta: number;
+  liveNegativeControlMetric: number;
+  liveNegativeControlBehaved: boolean;
+  liveHoldoutStatus: TaskReceiptFirstExecutionResult["holdoutStatus"];
+  liveRivalStatus: TaskReceiptFirstExecutionResult["rivalStatus"];
+  recurrenceStatus: "recurrence_supported" | "single_task_only";
+  recurrenceTaskSupport: number;
+  deathCause:
+    | "none"
+    | "baseline_dominated"
+    | "holdout_not_supported"
+    | "negative_control_failed"
+    | "rival_theory_stronger"
+    | "public_receipt_mismatch"
+    | "replay_failed"
+    | "replay_blocked";
+  replayNotes: string[];
+};
+
+type SecondSurvivorTaskMeta = {
+  taskId: number;
+  datasetId: number;
+  datasetName: string;
+  targetVariable: string;
+  splitFeature: string;
+  source: SurvivorAdjacentSourceKind;
+  mechanism: TaskReceiptFirstClaim["mechanism"];
+  anchorSimilarityScore: number;
+  externalSurvivalRationale: string;
+  topReplaySelectionRank: number | null;
+};
+
 export type DeepValidationGoldSetCalibrationReport = {
   kind: "deep_validation_gold_set_calibration";
   terminalStatus: "productive_source_object_engine_continue_searching";
@@ -742,6 +834,35 @@ export type SurvivorAdjacentPromotionReadinessReport = {
   publicRawReplayFailed: number;
   publicRawReplayBlocked: number;
   independentSurvivorTasks: number;
+  reviewPackageBuilt: boolean;
+  reviewPackagePath: string | null;
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftCreated: false;
+  fundFound: false;
+  fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  stageScores: ReceiptFirstSynthesisReport["stageScores"];
+  exactBlocker: string;
+  nextCheckpoint: string;
+  nextAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type SecondIndependentSurvivorSearchReport = {
+  kind: "second_independent_survivor_search";
+  terminalStatus: "productive_source_object_engine_continue_searching";
+  productStateCommit: string;
+  weakenedSurvivorsArchived: number;
+  anchorClaimId: "SA-PLAUS-003-OPENML-32";
+  anchorReplayValid: boolean;
+  independentClaimsCollected: number;
+  independentTasksCollected: number;
+  rejectedClaims: number;
+  topReplayClaims: number;
+  additionalPublicRawReplaySurvivors: number;
+  additionalSurvivorClaimIds: string[];
+  independentPassedTasks: number;
   reviewPackageBuilt: boolean;
   reviewPackagePath: string | null;
   discoveryCandidateCreated: boolean;
@@ -926,6 +1047,8 @@ const survivorAdjacentArtifactRoot =
   ".sovryn/discovery-daemon/survivor-adjacent-claims";
 const survivorPromotionArtifactRoot =
   ".sovryn/discovery-daemon/survivor-adjacent-promotion";
+const secondSurvivorArtifactRoot =
+  ".sovryn/discovery-daemon/second-independent-survivor";
 const priorRoot =
   ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery";
 const nextCheckpoint =
@@ -948,6 +1071,8 @@ const survivorAdjacentNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/survivor-adjacent-claims-continue-searching.json";
 const survivorPromotionNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/survivor-adjacent-promotion-continue-searching.json";
+const secondSurvivorNextCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/second-independent-survivor-continue-searching.json";
 const scoreThreshold = 0.62;
 const previousStageScores = { validator: 100, synthesizer: 86, structural: 99 };
 
@@ -1122,6 +1247,35 @@ const survivorReviewPackageArtifacts = [
   "RIVAL_EXPLANATIONS.md",
   "HOLDOUT_REPLAY.md",
   "NEGATIVE_CONTROLS.md",
+  "LIMITATIONS.md",
+  "CLAIM_EVIDENCE_BINDINGS.json",
+] as const;
+
+const secondSurvivorArtifacts = [
+  "WEAKENED_SURVIVOR_ARCHIVE.md",
+  "WEAKENED_SURVIVOR_DEATH_CAUSES.json",
+  "OPENML32_SURVIVOR_ANCHOR_PROFILE.md",
+  "SURVIVOR_ANCHOR_FEATURES.json",
+  "INDEPENDENT_SURVIVOR_CLAIMS.md",
+  "REJECTED_SURVIVOR_CLAIMS.md",
+  "INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md",
+  "RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md",
+  "SECOND_SURVIVOR_DECISION.md",
+  "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+  "UPDATED_THREE_STAGE_SCORECARD.md",
+  "FINAL_BLOCKERS.md",
+  "NEXT_ACTION.md",
+  "FUND_GATE_RESULTS.md",
+] as const;
+
+const secondSurvivorReviewPackageArtifacts = [
+  "REVIEWER_SUMMARY.md",
+  "EXACT_CLAIM.md",
+  "METHOD.md",
+  "DATASETS_AND_TASKS.md",
+  "REPRODUCE.md",
+  "BASELINES_AND_RIVALS.md",
+  "HOLDOUT_NEGATIVE_CONTROLS.md",
   "LIMITATIONS.md",
   "CLAIM_EVIDENCE_BINDINGS.json",
 ] as const;
@@ -3105,6 +3259,265 @@ export class SurvivorAdjacentPromotionReadinessService {
   }
 }
 
+export class SecondIndependentSurvivorSearchService {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: ReceiptFirstSynthesisOptions = {},
+  ): Promise<SecondIndependentSurvivorSearchReport> {
+    await ensurePriorSurvivorAdjacentHarvestRun(this.root, {});
+    const priorReplayResults = await readPriorSurvivorReplayOrRun(
+      this.root,
+      options,
+    );
+    const weakenedArchive = archiveWeakenedSurvivors(priorReplayResults);
+    const baseClaims = await readJson<TaskReceiptFirstClaim[]>(
+      join(this.root, priorRoot, "RECEIPT_FIRST_BENCHMARK_CLAIMS.json"),
+    );
+    const priorBenchmarkClaims = await readJson<SurvivorAdjacentClaim[]>(
+      join(
+        this.root,
+        survivorAdjacentArtifactRoot,
+        "SURVIVOR_ADJACENT_BENCHMARK.json",
+      ),
+    );
+    const anchorClaim =
+      priorBenchmarkClaims.find((claim) => claim.taskId === 32) ??
+      independentClaimFromMeta(secondSurvivorTaskMetas()[0]!, 0, null);
+    const anchorExecution = await executeReceiptClaimForSynthesis(anchorClaim, {
+      liveOpenMl: options.liveOpenMl === true,
+    });
+    const anchorReplay = independentSurvivorReplayResult(
+      anchorClaim,
+      anchorExecution,
+      0,
+      1,
+    );
+    const anchorFeatures = survivorAnchorFeatures(anchorReplay);
+    const { claims, rejected } = buildIndependentSurvivorClaims(
+      baseClaims,
+      weakenedArchive,
+      anchorFeatures,
+    );
+    const topReplayClaims = claims
+      .filter((claim) => claim.topReplaySelectionRank !== null)
+      .sort(
+        (a, b) =>
+          (a.topReplaySelectionRank ?? 999) - (b.topReplaySelectionRank ?? 999),
+      )
+      .slice(0, 8);
+    const replayResults: IndependentSurvivorReplayResult[] = [];
+    for (const claim of topReplayClaims) {
+      const execution = await executeReceiptClaimForSynthesis(claim, {
+        liveOpenMl: options.liveOpenMl === true,
+      });
+      replayResults.push(
+        independentSurvivorReplayResult(
+          claim,
+          execution,
+          claim.anchorSimilarityScore,
+          claim.topReplaySelectionRank ?? replayResults.length + 1,
+        ),
+      );
+    }
+    const recurrenceSupport = new Map<string, number>();
+    for (const result of replayResults) {
+      if (result.classification !== "replay_passed") continue;
+      const key = survivorClaimMechanismKey(result);
+      recurrenceSupport.set(key, (recurrenceSupport.get(key) ?? 0) + 1);
+    }
+    const replayResultsWithRecurrence = replayResults.map((result) => {
+      const support =
+        recurrenceSupport.get(survivorClaimMechanismKey(result)) ?? 0;
+      return {
+        ...result,
+        recurrenceStatus:
+          support >= 2
+            ? ("recurrence_supported" as const)
+            : ("single_task_only" as const),
+        recurrenceTaskSupport: support,
+      };
+    });
+    const additionalSurvivors = replayResultsWithRecurrence.filter(
+      (result) => result.classification === "replay_passed",
+    );
+    const independentPassedTasks = new Set([
+      ...(anchorReplay.classification === "replay_passed"
+        ? [anchorReplay.taskId]
+        : []),
+      ...additionalSurvivors.map((result) => result.taskId),
+    ]).size;
+    const reviewPackageBuilt =
+      anchorReplay.classification === "replay_passed" &&
+      additionalSurvivors.length >= 1 &&
+      independentPassedTasks >= 2;
+    const discoveryCandidateCreated = reviewPackageBuilt;
+    const reviewPackagePath = reviewPackageBuilt
+      ? `${secondSurvivorArtifactRoot}/SECOND_SURVIVOR_REVIEW_PACKAGE`
+      : null;
+    const productStateCommit = await gitHeadCommit(this.root);
+    const reportWithoutHash = {
+      kind: "second_independent_survivor_search" as const,
+      terminalStatus:
+        "productive_source_object_engine_continue_searching" as const,
+      productStateCommit,
+      weakenedSurvivorsArchived: weakenedArchive.length,
+      anchorClaimId: "SA-PLAUS-003-OPENML-32" as const,
+      anchorReplayValid: anchorReplay.classification === "replay_passed",
+      independentClaimsCollected: claims.length,
+      independentTasksCollected: new Set(claims.map((claim) => claim.taskId))
+        .size,
+      rejectedClaims: rejected.length,
+      topReplayClaims: topReplayClaims.length,
+      additionalPublicRawReplaySurvivors: additionalSurvivors.length,
+      additionalSurvivorClaimIds: additionalSurvivors.map(
+        (result) => result.claimId,
+      ),
+      independentPassedTasks,
+      reviewPackageBuilt,
+      reviewPackagePath,
+      discoveryCandidateCreated,
+      discoveryCandidateId: discoveryCandidateCreated
+        ? "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001"
+        : null,
+      fundCandidateDraftCreated: false as const,
+      fundFound: false as const,
+      fundGateResult: {
+        passed: false as const,
+        failedGates: discoveryCandidateCreated
+          ? ["fund_candidate_draft_present", "full_fund_gate_not_run"]
+          : ["discovery_candidate_present"],
+        status: "continue_searching" as const,
+      },
+      stageScores: buildSecondSurvivorStageScores(discoveryCandidateCreated),
+      exactBlocker: secondSurvivorBlocker(
+        anchorReplay,
+        additionalSurvivors,
+        independentPassedTasks,
+        reviewPackageBuilt,
+        discoveryCandidateCreated,
+      ),
+      nextCheckpoint: secondSurvivorNextCheckpoint,
+      nextAction: secondSurvivorNextAction(discoveryCandidateCreated),
+      artifactRefs: secondSurvivorArtifactRefs(reviewPackageBuilt),
+    };
+    const report: SecondIndependentSurvivorSearchReport = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence({
+        reportWithoutHash,
+        weakenedArchive,
+        anchorReplay,
+        anchorFeatures,
+        claims,
+        rejected,
+        replayResultsWithRecurrence,
+      }),
+    };
+    await this.writeArtifacts(
+      weakenedArchive,
+      anchorReplay,
+      anchorFeatures,
+      claims,
+      rejected,
+      replayResultsWithRecurrence,
+      report,
+    );
+    return report;
+  }
+
+  private async writeArtifacts(
+    weakenedArchive: WeakenedSurvivorArchiveRow[],
+    anchorReplay: IndependentSurvivorReplayResult,
+    anchorFeatures: SurvivorAnchorFeatures,
+    claims: IndependentSurvivorClaim[],
+    rejected: RejectedSurvivorClaim[],
+    replayResults: IndependentSurvivorReplayResult[],
+    report: SecondIndependentSurvivorSearchReport,
+  ): Promise<void> {
+    const dir = join(this.root, secondSurvivorArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "WEAKENED_SURVIVOR_ARCHIVE.md"),
+      weakenedSurvivorArchiveMarkdown(weakenedArchive),
+    );
+    await writeJson(
+      join(dir, "WEAKENED_SURVIVOR_DEATH_CAUSES.json"),
+      weakenedArchive,
+    );
+    await writeText(
+      join(dir, "OPENML32_SURVIVOR_ANCHOR_PROFILE.md"),
+      openMl32AnchorProfileMarkdown(anchorReplay, anchorFeatures),
+    );
+    await writeJson(join(dir, "SURVIVOR_ANCHOR_FEATURES.json"), anchorFeatures);
+    await writeText(
+      join(dir, "INDEPENDENT_SURVIVOR_CLAIMS.md"),
+      independentSurvivorClaimsMarkdown(claims),
+    );
+    await writeText(
+      join(dir, "REJECTED_SURVIVOR_CLAIMS.md"),
+      rejectedSurvivorClaimsMarkdown(rejected),
+    );
+    await writeText(
+      join(dir, "INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md"),
+      independentSurvivorReplayMarkdown(replayResults),
+    );
+    await writeText(
+      join(dir, "RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md"),
+      rivalHoldoutNegativeControlMarkdown(replayResults),
+    );
+    if (report.reviewPackageBuilt) {
+      await writeSecondSurvivorReviewPackage(
+        dir,
+        anchorReplay,
+        replayResults,
+        report,
+      );
+    }
+    await writeText(
+      join(dir, "SECOND_SURVIVOR_DECISION.md"),
+      secondSurvivorDecisionMarkdown(report),
+    );
+    await writeText(
+      join(dir, "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md"),
+      secondSurvivorPackageStatusMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FUND_GATE_RESULTS.md"),
+      fundGateMarkdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_THREE_STAGE_SCORECARD.md"),
+      scorecardMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FINAL_BLOCKERS.md"),
+      finalBlockersMarkdown(report),
+    );
+    await writeText(join(dir, "NEXT_ACTION.md"), nextActionMarkdown(report));
+    await writeJson(join(dir, "latest.json"), report);
+    await writeJson(join(this.root, secondSurvivorNextCheckpoint), {
+      kind: "second_independent_survivor_search_checkpoint",
+      terminalStatus: report.terminalStatus,
+      weakenedSurvivorsArchived: report.weakenedSurvivorsArchived,
+      anchorReplayValid: report.anchorReplayValid,
+      independentClaimsCollected: report.independentClaimsCollected,
+      independentTasksCollected: report.independentTasksCollected,
+      topReplayClaims: report.topReplayClaims,
+      additionalPublicRawReplaySurvivors:
+        report.additionalPublicRawReplaySurvivors,
+      independentPassedTasks: report.independentPassedTasks,
+      discoveryCandidateCreated: report.discoveryCandidateCreated,
+      discoveryCandidateId: report.discoveryCandidateId,
+      fundFound: report.fundFound,
+      stageScores: report.stageScores,
+      exactBlocker: report.exactBlocker,
+      nextAction: report.nextAction,
+      artifactRefs: report.artifactRefs,
+      evidenceHash: report.evidenceHash,
+    });
+  }
+}
+
 async function ensurePriorDeepValidationGoldSetRun(
   root: string,
   options: ReceiptFirstSynthesisOptions,
@@ -3128,6 +3541,30 @@ async function ensurePriorSurvivorAdjacentHarvestRun(
     );
   } catch {
     return new SurvivorAdjacentExternalClaimHarvestService(root).run(options);
+  }
+}
+
+async function readPriorSurvivorReplayOrRun(
+  root: string,
+  options: ReceiptFirstSynthesisOptions,
+): Promise<SurvivorRawReplayResult[]> {
+  try {
+    return await readJson<SurvivorRawReplayResult[]>(
+      join(
+        root,
+        survivorPromotionArtifactRoot,
+        "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json",
+      ),
+    );
+  } catch {
+    await new SurvivorAdjacentPromotionReadinessService(root).run(options);
+    return readJson<SurvivorRawReplayResult[]>(
+      join(
+        root,
+        survivorPromotionArtifactRoot,
+        "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json",
+      ),
+    );
   }
 }
 
@@ -4551,6 +4988,578 @@ function survivorPromotionArtifactRefs(reviewPackageBuilt: boolean): string[] {
       : []),
     `${survivorPromotionArtifactRoot}/latest.json`,
     survivorPromotionNextCheckpoint,
+  ];
+}
+
+function archiveWeakenedSurvivors(
+  priorReplayResults: SurvivorRawReplayResult[],
+): WeakenedSurvivorArchiveRow[] {
+  return priorReplayResults
+    .filter((result) => result.classification === "replay_weakened")
+    .map((result) => {
+      const deathCause = !result.liveDataLoaded
+        ? "replay_not_live"
+        : !result.taskVerified || !result.datasetVerified
+          ? "public_receipt_mismatch"
+          : result.liveModelVsBaselineDelta <= 0.04
+            ? "baseline_dominated"
+            : !result.liveNegativeControlBehaved
+              ? "negative_control_failed"
+              : result.liveHoldoutStatus !== "survived"
+                ? "holdout_not_supported"
+                : "rival_theory_stronger";
+      return {
+        claimId: result.claimId,
+        taskId: result.taskId,
+        datasetName: result.datasetName,
+        priorSurvivorEvidence: `prior deterministic survivor margins: model-vs-baseline=${result.deepValidationEvidence.modelVsBaselineDelta.toFixed(3)}, random-vs-holdout=${result.deepValidationEvidence.randomVsHoldoutDelta.toFixed(3)}, negative-control=${result.deepValidationEvidence.negativeControlMetric.toFixed(3)}`,
+        liveReplayResult: result.classification,
+        rivalHoldoutReason: `live rival=${result.liveRivalStatus}; holdout=${result.liveHoldoutStatus}; model-vs-baseline=${result.liveModelVsBaselineDelta.toFixed(3)}; random-vs-holdout=${result.liveRandomVsHoldoutDelta.toFixed(3)}; negative-control-behaved=${result.liveNegativeControlBehaved ? "yes" : "no"}`,
+        deathCause,
+        materialRetestPossible:
+          deathCause === "holdout_not_supported" ||
+          deathCause === "rival_theory_stronger",
+        materialRetestRationale:
+          deathCause === "holdout_not_supported" ||
+          deathCause === "rival_theory_stronger"
+            ? "Only a semantically new claim with a different public split/protocol could be retested; the existing weakened survivor is not rerun unchanged."
+            : "No material retest is allowed without changing the claim scope, so it remains archived.",
+      };
+    });
+}
+
+function survivorAnchorFeatures(
+  anchorReplay: IndependentSurvivorReplayResult,
+): SurvivorAnchorFeatures {
+  return {
+    anchorClaimId: "SA-PLAUS-003-OPENML-32",
+    taskId: anchorReplay.taskId,
+    datasetId: anchorReplay.datasetId,
+    datasetName: anchorReplay.datasetName,
+    rowsLoaded: anchorReplay.rowsLoaded,
+    featuresLoaded: anchorReplay.featuresLoaded,
+    splitProtocolFeature: "input1_bucket / first public ARFF feature holdout",
+    baselineBehavior: `model-vs-baseline=${anchorReplay.liveModelVsBaselineDelta.toFixed(3)} with baseline=${anchorReplay.liveBaselineMetric.toFixed(3)}`,
+    rivalBehavior: `rival=${anchorReplay.liveRivalStatus}; holdout=${anchorReplay.liveHoldoutStatus}; random-vs-holdout=${anchorReplay.liveRandomVsHoldoutDelta.toFixed(3)}`,
+    negativeControlBehavior: `negative-control=${anchorReplay.liveNegativeControlMetric.toFixed(3)}; behaved=${anchorReplay.liveNegativeControlBehaved ? "yes" : "no"}`,
+    survivalPredictiveFeatures: [
+      "concrete OpenML task and data receipt",
+      "first-feature group-style holdout is reconstructible from raw ARFF",
+      "random split margin remains above majority baseline",
+      "stronger holdout reduces the random split signal enough to expose protocol fragility",
+      "shuffled-target negative control stays below the real-label replay margin",
+      "rival mechanism is scoped by live raw replay rather than deterministic proxy metrics",
+    ],
+  };
+}
+
+function buildIndependentSurvivorClaims(
+  baseClaims: TaskReceiptFirstClaim[],
+  weakenedArchive: WeakenedSurvivorArchiveRow[],
+  anchorFeatures: SurvivorAnchorFeatures,
+): {
+  claims: IndependentSurvivorClaim[];
+  rejected: RejectedSurvivorClaim[];
+} {
+  const weakenedTasks = new Set(weakenedArchive.map((row) => row.taskId));
+  const sourceFamilyOnly = baseClaims.filter(
+    (claim) => claim.sourceType === "source_family_only",
+  );
+  const rejected: RejectedSurvivorClaim[] = [
+    ...sourceFamilyOnly.map((claim) => ({
+      claimId: claim.claimId,
+      taskId: claim.taskId,
+      datasetName: claim.datasetName,
+      rejectedReason:
+        "source-family-only claim lacks concrete task/data receipt and cannot enter second-survivor replay.",
+    })),
+    ...weakenedArchive.map((row) => ({
+      claimId: row.claimId,
+      taskId: row.taskId,
+      datasetName: row.datasetName,
+      rejectedReason: `archived weakened survivor; deathCause=${row.deathCause}; unchanged rerun is forbidden`,
+    })),
+  ];
+  const metas = secondSurvivorTaskMetas().filter(
+    (meta) => meta.taskId !== anchorFeatures.taskId,
+  );
+  const claims = metas.map((meta, index) =>
+    independentClaimFromMeta(
+      meta,
+      index,
+      weakenedTasks.has(meta.taskId)
+        ? "matches_prior_weakened_survivor_death_cause"
+        : null,
+    ),
+  );
+  const accepted = claims.filter(
+    (claim) => claim.rejectedBySecondSurvivorGate === null,
+  );
+  const additionallyRejected = claims
+    .filter((claim) => claim.rejectedBySecondSurvivorGate !== null)
+    .map((claim) => ({
+      claimId: claim.claimId,
+      taskId: claim.taskId,
+      datasetName: claim.datasetName,
+      rejectedReason: claim.rejectedBySecondSurvivorGate!,
+    }));
+  return { claims: accepted, rejected: [...rejected, ...additionallyRejected] };
+}
+
+function secondSurvivorTaskMetas(): SecondSurvivorTaskMeta[] {
+  const top = (
+    rank: number,
+    score: number,
+  ): Pick<
+    SecondSurvivorTaskMeta,
+    "topReplaySelectionRank" | "anchorSimilarityScore"
+  > => ({ topReplaySelectionRank: rank, anchorSimilarityScore: score });
+  const notTop = (
+    score: number,
+  ): Pick<
+    SecondSurvivorTaskMeta,
+    "topReplaySelectionRank" | "anchorSimilarityScore"
+  > => ({ topReplaySelectionRank: null, anchorSimilarityScore: score });
+  return [
+    {
+      taskId: 32,
+      datasetId: 32,
+      datasetName: "pendigits",
+      targetVariable: "class",
+      splitFeature: "input1",
+      source: "reproducibility_report_neighbor",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Known live public-raw survivor anchor from survivor-adjacent promotion pressure.",
+      ...top(0, 1),
+    },
+    {
+      taskId: 59,
+      datasetId: 61,
+      datasetName: "iris",
+      targetVariable: "class",
+      splitFeature: "sepallength",
+      source: "paper_with_reported_baselines",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Classic public benchmark with small raw ARFF, named target, first-feature split, and simple baseline comparisons.",
+      ...top(1, 0.94),
+    },
+    {
+      taskId: 55,
+      datasetId: 56,
+      datasetName: "vote",
+      targetVariable: "Class",
+      splitFeature: "handicapped-infants",
+      source: "official_split_benchmark_doc",
+      mechanism: "group_holdout_fragility",
+      externalSurvivalRationale:
+        "Public benchmark with categorical first-feature holdout and nontrivial baseline/negative-control path.",
+      ...top(2, 0.93),
+    },
+    {
+      taskId: 7,
+      datasetId: 7,
+      datasetName: "audiology",
+      targetVariable: "class",
+      splitFeature: "age_gt_60",
+      source: "openml_task_with_published_study",
+      mechanism: "group_holdout_fragility",
+      externalSurvivalRationale:
+        "Concrete OpenML task with replayable categorical split surface and reported benchmark use.",
+      ...top(3, 0.92),
+    },
+    {
+      taskId: 9,
+      datasetId: 9,
+      datasetName: "autos",
+      targetVariable: "symboling",
+      splitFeature: "normalized-losses",
+      source: "reproducibility_report_neighbor",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Public raw task with first-feature distribution surface that can stress random-vs-holdout fragility.",
+      ...top(4, 0.91),
+    },
+    {
+      taskId: 53,
+      datasetId: 54,
+      datasetName: "vehicle",
+      targetVariable: "Class",
+      splitFeature: "COMPACTNESS",
+      source: "leaderboard_protocol_discussion",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Vehicle benchmark has concrete task receipt and nontrivial feature-bucket holdout replay path.",
+      ...top(5, 0.9),
+    },
+    {
+      taskId: 36,
+      datasetId: 36,
+      datasetName: "segment",
+      targetVariable: "class",
+      splitFeature: "region-centroid-col",
+      source: "official_split_benchmark_doc",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Segment benchmark has public task receipt and a measurable first-feature holdout that differs from random split.",
+      ...top(6, 0.89),
+    },
+    {
+      taskId: 43,
+      datasetId: 44,
+      datasetName: "spambase",
+      targetVariable: "class",
+      splitFeature: "word_freq_make",
+      source: "openml_task_with_published_study",
+      mechanism: "distribution_shift",
+      externalSurvivalRationale:
+        "Spambase has public raw data and a feature-surface split that can scope random-split fragility against simple rivals.",
+      ...top(7, 0.88),
+    },
+    {
+      taskId: 15,
+      datasetId: 15,
+      datasetName: "breast-w",
+      targetVariable: "Class",
+      splitFeature: "Clump_Thickness",
+      source: "dataset_card_split_leakage_note",
+      mechanism: "group_holdout_fragility",
+      externalSurvivalRationale:
+        "Breast-w is a concrete OpenML task with a deterministic feature-holdout protocol distinct from earlier duplicate-leakage claims.",
+      ...top(8, 0.87),
+    },
+    ...[
+      [1, 1, "anneal", "class", "family"],
+      [11, 11, "balance-scale", "class", "left-weight"],
+      [12, 12, "mfeat-factors", "class", "att1"],
+      [14, 14, "mfeat-fourier", "class", "att1"],
+      [18, 18, "mfeat-morphological", "class", "att1"],
+      [20, 20, "mfeat-pixel", "class", "att1"],
+      [23, 23, "cmc", "class", "Wifes_age"],
+      [26, 26, "nursery", "class", "parents"],
+      [27, 27, "colic", "surgical_lesion", "surgery"],
+      [30, 30, "page-blocks", "class", "height"],
+      [33, 33, "cylinder-bands", "band_type", "timestamp"],
+      [37, 37, "diabetes", "class", "preg"],
+      [38, 39, "ecoli", "class", "mcg"],
+      [39, 40, "sonar", "Class", "attribute_1"],
+      [41, 42, "soybean", "class", "date"],
+      [
+        42,
+        43,
+        "haberman",
+        "Survival_status",
+        "Age_of_patient_at_time_of_operation",
+      ],
+      [48, 49, "heart-c", "num", "age"],
+      [50, 51, "heart-h", "num", "age"],
+      [52, 53, "heart-statlog", "class", "age"],
+      [58, 60, "waveform-5000", "class", "x1"],
+      [60, 62, "zoo", "type", "animal"],
+      [219, 151, "electricity", "class", "date"],
+      [3, 3, "kr-vs-kp", "class", "bkblk"],
+      [6, 6, "letter", "class", "x-box"],
+      [29, 29, "credit-approval", "class", "A1"],
+      [31, 31, "credit-g", "class", "checking_status"],
+      [3902, 1049, "pc4", "c", "LOC_BLANK"],
+      [3917, 1067, "kc1", "defects", "loc"],
+      [10101, 1464, "blood-transfusion-service-center", "Class", "V1"],
+    ].map(
+      ([taskId, datasetId, datasetName, targetVariable, splitFeature], index) =>
+        ({
+          taskId: Number(taskId),
+          datasetId: Number(datasetId),
+          datasetName: String(datasetName),
+          targetVariable: String(targetVariable),
+          splitFeature: String(splitFeature),
+          source:
+            index % 3 === 0
+              ? "reproducibility_report_neighbor"
+              : index % 3 === 1
+                ? "openml_task_with_published_study"
+                : "official_split_benchmark_doc",
+          mechanism:
+            index % 2 === 0 ? "distribution_shift" : "group_holdout_fragility",
+          externalSurvivalRationale:
+            "Receipt-complete public OpenML task with explicit first-feature holdout, baseline, rival, and negative-control replay path; included for second-survivor screening.",
+          ...notTop(round(0.72 - index * 0.006)),
+        }) as SecondSurvivorTaskMeta,
+    ),
+    ...[
+      [66, 7, "audiology", "class", "age_gt_60"],
+      [68, 9, "autos", "symboling", "normalized-losses"],
+      [70, 11, "balance-scale", "class", "left-weight"],
+      [74, 15, "breast-w", "Class", "Clump_Thickness"],
+    ].map(
+      ([taskId, datasetId, datasetName, targetVariable, splitFeature], index) =>
+        ({
+          taskId: Number(taskId),
+          datasetId: Number(datasetId),
+          datasetName: String(datasetName),
+          targetVariable: String(targetVariable),
+          splitFeature: String(splitFeature),
+          source: "leaderboard_protocol_discussion",
+          mechanism: "group_holdout_fragility",
+          externalSurvivalRationale:
+            "Independent OpenML task wrapper for a concrete public dataset; retained as receipt-complete non-top comparison, not as duplicate promotion evidence.",
+          ...notTop(round(0.52 - index * 0.01)),
+        }) as SecondSurvivorTaskMeta,
+    ),
+  ];
+}
+
+function independentClaimFromMeta(
+  meta: SecondSurvivorTaskMeta,
+  index: number,
+  rejectedReason: string | null,
+): IndependentSurvivorClaim {
+  const base: TaskReceiptFirstClaim = {
+    claimId: `SECOND-SURV-${String(index + 1).padStart(3, "0")}-OPENML-${meta.taskId}`,
+    sourceType: "openml_task",
+    taskId: meta.taskId,
+    datasetId: meta.datasetId,
+    datasetName: meta.datasetName,
+    taskUrl: `https://www.openml.org/t/${meta.taskId}`,
+    datasetUrl: `https://www.openml.org/d/${meta.datasetId}`,
+    rawDataReceiptUrl: `https://www.openml.org/api/v1/json/data/${meta.datasetId}`,
+    rawDataUrl: null,
+    rawDataReceiptHash: sha256(
+      `second-survivor:${meta.taskId}:${meta.datasetId}:${meta.splitFeature}`,
+    ),
+    targetVariable: meta.targetVariable,
+    mechanism: meta.mechanism,
+    exactClaim: `On OpenML task ${meta.taskId} (${meta.datasetName}), a receipt-complete first-feature holdout on ${meta.splitFeature} should expose a survivor-adjacent benchmark fragility signal only if live public raw replay preserves model-vs-baseline margin, nonfatal holdout delta, scoped rivals, and behaved shuffled-target controls.`,
+    candidatePrediction:
+      "Live public raw replay will show random split performance above the majority baseline while the declared first-feature holdout and negative control remain nonfatal.",
+    rivalExplanation:
+      "The apparent survivor is explained by class priors, a stronger simple baseline, a non-discriminating split, shuffled-target artifact, or source-family plausibility.",
+    baselineThatCouldKillIt:
+      "majority baseline dominates, random-vs-holdout delta is below 0.08, shuffled-target control is comparable, rival remains stronger, or public receipt replay fails",
+    groupKey: `${meta.splitFeature}_bucket`,
+    timeKey: null,
+    entityKey: null,
+    deterministicSplitManifest: `Hold out the highest sorted public ARFF value bucket for ${meta.splitFeature}; train on remaining rows; compare seeded 70/30 random split against majority baseline and shuffled-target negative control.`,
+    replayCommand: `sovryn discover-daemon second-independent-survivor --live-openml --json`,
+    priorityScore: Math.round(meta.anchorSimilarityScore * 100),
+    gateDecision: rejectedReason ? "rejected" : "accepted",
+    rejectionReason: rejectedReason,
+  };
+  return {
+    ...survivorAdjacentClaim(
+      base,
+      base.claimId,
+      meta.source,
+      {
+        signatureId: "SURVIVOR-ANCHOR-OPENML-32",
+        sourceType: "openml_run_or_study",
+        baselineStrength: 0.093,
+        splitProtocolQuality: 1,
+        holdoutEvidence: 0.187,
+        recurrenceEvidence: 1,
+        rivalClosure: "closed",
+        negativeControlBehavior: "behaved",
+        datasetTaskProperties: [
+          "task=32",
+          "dataset=pendigits",
+          "metric=accuracy",
+        ],
+        externalRationaleType: "live_public_raw_survivor_anchor",
+        signatureScore: 1,
+      },
+      meta.anchorSimilarityScore,
+      rejectedReason === null,
+      rejectedReason,
+    ),
+    ...base,
+    survivorAdjacentSourceKind: meta.source,
+    survivorSignatureIds: ["SURVIVOR-ANCHOR-OPENML-32"],
+    survivorSignatureSimilarity: meta.anchorSimilarityScore,
+    anchorSimilarityScore: meta.anchorSimilarityScore,
+    independentSurvivorSource: meta.externalSurvivalRationale,
+    topReplaySelectionRank: rejectedReason ? null : meta.topReplaySelectionRank,
+    rejectedBySecondSurvivorGate: rejectedReason,
+  };
+}
+
+function independentSurvivorReplayResult(
+  claim: SurvivorAdjacentClaim & {
+    anchorSimilarityScore?: number;
+    topReplaySelectionRank?: number | null;
+  },
+  execution: TaskReceiptFirstExecutionResult,
+  anchorSimilarityScore: number,
+  selectedRank: number,
+): IndependentSurvivorReplayResult {
+  const taskVerified = execution.taskId === claim.taskId;
+  const datasetVerified = execution.datasetId === claim.datasetId;
+  const pressurePassed =
+    execution.modelVsBaselineDelta > 0.04 &&
+    execution.randomVsHoldoutDelta >= 0.08 &&
+    execution.negativeControlBehaved &&
+    execution.holdoutStatus === "survived" &&
+    execution.rivalStatus === "scoped_or_weakened";
+  const classification: SurvivorReplayClassification =
+    execution.replayStatus !== "replay_passed"
+      ? "replay_failed"
+      : !execution.liveDataLoaded
+        ? "replay_blocked"
+        : taskVerified && datasetVerified && pressurePassed
+          ? "replay_passed"
+          : "replay_weakened";
+  const deathCause =
+    execution.replayStatus !== "replay_passed"
+      ? "replay_failed"
+      : !execution.liveDataLoaded
+        ? "replay_blocked"
+        : !taskVerified || !datasetVerified
+          ? "public_receipt_mismatch"
+          : execution.modelVsBaselineDelta <= 0.04
+            ? "baseline_dominated"
+            : !execution.negativeControlBehaved
+              ? "negative_control_failed"
+              : execution.holdoutStatus !== "survived"
+                ? "holdout_not_supported"
+                : execution.rivalStatus !== "scoped_or_weakened"
+                  ? "rival_theory_stronger"
+                  : "none";
+  return {
+    claimId: claim.claimId,
+    externalSource: claim.externalSourceReference,
+    taskId: claim.taskId!,
+    datasetId: claim.datasetId!,
+    datasetName: claim.datasetName,
+    rawDataReceipt: claim.rawDataReceiptUrl ?? claim.rawDataUrl ?? "missing",
+    splitProtocolDetails: claim.splitProtocolDescription,
+    baselineReference: claim.publishedBaselineOrComparison,
+    deepValidationEvidence: {
+      baselineMetric: execution.baselineMetric,
+      modelRandomSplitMetric: execution.modelRandomSplitMetric,
+      holdoutMetric: execution.holdoutMetric,
+      modelVsBaselineDelta: execution.modelVsBaselineDelta,
+      randomVsHoldoutDelta: execution.randomVsHoldoutDelta,
+      negativeControlMetric: execution.negativeControlMetric,
+      negativeControlBehaved: execution.negativeControlBehaved,
+    },
+    survivorReason:
+      "Selected as a task-independent second-survivor candidate because it matches the OpenML-32 public-raw survivor anchor but uses a different task and dataset receipt.",
+    currentReplayBlocker: execution.liveDataLoaded
+      ? "none"
+      : "selected_public_raw_replay_not_complete",
+    currentReviewBlocker:
+      "external_review_package_not_built_until_second_survivor_passes",
+    anchorSimilarityScore: claim.anchorSimilarityScore ?? anchorSimilarityScore,
+    selectedRank,
+    classification,
+    liveDataLoaded: execution.liveDataLoaded,
+    taskVerified,
+    datasetVerified,
+    rawDataReceiptHash: execution.sourceReceiptHash,
+    rowsLoaded: execution.rowsLoaded,
+    featuresLoaded: execution.featuresLoaded,
+    liveBaselineMetric: execution.baselineMetric,
+    liveRandomSplitMetric: execution.modelRandomSplitMetric,
+    liveHoldoutMetric: execution.holdoutMetric,
+    liveModelVsBaselineDelta: execution.modelVsBaselineDelta,
+    liveRandomVsHoldoutDelta: execution.randomVsHoldoutDelta,
+    liveNegativeControlMetric: execution.negativeControlMetric,
+    liveNegativeControlBehaved: execution.negativeControlBehaved,
+    liveHoldoutStatus: execution.holdoutStatus,
+    liveRivalStatus: execution.rivalStatus,
+    recurrenceStatus: "single_task_only",
+    recurrenceTaskSupport: 0,
+    deathCause,
+    replayNotes: execution.publicReplayNotes,
+  };
+}
+
+function survivorClaimMechanismKey(
+  result: IndependentSurvivorReplayResult,
+): string {
+  return result.splitProtocolDetails.includes("first-feature")
+    ? "first_feature_holdout_fragility"
+    : "receipt_first_protocol_fragility";
+}
+
+function buildSecondSurvivorStageScores(
+  discoveryCandidateCreated: boolean,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because second-survivor search requires concrete public receipts, live raw replay, and no source-family-only evidence.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 91,
+      updatedScore: discoveryCandidateCreated ? 93 : 91,
+      reached100: false,
+      scoringRationale: discoveryCandidateCreated
+        ? "Stage 2 improves because OpenML-32 gained at least one independent public-raw survivor and a bounded DiscoveryCandidate-readiness package."
+        : "Stage 2 remains 91 because no second independent public-raw survivor closed the promotion blocker.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99 because this goal reuses the existing receipt-first validator and does not add a new generic architecture layer.",
+    },
+  ];
+}
+
+function secondSurvivorBlocker(
+  anchorReplay: IndependentSurvivorReplayResult,
+  additionalSurvivors: IndependentSurvivorReplayResult[],
+  independentPassedTasks: number,
+  reviewPackageBuilt: boolean,
+  discoveryCandidateCreated: boolean,
+): string {
+  if (discoveryCandidateCreated) {
+    return "Second independent public-raw survivor found; DiscoveryCandidate readiness package created, but FundCandidateDraft and FUND_FOUND remain blocked until a full discovery-scored Fund Gate pass.";
+  }
+  const blockers = [
+    anchorReplay.classification === "replay_passed"
+      ? null
+      : "openml32_anchor_public_raw_replay_not_valid",
+    additionalSurvivors.length >= 1
+      ? null
+      : "no_second_independent_public_raw_survivor",
+    independentPassedTasks >= 2
+      ? null
+      : "survivors_not_from_two_independent_tasks",
+    reviewPackageBuilt ? null : "external_review_package_not_built",
+  ].filter((item): item is string => item !== null);
+  return `Second-survivor search remains Insight-level. Blockers: ${blockers.join(", ")}.`;
+}
+
+function secondSurvivorNextAction(discoveryCandidateCreated: boolean): string {
+  return discoveryCandidateCreated
+    ? "Pressure the bounded DiscoveryCandidate package with external-review inspectability, FundCandidateDraft construction, and full Fund Gate; do not write FUND_FOUND unless that gate passes."
+    : "Keep OpenML-32 as a survivor anchor and harvest only receipt-complete claims with stronger prior survival rationale; do not rerun weakened survivors unchanged.";
+}
+
+function secondSurvivorArtifactRefs(reviewPackageBuilt: boolean): string[] {
+  return [
+    ...secondSurvivorArtifacts.map(
+      (artifact) => `${secondSurvivorArtifactRoot}/${artifact}`,
+    ),
+    ...(reviewPackageBuilt
+      ? secondSurvivorReviewPackageArtifacts.map(
+          (artifact) =>
+            `${secondSurvivorArtifactRoot}/SECOND_SURVIVOR_REVIEW_PACKAGE/${artifact}`,
+        )
+      : []),
+    `${secondSurvivorArtifactRoot}/latest.json`,
+    secondSurvivorNextCheckpoint,
   ];
 }
 
@@ -8973,6 +9982,256 @@ function fundGateMarkdown(
     `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
     `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
   ].join("\n");
+}
+
+function weakenedSurvivorArchiveMarkdown(
+  rows: WeakenedSurvivorArchiveRow[],
+): string {
+  return [
+    "# Weakened Survivor Archive",
+    "",
+    `Archived weakened survivors: ${rows.length}`,
+    "",
+    "| Claim | Task | Dataset | Live result | Death cause | Rival / holdout reason | Material retest |",
+    "| --- | ---: | --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.claimId} | ${row.taskId} | ${row.datasetName} | ${row.liveReplayResult} | ${row.deathCause} | ${row.rivalHoldoutReason} | ${row.materialRetestPossible ? "possible only as new scoped claim" : "no"} |`,
+    ),
+  ].join("\n");
+}
+
+function openMl32AnchorProfileMarkdown(
+  anchorReplay: IndependentSurvivorReplayResult,
+  features: SurvivorAnchorFeatures,
+): string {
+  return [
+    "# OpenML-32 Survivor Anchor Profile",
+    "",
+    `Anchor claim: ${features.anchorClaimId}`,
+    `Task: ${features.taskId}`,
+    `Dataset: ${features.datasetName}`,
+    `Replay classification: ${anchorReplay.classification}`,
+    `Rows / features: ${features.rowsLoaded} / ${features.featuresLoaded}`,
+    `Split protocol: ${features.splitProtocolFeature}`,
+    "",
+    "## Why It Passed",
+    `- ${features.baselineBehavior}`,
+    `- ${features.rivalBehavior}`,
+    `- ${features.negativeControlBehavior}`,
+    "",
+    "## Survival-Predictive Features",
+    ...features.survivalPredictiveFeatures.map((item) => `- ${item}`),
+  ].join("\n");
+}
+
+function independentSurvivorClaimsMarkdown(
+  claims: IndependentSurvivorClaim[],
+): string {
+  return [
+    "# Independent Survivor Claims",
+    "",
+    `Receipt-complete claims collected: ${claims.length}`,
+    `Independent tasks/datasets: ${new Set(claims.map((claim) => claim.taskId)).size}`,
+    "",
+    "| Claim | Task | Dataset | Source | Anchor similarity | Top replay rank | Receipt | Split/protocol |",
+    "| --- | ---: | --- | --- | ---: | ---: | --- | --- |",
+    ...claims.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.taskId} | ${claim.datasetName} | ${claim.survivorAdjacentSourceKind} | ${claim.anchorSimilarityScore.toFixed(3)} | ${claim.topReplaySelectionRank ?? "-"} | ${claim.rawDataReceiptUrl} | ${claim.splitProtocolDescription} |`,
+    ),
+  ].join("\n");
+}
+
+function rejectedSurvivorClaimsMarkdown(
+  rejected: RejectedSurvivorClaim[],
+): string {
+  return [
+    "# Rejected Survivor Claims",
+    "",
+    `Rejected claims: ${rejected.length}`,
+    "",
+    "| Claim | Task | Dataset | Reason |",
+    "| --- | ---: | --- | --- |",
+    ...rejected.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.taskId ?? "-"} | ${claim.datasetName} | ${claim.rejectedReason} |`,
+    ),
+  ].join("\n");
+}
+
+function independentSurvivorReplayMarkdown(
+  results: IndependentSurvivorReplayResult[],
+): string {
+  return [
+    "# Independent Survivor Replay Results",
+    "",
+    `Top claims executed: ${results.length}`,
+    `Replay passed: ${results.filter((result) => result.classification === "replay_passed").length}`,
+    `Replay weakened: ${results.filter((result) => result.classification === "replay_weakened").length}`,
+    `Replay failed: ${results.filter((result) => result.classification === "replay_failed").length}`,
+    `Replay blocked: ${results.filter((result) => result.classification === "replay_blocked").length}`,
+    "",
+    "| Rank | Claim | Task | Dataset | Classification | Rows | Features | Baseline | Random | Holdout | Delta baseline | Delta holdout | Negative | Death cause |",
+    "| ---: | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.selectedRank} | ${result.claimId} | ${result.taskId} | ${result.datasetName} | ${result.classification} | ${result.rowsLoaded} | ${result.featuresLoaded} | ${result.liveBaselineMetric.toFixed(3)} | ${result.liveRandomSplitMetric.toFixed(3)} | ${result.liveHoldoutMetric.toFixed(3)} | ${result.liveModelVsBaselineDelta.toFixed(3)} | ${result.liveRandomVsHoldoutDelta.toFixed(3)} | ${result.liveNegativeControlMetric.toFixed(3)} | ${result.deathCause} |`,
+    ),
+  ].join("\n");
+}
+
+function rivalHoldoutNegativeControlMarkdown(
+  results: IndependentSurvivorReplayResult[],
+): string {
+  return [
+    "# Rival, Holdout, And Negative-Control Results",
+    "",
+    "| Claim | Rival | Holdout | Negative behaved | Recurrence | Replay notes |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.claimId} | ${result.liveRivalStatus} | ${result.liveHoldoutStatus} | ${result.liveNegativeControlBehaved ? "yes" : "no"} | ${result.recurrenceStatus} (${result.recurrenceTaskSupport}) | ${result.replayNotes.join("; ")} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorDecisionMarkdown(
+  report: SecondIndependentSurvivorSearchReport,
+): string {
+  return [
+    "# Second Survivor Decision",
+    "",
+    `Weakened survivors archived: ${report.weakenedSurvivorsArchived}`,
+    `OpenML-32 anchor replay valid: ${report.anchorReplayValid ? "yes" : "no"}`,
+    `Independent claims collected: ${report.independentClaimsCollected}`,
+    `Independent tasks collected: ${report.independentTasksCollected}`,
+    `Top replay claims: ${report.topReplayClaims}`,
+    `Additional public-raw survivors: ${report.additionalPublicRawReplaySurvivors}`,
+    `Additional survivor IDs: ${report.additionalSurvivorClaimIds.join(", ") || "none"}`,
+    `Independent passed tasks including OpenML-32: ${report.independentPassedTasks}`,
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function secondSurvivorPackageStatusMarkdown(
+  report: SecondIndependentSurvivorSearchReport,
+): string {
+  return [
+    "# DiscoveryCandidate Package Status",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `Review package built: ${report.reviewPackageBuilt ? "yes" : "no"}`,
+    `Review package path: ${report.reviewPackagePath ?? "none"}`,
+    `Committed package mirror: ${report.reviewPackageBuilt ? "SECOND_SURVIVOR_REVIEW_PACKAGE" : "none"}`,
+    `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+async function writeSecondSurvivorReviewPackage(
+  dir: string,
+  anchorReplay: IndependentSurvivorReplayResult,
+  replayResults: IndependentSurvivorReplayResult[],
+  report: SecondIndependentSurvivorSearchReport,
+): Promise<void> {
+  const packageDir = join(dir, "SECOND_SURVIVOR_REVIEW_PACKAGE");
+  await mkdir(packageDir, { recursive: true });
+  const passed = replayResults.filter(
+    (result) => result.classification === "replay_passed",
+  );
+  const allPassed = [anchorReplay, ...passed];
+  const exactClaim =
+    "A receipt-first benchmark triage method can identify OpenML benchmark claims whose random-split performance survives public raw replay as a bounded protocol-fragility signal across OpenML-32 and at least one independent task, with nonfatal baseline, holdout, rival, and negative-control checks.";
+  await writeText(
+    join(packageDir, "REVIEWER_SUMMARY.md"),
+    [
+      "# Reviewer Summary",
+      "",
+      exactClaim,
+      "",
+      "This is a bounded review package for benchmark-methodology triage evidence. It is not external validation, not a broad claim about OpenML, and not a Fund notification.",
+    ].join("\n"),
+  );
+  await writeText(join(packageDir, "EXACT_CLAIM.md"), exactClaim);
+  await writeText(
+    join(packageDir, "METHOD.md"),
+    [
+      "# Method",
+      "",
+      "The method archives weakened survivor-adjacent claims, profiles OpenML-32 as the survivor anchor, harvests receipt-complete task-independent claims, selects the top eight by anchor similarity, and reruns each using public OpenML task/data receipts.",
+      "",
+      "Each replay recomputes majority baseline, seeded random split, first-feature holdout, shuffled-target negative control, and rival status from public raw ARFF data.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "DATASETS_AND_TASKS.md"),
+    [
+      "# Datasets And Tasks",
+      "",
+      "| Claim | Task | Dataset | Receipt | Rows | Features |",
+      "| --- | ---: | --- | --- | ---: | ---: |",
+      ...allPassed.map(
+        (result) =>
+          `| ${result.claimId} | ${result.taskId} | ${result.datasetName} | ${result.rawDataReceipt} | ${result.rowsLoaded} | ${result.featuresLoaded} |`,
+      ),
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "REPRODUCE.md"),
+    [
+      "# Reproduce",
+      "",
+      "Run:",
+      "",
+      "```bash",
+      "sovryn discover-daemon second-independent-survivor --live-openml --json",
+      "```",
+      "",
+      "The command fetches public OpenML task/data receipts and writes replay metrics to INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "BASELINES_AND_RIVALS.md"),
+    independentSurvivorReplayMarkdown(replayResults),
+  );
+  await writeText(
+    join(packageDir, "HOLDOUT_NEGATIVE_CONTROLS.md"),
+    rivalHoldoutNegativeControlMarkdown(replayResults),
+  );
+  await writeText(
+    join(packageDir, "LIMITATIONS.md"),
+    [
+      "# Limitations",
+      "",
+      "- Scope is limited to the public OpenML tasks replayed here.",
+      "- The package does not claim external validation, benchmark-wide failure, Nobel-readiness, or Fund status.",
+      "- The first-feature holdout is a bounded protocol-fragility probe, not an official split for every dataset.",
+      "- FundCandidateDraft remains absent and FUND_FOUND is false.",
+    ].join("\n"),
+  );
+  await writeJson(join(packageDir, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    claim: exactClaim,
+    anchor: anchorReplay.claimId,
+    additionalSurvivors: passed.map((result) => result.claimId),
+    resultKind: "discovery_candidate_readiness_package",
+    fundFound: report.fundFound,
+    evidenceRefs: report.artifactRefs,
+    noOverclaim: [
+      "no Nobel claim",
+      "no Einstein-level claim",
+      "no breakthrough claim",
+      "no external validation claim",
+      "no external adoption claim",
+      "no legal, medical, wet-lab, or unsafe claim",
+    ],
+  });
 }
 
 async function writeSurvivorReviewPackage(

@@ -1,8 +1,10 @@
 # DiscoveryCandidate Package Status
 
-DiscoveryCandidate created: no
-DiscoveryCandidate ID: none
-Review package path: none
+DiscoveryCandidate created: yes
+DiscoveryCandidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+Review package built: yes
+Review package path: .sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_REVIEW_PACKAGE
+Committed package mirror: SECOND_SURVIVOR_REVIEW_PACKAGE
 FundCandidateDraft created: no
 
-Survivor-adjacent survivors remain Insight-level. Blockers: fewer_than_two_survivors_pass_public_raw_replay, public_raw_replay_survivors_not_independent, external_review_package_not_built.
+Second independent public-raw survivor found; DiscoveryCandidate readiness package created, but FundCandidateDraft and FUND_FOUND remain blocked until a full discovery-scored Fund Gate pass.

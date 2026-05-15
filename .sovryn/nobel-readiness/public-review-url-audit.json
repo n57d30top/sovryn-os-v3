@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_public_review_url_audit",
-  "generatedAt": "2026-05-15T17:53:46.581Z",
+  "generatedAt": "2026-05-15T18:02:17.201Z",
   "status": "public_review_urls_ready",
   "passed": true,
   "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
@@ -66,6 +66,18 @@
       "repositoryUrl": true
     },
     {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_BUNDLE_MANIFEST.json",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_EVIDENCE_REF_INDEX.md",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
       "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
       "expectedHost": true,
       "rawGithub": false,
@@ -78,7 +90,25 @@
       "repositoryUrl": true
     },
     {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REPRODUCTION_QUEUE.md",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
       "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REQUEST.md",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REVIEWER_CHECKLIST.md",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_SUBMISSION_COVER.md",
       "expectedHost": true,
       "rawGithub": false,
       "repositoryUrl": true
@@ -210,6 +240,18 @@
       "repositoryUrl": false
     },
     {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_BUNDLE_MANIFEST.json",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_EVIDENCE_REF_INDEX.md",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
       "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
       "expectedHost": true,
       "rawGithub": true,
@@ -222,7 +264,25 @@
       "repositoryUrl": false
     },
     {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REPRODUCTION_QUEUE.md",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
       "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REQUEST.md",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REVIEWER_CHECKLIST.md",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_SUBMISSION_COVER.md",
       "expectedHost": true,
       "rawGithub": true,
       "repositoryUrl": false
@@ -391,5 +451,5 @@
     ".sovryn/nobel-readiness/public-review-url-audit.json",
     ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
   ],
-  "evidenceHash": "4a47d300f938d6a8f16a63305ce70bbd39c24b6d21d1522f49126e6afb7f542b"
+  "evidenceHash": "46f2e8423afa5a4bcd50daccf95c2b68ec2db1e7fbda121c4b9552dcfbe9984e"
 }

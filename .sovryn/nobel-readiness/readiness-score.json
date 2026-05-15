@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-15T17:53:46.450Z",
+  "scoredAt": "2026-05-15T18:35:49.384Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -64,5 +64,5 @@
     "The layer improves readiness discipline without creating a validated discovery claim.",
     "Reproduction, pipeline, and tool capability Funds are excluded from Einstein/Nobel discovery scoring unless classified as discovery_fund_candidate or externally_review_ready_discovery_candidate."
   ],
-  "evidenceHash": "6d3964ec281b901dd51d8a9628033cc42755f61debc052652e1edfd50618278e"
+  "evidenceHash": "208440e36d72d0f9ecaa5ff66c5a10db22cda1d3845d07ec3a94d2f01d02faa1"
 }

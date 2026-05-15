@@ -66334,6 +66334,8 @@ type AllLayer100PublicReviewPackage = {
   standalonePublicReplayExternalValidation: boolean | null;
   publicRawScientificReproductionReady: boolean | null;
   publicRawOrFormalReproductionReady: boolean | null;
+  publicExternalReviewBundleReady: boolean | null;
+  publicExternalReviewBundleFiles: string[];
   productMetricsMatched: boolean | null;
   productMetricsWithinRoundingTolerance: boolean | null;
   status:
@@ -66392,6 +66394,32 @@ async function readAllLayer100PublicSecondSurvivorPackage(
     optionalBoolean(summary?.publicRawOrFormalReproductionReady) ??
     optionalBoolean(replay?.publicRawOrFormalReproductionReady) ??
     (publicRawScientificReproductionReady === true ? true : null);
+  const publicExternalReviewBundleFiles = Array.isArray(
+    summary?.publicExternalReviewBundleFiles,
+  )
+    ? summary.publicExternalReviewBundleFiles
+        .map((item) => optionalString(item))
+        .filter((item): item is string => item !== null)
+    : [];
+  const bundleFilePresence =
+    publicExternalReviewBundleFiles.length > 0
+      ? await Promise.all(
+          publicExternalReviewBundleFiles.map((file) =>
+            exists(join(resultRoot, file)),
+          ),
+        )
+      : [];
+  const publicExternalReviewBundleReadyFlag = optionalBoolean(
+    summary?.publicExternalReviewBundleReady,
+  );
+  const publicExternalReviewBundleReady =
+    publicExternalReviewBundleReadyFlag === true &&
+    bundleFilePresence.every((present) => present)
+      ? true
+      : publicExternalReviewBundleReadyFlag === false ||
+          bundleFilePresence.includes(false)
+        ? false
+        : null;
   const standaloneReplayPresent = replay !== null;
   const status: AllLayer100PublicReviewPackage["status"] =
     !present || summary === null
@@ -66433,6 +66461,8 @@ async function readAllLayer100PublicSecondSurvivorPackage(
     ),
     publicRawScientificReproductionReady,
     publicRawOrFormalReproductionReady,
+    publicExternalReviewBundleReady,
+    publicExternalReviewBundleFiles,
     productMetricsMatched,
     productMetricsWithinRoundingTolerance,
     status,
@@ -66637,6 +66667,10 @@ function allLayer100TargetedRun(input: {
       input.publicReviewPackage.publicRawScientificReproductionReady === true,
     publicPackageRawOrFormalReproductionReady:
       input.publicReviewPackage.publicRawOrFormalReproductionReady === true,
+    publicExternalReviewBundleReady:
+      input.publicReviewPackage.publicExternalReviewBundleReady === true,
+    publicExternalReviewBundleFiles:
+      input.publicReviewPackage.publicExternalReviewBundleFiles,
     publicPackageCountsForDiscoveryScore:
       input.publicReviewPackage.countsForDiscoveryScore === true,
     publicPackageFundFound: input.publicReviewPackage.fundFound === true,
@@ -66802,6 +66836,19 @@ function allLayer100CompletionAudit(input: {
             "none_awaiting_external_review",
       },
       {
+        requirement:
+          "Surface public external-review bundle readiness without claiming external validation",
+        evidence:
+          "SUMMARY.json exposes publicExternalReviewBundleReady/publicExternalReviewBundleFiles while countsForDiscoveryScore=false and external review counts remain zero.",
+        covered:
+          input.publicReviewPackage.publicExternalReviewBundleReady === true &&
+          input.publicReviewPackage.publicExternalReviewBundleFiles.length >
+            0 &&
+          input.publicReviewPackage.countsForDiscoveryScore === false &&
+          input.publicReviewPackage.standalonePublicReplayExternalValidation !==
+            true,
+      },
+      {
         requirement: "Do not create fake FUND_FOUND",
         evidence:
           "DISCOVERY_PROMOTION_DECISIONS.md and FUND_GATE_RESULTS.md record notificationAllowed=false and fundFound=false.",
@@ -66834,6 +66881,9 @@ function allLayer100CompletionAudit(input: {
       ...(input.externalReviewIntake !== null
         ? []
         : ["external_review_intake_not_bound_to_current_candidate"]),
+      ...(input.publicReviewPackage.publicExternalReviewBundleReady === true
+        ? []
+        : ["public_external_review_bundle_not_ready"]),
     ],
     achieved: false,
   };
@@ -67023,6 +67073,12 @@ function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
     `Standalone replay external validation: ${String(run.standaloneReplayExternalValidation)}`,
     `Public raw reproduction ready: ${String(run.publicPackageRawScientificReproductionReady)}`,
     `Public raw/formal reproduction ready: ${String(run.publicPackageRawOrFormalReproductionReady)}`,
+    `Public external review bundle ready: ${String(run.publicExternalReviewBundleReady)}`,
+    `Public external review bundle files: ${
+      Array.isArray(run.publicExternalReviewBundleFiles)
+        ? run.publicExternalReviewBundleFiles.join(", ")
+        : "none"
+    }`,
     `Public package counts for discovery score: ${String(run.publicPackageCountsForDiscoveryScore)}`,
     `Fund class: ${String(run.fundClass)}`,
     `Notification allowed: ${String(run.notificationAllowed)}`,

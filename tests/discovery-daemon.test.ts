@@ -10229,6 +10229,23 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
         standalonePublicReplayExternalValidation: false,
         publicRawScientificReproductionReady: true,
         publicRawOrFormalReproductionReady: true,
+        publicExternalReviewBundleReady: true,
+        publicExternalReviewBundleFiles: [
+          "EXTERNAL_REVIEW_BUNDLE_MANIFEST.json",
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(
+    join(publicPackageRoot, "EXTERNAL_REVIEW_BUNDLE_MANIFEST.json"),
+    JSON.stringify(
+      {
+        kind: "public_external_review_bundle_manifest",
+        candidateId: "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+        countsForDiscoveryScore: false,
+        externalExpertValidationClaimed: false,
       },
       null,
       2,
@@ -10306,12 +10323,17 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   );
   assert.equal(publicReviewPackage.publicRawScientificReproductionReady, true);
   assert.equal(publicReviewPackage.publicRawOrFormalReproductionReady, true);
+  assert.equal(publicReviewPackage.publicExternalReviewBundleReady, true);
+  assert.deepEqual(publicReviewPackage.publicExternalReviewBundleFiles, [
+    "EXTERNAL_REVIEW_BUNDLE_MANIFEST.json",
+  ]);
   assert.equal(publicReviewPackage.productMetricsWithinRoundingTolerance, true);
   const targetedRun = report.targetedRun as Record<string, unknown>;
   assert.equal(targetedRun.publicCorpusReviewPackagePresent, true);
   assert.equal(targetedRun.standaloneReplayWithinRoundingTolerance, true);
   assert.equal(targetedRun.publicPackageRawScientificReproductionReady, true);
   assert.equal(targetedRun.publicPackageRawOrFormalReproductionReady, true);
+  assert.equal(targetedRun.publicExternalReviewBundleReady, true);
   assert.equal(targetedRun.publicPackageCountsForDiscoveryScore, false);
   assert.equal(targetedRun.survivorAdjacentPromotionPresent, true);
   assert.equal(targetedRun.survivorAdjacentPublicRawReplayPassed, 1);
@@ -10350,6 +10372,10 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   assert.match(
     targetedRunMarkdown,
     /Public raw\/formal reproduction ready: true/,
+  );
+  assert.match(
+    targetedRunMarkdown,
+    /Public external review bundle ready: true/,
   );
   assert.match(targetedRunMarkdown, /Survivor-Adjacent Live Replay/);
   assert.match(targetedRunMarkdown, /Public raw replay passed: 1/);

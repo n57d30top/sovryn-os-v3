@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_external_review_handoff",
-  "generatedAt": "2026-05-15T18:02:17.130Z",
+  "generatedAt": "2026-05-15T18:35:49.399Z",
   "status": "blocked",
   "passed": false,
   "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
@@ -343,5 +343,5 @@
     ".sovryn/nobel-readiness/external-review-handoff.json",
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md"
   ],
-  "evidenceHash": "6eb47691102ed91b1d0f8c33df37b7b6b6ba5acab0751f452e7f1ee838db1551"
+  "evidenceHash": "28a0158eef621e7f38318eadf2972c1e1db024d6cbce892f80687d4ca95cab2a"
 }

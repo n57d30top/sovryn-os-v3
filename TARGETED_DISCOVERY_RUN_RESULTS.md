@@ -16,6 +16,8 @@ Standalone replay reads Product state: false
 Standalone replay external validation: false
 Public raw reproduction ready: true
 Public raw/formal reproduction ready: true
+Public external review bundle ready: true
+Public external review bundle files: EXTERNAL_REVIEW_BUNDLE_MANIFEST.json, EXTERNAL_REVIEW_SUBMISSION_COVER.md, EXTERNAL_REVIEW_REVIEWER_CHECKLIST.md, EXTERNAL_REVIEW_EVIDENCE_REF_INDEX.md, EXTERNAL_REVIEW_REPRODUCTION_QUEUE.md
 Public package counts for discovery score: false
 Fund class: pipeline_fund_candidate
 Notification allowed: false

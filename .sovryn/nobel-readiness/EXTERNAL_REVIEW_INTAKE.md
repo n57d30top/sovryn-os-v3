@@ -8,9 +8,9 @@ This intake records independent human review files when they exist. It does not 
 
 ## Candidate
 
-- Candidate ID: missing
-- Fund class: missing
-- Package path: missing
+- Candidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+- Fund class: pipeline_fund_candidate
+- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
 - Review directory: .sovryn/nobel-readiness/external-review-reviews
 - External expert validation claimed by Sovryn: no
 - Score impact: none_awaiting_external_review
@@ -33,7 +33,7 @@ This intake records independent human review files when they exist. It does not 
 
 | Gate | Status | Meaning |
 | --- | --- | --- |
-| handoff_exists | fail | External review intake is bound to the current handoff package. |
+| handoff_exists | pass | External review intake is bound to the current handoff package or a non-scoring review-intake package. |
 | review_records_parse | pass | Review records must be valid JSON. |
 | review_records_use_current_schema | pass | Review records must declare the current external human review schema version before they can affect readiness. |
 | valid_reviews_match_candidate | pass | Valid review records must match the active Fund candidate identity. |

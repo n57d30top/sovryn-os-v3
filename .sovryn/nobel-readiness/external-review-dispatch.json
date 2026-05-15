@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_dispatch",
-  "generatedAt": "2026-05-15T16:59:48.208Z",
+  "generatedAt": "2026-05-15T17:33:53.858Z",
   "status": "blocked",
   "passed": false,
-  "candidateId": null,
-  "fundClass": null,
-  "packagePath": null,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "fundClass": "pipeline_fund_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "dispatchPath": ".sovryn/nobel-readiness/external-review-dispatch",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
@@ -90,5 +90,5 @@
     ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_RECORD_TEMPLATE.json",
     ".sovryn/nobel-readiness/external-review-dispatch/REVIEW_INTAKE_INSTRUCTIONS.md"
   ],
-  "evidenceHash": "59e3a6e42400b5a2ac935efee230a3e371f56a0c89a1a3d9ea30d0a4cb3a5af8"
+  "evidenceHash": "5a3ef62d251b7d6ff74f6df28c5bf587d93c38f6e9c19d3b40a4ab96e3192fd5"
 }

@@ -1010,6 +1010,53 @@ test("nobel-readiness external-review handoff blocks unresolved package anchors"
   ]);
 });
 
+test("nobel-readiness external-review intake binds non-scoring review packages without discovery scoring", async () => {
+  const root = await mkdtemp(
+    join(tmpdir(), "sovryn-nobel-intake-non-scoring-"),
+  );
+  const candidateId = "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001";
+  await writeNonScoringBenchmarkReviewIntakeProductPackage(root, candidateId);
+
+  const service = new NobelReadinessService(root);
+  const handoff = await service.externalReviewHandoff();
+  const intake = await service.externalReviewIntake();
+  const score = await service.score();
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "EXTERNAL_REVIEW_HANDOFF.md"),
+    "utf8",
+  );
+
+  assert.equal(handoff.candidateId, candidateId);
+  assert.equal(handoff.fundClass, "pipeline_fund_candidate");
+  assert.equal(handoff.reviewIntakeOnly, true);
+  assert.equal(handoff.reviewIntakeBindingReady, true);
+  assert.equal(handoff.passed, false);
+  assert.equal(handoff.status, "blocked");
+  assert.equal(
+    handoff.gates.find((gate) => gate.code === "discovery_scored_fund_state")
+      ?.passed,
+    false,
+  );
+  assert.equal(
+    handoff.gates.find(
+      (gate) => gate.code === "non_scoring_review_intake_binding_ready",
+    )?.passed,
+    true,
+  );
+  assert.equal(intake.candidateId, candidateId);
+  assert.equal(intake.status, "awaiting_external_review");
+  assert.equal(intake.passed, true);
+  assert.equal(
+    intake.gates.find((gate) => gate.code === "handoff_exists")?.passed,
+    true,
+  );
+  assert.equal(score.discoveryFundCandidateCount, 0);
+  assert.equal(score.einsteinNobelDiscoveryScoreEligible, false);
+  assert.equal(score.totalScore, 46);
+  assert.match(report, /Review-intake-only package: yes/);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
 test("nobel-readiness external-review bundle writes dispatch checklist without claiming outside review", async () => {
   const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-bundle-pass-"));
   await writeActiveDiscoveryFundPackage(root);
@@ -2468,6 +2515,77 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
     "utf8",
   );
   return resultRoot;
+}
+
+async function writeNonScoringBenchmarkReviewIntakeProductPackage(
+  root: string,
+  candidateId: string,
+): Promise<string> {
+  const packagePath = `.sovryn/discovery-daemon/evidence-packages/${candidateId}`;
+  const packageRoot = join(root, packagePath);
+  await mkdir(packageRoot, { recursive: true });
+  const claim =
+    "A receipt-first benchmark triage method may be worth external benchmark-methodology review, but this package is not discovery-scored.";
+  await writeJson(join(packageRoot, "FUND_CANDIDATE.json"), {
+    candidateId,
+    claim,
+    domain: "benchmark_protocol_methodology",
+    requestedFundLabel: "externally_review_ready_candidate",
+    nontrivialNewInsightAcrossRealTargets: false,
+    domainScientificSignificance: false,
+    publicPackagePath: packagePath,
+    noOverclaim: true,
+  });
+  await writeJson(join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    candidateId,
+    fundClass: "pipeline_fund_candidate",
+    evidenceRefs: ["PAPER.md#bounded-claim", "METHOD.md#method"],
+  });
+  await writeFile(
+    join(packageRoot, "PAPER.md"),
+    "# Paper\n\n## Bounded Claim\n\nThis is a bounded review-intake package.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    "# Method\n\n## Method\n\nReviewers inspect public benchmark replay inputs.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "REPRODUCE.md"),
+    "# Reproduce\n\nRun the public benchmark replay script if present.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "# Limitations\n\nNo external validation or Fund status is claimed.\n",
+    "utf8",
+  );
+  await writeJson(join(packageRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"), {
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+    candidateId,
+    resultSlug: "second-survivor-benchmark-triage-methodology-review-intake",
+    reviewerRole: "independent benchmark methodology reviewer",
+    reviewDate: "YYYY-MM-DD",
+    reviewSourceRef:
+      "Provide an external public URL for any score-impacting supportive review.",
+    reviewSourceReceiptRef:
+      "Run `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json`.",
+    decision:
+      "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
+    independentReproductionStatus:
+      "reproduced | partially_reproduced | not_reproduced | not_attempted",
+    noveltyAssessment:
+      "nontrivial_and_plausibly_novel | known_or_trivial | unclear",
+    evidenceRefs: ["PAPER.md#bounded-claim", "METHOD.md#method"],
+    overclaimFindings: [],
+  });
+  await writeFile(
+    join(packageRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+    `# External Review Intake Instructions\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\` and include an external public URL plus source receipt before any supportive record can affect readiness.\n`,
+    "utf8",
+  );
+  return packageRoot;
 }
 
 async function writeExternalReviewSourceReceipt(

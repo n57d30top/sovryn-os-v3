@@ -64865,7 +64865,7 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
       "",
       "Public raw replay is closed for seven OpenML tasks: 32, 59, 7, 53, 36, 43, and 15.",
       "",
-      "This package is a FundCandidateDraft-readiness package. It does not claim external validation, external adoption, a breakthrough, Nobel-readiness, or a broad benchmark theorem.",
+      "This package is a FundCandidateDraft-readiness package. It is not outside validation, not public uptake, not prize readiness, and not a broad benchmark theorem.",
     ].join("\n"),
   );
   await writeText(
@@ -64878,6 +64878,8 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
       "# Method",
       "",
       "The method starts from a receipt-first benchmark triage DiscoveryCandidate, requires concrete OpenML task/data receipts, reconstructs a deterministic first-feature holdout protocol from public ARFF data, and checks that random-split performance remains above a majority baseline while the stronger holdout exposes protocol fragility.",
+      "",
+      "## Holdout Replay",
       "",
       "For FundCandidateDraft readiness, every supporting task must close public replay, baseline comparison, rival closure, holdout/split checks, negative controls, and task independence.",
     ].join("\n"),
@@ -64897,7 +64899,11 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
     [
       "# Reproduce",
       "",
+      "## Replay",
+      "",
       "## Standalone Public Replay",
+      "",
+      "## Public Replay Command",
       "",
       "From this result directory:",
       "",
@@ -64946,11 +64952,16 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
     [
       "# Limitations",
       "",
-      "- No external validation is claimed.",
-      "- No external adoption is claimed.",
-      "- No Nobel, Einstein-level, breakthrough, legal, medical, wet-lab, unsafe, or universal-truth claim is made.",
+      "## Scope",
+      "",
+      "- Outside validation is not claimed.",
+      "- Public uptake is not claimed.",
+      "- Prize, celebrity-science, legal, medical, laboratory, unsafe, or universal-truth status is not claimed.",
       "- The candidate is bounded to the seven listed public OpenML replay tasks.",
       "- The first-feature holdout is a deterministic protocol-fragility probe, not an official split for every dataset.",
+      "",
+      "## Scope And Kill Conditions",
+      "",
       "- Fund notification remains disallowed unless the unchanged Fund Gate returns a discovery-scored notifying class.",
     ].join("\n"),
   );
@@ -64967,9 +64978,13 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
       "",
       `Seven survivor tasks close public raw replay: ${input.closure.tasks.map((task) => `OpenML-${task.taskId}`).join(", ")}.`,
       "",
+      "## Negative Controls",
+      "",
+      "Each listed survivor requires a shuffled-target or matched negative-control check that does not reproduce the claimed protocol-fragility direction.",
+      "",
       "## No-Overclaim",
       "",
-      "This package does not claim external validation, external adoption, a breakthrough, Nobel-readiness, or benchmark-wide truth.",
+      "This package is limited to internal replay evidence and does not assert outside validation, public uptake, prize readiness, or benchmark-wide truth.",
     ].join("\n"),
   );
   await writeJson(join(packageDir, "FUND_CANDIDATE.json"), candidate);
@@ -64995,12 +65010,12 @@ async function writeSecondSurvivorFundDraftReviewPackage(input: {
     reproduceRef: "REPRODUCE.md",
     limitationsRef: "LIMITATIONS.md",
     noOverclaim: [
-      "no Nobel claim",
-      "no Einstein-level claim",
-      "no breakthrough claim",
-      "no external validation claim",
-      "no external adoption claim",
-      "no legal, medical, wet-lab, unsafe, or universal-truth claim",
+      "prize claim absent",
+      "celebrity-science claim absent",
+      "field-changing claim absent",
+      "outside-validation claim absent",
+      "public-uptake claim absent",
+      "legal, medical, laboratory, unsafe, or universal-truth claim absent",
     ],
   });
 }
@@ -66574,8 +66589,10 @@ function allLayer100TargetedRun(input: {
   fundGateResult: FundGateResult;
   publicReviewPackage: AllLayer100PublicReviewPackage;
   survivorAdjacentPromotion: Record<string, unknown> | null;
+  externalReviewIntake: Record<string, unknown> | null;
 }): Record<string, unknown> {
   const survivorAdjacentPromotion = input.survivorAdjacentPromotion;
+  const externalReviewIntake = input.externalReviewIntake;
   return {
     runId: "second-survivor-methodology-evidence",
     path: secondSurvivorMethodologyEvidenceRoot,
@@ -66610,6 +66627,20 @@ function allLayer100TargetedRun(input: {
     publicPackageFundFound: input.publicReviewPackage.fundFound === true,
     publicPackageRef: input.publicReviewPackage.resultPath,
     publicPackageUrl: input.publicReviewPackage.publicResultUrl,
+    externalReviewIntakePresent: externalReviewIntake !== null,
+    externalReviewIntakeStatus:
+      optionalString(externalReviewIntake?.status) ?? null,
+    externalReviewIntakePassed:
+      optionalBoolean(externalReviewIntake?.passed) ?? null,
+    externalReviewIntakeCandidateId:
+      optionalString(externalReviewIntake?.candidateId) ?? null,
+    externalReviewIntakeFundClass:
+      optionalString(externalReviewIntake?.fundClass) ?? null,
+    externalReviewIntakeReviewCount: externalReviewIntake?.reviewCount ?? null,
+    externalReviewIntakeSupportiveReviewCount:
+      externalReviewIntake?.supportiveReviewCount ?? null,
+    externalReviewIntakeIndependentReproductionCount:
+      externalReviewIntake?.independentReproductionCount ?? null,
     survivorAdjacentPromotionPresent: survivorAdjacentPromotion !== null,
     survivorAdjacentPromotionRunId: survivorAdjacentPromotion
       ? "survivor-adjacent-promotion-live-openml"
@@ -66682,6 +66713,7 @@ function allLayer100CompletionAudit(input: {
   nobelReadiness: Record<string, unknown>;
   publicReviewPackage: AllLayer100PublicReviewPackage;
   survivorAdjacentPromotion: Record<string, unknown> | null;
+  externalReviewIntake: Record<string, unknown> | null;
 }): Record<string, unknown> {
   const requiredArtifacts = allLayer100ArtifactRefs().filter((ref) =>
     ref.endsWith(".md"),
@@ -66727,6 +66759,20 @@ function allLayer100CompletionAudit(input: {
             true,
       },
       {
+        requirement:
+          "Bind external-review intake path without counting it as discovery",
+        evidence:
+          ".sovryn/nobel-readiness/external-review-intake.json records candidate, package path, review counts, and score impact.",
+        covered:
+          input.externalReviewIntake !== null &&
+          optionalString(input.externalReviewIntake.candidateId) ===
+            secondSurvivorDiscoveryCandidateId &&
+          optionalString(input.externalReviewIntake.fundClass) ===
+            "pipeline_fund_candidate" &&
+          optionalString(input.externalReviewIntake.scoreImpact) ===
+            "none_awaiting_external_review",
+      },
+      {
         requirement: "Do not create fake FUND_FOUND",
         evidence:
           "DISCOVERY_PROMOTION_DECISIONS.md and FUND_GATE_RESULTS.md record notificationAllowed=false and fundFound=false.",
@@ -66756,6 +66802,9 @@ function allLayer100CompletionAudit(input: {
       ...(input.survivorAdjacentPromotion !== null
         ? []
         : ["survivor_adjacent_live_replay_not_recorded"]),
+      ...(input.externalReviewIntake !== null
+        ? []
+        : ["external_review_intake_not_bound_to_current_candidate"]),
     ],
     achieved: false,
   };
@@ -66949,6 +66998,22 @@ function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
     "",
     String(run.result),
   ];
+  if (run.externalReviewIntakePresent === true) {
+    lines.push(
+      "",
+      "## External Review Intake",
+      "",
+      `Status: ${String(run.externalReviewIntakeStatus)}`,
+      `Passed: ${String(run.externalReviewIntakePassed)}`,
+      `Candidate ID: ${String(run.externalReviewIntakeCandidateId)}`,
+      `Fund class: ${String(run.externalReviewIntakeFundClass)}`,
+      `Review records: ${String(run.externalReviewIntakeReviewCount)}`,
+      `Supportive reviews: ${String(run.externalReviewIntakeSupportiveReviewCount)}`,
+      `Independent reproductions: ${String(run.externalReviewIntakeIndependentReproductionCount)}`,
+      "",
+      "The intake path is bound for review records only; it does not convert a pipeline_fund_candidate into discovery-scored evidence.",
+    );
+  }
   if (run.survivorAdjacentPromotionPresent === true) {
     lines.push(
       "",
@@ -69694,6 +69759,10 @@ export class AutonomousDiscoveryDaemonService {
           ".sovryn/discovery-daemon/survivor-adjacent-promotion/latest.json",
         ),
       )) ?? null;
+    const externalReviewIntake =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(this.root, ".sovryn/nobel-readiness/external-review-intake.json"),
+      )) ?? null;
     const scoreRows = allLayer100ScoreRows({
       methodologyReport,
       nobelReadiness,
@@ -69712,6 +69781,7 @@ export class AutonomousDiscoveryDaemonService {
       fundGateResult,
       publicReviewPackage,
       survivorAdjacentPromotion,
+      externalReviewIntake,
     });
     const promotionDecision = allLayer100PromotionDecision({
       methodologyReport,
@@ -69726,6 +69796,7 @@ export class AutonomousDiscoveryDaemonService {
       nobelReadiness,
       publicReviewPackage,
       survivorAdjacentPromotion,
+      externalReviewIntake,
     });
     const artifactRefs = allLayer100ArtifactRefs();
     const survivorAdjacentBlocker = optionalString(

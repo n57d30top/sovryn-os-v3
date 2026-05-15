@@ -6,11 +6,11 @@ This bundle is a dispatch packet for independent human review of one bounded dis
 
 ## Candidate
 
-- Candidate ID: missing
-- Fund class: missing
-- Package path: missing
+- Candidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+- Fund class: pipeline_fund_candidate
+- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
 - Handoff status: blocked
-- Package refs resolved: 0/0
+- Package refs resolved: 35/35
 
 ## Reviewer Decision Needed
 

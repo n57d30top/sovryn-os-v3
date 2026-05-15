@@ -6,9 +6,9 @@ This request asks an independent domain reviewer to inspect one bounded discover
 
 ## Candidate
 
-- Candidate ID: missing
-- Fund class: missing
-- Package path: missing
+- Candidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+- Fund class: pipeline_fund_candidate
+- Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
 - Bundle path: .sovryn/nobel-readiness/external-review-bundle
 - Review record directory: .sovryn/nobel-readiness/external-review-reviews
 - Current review intake status: awaiting_external_review

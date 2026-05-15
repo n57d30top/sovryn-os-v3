@@ -1,9 +1,9 @@
 {
   "kind": "external_review_dispatch_manifest",
-  "generatedAt": "2026-05-15T16:59:48.207Z",
-  "candidateId": null,
-  "fundClass": null,
-  "packagePath": null,
+  "generatedAt": "2026-05-15T17:33:53.857Z",
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "fundClass": "pipeline_fund_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
   "externalExpertValidationClaimed": false,

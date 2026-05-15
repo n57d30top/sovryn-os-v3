@@ -1,52 +1,300 @@
 {
   "kind": "nobel_readiness_external_review_handoff",
-  "generatedAt": "2026-05-15T16:59:48.206Z",
+  "generatedAt": "2026-05-15T17:33:53.857Z",
   "status": "blocked",
   "passed": false,
-  "candidateId": null,
-  "fundClass": null,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "fundClass": "pipeline_fund_candidate",
+  "reviewIntakeOnly": true,
+  "reviewIntakeBindingReady": true,
   "readinessLabel": "promising_with_strong_caveats",
   "readinessScore": 46,
   "externalReviewReadinessScore": 44,
   "externalExpertValidationClaimed": false,
-  "packagePath": null,
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "requiredArtifacts": [
     {
       "artifact": "PAPER.md",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "METHOD.md",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "CLAIM_EVIDENCE_BINDINGS.json",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "REPRODUCE.md",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "LIMITATIONS.md",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     },
     {
       "artifact": "FUND_CANDIDATE.json",
-      "exists": false,
+      "exists": true,
       "forbiddenClaimFindings": []
     }
   ],
   "refResolution": {
-    "totalRefs": 0,
-    "resolvedRefs": 0,
+    "totalRefs": 35,
+    "resolvedRefs": 35,
     "unresolvedRefs": [],
-    "refs": []
+    "refs": [
+      {
+        "ref": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001.json",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "CLAIM_EVIDENCE_BINDINGS.json#candidate",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "CLAIM_EVIDENCE_BINDINGS.json#frozenClaim",
+        "kind": "json_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "EXTERNAL_METHODOLOGY_COMPARISON.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "EXTERNAL_REVIEW_REQUEST.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "INDEPENDENT_REPRODUCER_PACKAGE.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "LIMITATIONS.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "LIMITATIONS.md#scope",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "LIMITATIONS.md#scope-and-kill-conditions",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "METHOD.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "METHOD.md#holdout-replay",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "METHOD.md#method",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "METHODOLOGY_EXACT_CLAIM.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "METHODOLOGY_FALSIFIERS.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "METHODOLOGY_VALUE_TESTS.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "PAPER.md#bounded-claim",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "PAPER.md#negative-controls",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "PUBLIC_REVIEW_URLS.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "REPRODUCE.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "REPRODUCE.md#public-replay-command",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "REPRODUCE.md#replay",
+        "kind": "markdown_anchor",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "anchor resolved"
+      },
+      {
+        "ref": "REPRODUCER_CHECKLIST.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "REVIEWER_REPLAY_QUICKCHECK.md",
+        "kind": "local_file",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "local artifact exists"
+      },
+      {
+        "ref": "https://docs.openml.org/benchmark/",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://doi.org/10.1016/j.patter.2023.100804",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://doi.org/10.1145/2379776.2379786",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://mitpress.mit.edu/9780262170055/dataset-shift-in-machine-learning/",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://scikit-learn.org/stable/modules/cross_validation.html",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GroupKFold.html",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      },
+      {
+        "ref": "https://www.jmlr.org/papers/v18/16-177.html",
+        "kind": "external_url",
+        "resolved": true,
+        "publicSafe": true,
+        "reason": "external public URL recorded for human review"
+      }
+    ]
   },
   "gates": [
     {
@@ -61,13 +309,18 @@
     },
     {
       "code": "required_package_artifacts_present",
-      "passed": false,
+      "passed": true,
       "message": "External handoff requires PAPER, METHOD, bindings, reproduce, limitations, and candidate JSON artifacts."
     },
     {
       "code": "claim_bindings_match_candidate",
-      "passed": false,
+      "passed": true,
       "message": "CLAIM_EVIDENCE_BINDINGS.json must bind to the active Fund candidate identity."
+    },
+    {
+      "code": "non_scoring_review_intake_binding_ready",
+      "passed": true,
+      "message": "Non-scoring review-intake packages may bind candidate review records but cannot satisfy discovery-scored Fund state."
     },
     {
       "code": "all_review_refs_resolve",
@@ -90,5 +343,5 @@
     ".sovryn/nobel-readiness/external-review-handoff.json",
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md"
   ],
-  "evidenceHash": "3f1fac647a68cebfdfbcd5882b3b7a919e0dd281ba546bcfb1692e7ec0a565f8"
+  "evidenceHash": "a18b5bdd7f865bf98641fe5bbb1e89f647b68aa8f11a7391777c545b69074299"
 }

@@ -20,6 +20,18 @@ Notification allowed: false
 
 Targeted evidence run hardened the strongest candidate package and surfaced public standalone replay evidence, but did not produce discovery-scored notification authority or external validation.
 
+## External Review Intake
+
+Status: awaiting_external_review
+Passed: true
+Candidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+Fund class: pipeline_fund_candidate
+Review records: 0
+Supportive reviews: 0
+Independent reproductions: 0
+
+The intake path is bound for review records only; it does not convert a pipeline_fund_candidate into discovery-scored evidence.
+
 ## Survivor-Adjacent Live Replay
 
 Run ID: survivor-adjacent-promotion-live-openml

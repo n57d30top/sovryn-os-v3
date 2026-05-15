@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_intake",
-  "generatedAt": "2026-05-15T16:59:48.207Z",
+  "generatedAt": "2026-05-15T17:33:53.857Z",
   "status": "awaiting_external_review",
-  "passed": false,
-  "candidateId": null,
-  "fundClass": null,
-  "packagePath": null,
+  "passed": true,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "fundClass": "pipeline_fund_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
   "reviewCount": 0,
   "validReviewCount": 0,
@@ -18,8 +18,8 @@
   "gates": [
     {
       "code": "handoff_exists",
-      "passed": false,
-      "message": "External review intake is bound to the current handoff package."
+      "passed": true,
+      "message": "External review intake is bound to the current handoff package or a non-scoring review-intake package."
     },
     {
       "code": "review_records_parse",
@@ -78,5 +78,5 @@
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
     ".sovryn/nobel-readiness/external-review-reviews"
   ],
-  "evidenceHash": "ea5d4acff96ff28eed3308e0994aac791433f1f832d8a5534ae9dd66df5d30a3"
+  "evidenceHash": "2e9a33c7fe295c6daa5210ac344cad07cd0e1579562cec31710d9ac90c3d13ab"
 }

@@ -45,6 +45,11 @@
 "covered": true
 },
 {
+"requirement": "Bind external-review intake path without counting it as discovery",
+"evidence": ".sovryn/nobel-readiness/external-review-intake.json records candidate, package path, review counts, and score impact.",
+"covered": true
+},
+{
 "requirement": "Do not create fake FUND_FOUND",
 "evidence": "DISCOVERY_PROMOTION_DECISIONS.md and FUND_GATE_RESULTS.md record notificationAllowed=false and fundFound=false.",
 "covered": true

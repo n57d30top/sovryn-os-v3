@@ -343,6 +343,8 @@ export type ExternalReviewHandoffAudit = {
   passed: boolean;
   candidateId: string | null;
   fundClass: string | null;
+  reviewIntakeOnly: boolean;
+  reviewIntakeBindingReady: boolean;
   readinessLabel: NobelReadinessLabel | null;
   readinessScore: number | null;
   externalReviewReadinessScore: number | null;
@@ -2467,10 +2469,23 @@ export class NobelReadinessService {
     const fundCandidateEnvelope = await readOptionalJson<
       Record<string, unknown>
     >(join(this.root, ".sovryn", "discovery-daemon", "fund-candidate.json"));
-    const candidateRecord = candidateRecordFromEnvelope(fundCandidateEnvelope);
+    const activeCandidateRecord = candidateRecordFromEnvelope(
+      fundCandidateEnvelope,
+    );
+    const nonScoringReviewIntakeCandidate = activeCandidateRecord
+      ? null
+      : await this.findNonScoringReviewIntakeCandidate();
+    const candidateRecord =
+      activeCandidateRecord ??
+      nonScoringReviewIntakeCandidate?.candidateRecord ??
+      null;
     const candidateId = stringValue(candidateRecord?.candidateId);
-    const packagePath = stringValue(candidateRecord?.publicPackagePath);
+    const packagePath =
+      stringValue(candidateRecord?.publicPackagePath) ??
+      nonScoringReviewIntakeCandidate?.packagePath ??
+      null;
     const packageRoot = packagePath ? join(this.root, packagePath) : null;
+    const reviewIntakeOnly = nonScoringReviewIntakeCandidate !== null;
     const requiredArtifactNames = [
       "PAPER.md",
       "METHOD.md",
@@ -2521,6 +2536,20 @@ export class NobelReadinessService {
       typeof bindings?.candidateId === "string" &&
       bindings.candidateId === candidateId;
     const packageFundClass = stringValue(bindings?.fundClass);
+    const handoffFundClass =
+      stringValue(fundGate?.fundClass) ??
+      packageFundClass ??
+      nonScoringReviewIntakeCandidate?.fundClass ??
+      stringValue(candidateRecord?.fundClass);
+    const reviewIntakeBindingReady =
+      reviewIntakeOnly &&
+      candidateId !== null &&
+      packagePath !== null &&
+      handoffFundClass === "pipeline_fund_candidate" &&
+      requiredArtifactsPresent &&
+      claimBindingMatchesCandidate &&
+      unresolvedRefs.length === 0 &&
+      noForbiddenClaims;
     const gates = [
       {
         code: "discovery_scored_fund_state",
@@ -2550,6 +2579,12 @@ export class NobelReadinessService {
           "CLAIM_EVIDENCE_BINDINGS.json must bind to the active Fund candidate identity.",
       },
       {
+        code: "non_scoring_review_intake_binding_ready",
+        passed: !reviewIntakeOnly || reviewIntakeBindingReady,
+        message:
+          "Non-scoring review-intake packages may bind candidate review records but cannot satisfy discovery-scored Fund state.",
+      },
+      {
         code: "all_review_refs_resolve",
         passed: unresolvedRefs.length === 0,
         message:
@@ -2575,10 +2610,9 @@ export class NobelReadinessService {
       status: passed ? "ready_for_external_human_review" : "blocked",
       passed,
       candidateId,
-      fundClass:
-        stringValue(fundGate?.fundClass) ??
-        packageFundClass ??
-        stringValue(candidateRecord?.fundClass),
+      fundClass: handoffFundClass,
+      reviewIntakeOnly,
+      reviewIntakeBindingReady,
       readinessLabel: score.label,
       readinessScore: score.totalScore,
       externalReviewReadinessScore: score.external_review_readiness_score,
@@ -2615,6 +2649,58 @@ export class NobelReadinessService {
       "utf8",
     );
     return hashedHandoff;
+  }
+
+  private async findNonScoringReviewIntakeCandidate(): Promise<{
+    candidateRecord: Record<string, unknown>;
+    packagePath: string;
+    fundClass: "pipeline_fund_candidate";
+  } | null> {
+    const packagesRel = ".sovryn/discovery-daemon/evidence-packages";
+    const packagesRoot = join(this.root, packagesRel);
+    let entries: string[] = [];
+    try {
+      entries = await readdir(packagesRoot);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    for (const entry of entries.sort()) {
+      const packagePath = `${packagesRel}/${entry}`;
+      const packageRoot = join(this.root, packagePath);
+      const packageStat = await stat(packageRoot);
+      if (!packageStat.isDirectory()) continue;
+      const fundCandidateEnvelope = await readOptionalJson<
+        Record<string, unknown>
+      >(join(packageRoot, "FUND_CANDIDATE.json"));
+      const candidateRecord = candidateRecordFromEnvelope(
+        fundCandidateEnvelope,
+      );
+      const candidateId = stringValue(candidateRecord?.candidateId);
+      if (!candidateId || candidateRecord === null) continue;
+      const reviewTemplateExists = await fileExists(
+        join(packageRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"),
+      );
+      const reviewInstructionsExist = await fileExists(
+        join(packageRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+      );
+      const explicitlyNonDiscovery =
+        booleanValue(candidateRecord?.nontrivialNewInsightAcrossRealTargets) ===
+          false ||
+        booleanValue(candidateRecord?.domainScientificSignificance) === false;
+      if (
+        reviewTemplateExists &&
+        reviewInstructionsExist &&
+        explicitlyNonDiscovery
+      ) {
+        return {
+          candidateRecord,
+          packagePath,
+          fundClass: "pipeline_fund_candidate",
+        };
+      }
+    }
+    return null;
   }
 
   async externalReviewBundle(): Promise<ExternalReviewBundleAudit> {
@@ -3384,6 +3470,11 @@ export class NobelReadinessService {
 
   async externalReviewIntake(): Promise<ExternalReviewIntakeAudit> {
     const handoff = await this.externalReviewHandoff();
+    const handoffBindingReady =
+      handoff.passed ||
+      (handoff.reviewIntakeBindingReady &&
+        handoff.candidateId !== null &&
+        handoff.packagePath !== null);
     const reviewRel = ".sovryn/nobel-readiness/external-review-reviews";
     const reviewDir = join(this.root, reviewRel);
     await mkdir(reviewDir, { recursive: true });
@@ -3557,9 +3648,9 @@ export class NobelReadinessService {
     const gates = [
       {
         code: "handoff_exists",
-        passed: handoff.passed,
+        passed: handoffBindingReady,
         message:
-          "External review intake is bound to the current handoff package.",
+          "External review intake is bound to the current handoff package or a non-scoring review-intake package.",
       },
       {
         code: "review_records_parse",
@@ -3658,7 +3749,7 @@ export class NobelReadinessService {
       },
     ];
     const passed =
-      handoff.passed && status !== "blocked_invalid_external_review";
+      handoffBindingReady && status !== "blocked_invalid_external_review";
     const intake: ExternalReviewIntakeAudit = {
       kind: "nobel_readiness_external_review_intake",
       generatedAt: nowIso(),
@@ -4719,6 +4810,10 @@ This handoff is an internal package-readiness audit for independent human review
 
 - Candidate ID: ${handoff.candidateId ?? "missing"}
 - Fund class: ${handoff.fundClass ?? "missing"}
+- Review-intake-only package: ${handoff.reviewIntakeOnly ? "yes" : "no"}
+- Review-intake binding ready: ${
+    handoff.reviewIntakeBindingReady ? "yes" : "no"
+  }
 - Readiness label: ${handoff.readinessLabel ?? "missing"}
 - Readiness score: ${handoff.readinessScore ?? "missing"}/100
 - External review readiness score: ${

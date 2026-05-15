@@ -1,7 +1,7 @@
 {
   "kind": "external_human_review_record_template",
   "reviewRecordSchemaVersion": "sovryn_external_human_review_v1",
-  "candidateId": null,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "resultSlug": null,
   "reviewerRole": "independent_domain_expert",
   "reviewDate": "YYYY-MM-DD",

@@ -1,11 +1,11 @@
 {
   "kind": "nobel_readiness_external_review_bundle",
-  "generatedAt": "2026-05-15T16:59:48.206Z",
+  "generatedAt": "2026-05-15T17:33:53.853Z",
   "status": "blocked",
   "passed": false,
-  "candidateId": null,
-  "fundClass": null,
-  "packagePath": null,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "fundClass": "pipeline_fund_candidate",
+  "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
   "externalExpertValidationClaimed": false,
@@ -46,6 +46,7 @@
       "gate": "claim_identity",
       "question": "Does the package preserve the exact candidate identity and claim without scope drift?",
       "evidenceRefs": [
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
         "CLAIM_EVIDENCE_BINDINGS.json#candidateId"
       ],
       "requiredOutcome": "Reviewer confirms the reviewed claim is the same bounded package claim or requests revision."
@@ -93,7 +94,9 @@
     {
       "stepId": "review-package-inventory",
       "action": "Open the package directory and verify required artifacts are present.",
-      "inputRefs": [],
+      "inputRefs": [
+        ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001"
+      ],
       "expectedEvidence": "Artifact inventory matches the handoff required-artifact table.",
       "status": "queued_for_human_review"
     },
@@ -163,5 +166,5 @@
     ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
     ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
   ],
-  "evidenceHash": "b532707f1639d389d6d02b5e01acc40eeceb1f9d0cd29b16088c3b6cf1981527"
+  "evidenceHash": "b31e219a58580a422f09c36cbeb8de777bb4d3fcd2777dd4d0eca6f5bc571f72"
 }

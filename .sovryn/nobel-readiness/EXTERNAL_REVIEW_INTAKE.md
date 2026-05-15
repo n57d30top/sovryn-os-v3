@@ -9,7 +9,7 @@ This intake records independent human review files when they exist. It does not 
 ## Candidate
 
 - Candidate ID: missing
-- Fund class: pipeline_fund_candidate
+- Fund class: missing
 - Package path: missing
 - Review directory: .sovryn/nobel-readiness/external-review-reviews
 - External expert validation claimed by Sovryn: no

@@ -1,8 +1,8 @@
 {
   "kind": "external_review_dispatch_manifest",
-  "generatedAt": "2026-05-15T16:20:26.424Z",
+  "generatedAt": "2026-05-15T16:32:37.808Z",
   "candidateId": null,
-  "fundClass": "pipeline_fund_candidate",
+  "fundClass": null,
   "packagePath": null,
   "bundlePath": ".sovryn/nobel-readiness/external-review-bundle",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",

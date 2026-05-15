@@ -1,8 +1,8 @@
 {
   "kind": "external_review_bundle_manifest",
-  "generatedAt": "2026-05-15T16:20:26.422Z",
+  "generatedAt": "2026-05-15T16:32:37.806Z",
   "candidateId": null,
-  "fundClass": "pipeline_fund_candidate",
+  "fundClass": null,
   "packagePath": null,
   "handoffRef": ".sovryn/nobel-readiness/external-review-handoff.json",
   "externalExpertValidationClaimed": false,

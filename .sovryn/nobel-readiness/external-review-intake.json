@@ -1,10 +1,10 @@
 {
   "kind": "nobel_readiness_external_review_intake",
-  "generatedAt": "2026-05-15T16:20:26.424Z",
+  "generatedAt": "2026-05-15T16:32:37.807Z",
   "status": "awaiting_external_review",
   "passed": false,
   "candidateId": null,
-  "fundClass": "pipeline_fund_candidate",
+  "fundClass": null,
   "packagePath": null,
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
   "reviewCount": 0,
@@ -78,5 +78,5 @@
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
     ".sovryn/nobel-readiness/external-review-reviews"
   ],
-  "evidenceHash": "739cc5ccf6a0f087c6bbbb9953b96406087dfed016278380db82bbfab06eaf09"
+  "evidenceHash": "5a14423b38212ad7c27f03c9c3e12215696b9d338ec13e82e9fc9b775781a0a5"
 }

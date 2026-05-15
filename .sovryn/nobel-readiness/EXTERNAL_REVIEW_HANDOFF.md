@@ -9,7 +9,7 @@ This handoff is an internal package-readiness audit for independent human review
 ## Candidate
 
 - Candidate ID: missing
-- Fund class: pipeline_fund_candidate
+- Fund class: missing
 - Readiness label: promising_with_strong_caveats
 - Readiness score: 46/100
 - External review readiness score: 44/100

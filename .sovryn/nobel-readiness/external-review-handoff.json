@@ -1,10 +1,10 @@
 {
   "kind": "nobel_readiness_external_review_handoff",
-  "generatedAt": "2026-05-15T16:20:26.424Z",
+  "generatedAt": "2026-05-15T16:32:37.807Z",
   "status": "blocked",
   "passed": false,
   "candidateId": null,
-  "fundClass": "pipeline_fund_candidate",
+  "fundClass": null,
   "readinessLabel": "promising_with_strong_caveats",
   "readinessScore": 46,
   "externalReviewReadinessScore": 44,
@@ -90,5 +90,5 @@
     ".sovryn/nobel-readiness/external-review-handoff.json",
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_HANDOFF.md"
   ],
-  "evidenceHash": "d97faa8a2402d6265ba4a9a5bc7905299ecadc30df4e5254caa7dcc1730a2c9d"
+  "evidenceHash": "d8ae6f078e208a9a1053c049e3010eae43d4d6ddb36682ada6584b0c5b42e5a3"
 }

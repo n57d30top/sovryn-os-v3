@@ -1,5 +1,5 @@
 # Next Action
 
-Stop optimizing the rejector; source claims from externally documented studies with observed nonfatal baseline, holdout, recurrence, and negative-control margins before deep validation.
+Run live raw public replay on the selected survivor-adjacent claims and build a public-safe review package only if at least two independent non-control claims still survive.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/deep-validation-gold-set-calibration-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/survivor-adjacent-claims-continue-searching.json

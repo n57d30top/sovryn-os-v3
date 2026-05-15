@@ -1,0 +1,182 @@
+[
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-001",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.2,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.09,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=219",
+      "dataset=electricity",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.901
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-002",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.199,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.108,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=3",
+      "dataset=kr-vs-kp",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.935
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-003",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.198,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.09,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=32",
+      "dataset=pendigits",
+      "metric=balanced_accuracy",
+      "rows_proxy=medium"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.898
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-004",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.242,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.108,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=3917",
+      "dataset=kc1",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.937
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-005",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.185,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.09,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=10101",
+      "dataset=blood-transfusion-service-center",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.88
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-006",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.184,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.108,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=29",
+      "dataset=credit-approval",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.914
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-007",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.228,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.09,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=31",
+      "dataset=credit-g",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.901
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-008",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.227,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.108,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=37",
+      "dataset=diabetes",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.937
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-009",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.17,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.09,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=45",
+      "dataset=splice",
+      "metric=balanced_accuracy",
+      "rows_proxy=small"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.859
+  },
+  {
+    "signatureId": "SURVIVOR-SIGNATURE-010",
+    "sourceType": "openml_run_or_study",
+    "baselineStrength": 0.214,
+    "splitProtocolQuality": 0.72,
+    "holdoutEvidence": 0.108,
+    "recurrenceEvidence": 2,
+    "rivalClosure": "closed",
+    "negativeControlBehavior": "behaved",
+    "datasetTaskProperties": [
+      "task=3902",
+      "dataset=pc4",
+      "metric=balanced_accuracy",
+      "rows_proxy=medium"
+    ],
+    "externalRationaleType": "accepted_protocol_with_nonfatal_margins",
+    "signatureScore": 0.937
+  }
+]

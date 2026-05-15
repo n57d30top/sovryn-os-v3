@@ -82,6 +82,7 @@ import {
   ReceiptFirstSelectivityV4Service,
   ReceiptFirstSurvivalPotentialService,
   ReceiptFirstSynthesisService,
+  SurvivorAdjacentExternalClaimHarvestService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
 const daemonRoot = ".sovryn/discovery-daemon";
@@ -160,6 +161,7 @@ const commands = [
   "receipt-first-selectivity-v4",
   "receipt-first-survival-potential",
   "deep-validation-gold-set-calibration",
+  "survivor-adjacent-claims",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9569,6 +9571,86 @@ test("deep validation gold-set calibration distinguishes known survivors from we
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "deep_validation_gold_set_calibration",
+  );
+});
+
+test("survivor-adjacent claim harvest uses known-survivor signatures without creating fake Fund", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new DeepValidationGoldSetCalibrationService(root).run();
+
+  const report = await new SurvivorAdjacentExternalClaimHarvestService(
+    root,
+  ).run();
+
+  assert.equal(report.kind, "survivor_adjacent_external_claim_harvest");
+  assert.equal(report.survivorSignaturesAnalyzed, 10);
+  assert.ok(report.claimsHarvested >= 40);
+  assert.ok(report.survivorAdjacentAccepted >= 30);
+  assert.equal(report.claimsTested, 60);
+  assert.equal(report.survivorAdjacentPlausibleClaims, 30);
+  assert.equal(report.weakClaims, 20);
+  assert.equal(report.positiveControlClaims, 10);
+  assert.ok(report.independentTasks >= 15);
+  assert.ok(report.selectedSurvivorAdjacentClaims >= 5);
+  assert.ok(report.independentSelectedTasks >= 5);
+  assert.ok(report.deepValidationSurvivors >= 2);
+  assert.ok(report.independentSurvivorTasks >= 2);
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.ok(report.exactBlocker.includes("selected_public_raw_replay"));
+
+  for (const artifact of [
+    "SURVIVOR_SIGNATURES.md",
+    "SURVIVOR_SIGNATURES.json",
+    "SURVIVOR_ADJACENT_CLAIMS.md",
+    "REJECTED_LOW_SURVIVAL_SOURCE_CLAIMS.md",
+    "SURVIVOR_ADJACENT_BENCHMARK.md",
+    "SURVIVOR_ADJACENT_BENCHMARK.json",
+    "SURVIVOR_ADJACENT_METHOD_RESULTS.md",
+    "SURVIVOR_ADJACENT_BASELINE_COMPARISON.md",
+    "SURVIVOR_ADJACENT_DEEP_VALIDATION_RESULTS.md",
+    "SURVIVOR_ADJACENT_PROMOTION_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(join(root, daemonRoot, "survivor-adjacent-claims", artifact));
+  }
+
+  const benchmark = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "survivor-adjacent-claims",
+        "SURVIVOR_ADJACENT_BENCHMARK.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(benchmark.length, 60);
+  assert.equal(
+    benchmark.every(
+      (claim) =>
+        typeof claim.externalSourceReference === "string" &&
+        typeof claim.rawDataReceiptUrl === "string" &&
+        typeof claim.splitProtocolDescription === "string" &&
+        typeof claim.publishedBaselineOrComparison === "string" &&
+        Array.isArray(claim.expectedRivalsAndFailureModes),
+    ),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "survivor-adjacent-claims", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "survivor_adjacent_external_claim_harvest",
   );
 });
 

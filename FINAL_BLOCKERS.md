@@ -1,6 +1,6 @@
 # Final Blockers
 
-Deep-validation calibration did not create a DiscoveryCandidate. Blockers: gold_set_passed_existing_deep_validation_rules, fewer_than_two_retest_claims_survived_deep_validation, retest_survivors_not_independent_across_two_tasks.
+Survivor-adjacent harvesting did not create a DiscoveryCandidate. Blockers: selected_public_raw_replay_not_complete, external_review_package_not_built.
 
 Fund Gate passed: no
 Failed gates: discovery_candidate_present

@@ -3042,6 +3042,7 @@ export class NobelReadinessService {
     targetRepo: string,
   ): Promise<ExternalReviewPublicUrlAudit> {
     const dispatch = await this.externalReviewDispatch();
+    const dispatchCandidateId = dispatch.candidateId;
     const index = await readOptionalJson<Record<string, unknown>>(
       join(targetRepo, "INDEX.json"),
     );
@@ -3051,8 +3052,9 @@ export class NobelReadinessService {
       if (typeof item !== "object" || item === null) continue;
       const record = item as Record<string, unknown>;
       if (
-        stringValue(record.candidateId) === dispatch.candidateId ||
-        stringValue(record.sourceCandidateId) === dispatch.candidateId
+        dispatchCandidateId !== null &&
+        (stringValue(record.candidateId) === dispatchCandidateId ||
+          stringValue(record.sourceCandidateId) === dispatchCandidateId)
       ) {
         resultRecord = record;
         break;
@@ -3066,8 +3068,22 @@ export class NobelReadinessService {
           )
         : null;
       if (
-        stringValue(summary?.candidateId) === dispatch.candidateId ||
-        stringValue(summary?.sourceCandidateId) === dispatch.candidateId
+        dispatchCandidateId !== null &&
+        (stringValue(summary?.candidateId) === dispatchCandidateId ||
+          stringValue(summary?.sourceCandidateId) === dispatchCandidateId)
+      ) {
+        resultRecord = record;
+        break;
+      }
+      if (
+        dispatchCandidateId === null &&
+        stringValue(summary?.candidateId) !== null &&
+        stringValue(summary?.publicReviewStatus) ===
+          "external_review_intake_ready_with_major_caveats" &&
+        stringValue(summary?.fundClass) === "pipeline_fund_candidate" &&
+        summary?.countsForDiscoveryScore === false &&
+        summary?.notificationAllowed === false &&
+        summary?.fundFound === false
       ) {
         resultRecord = record;
         break;
@@ -3136,6 +3152,37 @@ export class NobelReadinessService {
       (await fileExists(join(resultRoot, "PUBLIC_REVIEW_URLS.md")))
         ? await readFile(join(resultRoot, "PUBLIC_REVIEW_URLS.md"), "utf8")
         : "";
+    const candidateIdForAudit =
+      dispatchCandidateId ??
+      stringValue(summary?.candidateId) ??
+      stringValue(summary?.sourceCandidateId) ??
+      stringValue(resultRecord?.candidateId) ??
+      stringValue(resultRecord?.sourceCandidateId);
+    const reviewTemplate =
+      template !== null &&
+      typeof template.recordTemplate === "object" &&
+      template.recordTemplate !== null
+        ? (template.recordTemplate as Record<string, unknown>)
+        : template;
+    const publicReviewIntakeReady =
+      summary !== null &&
+      candidateIdForAudit !== null &&
+      stringValue(summary.candidateId) === candidateIdForAudit &&
+      stringValue(summary.publicReviewStatus) ===
+        "external_review_intake_ready_with_major_caveats" &&
+      stringValue(summary.fundClass) === "pipeline_fund_candidate" &&
+      summary.countsForDiscoveryScore === false &&
+      summary.notificationAllowed === false &&
+      summary.fundFound === false;
+    const summaryMatchesDispatchOrIntake = dispatch.passed
+      ? summary !== null &&
+        stringValue(summary.candidateId) === dispatchCandidateId &&
+        stringValue(summary.externalReviewDispatchStatus) ===
+          "ready_to_request_external_review" &&
+        stringValue(summary.externalHumanReviewStatus) ===
+          "awaiting_external_review" &&
+        stringValue(summary.publicReviewUrlsRef) === "PUBLIC_REVIEW_URLS.md"
+      : publicReviewIntakeReady;
     const urls = extractUrls(publicUrlText).map((url) => ({
       url,
       expectedHost: isExpectedSovrynCorpusReviewUrl(url),
@@ -3160,25 +3207,42 @@ export class NobelReadinessService {
       "evidenceRefs",
       "overclaimFindings",
     ];
-    const requiredRawTargets = [
-      "README.md",
-      "REVIEWER_SUMMARY.md",
-      "METHOD.md",
-      "REPRODUCE.md",
-      "LIMITATIONS.md",
-      "CLAIM_EVIDENCE_BINDINGS.json",
-      "FORMAL_REPRODUCTION_RESULT.json",
-      "raw-reproduction-bundle/formal-object-check-manifest.json",
-      "reproduce_graph_minor_candidate.py",
-      "EXTERNAL_REVIEW_REQUEST.md",
-      "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
-    ];
+    const requiredRawTargets =
+      stringValue(summary?.resultKind) ===
+      "benchmark_methodology_review_intake_package"
+        ? [
+            "README.md",
+            "REVIEWER_SUMMARY.md",
+            "METHOD.md",
+            "REPRODUCE.md",
+            "LIMITATIONS.md",
+            "CLAIM_EVIDENCE_BINDINGS.json",
+            "DATASETS_AND_TASKS.md",
+            "STANDALONE_REPLAY_RESULTS.md",
+            "standalone_replay_results.json",
+            "reproduce_second_survivor_benchmark.js",
+            "EXTERNAL_REVIEW_REQUEST.md",
+            "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+          ]
+        : [
+            "README.md",
+            "REVIEWER_SUMMARY.md",
+            "METHOD.md",
+            "REPRODUCE.md",
+            "LIMITATIONS.md",
+            "CLAIM_EVIDENCE_BINDINGS.json",
+            "FORMAL_REPRODUCTION_RESULT.json",
+            "raw-reproduction-bundle/formal-object-check-manifest.json",
+            "reproduce_graph_minor_candidate.py",
+            "EXTERNAL_REVIEW_REQUEST.md",
+            "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
+          ];
     const gates = [
       {
         code: "dispatch_ready",
-        passed: dispatch.passed,
+        passed: dispatch.passed || publicReviewIntakeReady,
         message:
-          "Public URL audit requires internal external-review dispatch readiness.",
+          "Public URL audit requires internal external-review dispatch readiness or a non-scoring public review-intake package.",
       },
       {
         code: "corpus_index_has_candidate",
@@ -3195,25 +3259,18 @@ export class NobelReadinessService {
       },
       {
         code: "summary_matches_dispatch",
-        passed:
-          summary !== null &&
-          stringValue(summary.candidateId) === dispatch.candidateId &&
-          stringValue(summary.externalReviewDispatchStatus) ===
-            "ready_to_request_external_review" &&
-          stringValue(summary.externalHumanReviewStatus) ===
-            "awaiting_external_review" &&
-          stringValue(summary.publicReviewUrlsRef) === "PUBLIC_REVIEW_URLS.md",
+        passed: summaryMatchesDispatchOrIntake,
         message:
-          "SUMMARY.json must bind the public URL package to the active dispatch state without claiming review.",
+          "SUMMARY.json must bind the public URL package to the active dispatch or non-scoring review-intake state without claiming review.",
       },
       {
         code: "review_template_matches_candidate",
         passed:
-          template !== null &&
-          stringValue(template.candidateId) === dispatch.candidateId &&
-          stringValue(template.resultSlug) === resultSlug &&
+          reviewTemplate !== null &&
+          stringValue(reviewTemplate.candidateId) === candidateIdForAudit &&
+          stringValue(reviewTemplate.resultSlug) === resultSlug &&
           templateRequiredFields.every((field) =>
-            Object.prototype.hasOwnProperty.call(template, field),
+            Object.prototype.hasOwnProperty.call(reviewTemplate, field),
           ),
         message:
           "External review template must match the active candidate and include intake-required fields.",
@@ -3221,8 +3278,8 @@ export class NobelReadinessService {
       {
         code: "review_template_uses_current_schema",
         passed:
-          template !== null &&
-          stringValue(template.reviewRecordSchemaVersion) ===
+          reviewTemplate !== null &&
+          stringValue(reviewTemplate.reviewRecordSchemaVersion) ===
             EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION &&
           /reviewRecordSchemaVersion/.test(intakeInstructionsText),
         message:
@@ -3232,7 +3289,7 @@ export class NobelReadinessService {
         code: "public_review_scoring_contract_requires_external_url",
         passed:
           /external public URL/i.test(
-            stringValue(template?.reviewSourceRef) ?? "",
+            stringValue(reviewTemplate?.reviewSourceRef) ?? "",
           ) &&
           /external public URL/i.test(intakeInstructionsText) &&
           /non-external/i.test(intakeInstructionsText),
@@ -3242,13 +3299,13 @@ export class NobelReadinessService {
       {
         code: "public_review_requires_source_receipt",
         passed:
-          template !== null &&
+          reviewTemplate !== null &&
           Object.prototype.hasOwnProperty.call(
-            template,
+            reviewTemplate,
             "reviewSourceReceiptRef",
           ) &&
           /source receipt/i.test(
-            stringValue(template.reviewSourceReceiptRef) ?? "",
+            stringValue(reviewTemplate.reviewSourceReceiptRef) ?? "",
           ) &&
           /reviewSourceReceiptRef/.test(intakeInstructionsText) &&
           /source receipt/i.test(intakeInstructionsText),
@@ -3291,7 +3348,7 @@ export class NobelReadinessService {
       targetRepo,
       resultSlug,
       resultPath,
-      candidateId: dispatch.candidateId,
+      candidateId: candidateIdForAudit,
       externalExpertValidationClaimed: false,
       files,
       urls,

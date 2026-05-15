@@ -18,20 +18,20 @@
     "resultSlug": "second-survivor-benchmark-triage-methodology-review-intake",
     "reviewerRole": "",
     "reviewDate": "",
-    "reviewSourceRef": "",
-    "reviewSourceReceiptRef": "",
+    "reviewSourceRef": "Provide the external public URL for the independent review record.",
+    "reviewSourceReceiptRef": "Provide the source receipt generated from the external public URL with `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json`.",
     "decision": "major_revision",
     "independentReproductionStatus": "not_attempted",
     "noveltyAssessment": "unclear",
     "overclaimFindings": [],
     "evidenceRefs": [
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/REVIEWER_SUMMARY.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXACT_CLAIM.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/REPRODUCE.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/INDEPENDENT_REPRODUCER_PACKAGE.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHODOLOGY_VALUE_TESTS.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake/STANDALONE_REPLAY_RESULTS.md",
-      "https://github.com/n57d30top/sovryn-open-inventions/raw/main/results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json"
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/REVIEWER_SUMMARY.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXACT_CLAIM.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/REPRODUCE.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/INDEPENDENT_REPRODUCER_PACKAGE.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHODOLOGY_VALUE_TESTS.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/STANDALONE_REPLAY_RESULTS.md",
+      "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json"
     ]
   },
   "requiredForSupportiveScoreImpact": [

@@ -1235,6 +1235,47 @@ test("nobel-readiness public review URL audit verifies public corpus reviewer en
   assert.deepEqual(auditNobelReadinessPublicText(report), []);
 });
 
+test("nobel-readiness public review URL audit can inspect non-scoring benchmark review intake packages", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sovryn-nobel-url-audit-intake-"));
+  const candidateId = "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001";
+  const targetRepo = await mkdtemp(
+    join(tmpdir(), "sovryn-corpus-url-audit-intake-"),
+  );
+  await writeBenchmarkReviewIntakeCorpusPackage(targetRepo, candidateId);
+
+  const audit = await new NobelReadinessService(root).publicReviewUrlAudit(
+    targetRepo,
+  );
+  const report = await readFile(
+    join(root, ".sovryn", "nobel-readiness", "PUBLIC_REVIEW_URL_AUDIT.md"),
+    "utf8",
+  );
+
+  assert.equal(audit.passed, true);
+  assert.equal(audit.status, "public_review_urls_ready");
+  assert.equal(audit.candidateId, candidateId);
+  assert.equal(
+    audit.resultSlug,
+    "second-survivor-benchmark-triage-methodology-review-intake",
+  );
+  assert.equal(
+    audit.gates.find((gate) => gate.code === "dispatch_ready")?.passed,
+    true,
+  );
+  assert.equal(
+    audit.gates.find((gate) => gate.code === "summary_matches_dispatch")
+      ?.passed,
+    true,
+  );
+  assert.equal(
+    audit.gates.find((gate) => gate.code === "public_review_urls_present")
+      ?.passed,
+    true,
+  );
+  assert.equal(audit.urls.filter((url) => url.rawGithub).length >= 8, true);
+  assert.deepEqual(auditNobelReadinessPublicText(report), []);
+});
+
 test("nobel-readiness public review URL audit blocks stale local review-source contract", async () => {
   const root = await mkdtemp(
     join(tmpdir(), "sovryn-nobel-url-audit-contract-block-"),
@@ -2292,6 +2333,120 @@ async function writePublicReviewCorpusPackage(
   await writeFile(
     join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
     `# External Review Intake Instructions\n\nRun \`sovryn nobel-readiness external-review-intake --json\` after a real review record exists.\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\` and include \`reviewSourceReceiptRef\` for external URL records. Generate the source receipt with \`sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json\`.\n\nInvalid, stale-schema, missing-source-receipt, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL and has a source receipt.\n`,
+    "utf8",
+  );
+  return resultRoot;
+}
+
+async function writeBenchmarkReviewIntakeCorpusPackage(
+  targetRepo: string,
+  candidateId: string,
+): Promise<string> {
+  const slug = "second-survivor-benchmark-triage-methodology-review-intake";
+  const resultPath = `results/${slug}`;
+  const resultRoot = join(targetRepo, resultPath);
+  await mkdir(resultRoot, { recursive: true });
+  await writeJson(join(targetRepo, "INDEX.json"), {
+    kind: "sovryn_open_inventions_index",
+    results: [
+      {
+        slug,
+        path: resultPath,
+        resultKind: "benchmark_methodology_review_intake_package",
+        publicReviewStatus: "external_review_intake_ready_with_major_caveats",
+        fundClass: "pipeline_fund_candidate",
+        countsForDiscoveryScore: false,
+        notificationAllowed: false,
+        fundFound: false,
+      },
+    ],
+  });
+  await writeFile(
+    join(resultRoot, "README.md"),
+    "# Benchmark Review Intake\n\nPublic review-intake package only.\n",
+    "utf8",
+  );
+  await writeJson(join(resultRoot, "SUMMARY.json"), {
+    kind: "benchmark_methodology_review_intake_summary",
+    slug,
+    candidateId,
+    resultKind: "benchmark_methodology_review_intake_package",
+    publicReviewStatus: "external_review_intake_ready_with_major_caveats",
+    fundClass: "pipeline_fund_candidate",
+    countsForDiscoveryScore: false,
+    notificationAllowed: false,
+    fundFound: false,
+  });
+  for (const file of [
+    "REVIEWER_SUMMARY.md",
+    "METHOD.md",
+    "REPRODUCE.md",
+    "LIMITATIONS.md",
+    "DATASETS_AND_TASKS.md",
+    "STANDALONE_REPLAY_RESULTS.md",
+  ]) {
+    await writeFile(join(resultRoot, file), `# ${file}\n`, "utf8");
+  }
+  await writeJson(join(resultRoot, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    candidateId,
+    evidenceRefs: ["README.md", "STANDALONE_REPLAY_RESULTS.md"],
+  });
+  await writeJson(join(resultRoot, "standalone_replay_results.json"), {
+    candidateId,
+    status: "public_raw_replay_reproduced_with_rounding_caveat",
+  });
+  await writeFile(
+    join(resultRoot, "reproduce_second_survivor_benchmark.js"),
+    "console.log('fixture replay');\n",
+    "utf8",
+  );
+  await writeFile(
+    join(resultRoot, "PUBLIC_REVIEW_URLS.md"),
+    `# Public Review URLs
+
+- https://github.com/n57d30top/sovryn-open-inventions/tree/main/${resultPath}
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/README.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REVIEWER_SUMMARY.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/METHOD.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REPRODUCE.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/LIMITATIONS.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/CLAIM_EVIDENCE_BINDINGS.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/DATASETS_AND_TASKS.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/STANDALONE_REPLAY_RESULTS.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/standalone_replay_results.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/reproduce_second_survivor_benchmark.js
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_REQUEST.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_RECORD_TEMPLATE.json
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(resultRoot, "EXTERNAL_REVIEW_REQUEST.md"),
+    "# External Review Request\n\nThis asks for bounded technical review only.\n",
+    "utf8",
+  );
+  await writeJson(join(resultRoot, "EXTERNAL_REVIEW_RECORD_TEMPLATE.json"), {
+    reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+    candidateId,
+    resultSlug: slug,
+    reviewerRole: "independent benchmark methodology reviewer",
+    reviewDate: "YYYY-MM-DD",
+    reviewSourceRef:
+      "Provide an external public URL for any score-impacting supportive review.",
+    reviewSourceReceiptRef:
+      "Run `sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json` and provide the generated source receipt path.",
+    decision:
+      "accepted_with_caveats | major_revision | rejected | invalid_or_unverified",
+    independentReproductionStatus:
+      "reproduced | partially_reproduced | not_reproduced | not_attempted",
+    noveltyAssessment:
+      "nontrivial_and_plausibly_novel | known_or_trivial | unclear",
+    evidenceRefs: ["README.md", "STANDALONE_REPLAY_RESULTS.md"],
+    overclaimFindings: [],
+  });
+  await writeFile(
+    join(resultRoot, "EXTERNAL_REVIEW_INTAKE_INSTRUCTIONS.md"),
+    `# External Review Intake Instructions\n\nReview records must preserve \`reviewRecordSchemaVersion: ${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\` and include \`reviewSourceReceiptRef\` for external URL records. Generate the source receipt with \`sovryn nobel-readiness external-review-source-receipt --url <reviewSourceRef> --json\`.\n\nInvalid, stale-schema, missing-source-receipt, non-external, or local-only records cannot increase readiness. A supportive record can affect readiness only when it resolves to an external public URL and has a source receipt.\n`,
     "utf8",
   );
   return resultRoot;

@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_external_review_bundle",
-  "generatedAt": "2026-05-13T13:34:47.583Z",
+  "generatedAt": "2026-05-15T15:58:22.067Z",
   "status": "blocked",
   "passed": false,
   "candidateId": null,
@@ -163,5 +163,5 @@
     ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
     ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
   ],
-  "evidenceHash": "b5fb36aad202b8462bde278aad0e3ad320b3591b5b1b883e4aa7e3ad1c577754"
+  "evidenceHash": "914568779b57c2d57bc0ddb0819a026b406f0f792dd225148475c2bdeb246be6"
 }

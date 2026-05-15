@@ -46,7 +46,10 @@ async function main() {
     "missing reproduce_second_survivor_benchmark.js",
   );
   if (failures.length === 0) {
-    execFileSync(process.execPath, [replayScript], { cwd, stdio: "inherit" });
+    execFileSync(process.execPath, [replayScript], {
+      cwd,
+      stdio: "inherit",
+    });
   }
   check(
     existsSync(replayResultPath),

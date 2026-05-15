@@ -70,10 +70,12 @@ import {
   ReceiptFirstSelectivityChallengeService,
   ReceiptFirstSelectivityPromotionService,
   ReceiptFirstSelectivityV2Service,
+  ReceiptFirstSelectivityV3Service,
   ReceiptFirstSynthesisService,
   type ReceiptFirstSelectivityReport,
   type ReceiptFirstSelectivityPromotionReport,
   type ReceiptFirstSelectivityV2Report,
+  type ReceiptFirstSelectivityV3Report,
   type ReceiptFirstSynthesisReport,
 } from "./receipt-first-synthesis-service.js";
 
@@ -66028,6 +66030,17 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<ReceiptFirstSelectivityV2Report> {
     await this.ensureInitialized();
     return new ReceiptFirstSelectivityV2Service(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async receiptFirstSelectivityV3(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<ReceiptFirstSelectivityV3Report> {
+    await this.ensureInitialized();
+    return new ReceiptFirstSelectivityV3Service(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
   }

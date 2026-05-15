@@ -77,6 +77,7 @@ import {
   ReceiptFirstSelectivityChallengeService,
   ReceiptFirstSelectivityPromotionService,
   ReceiptFirstSelectivityV2Service,
+  ReceiptFirstSelectivityV3Service,
   ReceiptFirstSynthesisService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
@@ -152,6 +153,7 @@ const commands = [
   "receipt-first-selectivity",
   "receipt-first-selectivity-promotion",
   "receipt-first-selectivity-v2",
+  "receipt-first-selectivity-v3",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9256,6 +9258,80 @@ test("receipt-first selectivity v2 suppresses same-task plausible concentration"
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_selectivity_v2_independence_challenge",
+  );
+});
+
+test("receipt-first selectivity v3 builds externally grounded plausible benchmark", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSelectivityV3Service(root).run();
+
+  const report = await new ReceiptFirstSelectivityV3Service(root).run();
+
+  assert.equal(
+    report.kind,
+    "receipt_first_selectivity_v3_external_plausibility_benchmark",
+  );
+  assert.ok(report.externalPlausibleClaimsCollected >= 30);
+  assert.equal(report.labelGateAccepted, 30);
+  assert.equal(report.claimsTested, 60);
+  assert.equal(report.plausibleClaims, 30);
+  assert.equal(report.weakClaims, 20);
+  assert.equal(report.positiveControlClaims, 10);
+  assert.ok(report.openMlTasksTested >= 10);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+
+  for (const artifact of [
+    "EXTERNALLY_GROUNDED_PLAUSIBLE_CLAIMS.md",
+    "EXTERNALLY_GROUNDED_PLAUSIBLE_CLAIMS.json",
+    "PLAUSIBLE_CLAIM_LABEL_AUDIT.md",
+    "REJECTED_PLAUSIBLE_CLAIMS.md",
+    "TRIAGE_METHOD_V3_SPEC.md",
+    "TRIAGE_METHOD_V3_DIFF.md",
+    "TRIAGE_V3_BENCHMARK_RESULTS.md",
+    "TRIAGE_V3_BASELINE_COMPARISON.md",
+    "TRIAGE_V3_DEEP_VALIDATION_RESULTS.md",
+    "TRIAGE_V3_PROMOTION_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-selectivity-v3", artifact),
+    );
+  }
+
+  const plausible = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-selectivity-v3",
+        "EXTERNALLY_GROUNDED_PLAUSIBLE_CLAIMS.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(plausible.length, 30);
+  assert.equal(
+    plausible.every(
+      (claim) =>
+        typeof claim.externalSourceReference === "string" &&
+        typeof claim.whyPlausible === "string" &&
+        claim.selectivityClass === "plausible",
+    ),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-selectivity-v3", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_selectivity_v3_external_plausibility_benchmark",
   );
 });
 

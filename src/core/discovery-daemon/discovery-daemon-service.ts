@@ -22,7 +22,10 @@ import { DiscoveryFrictionHealthService } from "../health/discovery-friction-hea
 import { LabService } from "../lab/lab-service.js";
 import { ProgramOperatorService } from "../lab/program-operator-service.js";
 import { KnowledgeService } from "../knowledge/knowledge-service.js";
-import { NobelReadinessService } from "../nobel/nobel-readiness-service.js";
+import {
+  EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+  NobelReadinessService,
+} from "../nobel/nobel-readiness-service.js";
 import { RuntimeReproductionAlignmentService } from "../repo/runtime-reproduction-alignment-service.js";
 import { CrossDomainEvidenceRoutingService } from "../route/cross-domain-evidence-routing-service.js";
 import { ScienceService } from "../science/science-service.js";
@@ -65383,6 +65386,8 @@ async function secondSurvivorMethodologyPackageAudit(
     "REPRODUCE.md",
     "INDEPENDENT_REPRODUCER_PACKAGE.md",
     "REPRODUCER_CHECKLIST.md",
+    "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+    "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json",
     "BASELINES.md",
     "RIVAL_EXPLANATIONS.md",
     "HOLDOUT_REPLAY.md",
@@ -65626,6 +65631,146 @@ function secondSurvivorIndependentReproducerMarkdown(input: {
   ].join("\n");
 }
 
+function secondSurvivorExternalReviewTemplate(input: {
+  closure: SecondSurvivorClosure;
+}): Record<string, unknown> {
+  return {
+    kind: "second_survivor_external_methodology_review_record_template",
+    templateOnly: true,
+    compatibleNobelReadinessReviewRecordSchema:
+      EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+    candidateId: secondSurvivorDiscoveryCandidateId,
+    resultSlug: "second-survivor-benchmark-triage-methodology",
+    candidateFundClassBeforeReview: "pipeline_fund_candidate",
+    scoreImpactBeforeValidExternalReview: "none",
+    reviewDirectory: ".sovryn/nobel-readiness/external-review-reviews",
+    sourceReceiptCommand:
+      "sovryn nobel-readiness external-review-source-receipt --url <external-review-url> --json",
+    intakeCommand: "sovryn nobel-readiness external-review-intake --json",
+    recordTemplate: {
+      kind: "external_human_review",
+      reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
+      candidateId: secondSurvivorDiscoveryCandidateId,
+      resultSlug: "second-survivor-benchmark-triage-methodology",
+      reviewerRole: "",
+      reviewDate: "",
+      reviewSourceRef: "",
+      reviewSourceReceiptRef: "",
+      decision: "major_revision",
+      independentReproductionStatus: "not_attempted",
+      noveltyAssessment: "unclear",
+      overclaimFindings: [],
+      evidenceRefs: [
+        `${secondSurvivorFundDraftPackagePath}/REVIEWER_SUMMARY.md`,
+        `${secondSurvivorFundDraftPackagePath}/EXACT_CLAIM.md`,
+        `${secondSurvivorFundDraftPackagePath}/REPRODUCE.md`,
+        `${secondSurvivorMethodologyEvidenceRoot}/INDEPENDENT_REPRODUCER_PACKAGE.md`,
+        `${secondSurvivorMethodologyEvidenceRoot}/METHODOLOGY_VALUE_TESTS.md`,
+      ],
+    },
+    requiredForSupportiveScoreImpact: [
+      "reviewSourceRef is an external public URL accepted by the public-review URL policy",
+      "reviewSourceReceiptRef resolves to a valid source receipt generated from that URL",
+      "decision is accepted_with_caveats",
+      "independentReproductionStatus is reproduced",
+      "noveltyAssessment is nontrivial_and_plausibly_novel",
+      "review record matches the active candidate ID and contains no forbidden overclaim text",
+    ],
+    nonSupportiveOutcomesThatMustRemainBlocking: [
+      "major_revision",
+      "rejected",
+      "invalid_or_unverified",
+      "partially_reproduced",
+      "not_reproduced",
+      "not_attempted",
+      "known_or_trivial",
+      "local-only review record",
+      "missing source receipt",
+    ],
+    publicReplayTargets: input.closure.tasks.map((task) => ({
+      claimId: task.claimId,
+      taskId: task.taskId,
+      datasetName: task.datasetName,
+      rawArffReceipt: task.rawArffReceipt,
+    })),
+    noOverclaim: [
+      "This template is not an external review.",
+      "This template is not external validation.",
+      "This template cannot create FUND_FOUND.",
+      "This template cannot make a pipeline_fund_candidate discovery-scored.",
+    ],
+  };
+}
+
+function secondSurvivorExternalReviewIntakeMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# External Methodology Review Intake",
+    "",
+    "This file defines the concrete handoff path for independent benchmark-methodology review of the second-survivor package.",
+    "",
+    "It is an intake specification only. It does not claim external validation, external adoption, Nobel-readiness, Einstein-level status, or Fund notification.",
+    "",
+    "## Candidate",
+    "",
+    `Candidate ID: ${secondSurvivorDiscoveryCandidateId}`,
+    "Current class before external review: `pipeline_fund_candidate`",
+    "Current notification state: `notificationAllowed=false`, `FUND_FOUND=false`",
+    "",
+    "## Reviewer Task",
+    "",
+    "A reviewer must independently rerun or inspect the public OpenML receipts, recompute the survivor table, and decide whether the receipt-first triage method has bounded benchmark-methodology value beyond replay mechanics, reject-all, source-family-only evidence, and simple heuristic rivals.",
+    "",
+    "## Required Review Record Path",
+    "",
+    "Place a real review JSON record in:",
+    "",
+    "```text",
+    ".sovryn/nobel-readiness/external-review-reviews/",
+    "```",
+    "",
+    `The record must use \`${EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION}\` and match \`${secondSurvivorDiscoveryCandidateId}\`.`,
+    "",
+    "## Required External Source Receipt",
+    "",
+    "For an external URL review, first run:",
+    "",
+    "```bash",
+    "sovryn nobel-readiness external-review-source-receipt --url <external-review-url> --json",
+    "```",
+    "",
+    "Then include the generated `reviewSourceReceiptRef` in the review JSON.",
+    "",
+    "## Intake Command",
+    "",
+    "```bash",
+    "sovryn nobel-readiness external-review-intake --json",
+    "```",
+    "",
+    "## Supportive Review Requirements",
+    "",
+    "- `decision` must be `accepted_with_caveats`.",
+    "- `independentReproductionStatus` must be `reproduced`.",
+    "- `noveltyAssessment` must be `nontrivial_and_plausibly_novel`.",
+    "- The review source must be an external public URL with a valid source receipt.",
+    "- The review must contain no forbidden overclaim text.",
+    "",
+    "## Current Replay Targets",
+    "",
+    "| Claim | Task | Dataset | Raw ARFF receipt |",
+    "| --- | ---: | --- | --- |",
+    ...input.closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.datasetName} | ${task.rawArffReceipt} |`,
+    ),
+    "",
+    "## Fail-Closed Rule",
+    "",
+    "If the review is missing, local-only, partially reproduced, major-revision, rejected, known/trivial, or missing a valid source receipt, the candidate remains non-notifying and cannot close Einstein/Nobel readiness.",
+  ].join("\n");
+}
+
 function secondSurvivorReproducerChecklistMarkdown(input: {
   closure: SecondSurvivorClosure;
 }): string {
@@ -65812,6 +65957,8 @@ function secondSurvivorMethodologyArtifactRefs(): string[] {
     "PRIOR_ART_AND_DIFFERENTIATION.md",
     "INDEPENDENT_REPRODUCER_PACKAGE.md",
     "REPRODUCER_CHECKLIST.md",
+    "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+    "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json",
     "PUBLIC_REVIEW_PACKAGE_AUDIT.md",
     "METHODOLOGY_VALUE_TESTS.md",
     "SURVIVOR_YIELD_COMPARISON.md",
@@ -66407,10 +66554,18 @@ async function writeSecondSurvivorMethodologyPackageAdditions(input: {
       "METHODOLOGY_VALUE_TESTS.md",
       secondSurvivorValueTestsMarkdown(input.valueTests),
     ],
+    [
+      "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+      secondSurvivorExternalReviewIntakeMarkdown(input),
+    ],
   ];
   for (const [file, text] of packageWrites) {
     await writeText(join(packageDir, file), text);
   }
+  await writeJson(
+    join(packageDir, "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json"),
+    secondSurvivorExternalReviewTemplate(input),
+  );
   const bindingsPath = join(packageDir, "CLAIM_EVIDENCE_BINDINGS.json");
   const existing =
     (await readOptionalJson<Record<string, unknown>>(bindingsPath)) ?? {};
@@ -66423,6 +66578,8 @@ async function writeSecondSurvivorMethodologyPackageAdditions(input: {
       "INDEPENDENT_REPRODUCER_PACKAGE.md",
       "REPRODUCER_CHECKLIST.md",
       "METHODOLOGY_VALUE_TESTS.md",
+      "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+      "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json",
     ],
     externalMethodologySources: input.sources.map((source) => source.url),
   });
@@ -66467,6 +66624,10 @@ async function writeSecondSurvivorMethodologyEvidenceArtifacts(input: {
       secondSurvivorReproducerChecklistMarkdown(input),
     ],
     [
+      "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
+      secondSurvivorExternalReviewIntakeMarkdown(input),
+    ],
+    [
       "PUBLIC_REVIEW_PACKAGE_AUDIT.md",
       secondSurvivorPackageAuditMarkdown(input.packageAudit),
     ],
@@ -66509,6 +66670,14 @@ async function writeSecondSurvivorMethodologyEvidenceArtifacts(input: {
     await writeText(join(dir, file), text);
     await writeText(join(input.root, file), text);
   }
+  await writeJson(
+    join(dir, "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json"),
+    secondSurvivorExternalReviewTemplate(input),
+  );
+  await writeJson(
+    join(input.root, "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json"),
+    secondSurvivorExternalReviewTemplate(input),
+  );
   await writeJson(join(dir, "latest.json"), input.report);
   await writeJson(
     join(input.root, secondSurvivorMethodologyEvidenceCheckpoint),

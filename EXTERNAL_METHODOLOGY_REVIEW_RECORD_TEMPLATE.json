@@ -1,0 +1,102 @@
+{
+  "kind": "second_survivor_external_methodology_review_record_template",
+  "templateOnly": true,
+  "compatibleNobelReadinessReviewRecordSchema": "sovryn_external_human_review_v1",
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "resultSlug": "second-survivor-benchmark-triage-methodology",
+  "candidateFundClassBeforeReview": "pipeline_fund_candidate",
+  "scoreImpactBeforeValidExternalReview": "none",
+  "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
+  "sourceReceiptCommand": "sovryn nobel-readiness external-review-source-receipt --url <external-review-url> --json",
+  "intakeCommand": "sovryn nobel-readiness external-review-intake --json",
+  "recordTemplate": {
+    "kind": "external_human_review",
+    "reviewRecordSchemaVersion": "sovryn_external_human_review_v1",
+    "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+    "resultSlug": "second-survivor-benchmark-triage-methodology",
+    "reviewerRole": "",
+    "reviewDate": "",
+    "reviewSourceRef": "",
+    "reviewSourceReceiptRef": "",
+    "decision": "major_revision",
+    "independentReproductionStatus": "not_attempted",
+    "noveltyAssessment": "unclear",
+    "overclaimFindings": [],
+    "evidenceRefs": [
+      ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001/REVIEWER_SUMMARY.md",
+      ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001/EXACT_CLAIM.md",
+      ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001/REPRODUCE.md",
+      ".sovryn/discovery-daemon/second-survivor-methodology-evidence/INDEPENDENT_REPRODUCER_PACKAGE.md",
+      ".sovryn/discovery-daemon/second-survivor-methodology-evidence/METHODOLOGY_VALUE_TESTS.md"
+    ]
+  },
+  "requiredForSupportiveScoreImpact": [
+    "reviewSourceRef is an external public URL accepted by the public-review URL policy",
+    "reviewSourceReceiptRef resolves to a valid source receipt generated from that URL",
+    "decision is accepted_with_caveats",
+    "independentReproductionStatus is reproduced",
+    "noveltyAssessment is nontrivial_and_plausibly_novel",
+    "review record matches the active candidate ID and contains no forbidden overclaim text"
+  ],
+  "nonSupportiveOutcomesThatMustRemainBlocking": [
+    "major_revision",
+    "rejected",
+    "invalid_or_unverified",
+    "partially_reproduced",
+    "not_reproduced",
+    "not_attempted",
+    "known_or_trivial",
+    "local-only review record",
+    "missing source receipt"
+  ],
+  "publicReplayTargets": [
+    {
+      "claimId": "SA-PLAUS-003-OPENML-32",
+      "taskId": 32,
+      "datasetName": "pendigits",
+      "rawArffReceipt": "https://openml.org/data/v1/download/32/pendigits.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-001-OPENML-59",
+      "taskId": 59,
+      "datasetName": "iris",
+      "rawArffReceipt": "https://openml.org/data/v1/download/61/iris.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-003-OPENML-7",
+      "taskId": 7,
+      "datasetName": "audiology",
+      "rawArffReceipt": "https://openml.org/data/v1/download/7/audiology.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-005-OPENML-53",
+      "taskId": 53,
+      "datasetName": "vehicle",
+      "rawArffReceipt": "https://openml.org/data/v1/download/54/vehicle.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-006-OPENML-36",
+      "taskId": 36,
+      "datasetName": "segment",
+      "rawArffReceipt": "https://openml.org/data/v1/download/36/segment.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-007-OPENML-43",
+      "taskId": 43,
+      "datasetName": "spambase",
+      "rawArffReceipt": "https://openml.org/data/v1/download/44/spambase.arff"
+    },
+    {
+      "claimId": "SECOND-SURV-008-OPENML-15",
+      "taskId": 15,
+      "datasetName": "breast-w",
+      "rawArffReceipt": "https://openml.org/data/v1/download/52350/breast-w.arff"
+    }
+  ],
+  "noOverclaim": [
+    "This template is not an external review.",
+    "This template is not external validation.",
+    "This template cannot create FUND_FOUND.",
+    "This template cannot make a pipeline_fund_candidate discovery-scored."
+  ]
+}

@@ -2423,6 +2423,12 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
     countsForDiscoveryScore: false,
     notificationAllowed: false,
     fundFound: false,
+    standalonePublicReplayStatus:
+      "public_raw_replay_reproduced_with_rounding_caveat",
+    standalonePublicReplayReadsProductState: false,
+    standalonePublicReplayExternalValidation: false,
+    publicRawScientificReproductionReady: true,
+    publicRawOrFormalReproductionReady: true,
   });
   for (const file of [
     "REVIEWER_SUMMARY.md",
@@ -2443,6 +2449,15 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
   await writeJson(join(resultRoot, "standalone_replay_results.json"), {
     candidateId,
     status: "public_raw_replay_reproduced_with_rounding_caveat",
+    resultStatus: "public_raw_replay_reproduced_with_rounding_caveat",
+    productMetricsMatched: false,
+    productMetricsWithinRoundingTolerance: true,
+    standalonePublicReplayReadsProductState: false,
+    standalonePublicReplayExternalValidation: false,
+    publicRawScientificReproductionReady: true,
+    publicRawOrFormalReproductionReady: true,
+    countsForDiscoveryScore: false,
+    fundFound: false,
   });
   await writeFile(
     join(resultRoot, "reproduce_second_survivor_benchmark.js"),

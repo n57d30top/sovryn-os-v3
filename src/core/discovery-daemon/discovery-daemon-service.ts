@@ -66332,6 +66332,8 @@ type AllLayer100PublicReviewPackage = {
   standalonePublicReplayStatus: string | null;
   standalonePublicReplayReadsProductState: boolean | null;
   standalonePublicReplayExternalValidation: boolean | null;
+  publicRawScientificReproductionReady: boolean | null;
+  publicRawOrFormalReproductionReady: boolean | null;
   productMetricsMatched: boolean | null;
   productMetricsWithinRoundingTolerance: boolean | null;
   status:
@@ -66383,6 +66385,13 @@ async function readAllLayer100PublicSecondSurvivorPackage(
   const productMetricsWithinRoundingTolerance = optionalBoolean(
     replay?.productMetricsWithinRoundingTolerance,
   );
+  const publicRawScientificReproductionReady =
+    optionalBoolean(summary?.publicRawScientificReproductionReady) ??
+    optionalBoolean(replay?.publicRawScientificReproductionReady);
+  const publicRawOrFormalReproductionReady =
+    optionalBoolean(summary?.publicRawOrFormalReproductionReady) ??
+    optionalBoolean(replay?.publicRawOrFormalReproductionReady) ??
+    (publicRawScientificReproductionReady === true ? true : null);
   const standaloneReplayPresent = replay !== null;
   const status: AllLayer100PublicReviewPackage["status"] =
     !present || summary === null
@@ -66422,6 +66431,8 @@ async function readAllLayer100PublicSecondSurvivorPackage(
       summary?.standalonePublicReplayExternalValidation ??
         replay?.standalonePublicReplayExternalValidation,
     ),
+    publicRawScientificReproductionReady,
+    publicRawOrFormalReproductionReady,
     productMetricsMatched,
     productMetricsWithinRoundingTolerance,
     status,
@@ -66622,6 +66633,10 @@ function allLayer100TargetedRun(input: {
       input.publicReviewPackage.standalonePublicReplayReadsProductState,
     standaloneReplayExternalValidation:
       input.publicReviewPackage.standalonePublicReplayExternalValidation,
+    publicPackageRawScientificReproductionReady:
+      input.publicReviewPackage.publicRawScientificReproductionReady === true,
+    publicPackageRawOrFormalReproductionReady:
+      input.publicReviewPackage.publicRawOrFormalReproductionReady === true,
     publicPackageCountsForDiscoveryScore:
       input.publicReviewPackage.countsForDiscoveryScore === true,
     publicPackageFundFound: input.publicReviewPackage.fundFound === true,
@@ -66755,6 +66770,20 @@ function allLayer100CompletionAudit(input: {
           (input.publicReviewPackage.productMetricsMatched === true ||
             input.publicReviewPackage.productMetricsWithinRoundingTolerance ===
               true) &&
+          input.publicReviewPackage.standalonePublicReplayExternalValidation !==
+            true,
+      },
+      {
+        requirement:
+          "Mark public raw replay reproduction readiness without discovery scoring",
+        evidence:
+          "SUMMARY.json exposes publicRawScientificReproductionReady/publicRawOrFormalReproductionReady while countsForDiscoveryScore=false and standalonePublicReplayExternalValidation=false.",
+        covered:
+          input.publicReviewPackage.publicRawScientificReproductionReady ===
+            true &&
+          input.publicReviewPackage.publicRawOrFormalReproductionReady ===
+            true &&
+          input.publicReviewPackage.countsForDiscoveryScore === false &&
           input.publicReviewPackage.standalonePublicReplayExternalValidation !==
             true,
       },
@@ -66992,6 +67021,8 @@ function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
     `Standalone replay exact Product metrics: ${String(run.standaloneReplayExactProductMetrics)}`,
     `Standalone replay reads Product state: ${String(run.standaloneReplayReadsProductState)}`,
     `Standalone replay external validation: ${String(run.standaloneReplayExternalValidation)}`,
+    `Public raw reproduction ready: ${String(run.publicPackageRawScientificReproductionReady)}`,
+    `Public raw/formal reproduction ready: ${String(run.publicPackageRawOrFormalReproductionReady)}`,
     `Public package counts for discovery score: ${String(run.publicPackageCountsForDiscoveryScore)}`,
     `Fund class: ${String(run.fundClass)}`,
     `Notification allowed: ${String(run.notificationAllowed)}`,

@@ -14,6 +14,8 @@ Standalone replay within rounding tolerance: true
 Standalone replay exact Product metrics: false
 Standalone replay reads Product state: false
 Standalone replay external validation: false
+Public raw reproduction ready: true
+Public raw/formal reproduction ready: true
 Public package counts for discovery score: false
 Fund class: pipeline_fund_candidate
 Notification allowed: false

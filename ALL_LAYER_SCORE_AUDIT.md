@@ -45,6 +45,11 @@
 "covered": true
 },
 {
+"requirement": "Mark public raw replay reproduction readiness without discovery scoring",
+"evidence": "SUMMARY.json exposes publicRawScientificReproductionReady/publicRawOrFormalReproductionReady while countsForDiscoveryScore=false and standalonePublicReplayExternalValidation=false.",
+"covered": true
+},
+{
 "requirement": "Bind external-review intake path without counting it as discovery",
 "evidence": ".sovryn/nobel-readiness/external-review-intake.json records candidate, package path, review counts, and score impact.",
 "covered": true

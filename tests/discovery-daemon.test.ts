@@ -10227,6 +10227,8 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
           "public_raw_replay_reproduced_with_rounding_caveat",
         standalonePublicReplayReadsProductState: false,
         standalonePublicReplayExternalValidation: false,
+        publicRawScientificReproductionReady: true,
+        publicRawOrFormalReproductionReady: true,
       },
       null,
       2,
@@ -10242,6 +10244,8 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
         productMetricsWithinRoundingTolerance: true,
         standalonePublicReplayReadsProductState: false,
         standalonePublicReplayExternalValidation: false,
+        publicRawScientificReproductionReady: true,
+        publicRawOrFormalReproductionReady: true,
         countsForDiscoveryScore: false,
         fundFound: false,
       },
@@ -10300,10 +10304,14 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
     publicReviewPackage.standalonePublicReplayExternalValidation,
     false,
   );
+  assert.equal(publicReviewPackage.publicRawScientificReproductionReady, true);
+  assert.equal(publicReviewPackage.publicRawOrFormalReproductionReady, true);
   assert.equal(publicReviewPackage.productMetricsWithinRoundingTolerance, true);
   const targetedRun = report.targetedRun as Record<string, unknown>;
   assert.equal(targetedRun.publicCorpusReviewPackagePresent, true);
   assert.equal(targetedRun.standaloneReplayWithinRoundingTolerance, true);
+  assert.equal(targetedRun.publicPackageRawScientificReproductionReady, true);
+  assert.equal(targetedRun.publicPackageRawOrFormalReproductionReady, true);
   assert.equal(targetedRun.publicPackageCountsForDiscoveryScore, false);
   assert.equal(targetedRun.survivorAdjacentPromotionPresent, true);
   assert.equal(targetedRun.survivorAdjacentPublicRawReplayPassed, 1);
@@ -10337,6 +10345,11 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   assert.match(
     targetedRunMarkdown,
     /Standalone replay external validation: false/,
+  );
+  assert.match(targetedRunMarkdown, /Public raw reproduction ready: true/);
+  assert.match(
+    targetedRunMarkdown,
+    /Public raw\/formal reproduction ready: true/,
   );
   assert.match(targetedRunMarkdown, /Survivor-Adjacent Live Replay/);
   assert.match(targetedRunMarkdown, /Public raw replay passed: 1/);

@@ -1,6 +1,13 @@
 # Fund Gate Results
 
-Fund Gate passed: no
-Failed gates: fund_candidate_draft_present, full_fund_gate_not_run
-FundCandidateDraft created: no
+FundCandidateDraft created: yes
+Fund Gate passed: yes
+Fund Gate status: continue_searching
+Fund class: pipeline_fund_candidate
+Counts for discovery score: no
+Notification allowed: no
 FUND_FOUND: no
+
+Failed gates:
+
+- none

@@ -1,0 +1,88 @@
+{
+  "kind": "fund_candidate_draft",
+  "draftId": "DRAFT-DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "claim": "A receipt-first benchmark triage method can identify OpenML benchmark claims whose random-split performance survives public raw replay as a bounded protocol-fragility signal across OpenML-32 and at least one independent task, with nonfatal baseline, holdout, rival, and negative-control checks.",
+  "domain": "benchmark_protocol_methodology",
+  "sourceRefs": [
+    "https://www.openml.org/api/v1/json/data/32",
+    "https://openml.org/data/v1/download/32/pendigits.arff",
+    "https://www.openml.org/api/v1/json/data/61",
+    "https://openml.org/data/v1/download/61/iris.arff",
+    "https://www.openml.org/api/v1/json/data/7",
+    "https://openml.org/data/v1/download/7/audiology.arff",
+    "https://www.openml.org/api/v1/json/data/54",
+    "https://openml.org/data/v1/download/54/vehicle.arff",
+    "https://www.openml.org/api/v1/json/data/36",
+    "https://openml.org/data/v1/download/36/segment.arff",
+    "https://www.openml.org/api/v1/json/data/44",
+    "https://openml.org/data/v1/download/44/spambase.arff",
+    "https://www.openml.org/api/v1/json/data/15",
+    "https://openml.org/data/v1/download/52350/breast-w.arff"
+  ],
+  "evidenceRefs": [
+    ".sovryn/discovery-daemon/second-independent-survivor/WEAKENED_SURVIVOR_ARCHIVE.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/WEAKENED_SURVIVOR_DEATH_CAUSES.json",
+    ".sovryn/discovery-daemon/second-independent-survivor/OPENML32_SURVIVOR_ANCHOR_PROFILE.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SURVIVOR_ANCHOR_FEATURES.json",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_CLAIMS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/REJECTED_SURVIVOR_CLAIMS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_DECISION.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/UPDATED_THREE_STAGE_SCORECARD.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/FINAL_BLOCKERS.md",
+    ".sovryn/discovery-daemon/second-survivor-fund-draft-readiness/DISCOVERY_CANDIDATE_INVENTORY.md",
+    ".sovryn/discovery-daemon/second-survivor-fund-draft-readiness/SURVIVOR_EVIDENCE_CLOSURE.md",
+    ".sovryn/discovery-daemon/second-survivor-fund-draft-readiness/FUNDCANDIDATE_DRAFT_ELIGIBILITY.md",
+    ".sovryn/discovery-daemon/second-independent-survivor/latest.json"
+  ],
+  "identityLedgerRefs": [
+    ".sovryn/discovery-daemon/candidate-identity-ledger.json#DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001"
+  ],
+  "hardSeedRefs": [
+    ".sovryn/discovery-daemon/second-independent-survivor/latest.json#additionalPublicRawReplaySurvivors",
+    ".sovryn/discovery-daemon/second-independent-survivor/SECOND_SURVIVOR_DECISION.md"
+  ],
+  "packageRefs": [
+    "PAPER.md",
+    "METHOD.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "REPRODUCE.md",
+    "LIMITATIONS.md"
+  ],
+  "inspectabilityPath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "predictionRefs": [
+    "CLAIM_EVIDENCE_BINDINGS.json#frozenClaim",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_CLAIMS.md#top-eight-frozen-claims"
+  ],
+  "holdoutRefs": [
+    "CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs",
+    "METHOD.md#holdout-replay",
+    "HOLDOUT_REPLAY.md#survivor-holdout-table"
+  ],
+  "counterexampleRefs": [
+    "CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs",
+    "NEGATIVE_CONTROLS.md#negative-control-table",
+    ".sovryn/discovery-daemon/second-independent-survivor/WEAKENED_SURVIVOR_DEATH_CAUSES.json"
+  ],
+  "replayRefs": [
+    "CLAIM_EVIDENCE_BINDINGS.json#replayRefs",
+    "REPRODUCE.md#public-replay-command",
+    ".sovryn/discovery-daemon/second-independent-survivor/INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md"
+  ],
+  "killWeekRefs": [
+    "LIMITATIONS.md#scope-and-kill-conditions",
+    ".sovryn/discovery-daemon/second-survivor-fund-draft-readiness/FINAL_BLOCKERS.md"
+  ],
+  "limitations": [
+    "This is a FundCandidateDraft-readiness package, not external validation.",
+    "The candidate remains a benchmark-methodology triage claim; it does not establish a broad OpenML or scientific-domain theorem.",
+    "Full Fund notification remains blocked unless the unchanged Fund Gate returns a discovery-scored notifying class."
+  ],
+  "generatedFrom": "package_intake",
+  "synthetic": false,
+  "partialCandidate": false,
+  "versionedClaimChange": false
+}

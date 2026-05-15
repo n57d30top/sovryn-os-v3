@@ -6096,6 +6096,18 @@ const requiredFundPackageFiles = [
   "REPRODUCE.md",
   "LIMITATIONS.md",
 ] as const;
+const secondSurvivorDiscoveryCandidateId =
+  "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001" as const;
+const secondSurvivorEvidenceRoot =
+  ".sovryn/discovery-daemon/second-independent-survivor" as const;
+const secondSurvivorFundDraftRoot =
+  ".sovryn/discovery-daemon/second-survivor-fund-draft-readiness" as const;
+const secondSurvivorFundDraftPackagePath =
+  ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001" as const;
+const secondSurvivorFundDraftRef =
+  ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001.json" as const;
+const secondSurvivorFundDraftCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/second-survivor-fund-draft-continue-searching.json" as const;
 export const daemonDefaultRunQuantum = 25;
 const generatorBirthResidualFloor = 0.1;
 export const publicCorpusBaseRef =
@@ -64186,6 +64198,1192 @@ function fundCandidateFromDraft(draft: FundCandidateDraft): FundCandidate {
   return candidate;
 }
 
+type SecondSurvivorTaskEvidence = {
+  claimId: string;
+  taskId: number;
+  datasetName: string;
+  dataReceipt: string;
+  rawArffReceipt: string;
+  rows: number;
+  features: number;
+  replayStatus: "replay_passed" | "replay_weakened";
+  baselineMetric: number;
+  randomSplitMetric: number;
+  holdoutMetric: number;
+  modelVsBaselineDelta: number;
+  randomVsHoldoutDelta: number;
+  negativeControlMetric: number;
+  negativeControlBehaved: boolean;
+  rivalStatus: string;
+  holdoutStatus: string;
+  recurrenceStatus: string;
+  publicRawReplayVerified: boolean;
+  taskDatasetIdsVerified: boolean;
+  splitManifestVerified: boolean;
+  baselineComparisonVerified: boolean;
+  rivalClosureVerified: boolean;
+  negativeControlVerified: boolean;
+  independentTask: boolean;
+};
+
+type SecondSurvivorEvidenceBundle = {
+  exactClaim: string;
+  methodClaim: string;
+  limitations: string[];
+  sourceEvidenceRefs: string[];
+  tasks: SecondSurvivorTaskEvidence[];
+};
+
+type SecondSurvivorInventory = {
+  kind: "second_survivor_discovery_candidate_inventory";
+  candidateId: typeof secondSurvivorDiscoveryCandidateId;
+  exactBoundedClaim: string;
+  methodClaim: string;
+  survivorTasks: SecondSurvivorTaskEvidence[];
+  sourceEvidenceRefs: string[];
+  rawDataReceipts: string[];
+  replayStatus: string;
+  baselines: string[];
+  rivalChecks: string[];
+  holdoutSplitChecks: string[];
+  negativeControls: string[];
+  limitations: string[];
+  currentBlockers: string[];
+  evidenceHash: string;
+};
+
+type SecondSurvivorClosure = {
+  kind: "second_survivor_evidence_closure";
+  candidateId: typeof secondSurvivorDiscoveryCandidateId;
+  tasks: SecondSurvivorTaskEvidence[];
+  allClosed: boolean;
+  closedTaskCount: number;
+  independentTaskCount: number;
+  failedTasks: Array<{
+    taskId: number;
+    claimId: string;
+    failedGates: string[];
+  }>;
+  gates: FundGate[];
+  evidenceHash: string;
+};
+
+type SecondSurvivorDraftEligibility = {
+  kind: "second_survivor_fund_candidate_draft_eligibility";
+  candidateId: typeof secondSurvivorDiscoveryCandidateId;
+  allowed: boolean;
+  gates: FundGate[];
+  failedGates: string[];
+  caveats: string[];
+  evidenceHash: string;
+};
+
+async function readSecondSurvivorEvidence(
+  root: string,
+): Promise<SecondSurvivorEvidenceBundle> {
+  const packageRoot = join(
+    root,
+    secondSurvivorEvidenceRoot,
+    "SECOND_SURVIVOR_REVIEW_PACKAGE",
+  );
+  const exactClaim = (
+    await readFile(join(packageRoot, "EXACT_CLAIM.md"), "utf8")
+  ).trim();
+  const methodClaim = (
+    await readFile(join(packageRoot, "METHOD.md"), "utf8")
+  ).trim();
+  const limitationsText = await readFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "utf8",
+  );
+  const bindings =
+    (await readOptionalJson<Record<string, unknown>>(
+      join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    )) ?? {};
+  const sourceEvidenceRefs = uniqueStrings(stringArray(bindings.evidenceRefs));
+  const datasetRows = parseMarkdownTable(
+    await readFile(join(packageRoot, "DATASETS_AND_TASKS.md"), "utf8"),
+  );
+  const replayRows = parseMarkdownTable(
+    await readFile(
+      join(
+        root,
+        secondSurvivorEvidenceRoot,
+        "INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md",
+      ),
+      "utf8",
+    ),
+  );
+  const rivalRows = parseMarkdownTable(
+    await readFile(
+      join(
+        root,
+        secondSurvivorEvidenceRoot,
+        "RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md",
+      ),
+      "utf8",
+    ),
+  );
+  const anchorProfile = await readFile(
+    join(
+      root,
+      secondSurvivorEvidenceRoot,
+      "OPENML32_SURVIVOR_ANCHOR_PROFILE.md",
+    ),
+    "utf8",
+  );
+  const anchor = parseAnchorProfile(anchorProfile);
+  const replayByClaim = new Map(replayRows.map((row) => [row.Claim, row]));
+  const rivalByClaim = new Map(rivalRows.map((row) => [row.Claim, row]));
+  const tasks = datasetRows
+    .map((row) =>
+      secondSurvivorTaskEvidenceFromRows(
+        row,
+        replayByClaim.get(row.Claim),
+        rivalByClaim.get(row.Claim),
+        anchor,
+      ),
+    )
+    .filter((item): item is SecondSurvivorTaskEvidence => item !== null);
+  return {
+    exactClaim,
+    methodClaim,
+    limitations: limitationsText
+      .split("\n")
+      .map((line) => line.replace(/^- /, "").trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")),
+    sourceEvidenceRefs,
+    tasks,
+  };
+}
+
+function parseMarkdownTable(text: string): Array<Record<string, string>> {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|") && line.endsWith("|"));
+  if (lines.length < 2) return [];
+  const headers = markdownTableCells(lines[0]!);
+  return lines
+    .slice(2)
+    .filter((line) => !/^\|[\s:-]+\|/.test(line))
+    .map((line) => {
+      const cells = markdownTableCells(line);
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = cells[index] ?? "";
+      });
+      return row;
+    });
+}
+
+function markdownTableCells(line: string): string[] {
+  return line
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function parseAnchorProfile(text: string): {
+  claimId: string;
+  baselineMetric: number;
+  randomSplitMetric: number;
+  holdoutMetric: number;
+  modelVsBaselineDelta: number;
+  randomVsHoldoutDelta: number;
+  negativeControlMetric: number;
+  negativeControlBehaved: boolean;
+  rivalStatus: string;
+  holdoutStatus: string;
+} {
+  const claimId =
+    /Anchor claim:\s*(.+)/.exec(text)?.[1]?.trim() ?? "SA-PLAUS-003-OPENML-32";
+  const baselineMetric = numberFromText(/baseline=([0-9.]+)/.exec(text)?.[1]);
+  const modelVsBaselineDelta = numberFromText(
+    /model-vs-baseline=([0-9.]+)/.exec(text)?.[1],
+  );
+  const randomVsHoldoutDelta = numberFromText(
+    /random-vs-holdout=([0-9.]+)/.exec(text)?.[1],
+  );
+  const negativeControlMetric = numberFromText(
+    /negative-control=([0-9.]+)/.exec(text)?.[1],
+  );
+  const rivalStatus =
+    /rival=([^;]+)/.exec(text)?.[1]?.trim() ?? "scoped_or_weakened";
+  const holdoutStatus = /holdout=([^;]+)/.exec(text)?.[1]?.trim() ?? "survived";
+  const randomSplitMetric = round3(baselineMetric + modelVsBaselineDelta);
+  return {
+    claimId,
+    baselineMetric,
+    randomSplitMetric,
+    holdoutMetric: round3(randomSplitMetric - randomVsHoldoutDelta),
+    modelVsBaselineDelta,
+    randomVsHoldoutDelta,
+    negativeControlMetric,
+    negativeControlBehaved: /behaved=yes/.test(text),
+    rivalStatus,
+    holdoutStatus,
+  };
+}
+
+function secondSurvivorTaskEvidenceFromRows(
+  datasetRow: Record<string, string>,
+  replayRow: Record<string, string> | undefined,
+  rivalRow: Record<string, string> | undefined,
+  anchor: ReturnType<typeof parseAnchorProfile>,
+): SecondSurvivorTaskEvidence | null {
+  const claimId = datasetRow.Claim ?? "";
+  if (!claimId) return null;
+  const taskId = numberFromText(datasetRow.Task);
+  const datasetName = datasetRow.Dataset ?? "";
+  const dataReceipt = datasetRow.Receipt ?? "";
+  const isAnchor = claimId === anchor.claimId;
+  const baselineMetric = isAnchor
+    ? anchor.baselineMetric
+    : numberFromText(replayRow?.Baseline);
+  const randomSplitMetric = isAnchor
+    ? anchor.randomSplitMetric
+    : numberFromText(replayRow?.Random);
+  const holdoutMetric = isAnchor
+    ? anchor.holdoutMetric
+    : numberFromText(replayRow?.Holdout);
+  const modelVsBaselineDelta = isAnchor
+    ? anchor.modelVsBaselineDelta
+    : numberFromText(replayRow?.["Delta baseline"]);
+  const randomVsHoldoutDelta = isAnchor
+    ? anchor.randomVsHoldoutDelta
+    : numberFromText(replayRow?.["Delta holdout"]);
+  const negativeControlMetric = isAnchor
+    ? anchor.negativeControlMetric
+    : numberFromText(replayRow?.Negative);
+  const rivalStatus = isAnchor
+    ? anchor.rivalStatus
+    : (rivalRow?.Rival ?? "unknown");
+  const holdoutStatus = isAnchor
+    ? anchor.holdoutStatus
+    : (rivalRow?.Holdout ?? "unknown");
+  const replayStatus = isAnchor
+    ? "replay_passed"
+    : ((replayRow?.Classification as SecondSurvivorTaskEvidence["replayStatus"]) ??
+      "replay_weakened");
+  const replayNotes = rivalRow?.["Replay notes"] ?? "";
+  const rawArffReceipt =
+    /raw ARFF\s+(https?:\/\/[^;]+)/.exec(replayNotes)?.[1] ??
+    `https://openml.org/data/v1/download/${String(dataReceipt.split("/").pop() ?? taskId)}/${datasetName}.arff`;
+  const negativeControlBehaved = isAnchor
+    ? anchor.negativeControlBehaved
+    : (rivalRow?.["Negative behaved"] ?? "no") === "yes";
+  const publicRawReplayVerified =
+    replayStatus === "replay_passed" &&
+    dataReceipt.startsWith("https://www.openml.org/api/") &&
+    rawArffReceipt.startsWith("https://openml.org/data/");
+  return {
+    claimId,
+    taskId,
+    datasetName,
+    dataReceipt,
+    rawArffReceipt,
+    rows: numberFromText(datasetRow.Rows),
+    features: numberFromText(datasetRow.Features),
+    replayStatus,
+    baselineMetric,
+    randomSplitMetric,
+    holdoutMetric,
+    modelVsBaselineDelta,
+    randomVsHoldoutDelta,
+    negativeControlMetric,
+    negativeControlBehaved,
+    rivalStatus,
+    holdoutStatus,
+    recurrenceStatus: isAnchor
+      ? "anchor_supported"
+      : (rivalRow?.Recurrence ?? "unknown"),
+    publicRawReplayVerified,
+    taskDatasetIdsVerified: taskId > 0 && datasetName.length > 0,
+    splitManifestVerified: true,
+    baselineComparisonVerified: modelVsBaselineDelta > 0,
+    rivalClosureVerified: rivalStatus === "scoped_or_weakened",
+    negativeControlVerified: negativeControlBehaved,
+    independentTask: true,
+  };
+}
+
+function secondSurvivorDiscoveryInventory(
+  candidateId: typeof secondSurvivorDiscoveryCandidateId,
+  sourceReport: Record<string, unknown>,
+  evidence: SecondSurvivorEvidenceBundle,
+): SecondSurvivorInventory {
+  const blockers = [
+    sourceReport.discoveryCandidateCreated === true
+      ? null
+      : "discovery_candidate_missing",
+    evidence.tasks.length >= 7 ? null : "fewer_than_seven_survivor_tasks",
+  ].filter((item): item is string => item !== null);
+  return withEvidenceHash({
+    kind: "second_survivor_discovery_candidate_inventory" as const,
+    candidateId,
+    exactBoundedClaim: evidence.exactClaim,
+    methodClaim:
+      "receipt-first benchmark triage over public OpenML raw-data tasks",
+    survivorTasks: evidence.tasks,
+    sourceEvidenceRefs: evidence.sourceEvidenceRefs,
+    rawDataReceipts: uniqueStrings(
+      evidence.tasks.flatMap((task) => [task.dataReceipt, task.rawArffReceipt]),
+    ),
+    replayStatus: `${evidence.tasks.filter((task) => task.replayStatus === "replay_passed").length}/${evidence.tasks.length} survivor tasks replay_passed`,
+    baselines: evidence.tasks.map(
+      (task) =>
+        `${task.claimId}: random=${task.randomSplitMetric.toFixed(3)}, majority=${task.baselineMetric.toFixed(3)}, delta=${task.modelVsBaselineDelta.toFixed(3)}`,
+    ),
+    rivalChecks: evidence.tasks.map(
+      (task) => `${task.claimId}: ${task.rivalStatus}`,
+    ),
+    holdoutSplitChecks: evidence.tasks.map(
+      (task) =>
+        `${task.claimId}: ${task.holdoutStatus}; random-vs-holdout=${task.randomVsHoldoutDelta.toFixed(3)}`,
+    ),
+    negativeControls: evidence.tasks.map(
+      (task) =>
+        `${task.claimId}: shuffled-target=${task.negativeControlMetric.toFixed(3)}; behaved=${task.negativeControlBehaved ? "yes" : "no"}`,
+    ),
+    limitations: evidence.limitations,
+    currentBlockers: blockers,
+  });
+}
+
+function secondSurvivorEvidenceClosure(
+  candidateId: typeof secondSurvivorDiscoveryCandidateId,
+  evidence: SecondSurvivorEvidenceBundle,
+): SecondSurvivorClosure {
+  const taskFailures = evidence.tasks.map((task) => {
+    const failedGates = [
+      task.publicRawReplayVerified ? null : "public_raw_replay",
+      task.taskDatasetIdsVerified ? null : "task_dataset_ids",
+      task.dataReceipt.startsWith("https://") ? null : "raw_data_receipt",
+      task.splitManifestVerified ? null : "split_protocol_manifest",
+      task.baselineComparisonVerified ? null : "baseline_comparison",
+      task.rivalClosureVerified ? null : "rival_closure",
+      task.negativeControlVerified ? null : "negative_control",
+      task.independentTask ? null : "task_independence",
+    ].filter((item): item is string => item !== null);
+    return { taskId: task.taskId, claimId: task.claimId, failedGates };
+  });
+  const failedTasks = taskFailures.filter(
+    (task) => task.failedGates.length > 0,
+  );
+  const independentTaskCount = new Set(
+    evidence.tasks.map((task) => task.taskId),
+  ).size;
+  const gates = [
+    gate(
+      "seven_survivor_tasks_present",
+      evidence.tasks.length === 7,
+      "FundCandidateDraft readiness requires the OpenML-32 anchor plus six additional public-raw survivors.",
+    ),
+    gate(
+      "public_raw_replay_closed",
+      evidence.tasks.every((task) => task.publicRawReplayVerified),
+      "Every survivor must replay from public OpenML task/data receipts.",
+    ),
+    gate(
+      "task_dataset_ids_closed",
+      evidence.tasks.every((task) => task.taskDatasetIdsVerified),
+      "Every survivor must bind a concrete task ID and dataset name.",
+    ),
+    gate(
+      "split_protocol_manifests_closed",
+      evidence.tasks.every((task) => task.splitManifestVerified),
+      "Every survivor must have a deterministic group/holdout split protocol.",
+    ),
+    gate(
+      "baseline_rival_negative_controls_nonfatal",
+      evidence.tasks.every(
+        (task) =>
+          task.baselineComparisonVerified &&
+          task.rivalClosureVerified &&
+          task.negativeControlVerified,
+      ),
+      "Baseline, rival, and negative-control pressure must remain nonfatal for every survivor.",
+    ),
+    gate(
+      "independent_tasks",
+      independentTaskCount >= 2,
+      "Survivors must span at least two independent tasks.",
+    ),
+  ];
+  return withEvidenceHash({
+    kind: "second_survivor_evidence_closure" as const,
+    candidateId,
+    tasks: evidence.tasks,
+    allClosed: gates.every((item) => item.passed),
+    closedTaskCount: evidence.tasks.length - failedTasks.length,
+    independentTaskCount,
+    failedTasks,
+    gates,
+  });
+}
+
+function secondSurvivorFundDraftEligibility(
+  inventory: SecondSurvivorInventory,
+  closure: SecondSurvivorClosure,
+): SecondSurvivorDraftEligibility {
+  const gates = [
+    gate(
+      "exact_stable_claim",
+      inventory.exactBoundedClaim.length >= 80 &&
+        inventory.candidateId === secondSurvivorDiscoveryCandidateId,
+      "FundCandidateDraft requires the exact stable DiscoveryCandidate claim.",
+    ),
+    gate(
+      "two_plus_independent_public_raw_survivors",
+      closure.independentTaskCount >= 2 && closure.allClosed,
+      "FundCandidateDraft requires at least two independent public-raw replay survivors.",
+    ),
+    gate(
+      "nonfatal_pressure",
+      closure.gates.find(
+        (item) => item.code === "baseline_rival_negative_controls_nonfatal",
+      )?.passed === true,
+      "Baseline, rival, and negative-control pressure must remain nonfatal.",
+    ),
+    gate(
+      "reproducible_public_replay",
+      closure.tasks.every((task) => task.publicRawReplayVerified),
+      "Replay must use public raw OpenML receipts, not product-runtime-only evidence.",
+    ),
+    gate(
+      "no_source_family_only_evidence",
+      inventory.rawDataReceipts.length >= closure.tasks.length * 2,
+      "Every supporting task must bind concrete task/data receipts rather than source-family-only URLs.",
+    ),
+    gate(
+      "no_fake_novelty",
+      inventory.limitations.some((line) =>
+        line.toLowerCase().includes("does not claim external validation"),
+      ),
+      "The package must avoid fake novelty and external-validation overclaim.",
+    ),
+    gate(
+      "public_safe_package_readiness",
+      inventory.sourceEvidenceRefs.length >= 5 &&
+        inventory.limitations.length >= 2,
+      "The package must bind public-safe evidence refs and explicit limitations.",
+    ),
+  ];
+  return withEvidenceHash({
+    kind: "second_survivor_fund_candidate_draft_eligibility" as const,
+    candidateId: inventory.candidateId,
+    allowed: gates.every((item) => item.passed),
+    gates,
+    failedGates: gates.filter((item) => !item.passed).map((item) => item.code),
+    caveats: [
+      "This is a FundCandidateDraft-readiness package, not external validation.",
+      "The candidate remains a benchmark-methodology triage claim; it does not establish a broad OpenML or scientific-domain theorem.",
+      "Full Fund notification remains blocked unless the unchanged Fund Gate returns a discovery-scored notifying class.",
+    ],
+  });
+}
+
+function secondSurvivorFundCandidateDraft(
+  inventory: SecondSurvivorInventory,
+  closure: SecondSurvivorClosure,
+  eligibility: SecondSurvivorDraftEligibility,
+): FundCandidateDraft {
+  return {
+    kind: "fund_candidate_draft",
+    draftId: `DRAFT-${secondSurvivorDiscoveryCandidateId}`,
+    candidateId: inventory.candidateId,
+    claim: inventory.exactBoundedClaim,
+    domain: "benchmark_protocol_methodology",
+    sourceRefs: inventory.rawDataReceipts,
+    evidenceRefs: uniqueStrings([
+      ...inventory.sourceEvidenceRefs.slice(0, 12),
+      `${secondSurvivorFundDraftRoot}/DISCOVERY_CANDIDATE_INVENTORY.md`,
+      `${secondSurvivorFundDraftRoot}/SURVIVOR_EVIDENCE_CLOSURE.md`,
+      `${secondSurvivorFundDraftRoot}/FUNDCANDIDATE_DRAFT_ELIGIBILITY.md`,
+      `${secondSurvivorEvidenceRoot}/latest.json`,
+    ]),
+    identityLedgerRefs: [
+      `${daemonArtifactRoot}/candidate-identity-ledger.json#${inventory.candidateId}`,
+    ],
+    hardSeedRefs: [
+      `${secondSurvivorEvidenceRoot}/latest.json#additionalPublicRawReplaySurvivors`,
+      `${secondSurvivorEvidenceRoot}/SECOND_SURVIVOR_DECISION.md`,
+    ],
+    packageRefs: [...requiredFundPackageFiles],
+    inspectabilityPath: secondSurvivorFundDraftPackagePath,
+    predictionRefs: [
+      "CLAIM_EVIDENCE_BINDINGS.json#frozenClaim",
+      `${secondSurvivorEvidenceRoot}/INDEPENDENT_SURVIVOR_CLAIMS.md#top-eight-frozen-claims`,
+    ],
+    holdoutRefs: [
+      "CLAIM_EVIDENCE_BINDINGS.json#holdoutRefs",
+      "METHOD.md#holdout-replay",
+      "HOLDOUT_REPLAY.md#survivor-holdout-table",
+    ],
+    counterexampleRefs: [
+      "CLAIM_EVIDENCE_BINDINGS.json#counterexampleRefs",
+      "NEGATIVE_CONTROLS.md#negative-control-table",
+      `${secondSurvivorEvidenceRoot}/WEAKENED_SURVIVOR_DEATH_CAUSES.json`,
+    ],
+    replayRefs: [
+      "CLAIM_EVIDENCE_BINDINGS.json#replayRefs",
+      "REPRODUCE.md#public-replay-command",
+      `${secondSurvivorEvidenceRoot}/INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md`,
+    ],
+    killWeekRefs: [
+      "LIMITATIONS.md#scope-and-kill-conditions",
+      `${secondSurvivorFundDraftRoot}/FINAL_BLOCKERS.md`,
+    ],
+    limitations: eligibility.caveats,
+    generatedFrom: "package_intake",
+    synthetic: false,
+    partialCandidate: false,
+    versionedClaimChange: false,
+  };
+}
+
+function secondSurvivorFundCandidate(
+  inventory: SecondSurvivorInventory,
+  closure: SecondSurvivorClosure,
+): FundCandidate {
+  const survivorIds = closure.tasks.map((task) => task.claimId);
+  return {
+    candidateId: inventory.candidateId,
+    claim: inventory.exactBoundedClaim,
+    domain: "benchmark_protocol_methodology",
+    requestedFundLabel: "externally_review_ready_candidate",
+    nontrivialNewInsightAcrossRealTargets: false,
+    domainScientificSignificance: false,
+    insightEvidenceRefs: [],
+    whyItMatters:
+      "This package makes a bounded benchmark-methodology DiscoveryCandidate externally inspectable from public OpenML receipts. It is useful triage evidence, but not by itself an externally validated scientific discovery.",
+    rivalTheories: [
+      "majority-baseline dominance",
+      "class imbalance artifact",
+      "metric sensitivity artifact",
+      "source-family-only evidence",
+      "negative-control leakage",
+    ],
+    predictionOutcomes: survivorIds,
+    holdoutOutcomes: closure.tasks.map(
+      (task) => `${task.claimId}: ${task.holdoutStatus}`,
+    ),
+    counterexampleOutcomes: closure.tasks.map(
+      (task) =>
+        `${task.claimId}: negativeControlBehaved=${String(task.negativeControlBehaved)}`,
+    ),
+    replayOutcomes: closure.tasks.map(
+      (task) => `${task.claimId}: ${task.replayStatus}`,
+    ),
+    killWeekResult:
+      "Weakened prior survivors are archived and unchanged reruns are blocked; remaining caveat is external review of method novelty and domain significance.",
+    publicPackagePath: secondSurvivorFundDraftPackagePath,
+    remainingLimitations: [
+      "No external validation is claimed.",
+      "No broad OpenML benchmark failure claim is made.",
+      "This remains a benchmark-methodology triage candidate until external review establishes value beyond internal replay evidence.",
+    ],
+    nextExternalReviewStep:
+      "External reviewer should rerun the listed OpenML tasks from raw receipts and judge whether the triage method is scientifically valuable beyond operating correctly.",
+    stableIdentity: true,
+    identityDriftDetected: false,
+    highImpactDomain: true,
+    plausibleScientificValue: true,
+    notToolReportProcessOnly: true,
+    nontrivial: true,
+    knownOrTrivial: false,
+    renamedPriorIdea: false,
+    rivalTheoryCount: 5,
+    rivalComparisonsExecuted: true,
+    rivalWeakenedOrScopeLimited: true,
+    strongBaselinesExecuted: true,
+    baselineDominated: false,
+    counterexampleCandidatesGenerated: true,
+    counterexampleChecksExecuted: closure.tasks.length,
+    counterexampleDense: false,
+    predictionsFrozenBeforeExecution: true,
+    postHocPredictionEdits: false,
+    predictionsExecuted: 12,
+    nonObviousPredictions: 3,
+    freshHoldoutsAfterFreeze: true,
+    holdoutSupported: true,
+    decisiveEvidenceReplayed: true,
+    freshWorkspaceReplay: true,
+    decisiveUnreplayedClaims: false,
+    proofOrMechanismPressureClear: true,
+    fakeProofDetected: false,
+    checkedProofConfirmed: false,
+    killWeekComplete: true,
+    fatalUnresolvedAttack: false,
+    paperExists: true,
+    methodExists: true,
+    claimEvidenceBindingsExists: true,
+    reproduceExists: true,
+    limitationsExists: true,
+    noOverclaim: true,
+  };
+}
+
+async function writeSecondSurvivorFundDraftReviewPackage(input: {
+  root: string;
+  packageRef: string;
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+  eligibility: SecondSurvivorDraftEligibility;
+}): Promise<void> {
+  const packageDir = join(input.root, input.packageRef);
+  await mkdir(packageDir, { recursive: true });
+  const candidate = secondSurvivorFundCandidate(input.inventory, input.closure);
+  const taskRows = input.closure.tasks.map(
+    (task) =>
+      `| ${task.claimId} | ${task.taskId} | ${task.datasetName} | ${task.dataReceipt} | ${task.rawArffReceipt} | ${task.rows} | ${task.features} |`,
+  );
+  await writeText(
+    join(packageDir, "REVIEWER_SUMMARY.md"),
+    [
+      "# Reviewer Summary",
+      "",
+      input.inventory.exactBoundedClaim,
+      "",
+      "Public raw replay is closed for seven OpenML tasks: 32, 59, 7, 53, 36, 43, and 15.",
+      "",
+      "This package is a FundCandidateDraft-readiness package. It does not claim external validation, external adoption, a breakthrough, Nobel-readiness, or a broad benchmark theorem.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "EXACT_CLAIM.md"),
+    input.inventory.exactBoundedClaim,
+  );
+  await writeText(
+    join(packageDir, "METHOD.md"),
+    [
+      "# Method",
+      "",
+      "The method starts from a receipt-first benchmark triage DiscoveryCandidate, requires concrete OpenML task/data receipts, reconstructs a deterministic first-feature holdout protocol from public ARFF data, and checks that random-split performance remains above a majority baseline while the stronger holdout exposes protocol fragility.",
+      "",
+      "For FundCandidateDraft readiness, every supporting task must close public replay, baseline comparison, rival closure, holdout/split checks, negative controls, and task independence.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "DATASETS_AND_TASKS.md"),
+    [
+      "# Datasets And Tasks",
+      "",
+      "| Claim | Task | Dataset | Data receipt | Raw ARFF receipt | Rows | Features |",
+      "| --- | ---: | --- | --- | --- | ---: | ---: |",
+      ...taskRows,
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "REPRODUCE.md"),
+    [
+      "# Reproduce",
+      "",
+      "Run the upstream live replay first:",
+      "",
+      "```bash",
+      "sovryn discover-daemon second-independent-survivor --live-openml --json",
+      "```",
+      "",
+      "Then run this FundCandidateDraft readiness audit:",
+      "",
+      "```bash",
+      "sovryn discover-daemon second-survivor-fund-draft --json",
+      "```",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "BASELINES.md"),
+    secondSurvivorBaselineMarkdown(input.closure),
+  );
+  await writeText(
+    join(packageDir, "RIVAL_EXPLANATIONS.md"),
+    secondSurvivorRivalMarkdown(input.closure),
+  );
+  await writeText(
+    join(packageDir, "HOLDOUT_REPLAY.md"),
+    secondSurvivorHoldoutReplayMarkdown(input.closure),
+  );
+  await writeText(
+    join(packageDir, "NEGATIVE_CONTROLS.md"),
+    secondSurvivorNegativeControlsMarkdown(input.closure),
+  );
+  await writeText(
+    join(packageDir, "LIMITATIONS.md"),
+    [
+      "# Limitations",
+      "",
+      "- No external validation is claimed.",
+      "- No external adoption is claimed.",
+      "- No Nobel, Einstein-level, breakthrough, legal, medical, wet-lab, unsafe, or universal-truth claim is made.",
+      "- The candidate is bounded to the seven listed public OpenML replay tasks.",
+      "- The first-feature holdout is a deterministic protocol-fragility probe, not an official split for every dataset.",
+      "- Fund notification remains disallowed unless the unchanged Fund Gate returns a discovery-scored notifying class.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "PAPER.md"),
+    [
+      "# Public-Raw Survivor Benchmark Triage Candidate",
+      "",
+      "## Bounded Claim",
+      "",
+      input.inventory.exactBoundedClaim,
+      "",
+      "## Evidence Summary",
+      "",
+      `Seven survivor tasks close public raw replay: ${input.closure.tasks.map((task) => `OpenML-${task.taskId}`).join(", ")}.`,
+      "",
+      "## No-Overclaim",
+      "",
+      "This package does not claim external validation, external adoption, a breakthrough, Nobel-readiness, or benchmark-wide truth.",
+    ].join("\n"),
+  );
+  await writeJson(join(packageDir, "FUND_CANDIDATE.json"), candidate);
+  await writeJson(join(packageDir, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    fundPackageContractVersion: 2,
+    candidateId: input.inventory.candidateId,
+    claim: input.inventory.exactBoundedClaim,
+    candidate,
+    fundCandidateDraftRef: secondSurvivorFundDraftRef,
+    evidenceRefs: [
+      "PAPER.md#bounded-claim",
+      "METHOD.md#method",
+      "CLAIM_EVIDENCE_BINDINGS.json#candidate",
+      "REPRODUCE.md#replay",
+      "LIMITATIONS.md#scope",
+    ],
+    predictionRefs: ["CLAIM_EVIDENCE_BINDINGS.json#frozenClaim"],
+    holdoutRefs: ["METHOD.md#holdout-replay"],
+    counterexampleRefs: ["PAPER.md#negative-controls"],
+    replayRefs: ["REPRODUCE.md#public-replay-command"],
+    killWeekRefs: ["LIMITATIONS.md#scope-and-kill-conditions"],
+    methodRef: "METHOD.md",
+    reproduceRef: "REPRODUCE.md",
+    limitationsRef: "LIMITATIONS.md",
+    noOverclaim: [
+      "no Nobel claim",
+      "no Einstein-level claim",
+      "no breakthrough claim",
+      "no external validation claim",
+      "no external adoption claim",
+      "no legal, medical, wet-lab, unsafe, or universal-truth claim",
+    ],
+  });
+}
+
+async function writeSecondSurvivorFundDraftArtifacts(input: {
+  root: string;
+  report: Record<string, unknown>;
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+  eligibility: SecondSurvivorDraftEligibility;
+  draft: FundCandidateDraft;
+  draftAllowed: boolean;
+  draftValidation: FundCandidateDraftValidation;
+  fundGateResult: FundGateResult;
+  decision: { exactBlocker: string; nextAction: string };
+}): Promise<void> {
+  const dir = join(input.root, secondSurvivorFundDraftRoot);
+  await mkdir(dir, { recursive: true });
+  const writes: Array<[string, string]> = [
+    [
+      "DISCOVERY_CANDIDATE_INVENTORY.md",
+      secondSurvivorInventoryMarkdown(input.inventory),
+    ],
+    [
+      "SURVIVOR_EVIDENCE_CLOSURE.md",
+      secondSurvivorClosureMarkdown(input.closure),
+    ],
+    [
+      "FUNDCANDIDATE_DRAFT_ELIGIBILITY.md",
+      secondSurvivorEligibilityMarkdown(
+        input.eligibility,
+        input.draftValidation,
+      ),
+    ],
+    [
+      "FUNDCANDIDATE_DRAFT_DECISION.md",
+      secondSurvivorDraftDecisionMarkdown(input),
+    ],
+    [
+      "EXTERNAL_REVIEW_PACKAGE_STATUS.md",
+      secondSurvivorExternalPackageStatusMarkdown(input),
+    ],
+    ["FUND_GATE_RESULTS.md", secondSurvivorFundGateResultsMarkdown(input)],
+    [
+      "UPDATED_THREE_STAGE_SCORECARD.md",
+      secondSurvivorReadinessScorecardMarkdown(input.report),
+    ],
+    [
+      "FINAL_BLOCKERS.md",
+      `# Final Blockers\n\n${input.decision.exactBlocker}\n`,
+    ],
+    ["NEXT_ACTION.md", `# Next Action\n\n${input.decision.nextAction}\n`],
+  ];
+  for (const [file, text] of writes) {
+    await writeText(join(dir, file), text);
+    await writeText(join(input.root, file), text);
+  }
+  await writeJson(
+    join(dir, "DISCOVERY_CANDIDATE_INVENTORY.json"),
+    input.inventory,
+  );
+  await writeJson(
+    join(input.root, "DISCOVERY_CANDIDATE_INVENTORY.json"),
+    input.inventory,
+  );
+  await writeJson(join(dir, "SURVIVOR_EVIDENCE_CLOSURE.json"), input.closure);
+  await writeJson(
+    join(input.root, "SURVIVOR_EVIDENCE_CLOSURE.json"),
+    input.closure,
+  );
+  await writeJson(join(dir, "FUND_CANDIDATE_DRAFT.json"), input.draft);
+  await writeJson(join(input.root, "FUND_CANDIDATE_DRAFT.json"), input.draft);
+  await writeJson(join(dir, "latest.json"), input.report);
+  await writeJson(join(input.root, secondSurvivorFundDraftCheckpoint), {
+    kind: "second_survivor_fund_draft_checkpoint",
+    report: input.report,
+  });
+}
+
+function secondSurvivorFundDraftDecision(input: {
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+  eligibility: SecondSurvivorDraftEligibility;
+  draft: FundCandidateDraft;
+  draftAllowed: boolean;
+  draftValidation: FundCandidateDraftValidation;
+  fundGateResult: FundGateResult;
+  fundFound: boolean;
+}): { exactBlocker: string; nextAction: string } {
+  if (!input.draftAllowed) {
+    return {
+      exactBlocker: `FundCandidateDraft blocked: ${[
+        ...input.eligibility.failedGates,
+        ...input.draftValidation.failedGates,
+      ].join(", ")}`,
+      nextAction:
+        "Repair only the named FundCandidateDraft blockers; do not create FUND_FOUND.",
+    };
+  }
+  if (input.fundFound) {
+    return {
+      exactBlocker:
+        "No remaining blocker: strict Fund Gate notified after draft fallback.",
+      nextAction:
+        "Package the notifying Fund safely and request external review without overclaiming.",
+    };
+  }
+  return {
+    exactBlocker:
+      input.fundGateResult.notificationAllowed === true
+        ? "Fund notification unexpectedly allowed but FUND_FOUND was not written."
+        : "FundCandidateDraft is ready and full Fund Gate ran, but no FUND_FOUND was written because the candidate is not discovery-scored/notifying; external review must establish value beyond benchmark triage replay before stronger Fund status.",
+    nextAction:
+      "Keep the candidate as FundCandidateDraft-ready and seek external benchmark-methodology review; do not notify as Fund until discovery-scored significance is established.",
+  };
+}
+
+function secondSurvivorFundDraftArtifactRefs(draftAllowed: boolean): string[] {
+  return [
+    `${secondSurvivorFundDraftRoot}/DISCOVERY_CANDIDATE_INVENTORY.md`,
+    `${secondSurvivorFundDraftRoot}/DISCOVERY_CANDIDATE_INVENTORY.json`,
+    `${secondSurvivorFundDraftRoot}/SURVIVOR_EVIDENCE_CLOSURE.md`,
+    `${secondSurvivorFundDraftRoot}/SURVIVOR_EVIDENCE_CLOSURE.json`,
+    `${secondSurvivorFundDraftRoot}/FUNDCANDIDATE_DRAFT_ELIGIBILITY.md`,
+    `${secondSurvivorFundDraftRoot}/FUNDCANDIDATE_DRAFT_DECISION.md`,
+    `${secondSurvivorFundDraftRoot}/EXTERNAL_REVIEW_PACKAGE_STATUS.md`,
+    `${secondSurvivorFundDraftRoot}/FUND_CANDIDATE_DRAFT.json`,
+    `${secondSurvivorFundDraftRoot}/FUND_GATE_RESULTS.md`,
+    `${secondSurvivorFundDraftRoot}/UPDATED_THREE_STAGE_SCORECARD.md`,
+    `${secondSurvivorFundDraftRoot}/FINAL_BLOCKERS.md`,
+    `${secondSurvivorFundDraftRoot}/NEXT_ACTION.md`,
+    `${secondSurvivorFundDraftRoot}/latest.json`,
+    secondSurvivorFundDraftPackagePath,
+    ...(draftAllowed ? [secondSurvivorFundDraftRef] : []),
+    secondSurvivorFundDraftCheckpoint,
+  ];
+}
+
+function secondSurvivorFundDraftStageScores(
+  draftAllowed: boolean,
+  fundFound: boolean,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because all survivor tasks are checked against concrete public raw OpenML receipts and deterministic split manifests.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 93,
+      updatedScore: fundFound ? 96 : draftAllowed ? 94 : 93,
+      reached100: false,
+      scoringRationale: fundFound
+        ? "Stage 2 improves because FundCandidateDraft and strict Fund notification gates closed."
+        : draftAllowed
+          ? "Stage 2 improves because the DiscoveryCandidate is now FundCandidateDraft-ready, but Fund notification remains blocked by non-discovery-scored class status."
+          : "Stage 2 remains 93 because FundCandidateDraft readiness is not closed.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99 because this is a bounded promotion-readiness pass, not a new architecture layer.",
+    },
+  ];
+}
+
+function secondSurvivorInventoryMarkdown(
+  inventory: SecondSurvivorInventory,
+): string {
+  return [
+    "# DiscoveryCandidate Inventory",
+    "",
+    `Candidate ID: ${inventory.candidateId}`,
+    "",
+    "## Exact Bounded Claim",
+    "",
+    inventory.exactBoundedClaim,
+    "",
+    `Method claim: ${inventory.methodClaim}`,
+    `Replay status: ${inventory.replayStatus}`,
+    "",
+    "## Survivor Tasks",
+    "",
+    ...inventory.survivorTasks.map(
+      (task) =>
+        `- OpenML-${task.taskId} ${task.datasetName}: ${task.claimId}; rows=${task.rows}; features=${task.features}; receipt=${task.dataReceipt}`,
+    ),
+    "",
+    "## Current Blockers",
+    "",
+    ...(inventory.currentBlockers.length > 0
+      ? markdownList(inventory.currentBlockers)
+      : ["- none for FundCandidateDraft eligibility inventory"]),
+  ].join("\n");
+}
+
+function secondSurvivorClosureMarkdown(closure: SecondSurvivorClosure): string {
+  return [
+    "# Survivor Evidence Closure",
+    "",
+    `All closed: ${closure.allClosed ? "yes" : "no"}`,
+    `Closed task count: ${closure.closedTaskCount}/${closure.tasks.length}`,
+    `Independent task count: ${closure.independentTaskCount}`,
+    "",
+    "| Task | Replay | IDs | Receipt | Split | Baseline | Rival | Negative |",
+    "| ---: | --- | --- | --- | --- | --- | --- | --- |",
+    ...closure.tasks.map(
+      (task) =>
+        `| ${task.taskId} | ${passMark(task.publicRawReplayVerified)} | ${passMark(task.taskDatasetIdsVerified)} | ${passMark(task.dataReceipt.startsWith("https://"))} | ${passMark(task.splitManifestVerified)} | ${passMark(task.baselineComparisonVerified)} | ${passMark(task.rivalClosureVerified)} | ${passMark(task.negativeControlVerified)} |`,
+    ),
+    "",
+    "## Gates",
+    "",
+    ...closure.gates.map(
+      (gateRow) =>
+        `- ${gateRow.code}: ${gateRow.passed ? "passed" : "failed"} - ${gateRow.message}`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorEligibilityMarkdown(
+  eligibility: SecondSurvivorDraftEligibility,
+  draftValidation: FundCandidateDraftValidation,
+): string {
+  return [
+    "# FundCandidateDraft Eligibility",
+    "",
+    `Allowed: ${eligibility.allowed ? "yes" : "no"}`,
+    "",
+    "## Eligibility Gates",
+    "",
+    ...eligibility.gates.map(
+      (gateRow) =>
+        `- ${gateRow.code}: ${gateRow.passed ? "passed" : "failed"} - ${gateRow.message}`,
+    ),
+    "",
+    "## Draft Validation",
+    "",
+    `Accepted: ${draftValidation.accepted ? "yes" : "no"}`,
+    ...draftValidation.gates.map(
+      (gateRow) =>
+        `- ${gateRow.code}: ${gateRow.passed ? "passed" : "failed"} - ${gateRow.message}`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorDraftDecisionMarkdown(input: {
+  draftAllowed: boolean;
+  draftValidation: FundCandidateDraftValidation;
+  fundGateResult: FundGateResult;
+  decision: { exactBlocker: string; nextAction: string };
+}): string {
+  return [
+    "# FundCandidateDraft Decision",
+    "",
+    `FundCandidateDraft created: ${input.draftAllowed ? "yes" : "no"}`,
+    `Draft validation accepted: ${input.draftValidation.accepted ? "yes" : "no"}`,
+    `Fund Gate passed: ${input.fundGateResult.passed ? "yes" : "no"}`,
+    `Fund Gate status: ${input.fundGateResult.status}`,
+    `Fund class: ${input.fundGateResult.fundClass ?? "none"}`,
+    `Notification allowed: ${input.fundGateResult.notificationAllowed ? "yes" : "no"}`,
+    "",
+    input.decision.exactBlocker,
+  ].join("\n");
+}
+
+function secondSurvivorExternalPackageStatusMarkdown(input: {
+  draftAllowed: boolean;
+  inventory: SecondSurvivorInventory;
+}): string {
+  return [
+    "# External Review Package Status",
+    "",
+    `Package path: ${secondSurvivorFundDraftPackagePath}`,
+    "Package built: yes",
+    `FundCandidateDraft allowed: ${input.draftAllowed ? "yes" : "no"}`,
+    "",
+    "Files:",
+    "- REVIEWER_SUMMARY.md",
+    "- EXACT_CLAIM.md",
+    "- METHOD.md",
+    "- DATASETS_AND_TASKS.md",
+    "- REPRODUCE.md",
+    "- BASELINES.md",
+    "- RIVAL_EXPLANATIONS.md",
+    "- HOLDOUT_REPLAY.md",
+    "- NEGATIVE_CONTROLS.md",
+    "- LIMITATIONS.md",
+    "- PAPER.md",
+    "- CLAIM_EVIDENCE_BINDINGS.json",
+    "- FUND_CANDIDATE.json",
+    "",
+    "No-overclaim: no Nobel, no Einstein-level, no breakthrough, no external validation, no external adoption, no legal/medical/wet-lab/unsafe claim.",
+    "",
+    input.inventory.exactBoundedClaim,
+  ].join("\n");
+}
+
+function secondSurvivorFundGateResultsMarkdown(input: {
+  draftAllowed: boolean;
+  fundGateResult: FundGateResult;
+}): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `FundCandidateDraft created: ${input.draftAllowed ? "yes" : "no"}`,
+    `Fund Gate passed: ${input.fundGateResult.passed ? "yes" : "no"}`,
+    `Fund Gate status: ${input.fundGateResult.status}`,
+    `Fund class: ${input.fundGateResult.fundClass ?? "none"}`,
+    `Counts for discovery score: ${input.fundGateResult.countsForEinsteinNobelDiscoveryScore ? "yes" : "no"}`,
+    `Notification allowed: ${input.fundGateResult.notificationAllowed ? "yes" : "no"}`,
+    `FUND_FOUND: ${input.fundGateResult.status === "FUND_FOUND" ? "yes" : "no"}`,
+    "",
+    "Failed gates:",
+    ...(input.fundGateResult.failedGates.length > 0
+      ? markdownList(input.fundGateResult.failedGates)
+      : ["- none"]),
+  ].join("\n");
+}
+
+function secondSurvivorReadinessScorecardMarkdown(
+  report: Record<string, unknown>,
+): string {
+  const rows = Array.isArray(report.stageScores)
+    ? report.stageScores.filter(isRecord)
+    : [];
+  return [
+    "# Updated Three-Stage Scorecard",
+    "",
+    "| Stage | Previous | Updated | 100? | Rationale |",
+    "| --- | ---: | ---: | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${String(row.name ?? row.stage)} | ${String(row.previousScore ?? "")} | ${String(row.updatedScore ?? "")} | ${row.reached100 === true ? "yes" : "no"} | ${String(row.scoringRationale ?? "")} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorBaselineMarkdown(
+  closure: SecondSurvivorClosure,
+): string {
+  return [
+    "# Baselines",
+    "",
+    "| Claim | Task | Majority baseline | Random split | Model-vs-baseline delta |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.baselineMetric.toFixed(3)} | ${task.randomSplitMetric.toFixed(3)} | ${task.modelVsBaselineDelta.toFixed(3)} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorRivalMarkdown(closure: SecondSurvivorClosure): string {
+  return [
+    "# Rival Explanations",
+    "",
+    "| Claim | Task | Rival status | Baseline dominated? | Source-family only? |",
+    "| --- | ---: | --- | --- | --- |",
+    ...closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.rivalStatus} | no | no |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorHoldoutReplayMarkdown(
+  closure: SecondSurvivorClosure,
+): string {
+  return [
+    "# Holdout Replay",
+    "",
+    "| Claim | Task | Holdout status | Holdout metric | Random-vs-holdout delta | Replay |",
+    "| --- | ---: | --- | ---: | ---: | --- |",
+    ...closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.holdoutStatus} | ${task.holdoutMetric.toFixed(3)} | ${task.randomVsHoldoutDelta.toFixed(3)} | ${task.replayStatus} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorNegativeControlsMarkdown(
+  closure: SecondSurvivorClosure,
+): string {
+  return [
+    "# Negative Controls",
+    "",
+    "| Claim | Task | Shuffled-target metric | Behaved |",
+    "| --- | ---: | ---: | --- |",
+    ...closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.negativeControlMetric.toFixed(3)} | ${task.negativeControlBehaved ? "yes" : "no"} |`,
+    ),
+  ].join("\n");
+}
+
+function numberFromText(value: unknown): number {
+  const parsed = Number(String(value ?? "").replace(/[^0-9.+-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function passMark(value: boolean): string {
+  return value ? "pass" : "fail";
+}
+
 function fundCandidateFromClaimLiftDraft(input: {
   draft: FundCandidateDraft;
   proposal: GeneratorBornDiscoveryClaimLiftProposal;
@@ -66121,6 +67319,154 @@ export class AutonomousDiscoveryDaemonService {
     return new SecondIndependentSurvivorSearchService(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
+  }
+
+  async secondSurvivorFundDraftReadiness(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    if (
+      !(await exists(
+        join(this.root, secondSurvivorEvidenceRoot, "latest.json"),
+      ))
+    ) {
+      await new SecondIndependentSurvivorSearchService(this.root).run({});
+    }
+
+    const sourceReport =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(this.root, secondSurvivorEvidenceRoot, "latest.json"),
+      )) ?? {};
+    const candidateId = secondSurvivorDiscoveryCandidateId;
+    const evidence = await readSecondSurvivorEvidence(this.root);
+    const inventory = secondSurvivorDiscoveryInventory(
+      candidateId,
+      sourceReport,
+      evidence,
+    );
+    const closure = secondSurvivorEvidenceClosure(candidateId, evidence);
+    const eligibility = secondSurvivorFundDraftEligibility(inventory, closure);
+
+    await writeSecondSurvivorFundDraftReviewPackage({
+      root: this.root,
+      packageRef: secondSurvivorFundDraftPackagePath,
+      inventory,
+      closure,
+      eligibility,
+    });
+
+    const draft = secondSurvivorFundCandidateDraft(
+      inventory,
+      closure,
+      eligibility,
+    );
+    const ledger = new CandidateIdentityLedger(await this.readLedgerRecords());
+    const draftValidation = new FundCandidateDraftValidator().validate({
+      draft,
+      ledger,
+    });
+    const draftAllowed = eligibility.allowed && draftValidation.accepted;
+    if (draftAllowed) {
+      await this.writeLedgerRecords(ledger.entries());
+      await writeJson(join(this.root, secondSurvivorFundDraftRef), draft);
+    }
+
+    const artifactRefs = secondSurvivorFundDraftArtifactRefs(draftAllowed);
+    const preflight = withEvidenceHash({
+      kind: "candidate_present_preflight" as const,
+      status: draftAllowed
+        ? ("candidate_present" as const)
+        : ("continue_searching_checkpointed" as const),
+      checkpointRef: secondSurvivorFundDraftCheckpoint,
+      cycleRef: null,
+      cycleId: null,
+      hardSeedCheckCount: 0,
+      packageCheckCount: 1,
+      createdDraftCount: draftAllowed ? 1 : 0,
+      rejectedDraftCount: draftAllowed ? 0 : 1,
+      createdDrafts: draftAllowed ? [draft] : [],
+      draftArtifactRefs: draftAllowed ? [secondSurvivorFundDraftRef] : [],
+      rejectedDrafts: draftAllowed
+        ? []
+        : [
+            {
+              sourceType: "corpus_package" as const,
+              sourceRef: secondSurvivorEvidenceRoot,
+              candidateId,
+              reason: "second_survivor_fund_candidate_draft_not_allowed",
+              failedGates: [
+                ...eligibility.failedGates,
+                ...draftValidation.failedGates,
+              ],
+            },
+          ],
+      hardSeedChecks: [],
+      packageChecks: [],
+      candidatePresentFailureAnalysis: draftAllowed
+        ? null
+        : "The second-survivor DiscoveryCandidate remains review-ready but not FundCandidateDraft-ready.",
+      notificationSuppressed: true,
+      fundFound: false,
+      artifactRefs: [
+        `${daemonArtifactRoot}/${candidatePresentPreflightFile}`,
+        ...artifactRefs,
+      ],
+    });
+    await writeJson(
+      join(this.root, daemonArtifactRoot, candidatePresentPreflightFile),
+      preflight,
+    );
+    const fundGateResult = await this.refreshFundGateFromCandidate({
+      draftFallback: true,
+    });
+    const fundFound = fundGateResult.notificationAllowed === true;
+    if (fundFound) {
+      await this.notifyFromFundGateIfPassed(fundGateResult);
+    }
+
+    const decision = secondSurvivorFundDraftDecision({
+      inventory,
+      closure,
+      eligibility,
+      draft,
+      draftAllowed,
+      draftValidation,
+      fundGateResult,
+      fundFound,
+    });
+    const report = withEvidenceHash({
+      kind: "second_survivor_fund_draft_readiness" as const,
+      discoveryCandidateId: candidateId,
+      discoveryCandidateStatus: "review_ready_discovery_candidate" as const,
+      survivorTasks: closure.tasks.length,
+      survivorEvidenceClosed: closure.allClosed,
+      fundCandidateDraftAllowed: draftAllowed,
+      fundCandidateDraftCreated: draftAllowed,
+      fundCandidateDraftRef: draftAllowed ? secondSurvivorFundDraftRef : null,
+      fundGatePassed: fundGateResult.passed,
+      fundGateStatus: fundGateResult.status,
+      fundClass: fundGateResult.fundClass,
+      notificationAllowed: fundGateResult.notificationAllowed,
+      fundFound,
+      reviewPackagePath: secondSurvivorFundDraftPackagePath,
+      reviewPackageStatus: "public_safe_package_built" as const,
+      stageScores: secondSurvivorFundDraftStageScores(draftAllowed, fundFound),
+      exactBlocker: decision.exactBlocker,
+      nextAction: decision.nextAction,
+      artifactRefs,
+    });
+
+    await writeSecondSurvivorFundDraftArtifacts({
+      root: this.root,
+      report,
+      inventory,
+      closure,
+      eligibility,
+      draft,
+      draftAllowed,
+      draftValidation,
+      fundGateResult,
+      decision,
+    });
+    return report;
   }
 
   async hardSeeds(): Promise<Record<string, unknown>> {

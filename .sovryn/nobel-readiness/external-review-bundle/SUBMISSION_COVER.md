@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This bundle is a dispatch packet for independent human review of one bounded discovery-scored candidate package. It does not assert that outside expert review has already occurred.
+This bundle is a dispatch packet for independent human review of one bounded candidate package. It does not assert that outside expert review has already occurred or that the candidate is discovery-scored.
 
 ## Candidate
 

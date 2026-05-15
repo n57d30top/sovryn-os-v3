@@ -1108,6 +1108,8 @@ test("nobel-readiness external-review bundle writes dispatch checklist without c
     cover,
     /does not assert that outside expert review has already occurred/,
   );
+  assert.doesNotMatch(cover, /discovery-scored candidate package/);
+  assert.match(cover, /does not assert.*candidate is discovery-scored/s);
   assert.deepEqual(auditNobelReadinessPublicText(cover), []);
   assert.deepEqual(auditNobelReadinessPublicText(checklist), []);
   assert.deepEqual(auditNobelReadinessPublicText(evidenceIndex), []);
@@ -1202,6 +1204,8 @@ test("nobel-readiness external-review dispatch writes review template without cl
     true,
   );
   assert.match(request, /does not assert that independent review/);
+  assert.doesNotMatch(request, /discovery-scored candidate package/);
+  assert.match(request, /does not assert.*discovery-scored status/s);
   assert.match(instructions, /cannot increase readiness/);
   assert.match(instructions, /resolves to an external public URL/);
   assert.match(String(template.reviewSourceRef), /external public URL/);

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This request asks an independent domain reviewer to inspect one bounded discovery-scored candidate package. It does not assert that independent review, independent reproduction, field uptake, or prize significance has occurred.
+This request asks an independent domain reviewer to inspect one bounded candidate package. It does not assert that independent review, independent reproduction, field uptake, prize significance, or discovery-scored status has occurred.
 
 ## Candidate
 

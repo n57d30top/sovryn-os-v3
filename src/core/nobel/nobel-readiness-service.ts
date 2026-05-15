@@ -4969,7 +4969,7 @@ function externalReviewBundleCoverMarkdown(
 
 ## Purpose
 
-This bundle is a dispatch packet for independent human review of one bounded discovery-scored candidate package. It does not assert that outside expert review has already occurred.
+This bundle is a dispatch packet for independent human review of one bounded candidate package. It does not assert that outside expert review has already occurred or that the candidate is discovery-scored.
 
 ## Candidate
 
@@ -4993,7 +4993,7 @@ function externalReviewDispatchRequestMarkdown(
 
 ## Purpose
 
-This request asks an independent domain reviewer to inspect one bounded discovery-scored candidate package. It does not assert that independent review, independent reproduction, field uptake, or prize significance has occurred.
+This request asks an independent domain reviewer to inspect one bounded candidate package. It does not assert that independent review, independent reproduction, field uptake, prize significance, or discovery-scored status has occurred.
 
 ## Candidate
 

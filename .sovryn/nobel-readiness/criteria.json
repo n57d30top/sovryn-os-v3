@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_criteria",
-  "generatedAt": "2026-05-15T08:22:32.570Z",
+  "generatedAt": "2026-05-15T09:23:25.870Z",
   "criteria": [
     "high-impact safe domain",
     "nontrivial bounded anomaly or principle",
@@ -42,5 +42,5 @@
     "Use externally_review_ready_candidate only when all hard evidence gates pass.",
     "Classify insufficient evidence as partial, failed, or not ready for expert review."
   ],
-  "evidenceHash": "c277247bd99a61c08b25e8ab5550695ac12076ac70e0db850aa76d65d407e593"
+  "evidenceHash": "5a0c9f8265e1787c11d7adfdfeb83b8ced795955be726c53912db036ac947fd3"
 }

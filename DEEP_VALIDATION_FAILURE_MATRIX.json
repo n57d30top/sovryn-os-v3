@@ -1,0 +1,62 @@
+[
+  {
+    "claimId": "SP-PLAUS-001-OPENML-28",
+    "taskId": 28,
+    "expectedSurvivalRationale": "selected by survival-potential source quality for deep-validation pressure",
+    "baselineResult": 0.09,
+    "holdoutResult": 0.085,
+    "rivalResult": "killed",
+    "negativeControlResult": 0.11,
+    "deathCause": "baseline_dominated",
+    "failureClass": "hard",
+    "failureReason": "model-vs-baseline margin did not clear deep-validation baseline survival"
+  },
+  {
+    "claimId": "SP-PLAUS-003-OPENML-12",
+    "taskId": 12,
+    "expectedSurvivalRationale": "selected by survival-potential source quality for deep-validation pressure",
+    "baselineResult": 0.077,
+    "holdoutResult": 0.263,
+    "rivalResult": "killed",
+    "negativeControlResult": 0.245,
+    "deathCause": "negative_control_failed",
+    "failureClass": "hard",
+    "failureReason": "negative/shuffled-target control remained too close to the observed model result"
+  },
+  {
+    "claimId": "SP-PLAUS-004-OPENML-18",
+    "taskId": 18,
+    "expectedSurvivalRationale": "selected by survival-potential source quality for deep-validation pressure",
+    "baselineResult": 0.077,
+    "holdoutResult": 0.303,
+    "rivalResult": "killed",
+    "negativeControlResult": 0.258,
+    "deathCause": "negative_control_failed",
+    "failureClass": "hard",
+    "failureReason": "negative/shuffled-target control remained too close to the observed model result"
+  },
+  {
+    "claimId": "SP-PLAUS-006-OPENML-32",
+    "taskId": 32,
+    "expectedSurvivalRationale": "selected by survival-potential source quality for deep-validation pressure",
+    "baselineResult": 0.094,
+    "holdoutResult": 0,
+    "rivalResult": "weakened",
+    "negativeControlResult": 0.106,
+    "deathCause": "recurrence_risk",
+    "failureClass": "soft",
+    "failureReason": "single-task or weakly recurring effect lacks independent support"
+  },
+  {
+    "claimId": "SP-PLAUS-011-OPENML-15",
+    "taskId": 15,
+    "expectedSurvivalRationale": "selected by survival-potential source quality for deep-validation pressure",
+    "baselineResult": 0.671,
+    "holdoutResult": 0.771,
+    "rivalResult": "weakened",
+    "negativeControlResult": 0.6,
+    "deathCause": "holdout_not_supported",
+    "failureClass": "soft",
+    "failureReason": "random-split signal weakened under stronger holdout/split pressure"
+  }
+]

@@ -1,5 +1,5 @@
 # Next Action
 
-Move from generic OpenML task receipts toward externally reported benchmark fragility studies with observed nonfatal baseline and holdout margins before rerunning deep validation.
+Stop optimizing the rejector; source claims from externally documented studies with observed nonfatal baseline, holdout, recurrence, and negative-control margins before deep validation.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/receipt-first-survival-potential-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/deep-validation-gold-set-calibration-continue-searching.json

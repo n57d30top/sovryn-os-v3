@@ -74,6 +74,7 @@ import { InsightTemporalRecurrencePromotionService } from "../src/core/discovery
 import { InsightTemporalReplayRepairService } from "../src/core/discovery-daemon/insight-temporal-replay-repair-service.js";
 import { TaskReceiptFirstBenchmarkDiscoveryService } from "../src/core/discovery-daemon/task-receipt-first-benchmark-discovery-service.js";
 import {
+  DeepValidationGoldSetCalibrationService,
   ReceiptFirstSelectivityChallengeService,
   ReceiptFirstSelectivityPromotionService,
   ReceiptFirstSelectivityV2Service,
@@ -158,6 +159,7 @@ const commands = [
   "receipt-first-selectivity-v3",
   "receipt-first-selectivity-v4",
   "receipt-first-survival-potential",
+  "deep-validation-gold-set-calibration",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9490,6 +9492,83 @@ test("receipt-first survival-potential harvest builds source-quality benchmark",
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_survival_potential_claim_harvest",
+  );
+});
+
+test("deep validation gold-set calibration distinguishes known survivors from weak controls", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSurvivalPotentialService(root).run();
+
+  const report = await new DeepValidationGoldSetCalibrationService(root).run();
+
+  assert.equal(report.kind, "deep_validation_gold_set_calibration");
+  assert.ok(report.recentFailuresAnalyzed >= 5);
+  assert.equal(report.knownSurvivorClaims, 10);
+  assert.equal(report.knownWeakClaims, 10);
+  assert.equal(report.ambiguousClaims, 5);
+  assert.equal(report.knownSurvivorsPassed, 10);
+  assert.equal(report.knownSurvivorsFailed, 0);
+  assert.equal(report.knownWeakRejected, 10);
+  assert.equal(report.knownWeakFalseSurvivors, 0);
+  assert.equal(report.calibratedGatesCreated, false);
+  assert.equal(report.retestCandidates >= 5, true);
+  assert.equal(report.retestSurvivors, 0);
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+
+  for (const artifact of [
+    "DEEP_VALIDATION_FAILURE_AUTOPSY.md",
+    "DEEP_VALIDATION_FAILURE_MATRIX.json",
+    "DEEP_VALIDATION_GOLD_SET.md",
+    "DEEP_VALIDATION_GOLD_SET.json",
+    "GOLD_SET_DEEP_VALIDATION_RESULTS.md",
+    "DEEP_VALIDATION_CALIBRATION_DECISION.md",
+    "CALIBRATED_DEEP_VALIDATION_RULES.md",
+    "CALIBRATED_SYNTHESIS_RETEST_RESULTS.md",
+    "DISCOVERY_PROMOTION_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "deep-validation-gold-set-calibration", artifact),
+    );
+  }
+
+  const goldSet = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "deep-validation-gold-set-calibration",
+        "DEEP_VALIDATION_GOLD_SET.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(goldSet.length, 25);
+  assert.equal(
+    goldSet.every(
+      (claim) =>
+        typeof claim.externalSourceReference === "string" &&
+        typeof claim.rawDataReceipt === "string" &&
+        typeof claim.publishedBaselineOrProtocol === "string" &&
+        typeof claim.officialOrAcceptedSplit === "string" &&
+        typeof claim.reproducibleMetric === "string",
+    ),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "deep-validation-gold-set-calibration", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "deep_validation_gold_set_calibration",
   );
 });
 

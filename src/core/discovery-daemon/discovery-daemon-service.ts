@@ -67,6 +67,7 @@ import {
   type TaskReceiptFirstBenchmarkReport,
 } from "./task-receipt-first-benchmark-discovery-service.js";
 import {
+  DeepValidationGoldSetCalibrationService,
   ReceiptFirstSelectivityChallengeService,
   ReceiptFirstSelectivityPromotionService,
   ReceiptFirstSelectivityV2Service,
@@ -81,6 +82,7 @@ import {
   type ReceiptFirstSelectivityV4Report,
   type ReceiptFirstSurvivalPotentialReport,
   type ReceiptFirstSynthesisReport,
+  type DeepValidationGoldSetCalibrationReport,
 } from "./receipt-first-synthesis-service.js";
 
 export type DiscoveryDaemonInternalStatus =
@@ -66067,6 +66069,17 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<ReceiptFirstSurvivalPotentialReport> {
     await this.ensureInitialized();
     return new ReceiptFirstSurvivalPotentialService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async deepValidationGoldSetCalibration(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<DeepValidationGoldSetCalibrationReport> {
+    await this.ensureInitialized();
+    return new DeepValidationGoldSetCalibrationService(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
   }

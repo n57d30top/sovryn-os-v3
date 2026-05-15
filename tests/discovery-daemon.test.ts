@@ -79,6 +79,7 @@ import {
   ReceiptFirstSelectivityV2Service,
   ReceiptFirstSelectivityV3Service,
   ReceiptFirstSelectivityV4Service,
+  ReceiptFirstSurvivalPotentialService,
   ReceiptFirstSynthesisService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
@@ -156,6 +157,7 @@ const commands = [
   "receipt-first-selectivity-v2",
   "receipt-first-selectivity-v3",
   "receipt-first-selectivity-v4",
+  "receipt-first-survival-potential",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9411,6 +9413,83 @@ test("receipt-first selectivity v4 calibrates on deep-validation survival outcom
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_selectivity_v4_survival_calibration",
+  );
+});
+
+test("receipt-first survival-potential harvest builds source-quality benchmark", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSelectivityV4Service(root).run();
+
+  const report = await new ReceiptFirstSurvivalPotentialService(root).run();
+
+  assert.equal(report.kind, "receipt_first_survival_potential_claim_harvest");
+  assert.ok(report.claimsHarvested >= 40);
+  assert.ok(report.survivalPotentialAccepted >= 30);
+  assert.equal(report.claimsTested, 60);
+  assert.equal(report.survivalPotentialPlausibleClaims, 30);
+  assert.equal(report.weakClaims, 20);
+  assert.equal(report.positiveControlClaims, 10);
+  assert.ok(report.openMlTasksTested >= 15);
+  assert.ok(report.publicReplaySuccesses >= 50);
+  assert.ok(report.selectedPlausibleClaims >= 5);
+  assert.ok(report.independentSelectedTasks >= 5);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+  assert.ok(
+    report.methodsCompared.includes("RECEIPT_FIRST_BENCHMARK_TRIAGE_V4"),
+  );
+
+  for (const artifact of [
+    "SURVIVAL_POTENTIAL_CLAIM_SOURCES.md",
+    "SURVIVAL_POTENTIAL_CLAIMS.json",
+    "SURVIVAL_POTENTIAL_GATE.md",
+    "REJECTED_LOW_SURVIVAL_CLAIMS.md",
+    "SURVIVAL_POTENTIAL_BENCHMARK.md",
+    "SURVIVAL_POTENTIAL_BENCHMARK.json",
+    "SURVIVAL_POTENTIAL_TRIAGE_RESULTS.md",
+    "METHOD_COMPARISON_ON_SURVIVAL_BENCHMARK.md",
+    "SURVIVAL_DEEP_VALIDATION_RESULTS.md",
+    "SURVIVOR_ANALYSIS.md",
+    "SURVIVAL_SYNTHESIS_DECISION.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-survival-potential", artifact),
+    );
+  }
+
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-survival-potential",
+        "SURVIVAL_POTENTIAL_CLAIMS.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(
+    claims.every(
+      (claim) =>
+        typeof claim.externalSourceReference === "string" &&
+        typeof claim.publishedBaselineOrComparison === "string" &&
+        typeof claim.splitProtocolDescription === "string",
+    ),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-survival-potential", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_survival_potential_claim_harvest",
   );
 });
 

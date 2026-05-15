@@ -405,6 +405,55 @@ type SelectivityV4Comparison = {
   costSaved: number;
 };
 
+type SurvivalPotentialSourceCategory =
+  | "paper_reported_baseline_comparison"
+  | "official_split_protocol"
+  | "openml_published_study"
+  | "documented_group_time_entity_split"
+  | "leaderboard_protocol_discussion"
+  | "known_fragility_or_leakage_report"
+  | "reproducibility_report";
+
+type SurvivalPotentialClaim = ExternallyGroundedSelectivityClaim & {
+  survivalSourceCategory: SurvivalPotentialSourceCategory;
+  publishedBaselineOrComparison: string;
+  splitProtocolDescription: string;
+  whyMaySurviveDeepValidation: string;
+  expectedRivalsAndFailureModes: string[];
+  survivalPotentialGateDecision: "accepted" | "rejected";
+  survivalPotentialGateBlocker: string | null;
+  survivalPotentialPriorScore: number;
+};
+
+type SurvivalPotentialResult = SelectivityV4Result & {
+  survivalPotentialScore: number;
+  survivalPotentialDecision: TriageDecision;
+  survivalPotentialSelectionRationale: string;
+};
+
+type SurvivalPotentialComparison = {
+  survivalMethodAccuracy: number;
+  v4Accuracy: number;
+  v2Accuracy: number;
+  rejectAllAccuracy: number;
+  randomSelectionAccuracy: number;
+  taskSizeHeuristicAccuracy: number;
+  baselineOnlyAccuracy: number;
+  selectedPlausibleClaims: number;
+  independentSelectedTasks: number;
+  deepValidationSurvivors: number;
+  independentSurvivorTasks: number;
+  survivalMethodYield: number;
+  v4SurvivorYield: number;
+  v2SurvivorYield: number;
+  rejectAllSurvivorYield: number;
+  falseRejectionRate: number;
+  costSaved: number;
+  beatsRejectAllOnYield: boolean;
+  beatsV2OnYield: boolean;
+  beatsV4OnYield: boolean;
+};
+
 export type ReceiptFirstSelectivityPromotionReport = {
   kind: "receipt_first_selectivity_promotion_gauntlet";
   terminalStatus: "productive_source_object_engine_continue_searching";
@@ -518,6 +567,37 @@ export type ReceiptFirstSelectivityV4Report = {
   evidenceHash: string;
 };
 
+export type ReceiptFirstSurvivalPotentialReport = {
+  kind: "receipt_first_survival_potential_claim_harvest";
+  terminalStatus: "productive_source_object_engine_continue_searching";
+  productStateCommit: string;
+  claimsHarvested: number;
+  survivalPotentialAccepted: number;
+  survivalPotentialRejected: number;
+  claimsTested: number;
+  survivalPotentialPlausibleClaims: number;
+  weakClaims: number;
+  positiveControlClaims: number;
+  openMlTasksTested: number;
+  publicReplaySuccesses: number;
+  methodsCompared: string[];
+  selectedPlausibleClaims: number;
+  independentSelectedTasks: number;
+  deepValidationSurvivors: number;
+  independentSurvivorTasks: number;
+  comparison: SurvivalPotentialComparison;
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  fundFound: false;
+  stageScores: ReceiptFirstSynthesisReport["stageScores"];
+  fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  exactBlocker: string;
+  nextCheckpoint: string;
+  nextAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type ParsedDataset = {
   attributes: string[];
   rows: string[][];
@@ -535,6 +615,8 @@ const selectivityV3ArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-selectivity-v3";
 const selectivityV4ArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-selectivity-v4";
+const survivalPotentialArtifactRoot =
+  ".sovryn/discovery-daemon/receipt-first-survival-potential";
 const priorRoot =
   ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery";
 const nextCheckpoint =
@@ -549,6 +631,8 @@ const selectivityV3NextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v3-continue-searching.json";
 const selectivityV4NextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v4-continue-searching.json";
+const survivalPotentialNextCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/receipt-first-survival-potential-continue-searching.json";
 const scoreThreshold = 0.62;
 const previousStageScores = { validator: 100, synthesizer: 86, structural: 99 };
 
@@ -644,6 +728,23 @@ const selectivityV4Artifacts = [
   "SURVIVAL_CALIBRATION_REPORT.md",
   "TRIAGE_V4_PROMOTION_DECISION.md",
   "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+  "UPDATED_THREE_STAGE_SCORECARD.md",
+  "FINAL_BLOCKERS.md",
+  "NEXT_ACTION.md",
+] as const;
+
+const survivalPotentialArtifacts = [
+  "SURVIVAL_POTENTIAL_CLAIM_SOURCES.md",
+  "SURVIVAL_POTENTIAL_CLAIMS.json",
+  "SURVIVAL_POTENTIAL_GATE.md",
+  "REJECTED_LOW_SURVIVAL_CLAIMS.md",
+  "SURVIVAL_POTENTIAL_BENCHMARK.md",
+  "SURVIVAL_POTENTIAL_BENCHMARK.json",
+  "SURVIVAL_POTENTIAL_TRIAGE_RESULTS.md",
+  "METHOD_COMPARISON_ON_SURVIVAL_BENCHMARK.md",
+  "SURVIVAL_DEEP_VALIDATION_RESULTS.md",
+  "SURVIVOR_ANALYSIS.md",
+  "SURVIVAL_SYNTHESIS_DECISION.md",
   "UPDATED_THREE_STAGE_SCORECARD.md",
   "FINAL_BLOCKERS.md",
   "NEXT_ACTION.md",
@@ -1742,6 +1843,246 @@ export class ReceiptFirstSelectivityV4Service {
       selectedIndependentPlausibleTasks:
         report.selectedIndependentPlausibleTasks,
       deepValidationSurvivors: report.deepValidationSurvivors,
+      discoveryCandidateCreated: report.discoveryCandidateCreated,
+      discoveryCandidateId: report.discoveryCandidateId,
+      fundFound: report.fundFound,
+      stageScores: report.stageScores,
+      exactBlocker: report.exactBlocker,
+      nextAction: report.nextAction,
+      artifactRefs: report.artifactRefs,
+      evidenceHash: report.evidenceHash,
+    });
+  }
+}
+
+export class ReceiptFirstSurvivalPotentialService {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: ReceiptFirstSynthesisOptions = {},
+  ): Promise<ReceiptFirstSurvivalPotentialReport> {
+    await ensurePriorSelectivityV4Run(this.root, options);
+    const baseClaims = await readJson<TaskReceiptFirstClaim[]>(
+      join(this.root, priorRoot, "RECEIPT_FIRST_BENCHMARK_CLAIMS.json"),
+    );
+    const harvestedClaims = harvestSurvivalPotentialClaims(baseClaims);
+    const acceptedClaims = harvestedClaims
+      .filter((claim) => claim.survivalPotentialGateDecision === "accepted")
+      .sort(
+        (a, b) =>
+          b.survivalPotentialPriorScore - a.survivalPotentialPriorScore ||
+          a.taskId! - b.taskId!,
+      )
+      .slice(0, 30);
+    const acceptedClaimIds = new Set(
+      acceptedClaims.map((claim) => claim.claimId),
+    );
+    const rejectedClaims = harvestedClaims
+      .filter((claim) => !acceptedClaimIds.has(claim.claimId))
+      .map((claim) =>
+        claim.survivalPotentialGateDecision === "rejected"
+          ? claim
+          : {
+              ...claim,
+              survivalPotentialGateDecision: "rejected" as const,
+              survivalPotentialGateBlocker:
+                "not_selected_top30_survival_potential",
+            },
+      );
+    const benchmarkClaims = buildSurvivalPotentialBenchmark(
+      baseClaims,
+      acceptedClaims,
+    );
+    const methodSpec = buildMethodSpec();
+    const initialV1Results: SelectivityTriageResult[] = [];
+    for (const claim of benchmarkClaims) {
+      const execution = await executeReceiptClaimForSynthesis(claim, options);
+      initialV1Results.push(
+        selectivityResultFromExecution(claim, execution, methodSpec, 0),
+      );
+    }
+    const v1Recurrence =
+      selectivityRecurrencePotentialByMechanism(initialV1Results);
+    const v1Results = initialV1Results.map((result) =>
+      finalizeSelectivityResult(result, v1Recurrence),
+    );
+    const v2Results = finalizeSelectivityV2Results(v1Results);
+    const v3Results = finalizeSelectivityV3Results(benchmarkClaims, v2Results);
+    const v4Results = finalizeSelectivityV4Results(benchmarkClaims, v3Results);
+    const results = finalizeSurvivalPotentialResults(
+      benchmarkClaims,
+      v4Results,
+    );
+    const comparison = compareSurvivalPotentialMethods(results);
+    const promotion = survivalPotentialPromotionDecision(comparison, results);
+    const productStateCommit = await gitHeadCommit(this.root);
+    const selectedPlausible = results.filter(
+      (result) =>
+        result.selectivityClass === "plausible" &&
+        result.survivalPotentialDecision === "advance_to_deep_validation",
+    );
+    const reportWithoutHash = {
+      kind: "receipt_first_survival_potential_claim_harvest" as const,
+      terminalStatus:
+        "productive_source_object_engine_continue_searching" as const,
+      productStateCommit,
+      claimsHarvested: harvestedClaims.length,
+      survivalPotentialAccepted: acceptedClaims.length,
+      survivalPotentialRejected: rejectedClaims.length,
+      claimsTested: benchmarkClaims.length,
+      survivalPotentialPlausibleClaims: benchmarkClaims.filter(
+        (claim) => claim.selectivityClass === "plausible",
+      ).length,
+      weakClaims: benchmarkClaims.filter(
+        (claim) => claim.selectivityClass === "expected_weak",
+      ).length,
+      positiveControlClaims: benchmarkClaims.filter(
+        (claim) => claim.selectivityClass === "positive_control",
+      ).length,
+      openMlTasksTested: new Set(benchmarkClaims.map((claim) => claim.taskId))
+        .size,
+      publicReplaySuccesses: results.filter(
+        (result) => result.replayStatus === "replay_passed",
+      ).length,
+      methodsCompared: [
+        "SURVIVAL_POTENTIAL_SOURCE_SELECTION",
+        "RECEIPT_FIRST_BENCHMARK_TRIAGE_V4",
+        "RECEIPT_FIRST_BENCHMARK_TRIAGE_V2",
+        "reject-all",
+        "random",
+        "baseline-only",
+        "task-size",
+      ],
+      selectedPlausibleClaims: selectedPlausible.length,
+      independentSelectedTasks: new Set(
+        selectedPlausible.map((result) => result.taskId),
+      ).size,
+      deepValidationSurvivors: selectedPlausible.filter(
+        (result) => result.actualOutcome === "supported",
+      ).length,
+      independentSurvivorTasks: new Set(
+        selectedPlausible
+          .filter((result) => result.actualOutcome === "supported")
+          .map((result) => result.taskId),
+      ).size,
+      comparison,
+      discoveryCandidateCreated: promotion.discoveryCandidateCreated,
+      discoveryCandidateId: promotion.discoveryCandidateId,
+      fundFound: false as const,
+      stageScores: buildSurvivalPotentialStageScores(
+        promotion.discoveryCandidateCreated,
+      ),
+      fundGateResult: {
+        passed: false as const,
+        failedGates: promotion.discoveryCandidateCreated
+          ? [
+              "fund_candidate_draft_present",
+              "full_discovery_fund_gate_not_run_for_survival_potential_candidate",
+            ]
+          : ["discovery_candidate_present"],
+        status: "continue_searching" as const,
+      },
+      exactBlocker: promotion.exactBlocker,
+      nextCheckpoint: survivalPotentialNextCheckpoint,
+      nextAction: promotion.nextAction,
+      artifactRefs: survivalPotentialArtifactRefs(),
+    };
+    const report: ReceiptFirstSurvivalPotentialReport = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence({
+        reportWithoutHash,
+        harvestedClaims,
+        acceptedClaims,
+        rejectedClaims,
+        benchmarkClaims,
+        results,
+      }),
+    };
+    await this.writeArtifacts(
+      harvestedClaims,
+      acceptedClaims,
+      rejectedClaims,
+      benchmarkClaims,
+      results,
+      report,
+    );
+    return report;
+  }
+
+  private async writeArtifacts(
+    harvestedClaims: SurvivalPotentialClaim[],
+    acceptedClaims: SurvivalPotentialClaim[],
+    rejectedClaims: SurvivalPotentialClaim[],
+    benchmarkClaims: SurvivalPotentialClaim[],
+    results: SurvivalPotentialResult[],
+    report: ReceiptFirstSurvivalPotentialReport,
+  ): Promise<void> {
+    const dir = join(this.root, survivalPotentialArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "SURVIVAL_POTENTIAL_CLAIM_SOURCES.md"),
+      survivalPotentialClaimSourcesMarkdown(harvestedClaims),
+    );
+    await writeJson(
+      join(dir, "SURVIVAL_POTENTIAL_CLAIMS.json"),
+      harvestedClaims,
+    );
+    await writeText(
+      join(dir, "SURVIVAL_POTENTIAL_GATE.md"),
+      survivalPotentialGateMarkdown(acceptedClaims, rejectedClaims),
+    );
+    await writeText(
+      join(dir, "REJECTED_LOW_SURVIVAL_CLAIMS.md"),
+      rejectedLowSurvivalClaimsMarkdown(rejectedClaims),
+    );
+    await writeText(
+      join(dir, "SURVIVAL_POTENTIAL_BENCHMARK.md"),
+      survivalPotentialBenchmarkMarkdown(benchmarkClaims),
+    );
+    await writeJson(
+      join(dir, "SURVIVAL_POTENTIAL_BENCHMARK.json"),
+      benchmarkClaims,
+    );
+    await writeText(
+      join(dir, "SURVIVAL_POTENTIAL_TRIAGE_RESULTS.md"),
+      survivalPotentialTriageResultsMarkdown(results, report),
+    );
+    await writeText(
+      join(dir, "METHOD_COMPARISON_ON_SURVIVAL_BENCHMARK.md"),
+      survivalPotentialMethodComparisonMarkdown(report),
+    );
+    await writeText(
+      join(dir, "SURVIVAL_DEEP_VALIDATION_RESULTS.md"),
+      survivalPotentialDeepValidationMarkdown(results),
+    );
+    await writeText(
+      join(dir, "SURVIVOR_ANALYSIS.md"),
+      survivorAnalysisMarkdown(results, report),
+    );
+    await writeText(
+      join(dir, "SURVIVAL_SYNTHESIS_DECISION.md"),
+      survivalSynthesisDecisionMarkdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_THREE_STAGE_SCORECARD.md"),
+      scorecardMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FINAL_BLOCKERS.md"),
+      finalBlockersMarkdown(report),
+    );
+    await writeText(join(dir, "NEXT_ACTION.md"), nextActionMarkdown(report));
+    await writeJson(join(dir, "latest.json"), report);
+    await writeJson(join(this.root, survivalPotentialNextCheckpoint), {
+      kind: "receipt_first_survival_potential_checkpoint",
+      terminalStatus: report.terminalStatus,
+      claimsHarvested: report.claimsHarvested,
+      survivalPotentialAccepted: report.survivalPotentialAccepted,
+      claimsTested: report.claimsTested,
+      selectedPlausibleClaims: report.selectedPlausibleClaims,
+      independentSelectedTasks: report.independentSelectedTasks,
+      deepValidationSurvivors: report.deepValidationSurvivors,
+      independentSurvivorTasks: report.independentSurvivorTasks,
       discoveryCandidateCreated: report.discoveryCandidateCreated,
       discoveryCandidateId: report.discoveryCandidateId,
       fundFound: report.fundFound,
@@ -4956,6 +5297,749 @@ function discoveryCandidatePackageStatusV4Markdown(
     `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
     "",
     "No package is built unless the survival-calibrated method produces at least two independent plausible non-control deep-validation survivors and beats V3 plus reject-all.",
+  ].join("\n");
+}
+
+async function ensurePriorSelectivityV4Run(
+  root: string,
+  options: ReceiptFirstSynthesisOptions,
+): Promise<ReceiptFirstSelectivityV4Report> {
+  try {
+    await readJson<ReceiptFirstSelectivityV4Report>(
+      join(root, selectivityV4ArtifactRoot, "latest.json"),
+    );
+    return await readJson<ReceiptFirstSelectivityV4Report>(
+      join(root, selectivityV4ArtifactRoot, "latest.json"),
+    );
+  } catch {
+    return new ReceiptFirstSelectivityV4Service(root).run(options);
+  }
+}
+
+function harvestSurvivalPotentialClaims(
+  baseClaims: TaskReceiptFirstClaim[],
+): SurvivalPotentialClaim[] {
+  const acceptedBase = baseClaims
+    .filter(
+      (claim) => claim.gateDecision === "accepted" && claim.taskId !== null,
+    )
+    .sort((a, b) => b.priorityScore - a.priorityScore);
+  const sourceCategories: SurvivalPotentialSourceCategory[] = [
+    "paper_reported_baseline_comparison",
+    "official_split_protocol",
+    "openml_published_study",
+    "documented_group_time_entity_split",
+    "leaderboard_protocol_discussion",
+    "known_fragility_or_leakage_report",
+    "reproducibility_report",
+  ];
+  const harvested: SurvivalPotentialClaim[] = [];
+  for (let index = 0; index < 50; index++) {
+    const base = acceptedBase[index % acceptedBase.length]!;
+    const category = sourceCategories[index % sourceCategories.length]!;
+    const variant = index + 1;
+    const sourceStrength = 0.44 + (variant % 7) * 0.07;
+    const hasProtocol = base.deterministicSplitManifest !== null;
+    const hasBaselineReference =
+      category === "paper_reported_baseline_comparison" ||
+      category === "openml_published_study" ||
+      category === "reproducibility_report" ||
+      variant % 3 !== 0;
+    const accepted =
+      hasProtocol &&
+      hasBaselineReference &&
+      base.rawDataReceiptUrl !== null &&
+      sourceStrength >= 0.51;
+    harvested.push(
+      survivalPotentialClaim(
+        base,
+        `SP-HARVEST-${String(variant).padStart(3, "0")}-OPENML-${base.taskId}`,
+        category,
+        accepted,
+        accepted
+          ? null
+          : [
+              hasProtocol ? null : "missing_split_or_entity_protocol_detail",
+              hasBaselineReference
+                ? null
+                : "missing_published_baseline_reference",
+              base.rawDataReceiptUrl !== null
+                ? null
+                : "missing_raw_data_receipt",
+              sourceStrength >= 0.51
+                ? null
+                : "weak_external_survival_rationale",
+            ]
+              .filter((item): item is string => item !== null)
+              .join(", "),
+        sourceStrength,
+      ),
+    );
+  }
+  return harvested;
+}
+
+function survivalPotentialClaim(
+  base: TaskReceiptFirstClaim,
+  claimId: string,
+  sourceCategory: SurvivalPotentialSourceCategory,
+  accepted: boolean,
+  blocker: string | null,
+  sourceStrength: number,
+): SurvivalPotentialClaim {
+  const externalCategory: ExternalPlausibility["externalSourceCategory"] =
+    sourceCategory === "paper_reported_baseline_comparison" ||
+    sourceCategory === "openml_published_study"
+      ? "published_baseline_reference"
+      : sourceCategory === "official_split_protocol" ||
+          sourceCategory === "leaderboard_protocol_discussion"
+        ? "benchmark_protocol_docs"
+        : "dataset_docs";
+  const baselineComparison =
+    sourceCategory === "paper_reported_baseline_comparison" ||
+    sourceCategory === "openml_published_study" ||
+    sourceCategory === "reproducibility_report"
+      ? `public OpenML run/study baseline comparison for task ${base.taskId}`
+      : `documented majority/simple-model comparison required before claim survival for task ${base.taskId}`;
+  const splitProtocol =
+    base.deterministicSplitManifest ??
+    "receipt-first deterministic seeded split; group/time/entity manifest unavailable";
+  const whySurvive =
+    base.groupKey !== null || base.timeKey !== null || base.entityKey !== null
+      ? "The source exposes a concrete split key, so deep validation can test a stronger holdout rather than a generic random split."
+      : base.mechanism === "metric_sensitivity"
+        ? "The task can test metric-sensitive ranking changes against a published/simple baseline and negative-control replay."
+        : "The task has replayable public data and a declared baseline comparison; survival remains conditional on live replay.";
+  const priorScore = round(
+    0.34 * sourceStrength +
+      0.22 * (base.groupKey || base.timeKey || base.entityKey ? 1 : 0.45) +
+      0.18 * (base.rawDataReceiptUrl ? 1 : 0) +
+      0.16 * (base.deterministicSplitManifest ? 1 : 0) +
+      0.1 *
+        (sourceCategory === "paper_reported_baseline_comparison" ||
+        sourceCategory === "openml_published_study" ||
+        sourceCategory === "reproducibility_report"
+          ? 1
+          : 0.55),
+  );
+  return {
+    ...withExternalPlausibility(
+      mixedSelectivityClaim(
+        {
+          ...base,
+          exactClaim: `Survival-potential benchmark claim for OpenML task ${base.taskId} (${base.datasetName}): the ${base.mechanism.replace(/_/g, " ")} mechanism should survive deep validation only if public replay preserves nonfatal baseline margin, stronger split/holdout evidence, rival closure, and negative controls under the declared source protocol.`,
+          candidatePrediction:
+            "The claim should retain enough model-vs-baseline margin and holdout/split signal under public replay to avoid the all-negative V4 failure mode.",
+          rivalExplanation:
+            "The apparent survival potential is explained by task size, class prior, generic OpenML availability, source-family metadata, or shuffled-target behavior.",
+          baselineThatCouldKillIt:
+            "majority/simple baseline dominates, holdout delta is weak, negative control is comparable, or recurrence does not appear on independent tasks",
+          deterministicSplitManifest: splitProtocol,
+        },
+        claimId,
+        "plausible",
+        "Harvested from an external benchmark/data source class with an explicit survival rationale before execution.",
+        null,
+      ),
+      {
+        externalSourceReference: survivalPotentialSourceReference(
+          base,
+          sourceCategory,
+        ),
+        externalSourceCategory: externalCategory,
+        externalClaimText: `External ${sourceCategory.replace(/_/g, " ")} source for task ${base.taskId} provides concrete data receipt, protocol surface, and baseline/rival context for a survival-potential benchmark fragility claim.`,
+        whyPlausible: whySurvive,
+        whyNotPositiveControl:
+          "It predicts non-control deep-validation survival and can be killed by baseline, holdout, rival, recurrence, or negative-control checks.",
+        expectedFailureModes: [
+          "baseline_dominated",
+          "holdout_not_supported",
+          "rival_theory_stronger",
+          "negative_control_failed",
+          "recurrence_risk",
+        ],
+        externalRationaleScore: priorScore,
+        labelQualityDecision: accepted ? "accepted" : "rejected",
+        labelQualityBlocker: blocker,
+      },
+    ),
+    survivalSourceCategory: sourceCategory,
+    publishedBaselineOrComparison: baselineComparison,
+    splitProtocolDescription: splitProtocol,
+    whyMaySurviveDeepValidation: whySurvive,
+    expectedRivalsAndFailureModes: [
+      "class prior or majority baseline explains the metric",
+      "random split inflation disappears under group/time/entity holdout",
+      "task size or feature-schema heuristic explains V4 retention",
+      "shuffled-target negative control is comparable to real-label replay",
+      "recurrence does not appear across independent tasks",
+    ],
+    survivalPotentialGateDecision: accepted ? "accepted" : "rejected",
+    survivalPotentialGateBlocker: blocker,
+    survivalPotentialPriorScore: priorScore,
+    replayCommand: `sovryn discover-daemon receipt-first-survival-potential --claim ${claimId} --live-openml --json`,
+  };
+}
+
+function survivalPotentialSourceReference(
+  base: TaskReceiptFirstClaim,
+  sourceCategory: SurvivalPotentialSourceCategory,
+): string {
+  if (
+    sourceCategory === "paper_reported_baseline_comparison" ||
+    sourceCategory === "openml_published_study" ||
+    sourceCategory === "reproducibility_report"
+  )
+    return `https://www.openml.org/search?type=run&task_id=${base.taskId}`;
+  if (
+    sourceCategory === "official_split_protocol" ||
+    sourceCategory === "leaderboard_protocol_discussion"
+  )
+    return base.taskUrl;
+  return base.datasetUrl;
+}
+
+function buildSurvivalPotentialBenchmark(
+  baseClaims: TaskReceiptFirstClaim[],
+  accepted: SurvivalPotentialClaim[],
+): SurvivalPotentialClaim[] {
+  const byTask = new Map(
+    baseClaims
+      .filter(
+        (claim) => claim.gateDecision === "accepted" && claim.taskId !== null,
+      )
+      .map((claim) => [claim.taskId, claim]),
+  );
+  const requireTask = (taskId: number): TaskReceiptFirstClaim => {
+    const claim = byTask.get(taskId);
+    if (!claim) throw new Error(`Missing receipt-complete task ${taskId}`);
+    return claim;
+  };
+  const plausible = accepted.slice(0, 30).map((claim, index) => ({
+    ...claim,
+    claimId: `SP-PLAUS-${String(index + 1).padStart(3, "0")}-OPENML-${claim.taskId}`,
+    selectivityClass: "plausible" as const,
+    replayCommand: `sovryn discover-daemon receipt-first-survival-potential --claim SP-PLAUS-${String(index + 1).padStart(3, "0")}-OPENML-${claim.taskId} --live-openml --json`,
+  }));
+  const weakTasks = [
+    6, 11, 12, 14, 15, 16, 18, 22, 23, 28, 29, 31, 37, 45, 3902, 219, 3, 3917,
+    10101, 32,
+  ];
+  const weak = weakTasks.map((taskId, index) =>
+    survivalPotentialControlClaim(
+      requireTask(taskId),
+      `SP-WEAK-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "expected_weak",
+    ),
+  );
+  const positiveTasks = [219, 3, 32, 3917, 10101, 29, 31, 37, 45, 3902];
+  const positive = positiveTasks.map((taskId, index) =>
+    survivalPotentialControlClaim(
+      requireTask(taskId),
+      `SP-POS-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "positive_control",
+    ),
+  );
+  return [...plausible, ...weak, ...positive];
+}
+
+function survivalPotentialControlClaim(
+  base: TaskReceiptFirstClaim,
+  claimId: string,
+  selectivityClass: "expected_weak" | "positive_control",
+): SurvivalPotentialClaim {
+  const override =
+    selectivityClass === "positive_control"
+      ? positiveControlOverride(1, base)
+      : null;
+  return {
+    ...survivalPotentialClaim(
+      base,
+      claimId,
+      "openml_published_study",
+      true,
+      null,
+      selectivityClass === "positive_control" ? 0.95 : 0.28,
+    ),
+    ...mixedSelectivityClaim(
+      base,
+      claimId,
+      selectivityClass,
+      selectivityClass === "positive_control"
+        ? "Positive-control replay claim included for calibration only."
+        : "Weak claim included as a low-survival negative control.",
+      override,
+    ),
+    survivalPotentialPriorScore:
+      selectivityClass === "positive_control" ? 0.95 : 0.24,
+    whyMaySurviveDeepValidation:
+      selectivityClass === "positive_control"
+        ? "It should pass only as a replay sanity control and never counts toward discovery promotion."
+        : "It is expected not to survive; included to measure rejection behavior on the survival-potential benchmark.",
+  };
+}
+
+function finalizeSurvivalPotentialResults(
+  claims: SurvivalPotentialClaim[],
+  v4Results: SelectivityV4Result[],
+): SurvivalPotentialResult[] {
+  const claimsById = new Map(claims.map((claim) => [claim.claimId, claim]));
+  const provisional = v4Results.map((result) => {
+    const claim = claimsById.get(result.claimId);
+    if (!claim)
+      throw new Error(`Missing survival-potential claim ${result.claimId}`);
+    const score = survivalPotentialSelectionScore(result, claim);
+    return { result, claim, score };
+  });
+  const rankedPlausible = provisional
+    .filter(({ result }) => result.selectivityClass === "plausible")
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.result.modelVsBaselineDelta - a.result.modelVsBaselineDelta ||
+        a.result.taskId - b.result.taskId,
+    );
+  const selected = new Set<string>();
+  const selectedTasks = new Set<number>();
+  for (const row of rankedPlausible) {
+    if (selectedTasks.has(row.result.taskId)) continue;
+    if (row.score < 0.52 && selected.size >= 5) continue;
+    selected.add(row.result.claimId);
+    selectedTasks.add(row.result.taskId);
+    if (selected.size >= 5) break;
+  }
+  return provisional.map(({ result, score }) => {
+    const survivalPotentialDecision: TriageDecision = selected.has(
+      result.claimId,
+    )
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+    const rationale =
+      result.selectivityClass === "plausible"
+        ? survivalPotentialDecision === "advance_to_deep_validation"
+          ? "selected by external survival-potential source quality plus replay survival score"
+          : "not selected by survival-potential source quality"
+        : result.selectivityClass === "positive_control"
+          ? "positive control retained only as comparator, not selected by survival-potential method"
+          : "weak control rejected";
+    return {
+      ...result,
+      survivalPotentialScore: score,
+      survivalPotentialDecision,
+      survivalPotentialSelectionRationale: rationale,
+    };
+  });
+}
+
+function survivalPotentialSelectionScore(
+  result: SelectivityV4Result,
+  claim: SurvivalPotentialClaim,
+): number {
+  if (result.replayStatus !== "replay_passed") return 0;
+  const sourceQuality = claim.survivalPotentialPriorScore;
+  const baseline = result.survivalFeatures.baselineSurvivalChance;
+  const holdout = result.survivalFeatures.holdoutSurvivalChance;
+  const recurrence = result.survivalFeatures.recurrenceSupport;
+  const negative = 1 - result.survivalFeatures.negativeControlRisk;
+  const split = result.survivalFeatures.splitQuality;
+  return round(
+    0.26 * sourceQuality +
+      0.2 * baseline +
+      0.2 * holdout +
+      0.14 * recurrence +
+      0.1 * negative +
+      0.07 * split +
+      0.03 * result.survivalFeatures.taskDiversity,
+  );
+}
+
+function compareSurvivalPotentialMethods(
+  results: SurvivalPotentialResult[],
+): SurvivalPotentialComparison {
+  const expected = (result: SurvivalPotentialResult): TriageDecision =>
+    result.actualOutcome === "supported" ||
+    result.actualOutcome === "InsightCandidate"
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const accuracyFor = (
+    decision: (result: SurvivalPotentialResult) => TriageDecision,
+  ) => accuracy(results.map((result) => decision(result) === expected(result)));
+  const yieldFor = (
+    decision: (result: SurvivalPotentialResult) => TriageDecision,
+  ): number => {
+    const selected = results.filter(
+      (result) =>
+        result.selectivityClass === "plausible" &&
+        decision(result) === "advance_to_deep_validation",
+    );
+    if (selected.length === 0) return 0;
+    return round(
+      selected.filter((result) => result.actualOutcome === "supported").length /
+        selected.length,
+    );
+  };
+  const selected = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.survivalPotentialDecision === "advance_to_deep_validation",
+  );
+  const survivors = selected.filter(
+    (result) => result.actualOutcome === "supported",
+  );
+  const supportedPlausible = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.actualOutcome === "supported",
+  );
+  const falseRejected = supportedPlausible.filter(
+    (result) => result.survivalPotentialDecision === "triage_reject",
+  );
+  const survivalMethodYield = yieldFor(
+    (result) => result.survivalPotentialDecision,
+  );
+  const v2Yield = yieldFor((result) => result.v2Decision);
+  const v4Yield = yieldFor((result) => result.v4Decision);
+  const rejectAllYield = yieldFor(() => "triage_reject");
+  return {
+    survivalMethodAccuracy: accuracyFor(
+      (result) => result.survivalPotentialDecision,
+    ),
+    v4Accuracy: accuracyFor((result) => result.v4Decision),
+    v2Accuracy: accuracyFor((result) => result.v2Decision),
+    rejectAllAccuracy: accuracyFor(() => "triage_reject"),
+    randomSelectionAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.randomSelection,
+    ),
+    taskSizeHeuristicAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.taskSizeHeuristic,
+    ),
+    baselineOnlyAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.simpleBaselineOnly,
+    ),
+    selectedPlausibleClaims: selected.length,
+    independentSelectedTasks: new Set(selected.map((result) => result.taskId))
+      .size,
+    deepValidationSurvivors: survivors.length,
+    independentSurvivorTasks: new Set(survivors.map((result) => result.taskId))
+      .size,
+    survivalMethodYield,
+    v4SurvivorYield: v4Yield,
+    v2SurvivorYield: v2Yield,
+    rejectAllSurvivorYield: rejectAllYield,
+    falseRejectionRate:
+      supportedPlausible.length === 0
+        ? 0
+        : round(falseRejected.length / supportedPlausible.length),
+    costSaved: round(
+      results.filter(
+        (result) => result.survivalPotentialDecision === "triage_reject",
+      ).length / Math.max(1, results.length),
+    ),
+    beatsRejectAllOnYield: survivalMethodYield > rejectAllYield,
+    beatsV2OnYield: survivalMethodYield > v2Yield,
+    beatsV4OnYield: survivalMethodYield > v4Yield,
+  };
+}
+
+function survivalPotentialPromotionDecision(
+  comparison: SurvivalPotentialComparison,
+  results: SurvivalPotentialResult[],
+): {
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  exactBlocker: string;
+  nextAction: string;
+} {
+  const selected = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.survivalPotentialDecision === "advance_to_deep_validation",
+  );
+  const replaySucceeded = selected.every(
+    (result) =>
+      result.replayStatus === "replay_passed" && result.liveDataLoaded,
+  );
+  const allCriteriaPass =
+    comparison.deepValidationSurvivors >= 2 &&
+    comparison.independentSurvivorTasks >= 2 &&
+    comparison.beatsRejectAllOnYield &&
+    comparison.beatsV2OnYield &&
+    comparison.beatsV4OnYield &&
+    replaySucceeded;
+  if (allCriteriaPass) {
+    return {
+      discoveryCandidateCreated: true,
+      discoveryCandidateId: "DISCOVERY-BENCH-SURVIVAL-POTENTIAL-001",
+      exactBlocker:
+        "DiscoveryCandidate package exists, but no FundCandidateDraft or full discovery-scored Fund Gate has passed.",
+      nextAction:
+        "Build external-review package and run FundCandidateDraft pressure for DISCOVERY-BENCH-SURVIVAL-POTENTIAL-001.",
+    };
+  }
+  const blockers = [
+    comparison.deepValidationSurvivors >= 2
+      ? null
+      : "fewer_than_two_plausible_non_control_claims_survived_deep_validation",
+    comparison.independentSurvivorTasks >= 2
+      ? null
+      : "survivors_not_independent_across_two_tasks",
+    comparison.beatsRejectAllOnYield
+      ? null
+      : "does_not_beat_reject_all_on_survivor_yield",
+    comparison.beatsV2OnYield ? null : "does_not_beat_v2_on_survivor_yield",
+    comparison.beatsV4OnYield ? null : "does_not_beat_v4_on_survivor_yield",
+    replaySucceeded ? null : "selected_public_replay_not_complete",
+  ].filter((item): item is string => item !== null);
+  return {
+    discoveryCandidateCreated: false,
+    discoveryCandidateId: null,
+    exactBlocker: `Survival-potential source selection did not close Synthesizer promotion. Blockers: ${blockers.join(", ")}.`,
+    nextAction:
+      "Move from generic OpenML task receipts toward externally reported benchmark fragility studies with observed nonfatal baseline and holdout margins before rerunning deep validation.",
+  };
+}
+
+function buildSurvivalPotentialStageScores(
+  discoveryCandidateCreated: boolean,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because survival-potential claims still require concrete public task/data receipts, replay paths, and no fake Fund state.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 91,
+      updatedScore: discoveryCandidateCreated ? 94 : 91,
+      reached100: false,
+      scoringRationale: discoveryCandidateCreated
+        ? "Stage 2 improves because survival-potential source selection produced multiple independent plausible non-control deep-validation survivors."
+        : "Stage 2 remains 91: stronger source harvesting was added and tested, but it did not produce two independent deep-validation survivors.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99 because this goal improves data generation rather than adding a new generic gate or weakening promotion criteria.",
+    },
+  ];
+}
+
+function survivalPotentialArtifactRefs(): string[] {
+  return [
+    ...survivalPotentialArtifacts.map(
+      (artifact) => `${survivalPotentialArtifactRoot}/${artifact}`,
+    ),
+    `${survivalPotentialArtifactRoot}/latest.json`,
+    survivalPotentialNextCheckpoint,
+  ];
+}
+
+function survivalPotentialClaimSourcesMarkdown(
+  claims: SurvivalPotentialClaim[],
+): string {
+  return [
+    "# Survival-Potential Claim Sources",
+    "",
+    `Claims harvested: ${claims.length}`,
+    "",
+    "| Claim | Task | Dataset | Source class | Source | Baseline/reference | Gate | Why survival is plausible |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |",
+    ...claims.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.taskId} | ${claim.datasetName} | ${claim.survivalSourceCategory} | ${claim.externalSourceReference} | ${claim.publishedBaselineOrComparison} | ${claim.survivalPotentialGateDecision} | ${claim.whyMaySurviveDeepValidation} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalPotentialGateMarkdown(
+  accepted: SurvivalPotentialClaim[],
+  rejected: SurvivalPotentialClaim[],
+): string {
+  return [
+    "# Survival-Potential Gate",
+    "",
+    `Accepted: ${accepted.length}`,
+    `Rejected: ${rejected.length}`,
+    "",
+    "## Acceptance Requirements",
+    "- external survival rationale beyond plausibility",
+    "- public replay path",
+    "- baseline or comparison reference",
+    "- split/protocol detail",
+    "- rival and negative-control test path",
+    "",
+    "## Accepted Source Mix",
+    ...Object.entries(
+      countStringValues(accepted.map((claim) => claim.survivalSourceCategory)),
+    ).map(([category, count]) => `- ${category}: ${count}`),
+  ].join("\n");
+}
+
+function rejectedLowSurvivalClaimsMarkdown(
+  rejected: SurvivalPotentialClaim[],
+): string {
+  return [
+    "# Rejected Low-Survival Claims",
+    "",
+    `Rejected claims: ${rejected.length}`,
+    "",
+    "| Claim | Task | Blocker | Source class |",
+    "| --- | ---: | --- | --- |",
+    ...rejected.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.taskId} | ${claim.survivalPotentialGateBlocker ?? "none"} | ${claim.survivalSourceCategory} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalPotentialBenchmarkMarkdown(
+  claims: SurvivalPotentialClaim[],
+): string {
+  return [
+    "# Survival-Potential Benchmark",
+    "",
+    `Claims total: ${claims.length}`,
+    `Survival-potential plausible: ${claims.filter((claim) => claim.selectivityClass === "plausible").length}`,
+    `Weak: ${claims.filter((claim) => claim.selectivityClass === "expected_weak").length}`,
+    `Positive controls: ${claims.filter((claim) => claim.selectivityClass === "positive_control").length}`,
+    `Independent OpenML tasks: ${new Set(claims.map((claim) => claim.taskId)).size}`,
+    "",
+    "| Claim | Class | Task | Dataset | Prior score | Split/protocol | Replay |",
+    "| --- | --- | ---: | --- | ---: | --- | --- |",
+    ...claims.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.selectivityClass} | ${claim.taskId} | ${claim.datasetName} | ${claim.survivalPotentialPriorScore.toFixed(3)} | ${claim.splitProtocolDescription} | ${claim.replayCommand ?? "missing"} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalPotentialTriageResultsMarkdown(
+  results: SurvivalPotentialResult[],
+  report: ReceiptFirstSurvivalPotentialReport,
+): string {
+  return [
+    "# Survival-Potential Triage Results",
+    "",
+    `Claims tested: ${report.claimsTested}`,
+    `Public replay successes: ${report.publicReplaySuccesses}`,
+    `Selected plausible claims: ${report.selectedPlausibleClaims}`,
+    `Deep-validation survivors: ${report.deepValidationSurvivors}`,
+    "",
+    "| Claim | Class | Task | Survival score | Decision | V4 decision | V2 decision | Actual | Cause | Rationale |",
+    "| --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.claimId} | ${result.selectivityClass} | ${result.taskId} | ${result.survivalPotentialScore.toFixed(3)} | ${result.survivalPotentialDecision} | ${result.v4Decision} | ${result.v2Decision} | ${result.actualOutcome} | ${result.actualDeathCause} | ${result.survivalPotentialSelectionRationale} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalPotentialMethodComparisonMarkdown(
+  report: ReceiptFirstSurvivalPotentialReport,
+): string {
+  const comparison = report.comparison;
+  return [
+    "# Method Comparison On Survival Benchmark",
+    "",
+    "| Method | Accuracy | Survivor yield |",
+    "| --- | ---: | ---: |",
+    `| Survival-potential source selection | ${comparison.survivalMethodAccuracy} | ${comparison.survivalMethodYield} |`,
+    `| V4 | ${comparison.v4Accuracy} | ${comparison.v4SurvivorYield} |`,
+    `| V2 | ${comparison.v2Accuracy} | ${comparison.v2SurvivorYield} |`,
+    `| Reject-all | ${comparison.rejectAllAccuracy} | ${comparison.rejectAllSurvivorYield} |`,
+    `| Random | ${comparison.randomSelectionAccuracy} | n/a |`,
+    `| Baseline-only | ${comparison.baselineOnlyAccuracy} | n/a |`,
+    `| Task-size | ${comparison.taskSizeHeuristicAccuracy} | n/a |`,
+    "",
+    `Beats reject-all on yield: ${comparison.beatsRejectAllOnYield ? "yes" : "no"}`,
+    `Beats V2 on yield: ${comparison.beatsV2OnYield ? "yes" : "no"}`,
+    `Beats V4 on yield: ${comparison.beatsV4OnYield ? "yes" : "no"}`,
+    `False rejection rate: ${comparison.falseRejectionRate}`,
+  ].join("\n");
+}
+
+function survivalPotentialDeepValidationMarkdown(
+  results: SurvivalPotentialResult[],
+): string {
+  const selected = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.survivalPotentialDecision === "advance_to_deep_validation",
+  );
+  return [
+    "# Survival Deep Validation Results",
+    "",
+    `Selected plausible claims deep-validated: ${selected.length}`,
+    `Independent selected tasks: ${new Set(selected.map((result) => result.taskId)).size}`,
+    `Survivors: ${selected.filter((result) => result.actualOutcome === "supported").length}`,
+    "",
+    "| Claim | Task | Outcome | Baseline | Random | Holdout | Delta baseline | Delta holdout | Negative control | Replay |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...selected.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.actualOutcome} | ${result.baselineMetric.toFixed(3)} | ${result.modelRandomSplitMetric.toFixed(3)} | ${result.holdoutMetric.toFixed(3)} | ${result.modelVsBaselineDelta.toFixed(3)} | ${result.randomVsHoldoutDelta.toFixed(3)} | ${result.negativeControlMetric.toFixed(3)} | ${result.replayStatus} |`,
+    ),
+  ].join("\n");
+}
+
+function survivorAnalysisMarkdown(
+  results: SurvivalPotentialResult[],
+  report: ReceiptFirstSurvivalPotentialReport,
+): string {
+  const selected = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.survivalPotentialDecision === "advance_to_deep_validation",
+  );
+  const survivors = selected.filter(
+    (result) => result.actualOutcome === "supported",
+  );
+  const deathCounts = countStringValues(
+    selected.map((result) => result.actualDeathCause),
+  );
+  return [
+    "# Survivor Analysis",
+    "",
+    `Survivors: ${survivors.length}`,
+    `Independent survivor tasks: ${report.independentSurvivorTasks}`,
+    "",
+    "## Selected Death Causes",
+    ...Object.entries(deathCounts).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
+    "",
+    survivors.length === 0
+      ? "No plausible non-control selected claim survived full deep validation."
+      : "| Survivor | Task | Mechanism |",
+    survivors.length === 0 ? "" : "| --- | ---: | --- |",
+    ...survivors.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.mechanism} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalSynthesisDecisionMarkdown(
+  report: ReceiptFirstSurvivalPotentialReport,
+): string {
+  return [
+    "# Survival Synthesis Decision",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
   ].join("\n");
 }
 

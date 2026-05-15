@@ -1,6 +1,6 @@
 # Final Blockers
 
-INSIGHT-BENCH-TRIAGE-SELECTIVITY-001 remains an InsightCandidate. Blockers: fewer_than_two_plausible_non_control_claims_survived_deep_validation, plausible_survivors_not_independent_across_two_tasks.
+Survival-potential source selection did not close Synthesizer promotion. Blockers: fewer_than_two_plausible_non_control_claims_survived_deep_validation, survivors_not_independent_across_two_tasks, does_not_beat_reject_all_on_survivor_yield, does_not_beat_v2_on_survivor_yield, does_not_beat_v4_on_survivor_yield.
 
 Fund Gate passed: no
 Failed gates: discovery_candidate_present

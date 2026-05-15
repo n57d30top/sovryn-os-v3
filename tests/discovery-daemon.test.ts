@@ -10168,6 +10168,49 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
       2,
     ),
   );
+  const publicPackageRoot = join(
+    dirname(root),
+    "sovryn-open-inventions",
+    "results",
+    "second-survivor-benchmark-triage-methodology-review-intake",
+  );
+  await mkdir(publicPackageRoot, { recursive: true });
+  await writeFile(
+    join(publicPackageRoot, "SUMMARY.json"),
+    JSON.stringify(
+      {
+        kind: "benchmark_methodology_review_intake_summary",
+        publicReviewStatus: "external_review_intake_ready_with_major_caveats",
+        fundClass: "pipeline_fund_candidate",
+        countsForDiscoveryScore: false,
+        notificationAllowed: false,
+        fundFound: false,
+        standalonePublicReplayStatus:
+          "public_raw_replay_reproduced_with_rounding_caveat",
+        standalonePublicReplayReadsProductState: false,
+        standalonePublicReplayExternalValidation: false,
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(
+    join(publicPackageRoot, "standalone_replay_results.json"),
+    JSON.stringify(
+      {
+        kind: "second_survivor_standalone_public_replay",
+        resultStatus: "public_raw_replay_reproduced_with_rounding_caveat",
+        productMetricsMatched: false,
+        productMetricsWithinRoundingTolerance: true,
+        standalonePublicReplayReadsProductState: false,
+        standalonePublicReplayExternalValidation: false,
+        countsForDiscoveryScore: false,
+        fundFound: false,
+      },
+      null,
+      2,
+    ),
+  );
 
   const report = await new AutonomousDiscoveryDaemonService(
     root,
@@ -10183,6 +10226,24 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   );
   const completionAudit = report.completionAudit as Record<string, unknown>;
   assert.equal(completionAudit.achieved, false);
+  const publicReviewPackage = report.publicReviewPackage as Record<
+    string,
+    unknown
+  >;
+  assert.equal(publicReviewPackage.present, true);
+  assert.equal(
+    publicReviewPackage.status,
+    "public_replay_reproduced_with_rounding_caveat",
+  );
+  assert.equal(
+    publicReviewPackage.standalonePublicReplayExternalValidation,
+    false,
+  );
+  assert.equal(publicReviewPackage.productMetricsWithinRoundingTolerance, true);
+  const targetedRun = report.targetedRun as Record<string, unknown>;
+  assert.equal(targetedRun.publicCorpusReviewPackagePresent, true);
+  assert.equal(targetedRun.standaloneReplayWithinRoundingTolerance, true);
+  assert.equal(targetedRun.publicPackageCountsForDiscoveryScore, false);
   for (const artifact of [
     "ALL_LAYER_SCORE_AUDIT.md",
     "DISCOVERY_SCIENTIST_100_PLAN.md",
@@ -10200,6 +10261,18 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
     await access(join(root, artifact));
     await access(join(root, daemonRoot, "all-layer-100-closure", artifact));
   }
+  const targetedRunMarkdown = await readFile(
+    join(root, "TARGETED_DISCOVERY_RUN_RESULTS.md"),
+    "utf8",
+  );
+  assert.match(
+    targetedRunMarkdown,
+    /Standalone public replay status: public_raw_replay_reproduced_with_rounding_caveat/,
+  );
+  assert.match(
+    targetedRunMarkdown,
+    /Standalone replay external validation: false/,
+  );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(
     await exists(join(root, daemonRoot, "fund-candidate.json")),

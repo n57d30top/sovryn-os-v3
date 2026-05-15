@@ -6119,6 +6119,10 @@ const allLayer100ClosureRoot =
   ".sovryn/discovery-daemon/all-layer-100-closure" as const;
 const allLayer100ClosureCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/all-layer-100-closure-continue-searching.json" as const;
+const secondSurvivorPublicReviewSlug =
+  "second-survivor-benchmark-triage-methodology-review-intake" as const;
+const secondSurvivorPublicReviewResultPath =
+  `results/${secondSurvivorPublicReviewSlug}` as const;
 export const daemonDefaultRunQuantum = 25;
 const generatorBirthResidualFloor = 0.1;
 export const publicCorpusBaseRef =
@@ -65996,6 +66000,31 @@ type AllLayer100Blocker = {
   outcome: "closed" | "still_blocked";
 };
 
+type AllLayer100PublicReviewPackage = {
+  slug: string;
+  resultPath: string;
+  publicResultUrl: string;
+  present: boolean;
+  summaryPresent: boolean;
+  standaloneReplayPresent: boolean;
+  publicReviewStatus: string | null;
+  fundClass: string | null;
+  countsForDiscoveryScore: boolean | null;
+  notificationAllowed: boolean | null;
+  fundFound: boolean | null;
+  standalonePublicReplayStatus: string | null;
+  standalonePublicReplayReadsProductState: boolean | null;
+  standalonePublicReplayExternalValidation: boolean | null;
+  productMetricsMatched: boolean | null;
+  productMetricsWithinRoundingTolerance: boolean | null;
+  status:
+    | "not_found"
+    | "public_replay_exact"
+    | "public_replay_reproduced_with_rounding_caveat"
+    | "public_package_present_replay_incomplete";
+  blocker: string;
+};
+
 function allLayer100ArtifactRefs(): string[] {
   const files = [
     "ALL_LAYER_SCORE_AUDIT.md",
@@ -66018,10 +66047,76 @@ function allLayer100ArtifactRefs(): string[] {
   ];
 }
 
+async function readAllLayer100PublicSecondSurvivorPackage(
+  root: string,
+): Promise<AllLayer100PublicReviewPackage> {
+  const resultRoot = join(
+    dirname(root),
+    "sovryn-open-inventions",
+    secondSurvivorPublicReviewResultPath,
+  );
+  const summary = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "SUMMARY.json"),
+  );
+  const replay = await readOptionalJson<Record<string, unknown>>(
+    join(resultRoot, "standalone_replay_results.json"),
+  );
+  const present = summary !== null || replay !== null;
+  const productMetricsMatched = optionalBoolean(replay?.productMetricsMatched);
+  const productMetricsWithinRoundingTolerance = optionalBoolean(
+    replay?.productMetricsWithinRoundingTolerance,
+  );
+  const standaloneReplayPresent = replay !== null;
+  const status: AllLayer100PublicReviewPackage["status"] =
+    !present || summary === null
+      ? "not_found"
+      : productMetricsMatched === true
+        ? "public_replay_exact"
+        : productMetricsWithinRoundingTolerance === true
+          ? "public_replay_reproduced_with_rounding_caveat"
+          : "public_package_present_replay_incomplete";
+  const blocker =
+    status === "public_replay_exact" ||
+    status === "public_replay_reproduced_with_rounding_caveat"
+      ? "Public standalone replay is surfaced and public-safe, but it is not independent external validation or a discovery-scored review."
+      : "Public standalone replay evidence is missing or incomplete in the corpus package.";
+  return {
+    slug: secondSurvivorPublicReviewSlug,
+    resultPath: secondSurvivorPublicReviewResultPath,
+    publicResultUrl: `${publicCorpusBaseRef}/tree/main/${secondSurvivorPublicReviewResultPath}`,
+    present,
+    summaryPresent: summary !== null,
+    standaloneReplayPresent,
+    publicReviewStatus:
+      optionalString(summary?.publicReviewStatus) ??
+      optionalString(summary?.candidateStatus),
+    fundClass: optionalString(summary?.fundClass),
+    countsForDiscoveryScore: optionalBoolean(summary?.countsForDiscoveryScore),
+    notificationAllowed: optionalBoolean(summary?.notificationAllowed),
+    fundFound: optionalBoolean(summary?.fundFound),
+    standalonePublicReplayStatus:
+      optionalString(summary?.standalonePublicReplayStatus) ??
+      optionalString(replay?.resultStatus),
+    standalonePublicReplayReadsProductState: optionalBoolean(
+      summary?.standalonePublicReplayReadsProductState ??
+        replay?.standalonePublicReplayReadsProductState,
+    ),
+    standalonePublicReplayExternalValidation: optionalBoolean(
+      summary?.standalonePublicReplayExternalValidation ??
+        replay?.standalonePublicReplayExternalValidation,
+    ),
+    productMetricsMatched,
+    productMetricsWithinRoundingTolerance,
+    status,
+    blocker,
+  };
+}
+
 function allLayer100ScoreRows(input: {
   methodologyReport: Record<string, unknown>;
   nobelReadiness: Record<string, unknown>;
   stageSixScorecard: string | null;
+  publicReviewPackage: AllLayer100PublicReviewPackage;
 }): AllLayer100ScoreRow[] {
   const stageScores = Array.isArray(input.methodologyReport.stageScores)
     ? (input.methodologyReport.stageScores as Array<Record<string, unknown>>)
@@ -66050,6 +66145,9 @@ function allLayer100ScoreRows(input: {
     typeof input.nobelReadiness.totalScore === "number"
       ? input.nobelReadiness.totalScore
       : 46;
+  const publicReplaySurfaced =
+    input.publicReviewPackage.productMetricsMatched === true ||
+    input.publicReviewPackage.productMetricsWithinRoundingTolerance === true;
   return [
     {
       layer: "Validator",
@@ -66067,9 +66165,12 @@ function allLayer100ScoreRows(input: {
       after: stageScore("Autonomous Synthesizer", 95),
       target: 100,
       status: "near_complete",
-      blocker:
-        "The second-survivor method has bounded methodology value, but external review is still missing.",
-      evidence: "second-survivor-methodology-evidence/latest.json",
+      blocker: publicReplaySurfaced
+        ? "The public standalone replay is reproduced with the recorded caveat, but it is not independent external validation; accepted external methodology review or third-party reproduction is still missing."
+        : "The second-survivor method has bounded methodology value, but public standalone replay and external review are still missing or incomplete.",
+      evidence: publicReplaySurfaced
+        ? `${secondSurvivorPublicReviewResultPath}/SUMMARY.json and ${secondSurvivorPublicReviewResultPath}/standalone_replay_results.json`
+        : "second-survivor-methodology-evidence/latest.json",
     },
     {
       layer: "Structural Understanding",
@@ -66132,6 +66233,7 @@ function allLayer100Blockers(input: {
   nobelReadiness: Record<string, unknown>;
   scoreRows: AllLayer100ScoreRow[];
   fundGateResult: FundGateResult;
+  publicReviewPackage: AllLayer100PublicReviewPackage;
 }): AllLayer100Blocker[] {
   const exactMethodologyBlocker =
     optionalString(input.methodologyReport.exactBlocker) ??
@@ -66155,7 +66257,9 @@ function allLayer100Blockers(input: {
             : row.blocker,
       actionTaken:
         row.layer === "Synthesizer"
-          ? "Ran second-survivor methodology evidence hardening and value tests."
+          ? input.publicReviewPackage.present
+            ? "Ran second-survivor methodology evidence hardening, published/read the public review-intake package, and surfaced standalone public replay while keeping discovery/Fund blocked."
+            : "Ran second-survivor methodology evidence hardening and value tests."
           : row.layer === "Discovery Scientist"
             ? `Ran unchanged Fund Gate; current class is ${input.fundGateResult.fundClass ?? "none"} and notificationAllowed=${String(input.fundGateResult.notificationAllowed)}.`
             : "Loaded latest score evidence and kept layer capped until a discovery-scored candidate exists.",
@@ -66166,6 +66270,7 @@ function allLayer100Blockers(input: {
 function allLayer100TargetedRun(input: {
   methodologyReport: Record<string, unknown>;
   fundGateResult: FundGateResult;
+  publicReviewPackage: AllLayer100PublicReviewPackage;
 }): Record<string, unknown> {
   return {
     runId: "second-survivor-methodology-evidence",
@@ -66183,14 +66288,33 @@ function allLayer100TargetedRun(input: {
     fundGatePassed: input.fundGateResult.passed,
     fundClass: input.fundGateResult.fundClass ?? "none",
     notificationAllowed: input.fundGateResult.notificationAllowed,
+    publicCorpusReviewPackagePresent: input.publicReviewPackage.present,
+    publicCorpusReviewPackageStatus: input.publicReviewPackage.status,
+    publicReviewStatus: input.publicReviewPackage.publicReviewStatus,
+    standalonePublicReplayStatus:
+      input.publicReviewPackage.standalonePublicReplayStatus,
+    standaloneReplayWithinRoundingTolerance:
+      input.publicReviewPackage.productMetricsWithinRoundingTolerance === true,
+    standaloneReplayExactProductMetrics:
+      input.publicReviewPackage.productMetricsMatched === true,
+    standaloneReplayReadsProductState:
+      input.publicReviewPackage.standalonePublicReplayReadsProductState,
+    standaloneReplayExternalValidation:
+      input.publicReviewPackage.standalonePublicReplayExternalValidation,
+    publicPackageCountsForDiscoveryScore:
+      input.publicReviewPackage.countsForDiscoveryScore === true,
+    publicPackageFundFound: input.publicReviewPackage.fundFound === true,
+    publicPackageRef: input.publicReviewPackage.resultPath,
+    publicPackageUrl: input.publicReviewPackage.publicResultUrl,
     result:
-      "Targeted evidence run hardened the strongest candidate package but did not produce discovery-scored notification authority.",
+      "Targeted evidence run hardened the strongest candidate package and surfaced public standalone replay evidence, but did not produce discovery-scored notification authority or external validation.",
   };
 }
 
 function allLayer100PromotionDecision(input: {
   methodologyReport: Record<string, unknown>;
   fundGateResult: FundGateResult;
+  publicReviewPackage: AllLayer100PublicReviewPackage;
 }): Record<string, unknown> {
   const notificationAllowed =
     input.fundGateResult.notificationAllowed === true &&
@@ -66204,13 +66328,21 @@ function allLayer100PromotionDecision(input: {
     fundGatePassed: input.fundGateResult.passed,
     fundClass: input.fundGateResult.fundClass ?? "none",
     discoveryScored: input.methodologyReport.discoveryScored === true,
+    publicReviewStatus: input.publicReviewPackage.publicReviewStatus,
+    standalonePublicReplayStatus:
+      input.publicReviewPackage.standalonePublicReplayStatus,
+    standaloneReplayWithinRoundingTolerance:
+      input.publicReviewPackage.productMetricsWithinRoundingTolerance === true,
+    standaloneReplayExternalValidation:
+      input.publicReviewPackage.standalonePublicReplayExternalValidation ===
+      true,
     notificationAllowed,
     fundFound: false,
     decision: notificationAllowed
       ? "would_notify_if_FUND_FOUND_written"
       : "do_not_promote_or_notify",
     reason:
-      "The current strongest candidate remains a pipeline_fund_candidate; external review or independent external reproduction is required before discovery-scored promotion.",
+      "The current strongest candidate remains a pipeline_fund_candidate. Public standalone replay improves inspectability but is not external validation; accepted external review or independent external reproduction is required before discovery-scored promotion.",
   };
 }
 
@@ -66220,6 +66352,7 @@ function allLayer100CompletionAudit(input: {
   methodologyReport: Record<string, unknown>;
   fundGateResult: FundGateResult;
   nobelReadiness: Record<string, unknown>;
+  publicReviewPackage: AllLayer100PublicReviewPackage;
 }): Record<string, unknown> {
   const requiredArtifacts = allLayer100ArtifactRefs().filter((ref) =>
     ref.endsWith(".md"),
@@ -66246,6 +66379,18 @@ function allLayer100CompletionAudit(input: {
         covered: true,
       },
       {
+        requirement:
+          "Surface public corpus review package and standalone replay evidence",
+        evidence: `${secondSurvivorPublicReviewResultPath}/SUMMARY.json and ${secondSurvivorPublicReviewResultPath}/standalone_replay_results.json`,
+        covered:
+          input.publicReviewPackage.present &&
+          (input.publicReviewPackage.productMetricsMatched === true ||
+            input.publicReviewPackage.productMetricsWithinRoundingTolerance ===
+              true) &&
+          input.publicReviewPackage.standalonePublicReplayExternalValidation !==
+            true,
+      },
+      {
         requirement: "Do not create fake FUND_FOUND",
         evidence:
           "DISCOVERY_PROMOTION_DECISIONS.md and FUND_GATE_RESULTS.md record notificationAllowed=false and fundFound=false.",
@@ -66266,6 +66411,9 @@ function allLayer100CompletionAudit(input: {
     requiredArtifacts,
     unresolvedRequirements: [
       ...input.blockers.map((blocker) => blocker.exactBlocker),
+      ...(input.publicReviewPackage.present
+        ? []
+        : ["public_second_survivor_review_package_not_found"]),
       ...(input.scoreRows.every((row) => row.after >= row.target)
         ? []
         : ["not_all_layers_at_100"]),
@@ -66448,6 +66596,15 @@ function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
     `Independent survivor tasks: ${String(run.independentSurvivorTasks)}`,
     `Public raw replay closed: ${String(run.publicRawReplayClosed)}`,
     `Methodology value tests: ${String(run.methodologyValueTestsPassed)}/${String(run.methodologyValueTests)}`,
+    `Public corpus review package present: ${String(run.publicCorpusReviewPackagePresent)}`,
+    `Public corpus review package status: ${String(run.publicCorpusReviewPackageStatus)}`,
+    `Public review status: ${String(run.publicReviewStatus)}`,
+    `Standalone public replay status: ${String(run.standalonePublicReplayStatus)}`,
+    `Standalone replay within rounding tolerance: ${String(run.standaloneReplayWithinRoundingTolerance)}`,
+    `Standalone replay exact Product metrics: ${String(run.standaloneReplayExactProductMetrics)}`,
+    `Standalone replay reads Product state: ${String(run.standaloneReplayReadsProductState)}`,
+    `Standalone replay external validation: ${String(run.standaloneReplayExternalValidation)}`,
+    `Public package counts for discovery score: ${String(run.publicPackageCountsForDiscoveryScore)}`,
     `Fund class: ${String(run.fundClass)}`,
     `Notification allowed: ${String(run.notificationAllowed)}`,
     "",
@@ -69117,24 +69274,30 @@ export class AutonomousDiscoveryDaemonService {
       (await readOptionalJson<Record<string, unknown>>(
         join(this.root, ".sovryn/route/route-scorecard.json"),
       )) ?? {};
+    const publicReviewPackage =
+      await readAllLayer100PublicSecondSurvivorPackage(this.root);
     const scoreRows = allLayer100ScoreRows({
       methodologyReport,
       nobelReadiness,
       stageSixScorecard,
+      publicReviewPackage,
     });
     const blockers = allLayer100Blockers({
       methodologyReport,
       nobelReadiness,
       scoreRows,
       fundGateResult,
+      publicReviewPackage,
     });
     const targetedRun = allLayer100TargetedRun({
       methodologyReport,
       fundGateResult,
+      publicReviewPackage,
     });
     const promotionDecision = allLayer100PromotionDecision({
       methodologyReport,
       fundGateResult,
+      publicReviewPackage,
     });
     const completionAudit = allLayer100CompletionAudit({
       scoreRows,
@@ -69142,6 +69305,7 @@ export class AutonomousDiscoveryDaemonService {
       methodologyReport,
       fundGateResult,
       nobelReadiness,
+      publicReviewPackage,
     });
     const artifactRefs = allLayer100ArtifactRefs();
     const report = withEvidenceHash({
@@ -69151,6 +69315,7 @@ export class AutonomousDiscoveryDaemonService {
       blockers,
       targetedRun,
       promotionDecision,
+      publicReviewPackage,
       currentStrongestPath:
         "receipt-first benchmark methodology candidate with public replay and external-review package hardening",
       routeReadinessStatus:
@@ -69163,7 +69328,7 @@ export class AutonomousDiscoveryDaemonService {
       einsteinNobelEligible:
         nobelReadiness.einsteinNobelDiscoveryScoreEligible === true,
       exactBlocker:
-        "All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction.",
+        "All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate with public standalone replay, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction.",
       nextAction:
         "Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise harvest stronger receipt-complete benchmark claims with pre-existing survival evidence.",
       completionAudit,

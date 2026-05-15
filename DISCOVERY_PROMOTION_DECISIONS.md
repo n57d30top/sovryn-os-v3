@@ -8,4 +8,4 @@ Notification allowed: false
 FUND_FOUND: false
 Decision: do_not_promote_or_notify
 
-The current strongest candidate remains a pipeline_fund_candidate; external review or independent external reproduction is required before discovery-scored promotion.
+The current strongest candidate remains a pipeline_fund_candidate. Public standalone replay improves inspectability but is not external validation; accepted external review or independent external reproduction is required before discovery-scored promotion.

@@ -1,3 +1,3 @@
 # Next Action
 
-Send the hardened reproducer package for independent benchmark-methodology review; do not write FUND_FOUND until external-review contract and strict Fund Gate both pass.
+Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise harvest stronger receipt-complete benchmark claims with pre-existing survival evidence.

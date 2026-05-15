@@ -6112,6 +6112,10 @@ const secondSurvivorMethodologyEvidenceRoot =
   ".sovryn/discovery-daemon/second-survivor-methodology-evidence" as const;
 const secondSurvivorMethodologyEvidenceCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/second-survivor-methodology-evidence-continue-searching.json" as const;
+const allLayer100ClosureRoot =
+  ".sovryn/discovery-daemon/all-layer-100-closure" as const;
+const allLayer100ClosureCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/all-layer-100-closure-continue-searching.json" as const;
 export const daemonDefaultRunQuantum = 25;
 const generatorBirthResidualFloor = 0.1;
 export const publicCorpusBaseRef =
@@ -65828,6 +65832,547 @@ function secondSurvivorMethodologyArtifactRefs(): string[] {
   ];
 }
 
+type AllLayer100ScoreRow = {
+  layer: string;
+  before: number;
+  after: number;
+  target: number;
+  status: "complete" | "near_complete" | "blocked";
+  blocker: string;
+  evidence: string;
+};
+
+type AllLayer100Blocker = {
+  layer: string;
+  exactBlocker: string;
+  actionTaken: string;
+  outcome: "closed" | "still_blocked";
+};
+
+function allLayer100ArtifactRefs(): string[] {
+  const files = [
+    "ALL_LAYER_SCORE_AUDIT.md",
+    "DISCOVERY_SCIENTIST_100_PLAN.md",
+    "STRATEGIST_100_PLAN.md",
+    "KNOWLEDGE_ENGINE_100_PLAN.md",
+    "SYNTHESIZER_100_PLAN.md",
+    "EINSTEIN_NOBEL_READINESS_GAP.md",
+    "TARGETED_DISCOVERY_RUN_RESULTS.md",
+    "DISCOVERY_PROMOTION_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_ALL_LAYER_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ];
+  return [
+    ...files.map((file) => `${allLayer100ClosureRoot}/${file}`),
+    `${allLayer100ClosureRoot}/latest.json`,
+    allLayer100ClosureCheckpoint,
+  ];
+}
+
+function allLayer100ScoreRows(input: {
+  methodologyReport: Record<string, unknown>;
+  nobelReadiness: Record<string, unknown>;
+  stageSixScorecard: string | null;
+}): AllLayer100ScoreRow[] {
+  const stageScores = Array.isArray(input.methodologyReport.stageScores)
+    ? (input.methodologyReport.stageScores as Array<Record<string, unknown>>)
+    : [];
+  const stageScore = (name: string, fallback: number): number => {
+    const row = stageScores.find((item) => item.name === name);
+    return typeof row?.updatedScore === "number" ? row.updatedScore : fallback;
+  };
+  const stageSix = input.stageSixScorecard ?? "";
+  const discoveryScientist = scoreFromMarkdownTable(
+    stageSix,
+    "Discovery Scientist",
+    82,
+  );
+  const strategist = scoreFromMarkdownTable(
+    stageSix,
+    "Research Strategist",
+    96,
+  );
+  const knowledge = scoreFromMarkdownTable(
+    stageSix,
+    "Scientific Knowledge Engine",
+    96,
+  );
+  const nobelScore =
+    typeof input.nobelReadiness.totalScore === "number"
+      ? input.nobelReadiness.totalScore
+      : 46;
+  return [
+    {
+      layer: "Validator",
+      before: 100,
+      after: stageScore("Unbreakable Validator", 100),
+      target: 100,
+      status: "complete",
+      blocker: "none",
+      evidence:
+        "Task-receipt-first evidence, public raw replay, deterministic split manifests, and no source-family-only support are enforced.",
+    },
+    {
+      layer: "Synthesizer",
+      before: 95,
+      after: stageScore("Autonomous Synthesizer", 95),
+      target: 100,
+      status: "near_complete",
+      blocker:
+        "The second-survivor method has bounded methodology value, but external review is still missing.",
+      evidence: "second-survivor-methodology-evidence/latest.json",
+    },
+    {
+      layer: "Structural Understanding",
+      before: 99,
+      after: stageScore("Structural Understanding Engine", 99),
+      target: 100,
+      status: "near_complete",
+      blocker:
+        "Structural evidence is mature, but final 100 is capped until the system closes a real discovery-scored candidate path.",
+      evidence: "UPDATED_THREE_STAGE_SCORECARD.md",
+    },
+    {
+      layer: "Discovery Scientist",
+      before: discoveryScientist,
+      after: discoveryScientist,
+      target: 100,
+      status: "blocked",
+      blocker:
+        "No candidate has survived as a discovery-scored Fund with independent external review/reproduction.",
+      evidence:
+        ".sovryn/discovery-daemon/stage-six-honest-100/FINAL_EIGHT_STAGE_SCORECARD.md",
+    },
+    {
+      layer: "Research Strategist",
+      before: strategist,
+      after: strategist,
+      target: 100,
+      status: "near_complete",
+      blocker:
+        "Strategy selects the strongest path, but positive discovery yield remains unproven.",
+      evidence:
+        ".sovryn/discovery-daemon/eight-stage-sprint/RESEARCH_STRATEGY_100_REPORT.md",
+    },
+    {
+      layer: "Knowledge Engine",
+      before: knowledge,
+      after: knowledge,
+      target: 100,
+      status: "near_complete",
+      blocker:
+        "Knowledge memory blocks bad paths faster than it sources externally accepted positive claims.",
+      evidence:
+        ".sovryn/discovery-daemon/eight-stage-sprint/KNOWLEDGE_ENGINE_100_REPORT.md",
+    },
+    {
+      layer: "Einstein/Nobel readiness",
+      before: nobelScore,
+      after: nobelScore,
+      target: 100,
+      status: "blocked",
+      blocker:
+        "Readiness is blocked by missing valid/supportive external human review and independent external reproduction.",
+      evidence: ".sovryn/nobel-readiness/readiness-score.json",
+    },
+  ];
+}
+
+function allLayer100Blockers(input: {
+  methodologyReport: Record<string, unknown>;
+  nobelReadiness: Record<string, unknown>;
+  scoreRows: AllLayer100ScoreRow[];
+  fundGateResult: FundGateResult;
+}): AllLayer100Blocker[] {
+  const exactMethodologyBlocker =
+    optionalString(input.methodologyReport.exactBlocker) ??
+    "Methodology package lacks independent external acceptance.";
+  const nobelBlockers = Array.isArray(
+    input.nobelReadiness.boundedHundredPercentBlockers,
+  )
+    ? (input.nobelReadiness.boundedHundredPercentBlockers as unknown[])
+        .map((item) => optionalString(item))
+        .filter((item): item is string => item !== null)
+    : [];
+  return input.scoreRows
+    .filter((row) => row.status !== "complete")
+    .map((row) => ({
+      layer: row.layer,
+      exactBlocker:
+        row.layer === "Einstein/Nobel readiness"
+          ? nobelBlockers.join(", ") || row.blocker
+          : row.layer === "Synthesizer"
+            ? exactMethodologyBlocker
+            : row.blocker,
+      actionTaken:
+        row.layer === "Synthesizer"
+          ? "Ran second-survivor methodology evidence hardening and value tests."
+          : row.layer === "Discovery Scientist"
+            ? `Ran unchanged Fund Gate; current class is ${input.fundGateResult.fundClass ?? "none"} and notificationAllowed=${String(input.fundGateResult.notificationAllowed)}.`
+            : "Loaded latest score evidence and kept layer capped until a discovery-scored candidate exists.",
+      outcome: "still_blocked",
+    }));
+}
+
+function allLayer100TargetedRun(input: {
+  methodologyReport: Record<string, unknown>;
+  fundGateResult: FundGateResult;
+}): Record<string, unknown> {
+  return {
+    runId: "second-survivor-methodology-evidence",
+    path: secondSurvivorMethodologyEvidenceRoot,
+    prioritizedPath:
+      "receipt-first benchmark methodology candidate / benchmark protocol fragility / public-data recurrence",
+    survivorTasks: input.methodologyReport.survivorTasks ?? 0,
+    independentSurvivorTasks:
+      input.methodologyReport.independentSurvivorTasks ?? 0,
+    publicRawReplayClosed:
+      input.methodologyReport.publicRawReplayClosed === true,
+    methodologyValueTests: input.methodologyReport.methodologyValueTests ?? 0,
+    methodologyValueTestsPassed:
+      input.methodologyReport.methodologyValueTestsPassed ?? 0,
+    fundGatePassed: input.fundGateResult.passed,
+    fundClass: input.fundGateResult.fundClass ?? "none",
+    notificationAllowed: input.fundGateResult.notificationAllowed,
+    result:
+      "Targeted evidence run hardened the strongest candidate package but did not produce discovery-scored notification authority.",
+  };
+}
+
+function allLayer100PromotionDecision(input: {
+  methodologyReport: Record<string, unknown>;
+  fundGateResult: FundGateResult;
+}): Record<string, unknown> {
+  const notificationAllowed =
+    input.fundGateResult.notificationAllowed === true &&
+    input.methodologyReport.discoveryScored === true;
+  return {
+    existingCandidateId:
+      input.methodologyReport.discoveryCandidateId ??
+      secondSurvivorDiscoveryCandidateId,
+    newDiscoveryCandidateCreated: false,
+    fundCandidateDraftExists: true,
+    fundGatePassed: input.fundGateResult.passed,
+    fundClass: input.fundGateResult.fundClass ?? "none",
+    discoveryScored: input.methodologyReport.discoveryScored === true,
+    notificationAllowed,
+    fundFound: false,
+    decision: notificationAllowed
+      ? "would_notify_if_FUND_FOUND_written"
+      : "do_not_promote_or_notify",
+    reason:
+      "The current strongest candidate remains a pipeline_fund_candidate; external review or independent external reproduction is required before discovery-scored promotion.",
+  };
+}
+
+function allLayer100CompletionAudit(input: {
+  scoreRows: AllLayer100ScoreRow[];
+  blockers: AllLayer100Blocker[];
+  methodologyReport: Record<string, unknown>;
+  fundGateResult: FundGateResult;
+  nobelReadiness: Record<string, unknown>;
+}): Record<string, unknown> {
+  const requiredArtifacts = allLayer100ArtifactRefs().filter((ref) =>
+    ref.endsWith(".md"),
+  );
+  return {
+    objective:
+      "Close every layer to honest 100 only through real discovery-scored evidence or honest signal-absence/blocker proof.",
+    promptToArtifactChecklist: [
+      {
+        requirement: "Load latest scorecards/checkpoints/candidate/Fund state",
+        evidence:
+          "ALL_LAYER_SCORE_AUDIT.md and latest.json bind stage scorecards, Nobel readiness, methodology evidence, and Fund Gate state.",
+        covered: true,
+      },
+      {
+        requirement: "Identify blockers for every named layer",
+        evidence:
+          "DISCOVERY_SCIENTIST_100_PLAN.md, STRATEGIST_100_PLAN.md, KNOWLEDGE_ENGINE_100_PLAN.md, SYNTHESIZER_100_PLAN.md, EINSTEIN_NOBEL_READINESS_GAP.md",
+        covered: true,
+      },
+      {
+        requirement: "Prioritize receipt-first benchmark methodology path",
+        evidence: "TARGETED_DISCOVERY_RUN_RESULTS.md",
+        covered: true,
+      },
+      {
+        requirement: "Do not create fake FUND_FOUND",
+        evidence:
+          "DISCOVERY_PROMOTION_DECISIONS.md and FUND_GATE_RESULTS.md record notificationAllowed=false and fundFound=false.",
+        covered: input.fundGateResult.notificationAllowed === false,
+      },
+      {
+        requirement: "Raise all layers to 100",
+        evidence: "UPDATED_ALL_LAYER_SCORECARD.md",
+        covered: input.scoreRows.every((row) => row.after >= row.target),
+      },
+      {
+        requirement: "Einstein/Nobel discovery eligibility",
+        evidence: ".sovryn/nobel-readiness/readiness-score.json",
+        covered:
+          input.nobelReadiness.einsteinNobelDiscoveryScoreEligible === true,
+      },
+    ],
+    requiredArtifacts,
+    unresolvedRequirements: [
+      ...input.blockers.map((blocker) => blocker.exactBlocker),
+      ...(input.scoreRows.every((row) => row.after >= row.target)
+        ? []
+        : ["not_all_layers_at_100"]),
+    ],
+    achieved: false,
+  };
+}
+
+async function writeAllLayer100ClosureArtifacts(input: {
+  root: string;
+  report: Record<string, unknown>;
+  scoreRows: AllLayer100ScoreRow[];
+  blockers: AllLayer100Blocker[];
+  targetedRun: Record<string, unknown>;
+  promotionDecision: Record<string, unknown>;
+  fundGateResult: FundGateResult;
+  nobelReadiness: Record<string, unknown>;
+  completionAudit: Record<string, unknown>;
+}): Promise<void> {
+  const dir = join(input.root, allLayer100ClosureRoot);
+  await mkdir(dir, { recursive: true });
+  const writes: Array<[string, string]> = [
+    ["ALL_LAYER_SCORE_AUDIT.md", allLayer100ScoreAuditMarkdown(input)],
+    [
+      "DISCOVERY_SCIENTIST_100_PLAN.md",
+      allLayer100PlanMarkdown({
+        title: "Discovery Scientist 100 Plan",
+        rows: input.blockers.filter(
+          (blocker) => blocker.layer === "Discovery Scientist",
+        ),
+        nextAction:
+          "Only count Stage 6 as 100 after a discovery-scored candidate passes independent replay/review and the unchanged Fund Gate.",
+      }),
+    ],
+    [
+      "STRATEGIST_100_PLAN.md",
+      allLayer100PlanMarkdown({
+        title: "Strategist 100 Plan",
+        rows: input.blockers.filter(
+          (blocker) => blocker.layer === "Research Strategist",
+        ),
+        nextAction:
+          "Use external review intake or survival-potential benchmark claims; stop broad low-yield loops.",
+      }),
+    ],
+    [
+      "KNOWLEDGE_ENGINE_100_PLAN.md",
+      allLayer100PlanMarkdown({
+        title: "Knowledge Engine 100 Plan",
+        rows: input.blockers.filter(
+          (blocker) => blocker.layer === "Knowledge Engine",
+        ),
+        nextAction:
+          "Promote death-cause memory into hard priors for external claim selection and reviewer intake.",
+      }),
+    ],
+    [
+      "SYNTHESIZER_100_PLAN.md",
+      allLayer100PlanMarkdown({
+        title: "Synthesizer 100 Plan",
+        rows: input.blockers.filter(
+          (blocker) =>
+            blocker.layer === "Synthesizer" ||
+            blocker.layer === "Structural Understanding",
+        ),
+        nextAction:
+          "Close external methodology review or independent reproduction instead of optimizing rejectors.",
+      }),
+    ],
+    [
+      "EINSTEIN_NOBEL_READINESS_GAP.md",
+      allLayer100EinsteinNobelGapMarkdown(input),
+    ],
+    [
+      "TARGETED_DISCOVERY_RUN_RESULTS.md",
+      allLayer100TargetedRunMarkdown(input.targetedRun),
+    ],
+    [
+      "DISCOVERY_PROMOTION_DECISIONS.md",
+      allLayer100PromotionDecisionMarkdown(input.promotionDecision),
+    ],
+    ["FUND_GATE_RESULTS.md", allLayer100FundGateMarkdown(input.fundGateResult)],
+    [
+      "UPDATED_ALL_LAYER_SCORECARD.md",
+      allLayer100UpdatedScorecardMarkdown(input.scoreRows),
+    ],
+    [
+      "FINAL_BLOCKERS.md",
+      `# Final Blockers\n\n${markdownList(input.blockers.map((blocker) => `${blocker.layer}: ${blocker.exactBlocker}`)).join("\n")}\n`,
+    ],
+    ["NEXT_ACTION.md", `# Next Action\n\n${String(input.report.nextAction)}\n`],
+  ];
+  for (const [file, text] of writes) {
+    await writeText(join(dir, file), text);
+    await writeText(join(input.root, file), text);
+  }
+  await writeJson(join(dir, "latest.json"), input.report);
+  await writeJson(join(input.root, allLayer100ClosureCheckpoint), {
+    kind: "all_layer_100_closure_checkpoint",
+    report: input.report,
+  });
+}
+
+function allLayer100ScoreAuditMarkdown(input: {
+  scoreRows: AllLayer100ScoreRow[];
+  blockers: AllLayer100Blocker[];
+  completionAudit: Record<string, unknown>;
+}): string {
+  return [
+    "# All Layer Score Audit",
+    "",
+    "## Score Rows",
+    "",
+    allLayer100UpdatedScorecardMarkdown(input.scoreRows),
+    "",
+    "## Prompt-To-Artifact Checklist",
+    "",
+    JSON.stringify(input.completionAudit, null, 2),
+    "",
+    "## Blockers",
+    "",
+    ...input.blockers.map(
+      (blocker) =>
+        `- ${blocker.layer}: ${blocker.exactBlocker} (${blocker.outcome})`,
+    ),
+  ].join("\n");
+}
+
+function allLayer100PlanMarkdown(input: {
+  title: string;
+  rows: AllLayer100Blocker[];
+  nextAction: string;
+}): string {
+  return [
+    `# ${input.title}`,
+    "",
+    ...(input.rows.length > 0
+      ? input.rows.map(
+          (row) =>
+            `- ${row.layer}: ${row.exactBlocker}. Action taken: ${row.actionTaken}. Outcome: ${row.outcome}.`,
+        )
+      : ["- No current blocker recorded for this layer."]),
+    "",
+    "## Next Action",
+    "",
+    input.nextAction,
+  ].join("\n");
+}
+
+function allLayer100EinsteinNobelGapMarkdown(input: {
+  nobelReadiness: Record<string, unknown>;
+}): string {
+  const blockers = Array.isArray(
+    input.nobelReadiness.boundedHundredPercentBlockers,
+  )
+    ? input.nobelReadiness.boundedHundredPercentBlockers.map(String)
+    : [];
+  return [
+    "# Einstein / Nobel Readiness Gap",
+    "",
+    `Total score: ${String(input.nobelReadiness.totalScore ?? "unknown")}`,
+    `Eligible: ${String(input.nobelReadiness.einsteinNobelDiscoveryScoreEligible === true)}`,
+    `Label: ${String(input.nobelReadiness.label ?? "unknown")}`,
+    "",
+    "## Blockers",
+    "",
+    ...(blockers.length > 0 ? markdownList(blockers) : ["- none recorded"]),
+    "",
+    "No Nobel, Einstein-level, breakthrough, external validation, or external adoption claim is made.",
+  ].join("\n");
+}
+
+function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
+  return [
+    "# Targeted Discovery Run Results",
+    "",
+    `Run ID: ${String(run.runId)}`,
+    `Prioritized path: ${String(run.prioritizedPath)}`,
+    `Survivor tasks: ${String(run.survivorTasks)}`,
+    `Independent survivor tasks: ${String(run.independentSurvivorTasks)}`,
+    `Public raw replay closed: ${String(run.publicRawReplayClosed)}`,
+    `Methodology value tests: ${String(run.methodologyValueTestsPassed)}/${String(run.methodologyValueTests)}`,
+    `Fund class: ${String(run.fundClass)}`,
+    `Notification allowed: ${String(run.notificationAllowed)}`,
+    "",
+    String(run.result),
+  ].join("\n");
+}
+
+function allLayer100PromotionDecisionMarkdown(
+  decision: Record<string, unknown>,
+): string {
+  return [
+    "# Discovery Promotion Decisions",
+    "",
+    `Existing candidate: ${String(decision.existingCandidateId)}`,
+    `New DiscoveryCandidate created: ${String(decision.newDiscoveryCandidateCreated)}`,
+    `FundCandidateDraft exists: ${String(decision.fundCandidateDraftExists)}`,
+    `Discovery-scored: ${String(decision.discoveryScored)}`,
+    `Notification allowed: ${String(decision.notificationAllowed)}`,
+    `FUND_FOUND: ${String(decision.fundFound)}`,
+    `Decision: ${String(decision.decision)}`,
+    "",
+    String(decision.reason),
+  ].join("\n");
+}
+
+function allLayer100FundGateMarkdown(fundGate: FundGateResult): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Passed: ${String(fundGate.passed)}`,
+    `Status: ${fundGate.status}`,
+    `Fund class: ${fundGate.fundClass ?? "none"}`,
+    `Counts for Einstein/Nobel discovery score: ${String(fundGate.countsForEinsteinNobelDiscoveryScore)}`,
+    `Notification allowed: ${String(fundGate.notificationAllowed)}`,
+    "",
+    "## Failed Gates",
+    "",
+    ...(fundGate.failedGates.length > 0
+      ? markdownList(fundGate.failedGates)
+      : [
+          "- none at technical gate; notification remains blocked by non-discovery-scored class/external-review gap",
+        ]),
+  ].join("\n");
+}
+
+function allLayer100UpdatedScorecardMarkdown(
+  rows: AllLayer100ScoreRow[],
+): string {
+  return [
+    "# Updated All Layer Scorecard",
+    "",
+    "| Layer | Before | After | Target | Status | Blocker | Evidence |",
+    "| --- | ---: | ---: | ---: | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.layer} | ${row.before} | ${row.after} | ${row.target} | ${row.status} | ${row.blocker} | ${row.evidence} |`,
+    ),
+  ].join("\n");
+}
+
+function scoreFromMarkdownTable(
+  markdown: string,
+  component: string,
+  fallback: number,
+): number {
+  const escaped = component.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = markdown.match(
+    new RegExp(`\\|\\s*\\d+\\s*\\|\\s*${escaped}\\s*\\|\\s*(\\d+)%`),
+  );
+  return match ? Number(match[1]) : fallback;
+}
+
 async function writeSecondSurvivorMethodologyPackageAdditions(input: {
   root: string;
   inventory: SecondSurvivorInventory;
@@ -68379,6 +68924,93 @@ export class AutonomousDiscoveryDaemonService {
       packageAudit,
       decision,
       fundGateResult,
+    });
+    return report;
+  }
+
+  async allLayer100Closure(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    const methodologyReport = await this.secondSurvivorMethodologyEvidence();
+    const fundGateResult = await this.refreshFundGateFromCandidate({
+      draftFallback: true,
+    });
+    const nobelReadiness =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(this.root, ".sovryn/nobel-readiness/readiness-score.json"),
+      )) ?? {};
+    const stageSixScorecard = await readOptionalText(
+      join(
+        this.root,
+        ".sovryn/discovery-daemon/stage-six-honest-100/FINAL_EIGHT_STAGE_SCORECARD.md",
+      ),
+    );
+    const routeScorecard =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(this.root, ".sovryn/route/route-scorecard.json"),
+      )) ?? {};
+    const scoreRows = allLayer100ScoreRows({
+      methodologyReport,
+      nobelReadiness,
+      stageSixScorecard,
+    });
+    const blockers = allLayer100Blockers({
+      methodologyReport,
+      nobelReadiness,
+      scoreRows,
+      fundGateResult,
+    });
+    const targetedRun = allLayer100TargetedRun({
+      methodologyReport,
+      fundGateResult,
+    });
+    const promotionDecision = allLayer100PromotionDecision({
+      methodologyReport,
+      fundGateResult,
+    });
+    const completionAudit = allLayer100CompletionAudit({
+      scoreRows,
+      blockers,
+      methodologyReport,
+      fundGateResult,
+      nobelReadiness,
+    });
+    const artifactRefs = allLayer100ArtifactRefs();
+    const report = withEvidenceHash({
+      kind: "all_layer_100_closure" as const,
+      status: "productive_discovery_engine_continue_searching" as const,
+      scoreRows,
+      blockers,
+      targetedRun,
+      promotionDecision,
+      currentStrongestPath:
+        "receipt-first benchmark methodology candidate with public replay and external-review package hardening",
+      routeReadinessStatus:
+        optionalString(routeScorecard.readinessStatus) ?? "not_recorded",
+      discoveryCandidateCreated: false,
+      fundCandidateDraftExists: await exists(
+        join(this.root, secondSurvivorFundDraftRef),
+      ),
+      fundFound: false,
+      einsteinNobelEligible:
+        nobelReadiness.einsteinNobelDiscoveryScoreEligible === true,
+      exactBlocker:
+        "All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction.",
+      nextAction:
+        "Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise harvest stronger receipt-complete benchmark claims with pre-existing survival evidence.",
+      completionAudit,
+      artifactRefs,
+    });
+
+    await writeAllLayer100ClosureArtifacts({
+      root: this.root,
+      report,
+      scoreRows,
+      blockers,
+      targetedRun,
+      promotionDecision,
+      fundGateResult,
+      nobelReadiness,
+      completionAudit,
     });
     return report;
   }
@@ -77385,6 +78017,14 @@ async function removeIfExists(path: string): Promise<void> {
 async function readOptionalJson<T>(path: string): Promise<T | null> {
   try {
     return JSON.parse(await readFile(path, "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function readOptionalText(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8");
   } catch {
     return null;
   }

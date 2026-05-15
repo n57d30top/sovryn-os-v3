@@ -168,6 +168,7 @@ const commands = [
   "second-independent-survivor",
   "second-survivor-fund-draft",
   "second-survivor-methodology-evidence",
+  "all-layer-100-closure",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -10139,6 +10140,78 @@ test("second survivor methodology evidence hardens package without fake Fund", a
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "second_survivor_methodology_evidence",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+test("all-layer 100 closure audits current blockers without fake Fund", async () => {
+  const root = await tempRoot();
+  await new AutonomousDiscoveryDaemonService(root).init();
+  await writeSecondSurvivorMethodologyFixture(root);
+  await mkdir(join(root, ".sovryn/nobel-readiness"), { recursive: true });
+  await writeFile(
+    join(root, ".sovryn/nobel-readiness/readiness-score.json"),
+    JSON.stringify(
+      {
+        kind: "nobel_readiness_score",
+        totalScore: 46,
+        label: "promising_with_strong_caveats",
+        einsteinNobelDiscoveryScoreEligible: false,
+        boundedHundredPercentBlockers: [
+          "valid_external_human_review_missing",
+          "independent_external_reproduction_missing",
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const report = await new AutonomousDiscoveryDaemonService(
+    root,
+  ).allLayer100Closure();
+
+  assert.equal(report.kind, "all_layer_100_closure");
+  assert.equal(report.fundFound, false);
+  assert.equal(report.discoveryCandidateCreated, false);
+  assert.equal(report.einsteinNobelEligible, false);
+  assert.match(
+    String(report.exactBlocker),
+    /pipeline_fund_candidate|external benchmark-methodology review/,
+  );
+  const completionAudit = report.completionAudit as Record<string, unknown>;
+  assert.equal(completionAudit.achieved, false);
+  for (const artifact of [
+    "ALL_LAYER_SCORE_AUDIT.md",
+    "DISCOVERY_SCIENTIST_100_PLAN.md",
+    "STRATEGIST_100_PLAN.md",
+    "KNOWLEDGE_ENGINE_100_PLAN.md",
+    "SYNTHESIZER_100_PLAN.md",
+    "EINSTEIN_NOBEL_READINESS_GAP.md",
+    "TARGETED_DISCOVERY_RUN_RESULTS.md",
+    "DISCOVERY_PROMOTION_DECISIONS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_ALL_LAYER_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(join(root, artifact));
+    await access(join(root, daemonRoot, "all-layer-100-closure", artifact));
+  }
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "all-layer-100-closure", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "all_layer_100_closure",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

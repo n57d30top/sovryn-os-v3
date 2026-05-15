@@ -51,15 +51,15 @@ sovryn nobel-readiness external-review-intake --json
 
 ## Current Replay Targets
 
-| Claim | Task | Dataset | Raw ARFF receipt |
-| --- | ---: | --- | --- |
-| SA-PLAUS-003-OPENML-32 | 32 | pendigits | https://openml.org/data/v1/download/32/pendigits.arff |
-| SECOND-SURV-001-OPENML-59 | 59 | iris | https://openml.org/data/v1/download/61/iris.arff |
-| SECOND-SURV-003-OPENML-7 | 7 | audiology | https://openml.org/data/v1/download/7/audiology.arff |
-| SECOND-SURV-005-OPENML-53 | 53 | vehicle | https://openml.org/data/v1/download/54/vehicle.arff |
-| SECOND-SURV-006-OPENML-36 | 36 | segment | https://openml.org/data/v1/download/36/segment.arff |
-| SECOND-SURV-007-OPENML-43 | 43 | spambase | https://openml.org/data/v1/download/44/spambase.arff |
-| SECOND-SURV-008-OPENML-15 | 15 | breast-w | https://openml.org/data/v1/download/52350/breast-w.arff |
+| Claim                     | Task | Dataset   | Raw ARFF receipt                                        |
+| ------------------------- | ---: | --------- | ------------------------------------------------------- |
+| SA-PLAUS-003-OPENML-32    |   32 | pendigits | https://openml.org/data/v1/download/32/pendigits.arff   |
+| SECOND-SURV-001-OPENML-59 |   59 | iris      | https://openml.org/data/v1/download/61/iris.arff        |
+| SECOND-SURV-003-OPENML-7  |    7 | audiology | https://openml.org/data/v1/download/7/audiology.arff    |
+| SECOND-SURV-005-OPENML-53 |   53 | vehicle   | https://openml.org/data/v1/download/54/vehicle.arff     |
+| SECOND-SURV-006-OPENML-36 |   36 | segment   | https://openml.org/data/v1/download/36/segment.arff     |
+| SECOND-SURV-007-OPENML-43 |   43 | spambase  | https://openml.org/data/v1/download/44/spambase.arff    |
+| SECOND-SURV-008-OPENML-15 |   15 | breast-w  | https://openml.org/data/v1/download/52350/breast-w.arff |
 
 ## Fail-Closed Rule
 

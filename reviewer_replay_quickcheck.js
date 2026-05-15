@@ -99,8 +99,14 @@ async function main() {
       row.negativeControlBehaved === true,
       `${label}: negative control did not behave`,
     );
-    check(row.holdoutStatus === "survived", `${label}: holdout did not survive`);
-    check(row.rivalStatus === "scoped_or_weakened", `${label}: rival was not scoped or weakened`);
+    check(
+      row.holdoutStatus === "survived",
+      `${label}: holdout did not survive`,
+    );
+    check(
+      row.rivalStatus === "scoped_or_weakened",
+      `${label}: rival was not scoped or weakened`,
+    );
     check(
       number(row.randomVsHoldoutDelta) >= 0.08,
       `${label}: random-vs-holdout delta below threshold`,

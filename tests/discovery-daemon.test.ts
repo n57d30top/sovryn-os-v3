@@ -167,6 +167,7 @@ const commands = [
   "survivor-adjacent-promotion",
   "second-independent-survivor",
   "second-survivor-fund-draft",
+  "second-survivor-methodology-evidence",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9961,6 +9962,183 @@ test("second survivor fund draft readiness creates non-notifying draft package",
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "second_survivor_fund_draft_readiness",
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+});
+
+async function writeSecondSurvivorMethodologyFixture(
+  root: string,
+): Promise<void> {
+  const sourceRoot = join(root, daemonRoot, "second-independent-survivor");
+  const packageRoot = join(sourceRoot, "SECOND_SURVIVOR_REVIEW_PACKAGE");
+  await mkdir(packageRoot, { recursive: true });
+  const claim =
+    "A receipt-first benchmark triage method can identify OpenML benchmark claims whose random-split performance survives public raw replay as a bounded protocol-fragility signal across OpenML-32 and at least one independent task, with nonfatal baseline, holdout, rival, and negative-control checks.";
+  await writeFile(join(packageRoot, "EXACT_CLAIM.md"), claim);
+  await writeFile(
+    join(packageRoot, "METHOD.md"),
+    "# Method\n\nreceipt-first replay\n",
+  );
+  await writeFile(
+    join(packageRoot, "LIMITATIONS.md"),
+    "# Limitations\n\n- The package does not claim external validation.\n- No broad OpenML theorem is claimed.\n",
+  );
+  await writeFile(
+    join(packageRoot, "CLAIM_EVIDENCE_BINDINGS.json"),
+    JSON.stringify(
+      {
+        claim,
+        evidenceRefs: [
+          `${daemonRoot}/second-independent-survivor/WEAKENED_SURVIVOR_ARCHIVE.md`,
+          `${daemonRoot}/second-independent-survivor/OPENML32_SURVIVOR_ANCHOR_PROFILE.md`,
+          `${daemonRoot}/second-independent-survivor/INDEPENDENT_SURVIVOR_CLAIMS.md`,
+          `${daemonRoot}/second-independent-survivor/INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md`,
+          `${daemonRoot}/second-independent-survivor/RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md`,
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(
+    join(packageRoot, "DATASETS_AND_TASKS.md"),
+    [
+      "# Datasets And Tasks",
+      "",
+      "| Claim | Task | Dataset | Receipt | Rows | Features |",
+      "| --- | ---: | --- | --- | ---: | ---: |",
+      "| SA-PLAUS-003-OPENML-32 | 32 | pendigits | https://www.openml.org/api/v1/json/data/32 | 10992 | 16 |",
+      "| SECOND-SURV-001-OPENML-59 | 59 | iris | https://www.openml.org/api/v1/json/data/61 | 150 | 4 |",
+      "| SECOND-SURV-003-OPENML-7 | 7 | audiology | https://www.openml.org/api/v1/json/data/7 | 226 | 69 |",
+      "| SECOND-SURV-005-OPENML-53 | 53 | vehicle | https://www.openml.org/api/v1/json/data/54 | 846 | 18 |",
+      "| SECOND-SURV-006-OPENML-36 | 36 | segment | https://www.openml.org/api/v1/json/data/36 | 2310 | 19 |",
+      "| SECOND-SURV-007-OPENML-43 | 43 | spambase | https://www.openml.org/api/v1/json/data/44 | 4601 | 57 |",
+      "| SECOND-SURV-008-OPENML-15 | 15 | breast-w | https://www.openml.org/api/v1/json/data/15 | 699 | 9 |",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(sourceRoot, "OPENML32_SURVIVOR_ANCHOR_PROFILE.md"),
+    [
+      "# OpenML-32 Survivor Anchor Profile",
+      "",
+      "Anchor claim: SA-PLAUS-003-OPENML-32",
+      "Task: 32",
+      "Dataset: pendigits",
+      "Replay classification: replay_passed",
+      "Rows / features: 10992 / 16",
+      "Split protocol: input1_bucket / first public ARFF feature holdout",
+      "",
+      "## Why It Passed",
+      "- model-vs-baseline=0.093 with baseline=0.094",
+      "- rival=scoped_or_weakened; holdout=survived; random-vs-holdout=0.187",
+      "- negative-control=0.106; behaved=yes",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(sourceRoot, "INDEPENDENT_SURVIVOR_REPLAY_RESULTS.md"),
+    [
+      "# Independent Survivor Replay Results",
+      "",
+      "| Rank | Claim | Task | Dataset | Classification | Rows | Features | Baseline | Random | Holdout | Delta baseline | Delta holdout | Negative | Death cause |",
+      "| ---: | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+      "| 1 | SECOND-SURV-001-OPENML-59 | 59 | iris | replay_passed | 150 | 4 | 0.222 | 0.511 | 0.000 | 0.289 | 0.511 | 0.222 | none |",
+      "| 3 | SECOND-SURV-003-OPENML-7 | 7 | audiology | replay_passed | 226 | 69 | 0.250 | 0.500 | 0.000 | 0.250 | 0.500 | 0.059 | none |",
+      "| 5 | SECOND-SURV-005-OPENML-53 | 53 | vehicle | replay_passed | 846 | 18 | 0.232 | 0.398 | 0.176 | 0.165 | 0.221 | 0.228 | none |",
+      "| 6 | SECOND-SURV-006-OPENML-36 | 36 | segment | replay_passed | 2310 | 19 | 0.127 | 0.209 | 0.000 | 0.082 | 0.209 | 0.153 | none |",
+      "| 7 | SECOND-SURV-007-OPENML-43 | 43 | spambase | replay_passed | 4601 | 57 | 0.610 | 0.653 | 0.000 | 0.043 | 0.653 | 0.652 | none |",
+      "| 8 | SECOND-SURV-008-OPENML-15 | 15 | breast-w | replay_passed | 699 | 9 | 0.671 | 0.790 | 0.000 | 0.119 | 0.790 | 0.600 | none |",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(sourceRoot, "RIVAL_HOLDOUT_NEGATIVE_CONTROL_RESULTS.md"),
+    [
+      "# Rival, Holdout, And Negative-Control Results",
+      "",
+      "| Claim | Rival | Holdout | Negative behaved | Recurrence | Replay notes |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| SECOND-SURV-001-OPENML-59 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 59 and raw ARFF https://openml.org/data/v1/download/61/iris.arff; target=class; attributes=5; rows=150 |",
+      "| SECOND-SURV-003-OPENML-7 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 7 and raw ARFF https://openml.org/data/v1/download/7/audiology.arff; target=class; attributes=70; rows=226 |",
+      "| SECOND-SURV-005-OPENML-53 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 53 and raw ARFF https://openml.org/data/v1/download/54/vehicle.arff; target=Class; attributes=19; rows=846 |",
+      "| SECOND-SURV-006-OPENML-36 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 36 and raw ARFF https://openml.org/data/v1/download/36/segment.arff; target=class; attributes=20; rows=2310 |",
+      "| SECOND-SURV-007-OPENML-43 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 43 and raw ARFF https://openml.org/data/v1/download/44/spambase.arff; target=class; attributes=58; rows=4601 |",
+      "| SECOND-SURV-008-OPENML-15 | scoped_or_weakened | survived | yes | recurrence_supported (6) | loaded public OpenML task 15 and raw ARFF https://openml.org/data/v1/download/52350/breast-w.arff; target=Class; attributes=10; rows=699 |",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(sourceRoot, "latest.json"),
+    JSON.stringify(
+      {
+        discoveryCandidateCreated: true,
+        discoveryCandidateId:
+          "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+test("second survivor methodology evidence hardens package without fake Fund", async () => {
+  const root = await tempRoot();
+  await new AutonomousDiscoveryDaemonService(root).init();
+  await writeSecondSurvivorMethodologyFixture(root);
+
+  const report = await new AutonomousDiscoveryDaemonService(
+    root,
+  ).secondSurvivorMethodologyEvidence();
+
+  assert.equal(report.kind, "second_survivor_methodology_evidence");
+  assert.equal(report.discoveryScored, false);
+  assert.equal(report.notificationAllowed, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundClass, "pipeline_fund_candidate");
+  assert.equal(report.publicReviewPackageAuditPassed, true);
+  for (const artifact of [
+    "METHODOLOGY_EXACT_CLAIM.md",
+    "METHODOLOGY_FALSIFIERS.md",
+    "EXTERNAL_METHODOLOGY_COMPARISON.md",
+    "PRIOR_ART_AND_DIFFERENTIATION.md",
+    "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    "REPRODUCER_CHECKLIST.md",
+    "PUBLIC_REVIEW_PACKAGE_AUDIT.md",
+    "METHODOLOGY_VALUE_TESTS.md",
+    "SURVIVOR_YIELD_COMPARISON.md",
+    "GENERALIZATION_AND_LIMITATIONS.md",
+    "METHODOLOGY_REVIEW_DECISION.md",
+    "NOTIFICATION_GATE_RESULTS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(join(root, artifact));
+    await access(
+      join(root, daemonRoot, "second-survivor-methodology-evidence", artifact),
+    );
+  }
+  await access(
+    join(
+      root,
+      daemonRoot,
+      "evidence-packages",
+      "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+      "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    ),
+  );
+  assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
+  assert.equal(
+    await exists(join(root, daemonRoot, "fund-candidate.json")),
+    false,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "second-survivor-methodology-evidence", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "second_survivor_methodology_evidence",
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
 });

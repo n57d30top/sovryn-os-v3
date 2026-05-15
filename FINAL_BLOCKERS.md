@@ -1,3 +1,3 @@
 # Final Blockers
 
-FundCandidateDraft is ready and full Fund Gate ran, but no FUND_FOUND was written because the candidate is not discovery-scored/notifying; external review must establish value beyond benchmark triage replay before stronger Fund status.
+Methodology package is review-hardened and value tests support bounded benchmark-triage value, but there is still no independent external benchmark-methodology review or acceptance; keep candidate as pipeline_fund_candidate.

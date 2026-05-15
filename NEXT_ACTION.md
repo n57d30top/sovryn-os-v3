@@ -1,3 +1,3 @@
 # Next Action
 
-Keep the candidate as FundCandidateDraft-ready and seek external benchmark-methodology review; do not notify as Fund until discovery-scored significance is established.
+Send the hardened reproducer package for independent benchmark-methodology review; do not write FUND_FOUND until external-review contract and strict Fund Gate both pass.

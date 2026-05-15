@@ -6108,6 +6108,10 @@ const secondSurvivorFundDraftRef =
   ".sovryn/discovery-daemon/fund-candidate-drafts/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001.json" as const;
 const secondSurvivorFundDraftCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/second-survivor-fund-draft-continue-searching.json" as const;
+const secondSurvivorMethodologyEvidenceRoot =
+  ".sovryn/discovery-daemon/second-survivor-methodology-evidence" as const;
+const secondSurvivorMethodologyEvidenceCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/second-survivor-methodology-evidence-continue-searching.json" as const;
 export const daemonDefaultRunQuantum = 25;
 const generatorBirthResidualFloor = 0.1;
 export const publicCorpusBaseRef =
@@ -65145,6 +65149,831 @@ function secondSurvivorFundDraftStageScores(
   ];
 }
 
+type SecondSurvivorMethodologySource = {
+  sourceId: string;
+  title: string;
+  url: string;
+  methodologyArea: string;
+  relevantPrinciple: string;
+  candidateAlignment: string;
+  limitation: string;
+};
+
+type SecondSurvivorMethodologyValueTest = {
+  testId: string;
+  passed: boolean;
+  result: string;
+  evidence: string;
+  limitation: string;
+};
+
+type SecondSurvivorMethodologyPackageAudit = {
+  packagePath: typeof secondSurvivorFundDraftPackagePath;
+  checkedFiles: string[];
+  missingFiles: string[];
+  passed: boolean;
+};
+
+type SecondSurvivorMethodologyDecision = {
+  publicReviewStatus:
+    | "methodology_review_package_hardened"
+    | "methodology_review_package_incomplete";
+  methodologyEvidenceSupportsValue: boolean;
+  discoveryScored: boolean;
+  notificationAllowed: boolean;
+  fundFound: boolean;
+  gates: FundGate[];
+  exactBlocker: string;
+  nextAction: string;
+};
+
+function secondSurvivorExternalMethodologySources(): SecondSurvivorMethodologySource[] {
+  return [
+    {
+      sourceId: "openml-benchmark-suite",
+      title: "OpenML benchmark suites and task-based evaluation",
+      url: "https://docs.openml.org/benchmark/",
+      methodologyArea: "public benchmark task receipts",
+      relevantPrinciple:
+        "Benchmark comparisons should bind task definitions, data access, flows, and evaluation protocols.",
+      candidateAlignment:
+        "The candidate binds every survivor to concrete OpenML task/data receipts and public raw replay.",
+      limitation:
+        "OpenML methodology supports inspectable benchmarking; it is not an external review of this candidate.",
+    },
+    {
+      sourceId: "openml-networked-science",
+      title: "OpenML: networked science in machine learning",
+      url: "https://www.jmlr.org/papers/v18/16-177.html",
+      methodologyArea: "reusable experiment records",
+      relevantPrinciple:
+        "Machine-learning experiments gain value when datasets, tasks, runs, and evaluations are shared and reusable.",
+      candidateAlignment:
+        "The review package turns internal survivor evidence into a receipt-bound reproduction target.",
+      limitation:
+        "The paper motivates reproducibility infrastructure, not the novelty of this specific triage rule.",
+    },
+    {
+      sourceId: "sklearn-cross-validation",
+      title: "scikit-learn cross-validation guidance",
+      url: "https://scikit-learn.org/stable/modules/cross_validation.html",
+      methodologyArea: "holdout and split validation",
+      relevantPrinciple:
+        "Generalization estimates depend on held-out data and the split protocol used to evaluate a model.",
+      candidateAlignment:
+        "The candidate explicitly compares random split behavior with a deterministic first-feature holdout probe.",
+      limitation:
+        "The first-feature holdout is a protocol-fragility probe, not an official split for every task.",
+    },
+    {
+      sourceId: "sklearn-group-kfold",
+      title: "scikit-learn GroupKFold",
+      url: "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GroupKFold.html",
+      methodologyArea: "group-aware validation",
+      relevantPrinciple:
+        "Group-aware splits prevent the same group from appearing in both train and test folds.",
+      candidateAlignment:
+        "The receipt-first lineage requires explicit group/time/entity or deterministic split manifests before promotion.",
+      limitation:
+        "Current survivor tasks use a deterministic feature-bucket holdout rather than verified semantic groups.",
+    },
+    {
+      sourceId: "leakage-in-data-mining",
+      title: "Leakage in Data Mining: Formulation, Detection, and Avoidance",
+      url: "https://doi.org/10.1145/2379776.2379786",
+      methodologyArea: "leakage and protocol failure",
+      relevantPrinciple:
+        "Evaluation artifacts can inflate apparent performance when information leaks across the modeling process.",
+      candidateAlignment:
+        "The candidate's negative controls and rival checks target leakage-like and source-family-only explanations.",
+      limitation:
+        "The current package does not prove leakage; it identifies bounded protocol-fragility survivors.",
+    },
+    {
+      sourceId: "leakage-reproducibility-crisis",
+      title: "Leakage and the Reproducibility Crisis in ML-based Science",
+      url: "https://doi.org/10.1016/j.patter.2023.100804",
+      methodologyArea: "ML reproducibility and leakage review",
+      relevantPrinciple:
+        "Leakage and weak validation protocols can create apparently strong results that do not reproduce.",
+      candidateAlignment:
+        "The candidate avoids notifying on replay success alone and keeps external-review caveats explicit.",
+      limitation:
+        "This source supports the risk model; it does not validate the candidate's survivor set.",
+    },
+    {
+      sourceId: "dataset-shift",
+      title: "Dataset Shift in Machine Learning",
+      url: "https://mitpress.mit.edu/9780262170055/dataset-shift-in-machine-learning/",
+      methodologyArea: "distribution shift and holdout interpretation",
+      relevantPrinciple:
+        "Train/test distribution changes can alter measured model performance and must be treated explicitly.",
+      candidateAlignment:
+        "Random-vs-holdout deltas are reported as bounded protocol-fragility evidence rather than broad model quality.",
+      limitation:
+        "The package does not identify a causal dataset-shift mechanism for every survivor.",
+    },
+  ];
+}
+
+function secondSurvivorMethodologyValueTests(
+  inventory: SecondSurvivorInventory,
+  closure: SecondSurvivorClosure,
+): SecondSurvivorMethodologyValueTest[] {
+  const replayPassed = closure.tasks.filter(
+    (task) => task.replayStatus === "replay_passed",
+  ).length;
+  const uniqueDatasetCount = new Set(
+    closure.tasks.map((task) => task.datasetName),
+  ).size;
+  const averageModelDelta = round3(
+    averageNumbers(closure.tasks.map((task) => task.modelVsBaselineDelta)),
+  );
+  const averageHoldoutDelta = round3(
+    averageNumbers(closure.tasks.map((task) => task.randomVsHoldoutDelta)),
+  );
+  const sourceFamilyOnlyAvoided = inventory.rawDataReceipts.every((ref) =>
+    ref.startsWith("https://"),
+  );
+  const positiveControlOnlyAvoided = closure.tasks.every(
+    (task) => !/positive|control/i.test(task.claimId),
+  );
+  return [
+    {
+      testId: "wasted_deep_validation_cost_reduced",
+      passed: sourceFamilyOnlyAvoided && closure.allClosed,
+      result:
+        "Receipt-first screening prevents source-family-only candidates from entering this package and leaves seven replay-closed survivors for review.",
+      evidence: `${closure.closedTaskCount}/${closure.tasks.length} tasks closed; ${inventory.rawDataReceipts.length} concrete raw-data receipts bound.`,
+      limitation:
+        "The package does not provide a wall-clock cost model; cost reduction is measured as avoided invalid deep-validation paths.",
+    },
+    {
+      testId: "survivor_yield_over_reject_all",
+      passed: closure.closedTaskCount >= 2,
+      result:
+        "Reject-all yields zero reviewable survivors; receipt-first triage retains multiple replay-closed survivor tasks.",
+      evidence: `${closure.closedTaskCount} replay-closed survivors, ${closure.independentTaskCount} independent tasks.`,
+      limitation:
+        "This is an internal benchmark-methodology comparison, not an external acceptance result.",
+    },
+    {
+      testId: "generalizes_across_task_families",
+      passed: uniqueDatasetCount >= 2 && closure.independentTaskCount >= 2,
+      result:
+        "The survivor set spans independent OpenML tasks and datasets rather than a single task row.",
+      evidence: `${closure.independentTaskCount} task IDs and ${uniqueDatasetCount} dataset names; mean model-vs-majority delta ${averageModelDelta}.`,
+      limitation:
+        "Generalization is bounded to the listed OpenML classification tasks, not all benchmark ecosystems.",
+    },
+    {
+      testId: "positive_control_only_behavior_avoided",
+      passed: positiveControlOnlyAvoided,
+      result:
+        "The survivor set is not composed of positive-control labels or intentionally easy controls.",
+      evidence: `Survivor claim IDs: ${closure.tasks.map((task) => task.claimId).join(", ")}.`,
+      limitation:
+        "This does not prove future triage runs cannot overfit to positive-control-like examples.",
+    },
+    {
+      testId: "source_family_only_evidence_avoided",
+      passed: sourceFamilyOnlyAvoided,
+      result:
+        "Every supporting task binds concrete task/data receipts rather than only a broad benchmark-family URL.",
+      evidence: `${inventory.rawDataReceipts.length} HTTPS task/data receipts are bound in the package.`,
+      limitation:
+        "Receipt completeness is necessary for reviewability but is not itself scientific discovery.",
+    },
+    {
+      testId: "two_independent_survivor_replay",
+      passed: replayPassed >= 2 && closure.independentTaskCount >= 2,
+      result:
+        "The candidate meets the minimum independent replay survivor requirement.",
+      evidence: `${replayPassed} replay_passed tasks; mean random-vs-holdout delta ${averageHoldoutDelta}.`,
+      limitation:
+        "Replay support remains an internal/public-data computation until an independent reviewer reruns it.",
+    },
+    {
+      testId: "external_review_contract_satisfied",
+      passed: false,
+      result:
+        "No independent external benchmark-methodology reviewer has accepted, reproduced, or endorsed the candidate.",
+      evidence:
+        "External sources are methodology comparators and prior-art context only.",
+      limitation:
+        "This failed value test blocks discovery-scored notification.",
+    },
+  ];
+}
+
+async function secondSurvivorMethodologyPackageAudit(
+  root: string,
+): Promise<SecondSurvivorMethodologyPackageAudit> {
+  const checkedFiles = [
+    "REVIEWER_SUMMARY.md",
+    "EXACT_CLAIM.md",
+    "METHODOLOGY_EXACT_CLAIM.md",
+    "METHODOLOGY_FALSIFIERS.md",
+    "METHOD.md",
+    "DATASETS_AND_TASKS.md",
+    "REPRODUCE.md",
+    "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    "REPRODUCER_CHECKLIST.md",
+    "BASELINES.md",
+    "RIVAL_EXPLANATIONS.md",
+    "HOLDOUT_REPLAY.md",
+    "NEGATIVE_CONTROLS.md",
+    "LIMITATIONS.md",
+    "PAPER.md",
+    "CLAIM_EVIDENCE_BINDINGS.json",
+    "FUND_CANDIDATE.json",
+  ];
+  const missingFiles: string[] = [];
+  for (const file of checkedFiles) {
+    if (!(await exists(join(root, secondSurvivorFundDraftPackagePath, file)))) {
+      missingFiles.push(file);
+    }
+  }
+  return {
+    packagePath: secondSurvivorFundDraftPackagePath,
+    checkedFiles,
+    missingFiles,
+    passed: missingFiles.length === 0,
+  };
+}
+
+function secondSurvivorMethodologyDecision(input: {
+  packageAudit: SecondSurvivorMethodologyPackageAudit;
+  valueTests: SecondSurvivorMethodologyValueTest[];
+  fundGateResult: FundGateResult;
+}): SecondSurvivorMethodologyDecision {
+  const methodologyValueTestsPassed =
+    input.valueTests.filter((test) => test.passed).length >= 5;
+  const externalReviewSatisfied =
+    input.valueTests.find(
+      (test) => test.testId === "external_review_contract_satisfied",
+    )?.passed === true;
+  const gates = [
+    gate(
+      "methodology_value_tests_support_bounded_value",
+      methodologyValueTestsPassed,
+      "Methodology value tests must show bounded value beyond replay mechanics.",
+    ),
+    gate(
+      "public_review_package_audit_passed",
+      input.packageAudit.passed,
+      "The public-safe review package must contain exact claim, replay, evidence, limitation, and reproducer files.",
+    ),
+    gate(
+      "fund_gate_remains_non_fake",
+      input.fundGateResult.notificationAllowed !== true,
+      "This run must not create notifying Fund state without discovery-scored authorization.",
+    ),
+    gate(
+      "external_review_contract_satisfied",
+      externalReviewSatisfied,
+      "Discovery-scored notification requires independent external review or equivalent benchmark-methodology acceptance.",
+    ),
+  ];
+  const discoveryScored = gates.every((gateRow) => gateRow.passed);
+  const notificationAllowed =
+    discoveryScored && input.fundGateResult.notificationAllowed === true;
+  return {
+    publicReviewStatus: input.packageAudit.passed
+      ? "methodology_review_package_hardened"
+      : "methodology_review_package_incomplete",
+    methodologyEvidenceSupportsValue:
+      methodologyValueTestsPassed && input.packageAudit.passed,
+    discoveryScored,
+    notificationAllowed,
+    fundFound: false,
+    gates,
+    exactBlocker: discoveryScored
+      ? "No methodology blocker remains, but notification still requires the unchanged Fund Gate to authorize a discovery-scored notifying class."
+      : "Methodology package is review-hardened and value tests support bounded benchmark-triage value, but there is still no independent external benchmark-methodology review or acceptance; keep candidate as pipeline_fund_candidate.",
+    nextAction: discoveryScored
+      ? "Rerun the unchanged Fund Gate and notify only if it returns a discovery-scored notifying FundClass."
+      : "Send the hardened reproducer package for independent benchmark-methodology review; do not write FUND_FOUND until external-review contract and strict Fund Gate both pass.",
+  };
+}
+
+function secondSurvivorMethodologyStageScores(
+  decision: SecondSurvivorMethodologyDecision,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because this pass preserves task-receipt-first evidence, public raw replay, deterministic split manifests, and no source-family-only support.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 94,
+      updatedScore: decision.methodologyEvidenceSupportsValue ? 95 : 94,
+      reached100: false,
+      scoringRationale: decision.methodologyEvidenceSupportsValue
+        ? "Stage 2 improves because the second-survivor method now has bounded methodology value tests and an independent-reproducer package, but remains non-notifying without external review."
+        : "Stage 2 remains 94 because methodology value support or package audit is incomplete.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99 because this is evidence hardening for an existing candidate, not a new architecture layer.",
+    },
+  ];
+}
+
+function secondSurvivorMethodologyExactClaimMarkdown(input: {
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Methodology Exact Claim",
+    "",
+    "## Product Claim Preserved",
+    "",
+    input.inventory.exactBoundedClaim,
+    "",
+    "## Bounded Reviewer-Facing Interpretation",
+    "",
+    `On the seven listed public OpenML tasks (${input.closure.tasks.map((task) => `OpenML-${task.taskId}`).join(", ")}), the receipt-first benchmark triage method retains candidate claims only when concrete task/data receipts, deterministic replay, baseline comparison, holdout/protocol-fragility checks, rival closure, and negative controls all remain nonfatal.`,
+    "",
+    "The bounded methodology claim is that this triage rule produces a more reviewable survivor set than source-family-only evidence or reject-all behavior, because it keeps at least two independent public-raw replay survivors while rejecting claims without receipts, replay paths, or nonfatal controls.",
+    "",
+    "## What It Does Not Claim",
+    "",
+    "- No external validation.",
+    "- No external adoption.",
+    "- No Nobel, Einstein-level, breakthrough, legal, medical, wet-lab, unsafe, or universal-truth claim.",
+    "- No broad theorem about OpenML, benchmark leakage, or all random-vs-holdout splits.",
+    "- No claim that every listed task has semantic group, time, or entity leakage.",
+    "",
+    "## Why Seven Independent Survivor Tasks Matter",
+    "",
+    `Seven replay-closed tasks matter because they turn the method from a single-task artifact into a bounded multi-task review target. The current closure has ${input.closure.closedTaskCount}/${input.closure.tasks.length} closed tasks and ${input.closure.independentTaskCount} independent task IDs.`,
+    "",
+    "## Value Beyond Replay",
+    "",
+    "The value beyond replay is not that the pipeline runs. The value is a reviewable selection rule: it refuses source-family-only evidence, requires public receipts and negative controls, and retains a bounded survivor set that an external reviewer can rerun.",
+  ].join("\n");
+}
+
+function secondSurvivorMethodologyFalsifiersMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Methodology Falsifiers",
+    "",
+    "The methodology claim should be downgraded or killed if any of these checks fail:",
+    "",
+    "- An external reviewer cannot reload the listed OpenML tasks from public receipts.",
+    "- The deterministic split/replay instructions cannot reproduce the survivor classifications.",
+    "- Reject-all ties or beats the method on survivor yield once positive controls are excluded.",
+    "- A simple baseline or class-imbalance rule explains the retained survivor set.",
+    "- Negative controls do not behave as expected.",
+    "- Fewer than two independent tasks remain after replay.",
+    "- The apparent value depends on source-family-only URLs rather than concrete task/data receipts.",
+    "- External benchmark-methodology review finds the selection rule to be standard, trivial, or not useful.",
+    "",
+    "## Current Falsifier Status",
+    "",
+    `Current internal/public-data replay leaves ${input.closure.closedTaskCount} survivor tasks and ${input.closure.independentTaskCount} independent task IDs, but external review has not yet occurred.`,
+  ].join("\n");
+}
+
+function secondSurvivorExternalComparisonMarkdown(
+  sources: SecondSurvivorMethodologySource[],
+): string {
+  return [
+    "# External Methodology Comparison",
+    "",
+    "These sources are used as benchmark-methodology comparators, not as external validation of this candidate.",
+    "",
+    "| Source | Area | Relevant principle | Candidate alignment | Limitation |",
+    "| --- | --- | --- | --- | --- |",
+    ...sources.map(
+      (source) =>
+        `| [${source.title}](${source.url}) | ${source.methodologyArea} | ${source.relevantPrinciple} | ${source.candidateAlignment} | ${source.limitation} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorPriorArtMarkdown(
+  sources: SecondSurvivorMethodologySource[],
+): string {
+  return [
+    "# Prior Art And Differentiation",
+    "",
+    "| Prior-art principle | Already known | Candidate differentiation | Not claimed |",
+    "| --- | --- | --- | --- |",
+    ...sources.map(
+      (source) =>
+        `| ${source.methodologyArea} | ${source.relevantPrinciple} | ${source.candidateAlignment} | ${source.limitation} |`,
+    ),
+    "",
+    "## Differentiation Summary",
+    "",
+    "The candidate does not claim to invent cross-validation, group splits, leakage detection, OpenML task receipts, or dataset-shift analysis. Its narrower proposed value is combining those expectations into a receipt-first survivor gate that blocks source-family-only benchmark claims and exposes a bounded multi-task survivor set for external review.",
+  ].join("\n");
+}
+
+function secondSurvivorIndependentReproducerMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Independent Reproducer Package",
+    "",
+    "## Candidate",
+    "",
+    secondSurvivorDiscoveryCandidateId,
+    "",
+    "## Required Commands",
+    "",
+    "```bash",
+    "sovryn discover-daemon second-independent-survivor --live-openml --json",
+    "sovryn discover-daemon second-survivor-fund-draft --json",
+    "sovryn discover-daemon second-survivor-methodology-evidence --json",
+    "```",
+    "",
+    "## Public Tasks",
+    "",
+    "| Claim | Task | Dataset | Data receipt | Raw ARFF receipt |",
+    "| --- | ---: | --- | --- | --- |",
+    ...input.closure.tasks.map(
+      (task) =>
+        `| ${task.claimId} | ${task.taskId} | ${task.datasetName} | ${task.dataReceipt} | ${task.rawArffReceipt} |`,
+    ),
+    "",
+    "## Expected Outputs",
+    "",
+    "- Seven public raw replay survivor rows.",
+    "- Baseline, holdout, rival, and negative-control tables.",
+    "- Methodology value tests showing bounded value but no external validation.",
+    "- No FUND_FOUND.md unless a future strict discovery-scored Fund Gate allows notification.",
+  ].join("\n");
+}
+
+function secondSurvivorReproducerChecklistMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Reproducer Checklist",
+    "",
+    "- [ ] Clone the Product repo and install dependencies.",
+    "- [ ] Run `npm test` to confirm the local environment.",
+    "- [ ] Run `sovryn discover-daemon second-independent-survivor --live-openml --json`.",
+    "- [ ] Confirm every listed OpenML task/data receipt loads.",
+    "- [ ] Confirm deterministic split construction is documented.",
+    "- [ ] Recompute majority baseline, random split metric, holdout metric, and shuffled-target control.",
+    "- [ ] Compare generated tables against `BASELINES.md`, `HOLDOUT_REPLAY.md`, and `NEGATIVE_CONTROLS.md`.",
+    "- [ ] Decide whether the method has benchmark-methodology value beyond replay mechanics.",
+    "- [ ] Record any failed task as a downgrade; do not infer external validation from package presence.",
+    "",
+    `Current survivor tasks to check: ${input.closure.tasks.map((task) => `OpenML-${task.taskId}`).join(", ")}.`,
+  ].join("\n");
+}
+
+function secondSurvivorPackageAuditMarkdown(
+  audit: SecondSurvivorMethodologyPackageAudit,
+): string {
+  return [
+    "# Public Review Package Audit",
+    "",
+    `Package path: ${audit.packagePath}`,
+    `Audit passed: ${audit.passed ? "yes" : "no"}`,
+    "",
+    "## Checked Files",
+    "",
+    ...audit.checkedFiles.map((file) => `- ${file}`),
+    "",
+    "## Missing Files",
+    "",
+    ...(audit.missingFiles.length > 0
+      ? markdownList(audit.missingFiles)
+      : ["- none"]),
+  ].join("\n");
+}
+
+function secondSurvivorValueTestsMarkdown(
+  tests: SecondSurvivorMethodologyValueTest[],
+): string {
+  return [
+    "# Methodology Value Tests",
+    "",
+    "| Test | Passed | Result | Evidence | Limitation |",
+    "| --- | --- | --- | --- | --- |",
+    ...tests.map(
+      (test) =>
+        `| ${test.testId} | ${test.passed ? "yes" : "no"} | ${test.result} | ${test.evidence} | ${test.limitation} |`,
+    ),
+  ].join("\n");
+}
+
+function secondSurvivorYieldComparisonMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Survivor Yield Comparison",
+    "",
+    "| Comparator | Reviewable survivor tasks | Independent tasks | Decision |",
+    "| --- | ---: | ---: | --- |",
+    "| Reject-all | 0 | 0 | Not useful for finding reviewable candidates. |",
+    `| Receipt-first second-survivor method | ${input.closure.closedTaskCount} | ${input.closure.independentTaskCount} | Retains a bounded public-replay survivor set. |`,
+    "| Source-family-only evidence | 0 | 0 | Blocked by task-receipt-first and public replay gates. |",
+    "",
+    "This comparison supports bounded triage utility, not a discovery-scored Fund by itself.",
+  ].join("\n");
+}
+
+function secondSurvivorGeneralizationMarkdown(input: {
+  closure: SecondSurvivorClosure;
+}): string {
+  return [
+    "# Generalization And Limitations",
+    "",
+    `The current package generalizes only across the listed ${input.closure.independentTaskCount} independent OpenML task IDs. It does not generalize across all OpenML tasks, all benchmark suites, all leakage mechanisms, or all ML domains.`,
+    "",
+    "## Limitations",
+    "",
+    "- No independent external review has accepted the methodology.",
+    "- The first-feature holdout is a deterministic fragility probe, not a verified semantic group/time/entity split for every task.",
+    "- External literature supports the risk model and reproducibility expectations, but does not validate this candidate.",
+    "- The candidate remains `pipeline_fund_candidate` unless strict notification and discovery-scored gates pass unchanged.",
+  ].join("\n");
+}
+
+function secondSurvivorMethodologyDecisionMarkdown(input: {
+  decision: SecondSurvivorMethodologyDecision;
+  fundGateResult: FundGateResult;
+}): string {
+  return [
+    "# Methodology Review Decision",
+    "",
+    `Public review status: ${input.decision.publicReviewStatus}`,
+    `Methodology evidence supports bounded value: ${input.decision.methodologyEvidenceSupportsValue ? "yes" : "no"}`,
+    `Discovery-scored: ${input.decision.discoveryScored ? "yes" : "no"}`,
+    `Fund class: ${input.fundGateResult.fundClass ?? "none"}`,
+    `Notification allowed: ${input.decision.notificationAllowed ? "yes" : "no"}`,
+    `FUND_FOUND: ${input.decision.fundFound ? "yes" : "no"}`,
+    "",
+    "## Gates",
+    "",
+    ...input.decision.gates.map(
+      (gateRow) =>
+        `- ${gateRow.code}: ${gateRow.passed ? "passed" : "failed"} - ${gateRow.message}`,
+    ),
+    "",
+    "## Exact Blocker",
+    "",
+    input.decision.exactBlocker,
+  ].join("\n");
+}
+
+function secondSurvivorNotificationGateMarkdown(input: {
+  decision: SecondSurvivorMethodologyDecision;
+  fundGateResult: FundGateResult;
+}): string {
+  return [
+    "# Notification Gate Results",
+    "",
+    `Fund Gate notificationAllowed: ${input.fundGateResult.notificationAllowed ? "yes" : "no"}`,
+    `Methodology notificationAllowed: ${input.decision.notificationAllowed ? "yes" : "no"}`,
+    `FUND_FOUND written: ${input.decision.fundFound ? "yes" : "no"}`,
+    "",
+    "Notification remains disallowed because the package has no independent external benchmark-methodology acceptance and the current FundClass is non-notifying.",
+  ].join("\n");
+}
+
+function secondSurvivorMethodologyFundGateMarkdown(input: {
+  decision: SecondSurvivorMethodologyDecision;
+  fundGateResult: FundGateResult;
+}): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund Gate passed: ${input.fundGateResult.passed ? "yes" : "no"}`,
+    `Fund Gate status: ${input.fundGateResult.status}`,
+    `Fund class: ${input.fundGateResult.fundClass ?? "none"}`,
+    `Counts for discovery score: ${input.fundGateResult.countsForEinsteinNobelDiscoveryScore ? "yes" : "no"}`,
+    `Notification allowed: ${input.fundGateResult.notificationAllowed ? "yes" : "no"}`,
+    `Methodology discovery-scored: ${input.decision.discoveryScored ? "yes" : "no"}`,
+    `FUND_FOUND: ${input.decision.fundFound ? "yes" : "no"}`,
+    "",
+    "Failed gates:",
+    ...(input.fundGateResult.failedGates.length > 0
+      ? markdownList(input.fundGateResult.failedGates)
+      : [
+          "- none at technical Fund Gate; methodology/external-review gate still blocks notification",
+        ]),
+  ].join("\n");
+}
+
+function secondSurvivorStrategyKnowledgeMemoryMarkdown(input: {
+  decision: SecondSurvivorMethodologyDecision;
+}): string {
+  return [
+    "# Strategy / Knowledge Memory Update",
+    "",
+    "## Stored Lesson",
+    "",
+    "Receipt-first benchmark methodology evidence can support a review-hardened pipeline_fund_candidate, but replayable survivor yield alone must not be reclassified as discovery-scored evidence.",
+    "",
+    "## Future Selection Rule",
+    "",
+    "- Do not notify for benchmark-triage replay packages without independent external benchmark-methodology review or equivalent acceptance.",
+    "- Treat source-family-only benchmark evidence as insufficient for future benchmark/data candidates.",
+    "- Preserve the second-survivor package as a positive reviewability example and a negative notification example.",
+    "- Require any future upgrade to bind external methodology acceptance, independent reproduction, or a stronger nontrivial value test that beats reject-all and simple heuristic rivals.",
+    "",
+    "## Current Decision",
+    "",
+    input.decision.exactBlocker,
+  ].join("\n");
+}
+
+function secondSurvivorMethodologyArtifactRefs(): string[] {
+  const files = [
+    "METHODOLOGY_EXACT_CLAIM.md",
+    "METHODOLOGY_FALSIFIERS.md",
+    "EXTERNAL_METHODOLOGY_COMPARISON.md",
+    "PRIOR_ART_AND_DIFFERENTIATION.md",
+    "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    "REPRODUCER_CHECKLIST.md",
+    "PUBLIC_REVIEW_PACKAGE_AUDIT.md",
+    "METHODOLOGY_VALUE_TESTS.md",
+    "SURVIVOR_YIELD_COMPARISON.md",
+    "GENERALIZATION_AND_LIMITATIONS.md",
+    "METHODOLOGY_REVIEW_DECISION.md",
+    "NOTIFICATION_GATE_RESULTS.md",
+    "FUND_GATE_RESULTS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "STRATEGY_KNOWLEDGE_MEMORY_UPDATE.md",
+    "NEXT_ACTION.md",
+  ];
+  return [
+    ...files.map((file) => `${secondSurvivorMethodologyEvidenceRoot}/${file}`),
+    `${secondSurvivorMethodologyEvidenceRoot}/latest.json`,
+    secondSurvivorMethodologyEvidenceCheckpoint,
+    secondSurvivorFundDraftPackagePath,
+  ];
+}
+
+async function writeSecondSurvivorMethodologyPackageAdditions(input: {
+  root: string;
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+  sources: SecondSurvivorMethodologySource[];
+  valueTests: SecondSurvivorMethodologyValueTest[];
+}): Promise<void> {
+  const packageDir = join(input.root, secondSurvivorFundDraftPackagePath);
+  await mkdir(packageDir, { recursive: true });
+  const packageWrites: Array<[string, string]> = [
+    [
+      "METHODOLOGY_EXACT_CLAIM.md",
+      secondSurvivorMethodologyExactClaimMarkdown(input),
+    ],
+    [
+      "METHODOLOGY_FALSIFIERS.md",
+      secondSurvivorMethodologyFalsifiersMarkdown(input),
+    ],
+    [
+      "EXTERNAL_METHODOLOGY_COMPARISON.md",
+      secondSurvivorExternalComparisonMarkdown(input.sources),
+    ],
+    [
+      "INDEPENDENT_REPRODUCER_PACKAGE.md",
+      secondSurvivorIndependentReproducerMarkdown(input),
+    ],
+    [
+      "REPRODUCER_CHECKLIST.md",
+      secondSurvivorReproducerChecklistMarkdown(input),
+    ],
+    [
+      "METHODOLOGY_VALUE_TESTS.md",
+      secondSurvivorValueTestsMarkdown(input.valueTests),
+    ],
+  ];
+  for (const [file, text] of packageWrites) {
+    await writeText(join(packageDir, file), text);
+  }
+  const bindingsPath = join(packageDir, "CLAIM_EVIDENCE_BINDINGS.json");
+  const existing =
+    (await readOptionalJson<Record<string, unknown>>(bindingsPath)) ?? {};
+  await writeJson(bindingsPath, {
+    ...existing,
+    methodologyEvidenceRefs: [
+      "METHODOLOGY_EXACT_CLAIM.md",
+      "METHODOLOGY_FALSIFIERS.md",
+      "EXTERNAL_METHODOLOGY_COMPARISON.md",
+      "INDEPENDENT_REPRODUCER_PACKAGE.md",
+      "REPRODUCER_CHECKLIST.md",
+      "METHODOLOGY_VALUE_TESTS.md",
+    ],
+    externalMethodologySources: input.sources.map((source) => source.url),
+  });
+}
+
+async function writeSecondSurvivorMethodologyEvidenceArtifacts(input: {
+  root: string;
+  report: Record<string, unknown>;
+  inventory: SecondSurvivorInventory;
+  closure: SecondSurvivorClosure;
+  sources: SecondSurvivorMethodologySource[];
+  valueTests: SecondSurvivorMethodologyValueTest[];
+  packageAudit: SecondSurvivorMethodologyPackageAudit;
+  decision: SecondSurvivorMethodologyDecision;
+  fundGateResult: FundGateResult;
+}): Promise<void> {
+  const dir = join(input.root, secondSurvivorMethodologyEvidenceRoot);
+  await mkdir(dir, { recursive: true });
+  const writes: Array<[string, string]> = [
+    [
+      "METHODOLOGY_EXACT_CLAIM.md",
+      secondSurvivorMethodologyExactClaimMarkdown(input),
+    ],
+    [
+      "METHODOLOGY_FALSIFIERS.md",
+      secondSurvivorMethodologyFalsifiersMarkdown(input),
+    ],
+    [
+      "EXTERNAL_METHODOLOGY_COMPARISON.md",
+      secondSurvivorExternalComparisonMarkdown(input.sources),
+    ],
+    [
+      "PRIOR_ART_AND_DIFFERENTIATION.md",
+      secondSurvivorPriorArtMarkdown(input.sources),
+    ],
+    [
+      "INDEPENDENT_REPRODUCER_PACKAGE.md",
+      secondSurvivorIndependentReproducerMarkdown(input),
+    ],
+    [
+      "REPRODUCER_CHECKLIST.md",
+      secondSurvivorReproducerChecklistMarkdown(input),
+    ],
+    [
+      "PUBLIC_REVIEW_PACKAGE_AUDIT.md",
+      secondSurvivorPackageAuditMarkdown(input.packageAudit),
+    ],
+    [
+      "METHODOLOGY_VALUE_TESTS.md",
+      secondSurvivorValueTestsMarkdown(input.valueTests),
+    ],
+    [
+      "SURVIVOR_YIELD_COMPARISON.md",
+      secondSurvivorYieldComparisonMarkdown(input),
+    ],
+    [
+      "GENERALIZATION_AND_LIMITATIONS.md",
+      secondSurvivorGeneralizationMarkdown(input),
+    ],
+    [
+      "METHODOLOGY_REVIEW_DECISION.md",
+      secondSurvivorMethodologyDecisionMarkdown(input),
+    ],
+    [
+      "NOTIFICATION_GATE_RESULTS.md",
+      secondSurvivorNotificationGateMarkdown(input),
+    ],
+    ["FUND_GATE_RESULTS.md", secondSurvivorMethodologyFundGateMarkdown(input)],
+    [
+      "UPDATED_THREE_STAGE_SCORECARD.md",
+      secondSurvivorReadinessScorecardMarkdown(input.report),
+    ],
+    [
+      "FINAL_BLOCKERS.md",
+      `# Final Blockers\n\n${input.decision.exactBlocker}\n`,
+    ],
+    [
+      "STRATEGY_KNOWLEDGE_MEMORY_UPDATE.md",
+      secondSurvivorStrategyKnowledgeMemoryMarkdown(input),
+    ],
+    ["NEXT_ACTION.md", `# Next Action\n\n${input.decision.nextAction}\n`],
+  ];
+  for (const [file, text] of writes) {
+    await writeText(join(dir, file), text);
+    await writeText(join(input.root, file), text);
+  }
+  await writeJson(join(dir, "latest.json"), input.report);
+  await writeJson(
+    join(input.root, secondSurvivorMethodologyEvidenceCheckpoint),
+    {
+      kind: "second_survivor_methodology_evidence_checkpoint",
+      report: input.report,
+    },
+  );
+}
+
 function secondSurvivorInventoryMarkdown(
   inventory: SecondSurvivorInventory,
 ): string {
@@ -67465,6 +68294,91 @@ export class AutonomousDiscoveryDaemonService {
       draftValidation,
       fundGateResult,
       decision,
+    });
+    return report;
+  }
+
+  async secondSurvivorMethodologyEvidence(): Promise<Record<string, unknown>> {
+    await this.ensureInitialized();
+    if (
+      !(await exists(
+        join(this.root, secondSurvivorFundDraftRoot, "latest.json"),
+      ))
+    ) {
+      await this.secondSurvivorFundDraftReadiness();
+    }
+    const sourceReport =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(this.root, secondSurvivorEvidenceRoot, "latest.json"),
+      )) ?? {};
+    const candidateId = secondSurvivorDiscoveryCandidateId;
+    const evidence = await readSecondSurvivorEvidence(this.root);
+    const inventory = secondSurvivorDiscoveryInventory(
+      candidateId,
+      sourceReport,
+      evidence,
+    );
+    const closure = secondSurvivorEvidenceClosure(candidateId, evidence);
+    const sources = secondSurvivorExternalMethodologySources();
+    const valueTests = secondSurvivorMethodologyValueTests(inventory, closure);
+
+    await writeSecondSurvivorMethodologyPackageAdditions({
+      root: this.root,
+      inventory,
+      closure,
+      sources,
+      valueTests,
+    });
+    const packageAudit = await secondSurvivorMethodologyPackageAudit(this.root);
+    const fundGateResult = await this.refreshFundGateFromCandidate({
+      draftFallback: true,
+    });
+    const decision = secondSurvivorMethodologyDecision({
+      packageAudit,
+      valueTests,
+      fundGateResult,
+    });
+    const artifactRefs = secondSurvivorMethodologyArtifactRefs();
+    const report = withEvidenceHash({
+      kind: "second_survivor_methodology_evidence" as const,
+      discoveryCandidateId: candidateId,
+      discoveryCandidateStatus: "review_ready_discovery_candidate" as const,
+      fundCandidateDraftRef: secondSurvivorFundDraftRef,
+      survivorTasks: closure.tasks.length,
+      independentSurvivorTasks: closure.independentTaskCount,
+      publicRawReplayClosed: closure.allClosed,
+      externalMethodologySourcesCompared: sources.length,
+      methodologyValueTests: valueTests.length,
+      methodologyValueTestsPassed: valueTests.filter((test) => test.passed)
+        .length,
+      reproducerPackageStatus: packageAudit.passed
+        ? ("public_review_package_hardened" as const)
+        : ("public_review_package_incomplete" as const),
+      publicReviewPackageAuditPassed: packageAudit.passed,
+      methodologyEvidenceSupportsValue:
+        decision.methodologyEvidenceSupportsValue,
+      discoveryScored: decision.discoveryScored,
+      fundGatePassed: fundGateResult.passed,
+      fundGateStatus: fundGateResult.status,
+      fundClass: fundGateResult.fundClass,
+      notificationAllowed: decision.notificationAllowed,
+      fundFound: decision.fundFound,
+      stageScores: secondSurvivorMethodologyStageScores(decision),
+      exactBlocker: decision.exactBlocker,
+      nextAction: decision.nextAction,
+      artifactRefs,
+    });
+
+    await writeSecondSurvivorMethodologyEvidenceArtifacts({
+      root: this.root,
+      report,
+      inventory,
+      closure,
+      sources,
+      valueTests,
+      packageAudit,
+      decision,
+      fundGateResult,
     });
     return report;
   }

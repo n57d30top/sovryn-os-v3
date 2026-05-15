@@ -1,6 +1,8 @@
 # Discovery Candidate Package Status
 
-No DiscoveryCandidate package was created because V2 promotion criteria did not all pass.
+DiscoveryCandidate created: no
+DiscoveryCandidate ID: none
+FundCandidateDraft created: no
+FUND_FOUND: no
 
-Fund Gate passed: no
-Failed gates: discovery_candidate_present
+No package is built unless the survival-calibrated method produces at least two independent plausible non-control deep-validation survivors and beats V3 plus reject-all.

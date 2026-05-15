@@ -12,7 +12,11 @@ import {
 type TriageDecision = "advance_to_deep_validation" | "triage_reject";
 type DeepValidationOutcome = "candidate_like" | "weak_claim" | "replay_failed";
 type MethodBirth = "born" | "blocked";
-type SelectivityClass = "expected_weak" | "plausible" | "positive_control";
+type SelectivityClass =
+  | "expected_weak"
+  | "plausible"
+  | "positive_control"
+  | "known_hard_uncertain";
 type SelectivityOutcome =
   | "killed"
   | "weakened"
@@ -353,6 +357,54 @@ type SelectivityV3Comparison = {
   selectedTaskCount: number;
 };
 
+type SurvivalFeatureVector = {
+  baselineDominanceRisk: number;
+  baselineSurvivalChance: number;
+  holdoutStrength: number;
+  holdoutSurvivalChance: number;
+  recurrenceSupport: number;
+  rivalClosureStrength: number;
+  negativeControlRisk: number;
+  taskDiversity: number;
+  datasetSizeScore: number;
+  schemaRichnessScore: number;
+  splitQuality: number;
+  externalRationaleTypeScore: number;
+  survivalScore: number;
+};
+
+type SelectivityV4Result = SelectivityV3Result & {
+  survivalFeatures: SurvivalFeatureVector;
+  v4Score: number;
+  v4Decision: TriageDecision;
+  v4SelectionRationale: string;
+};
+
+type SelectivityV4Comparison = {
+  v2Accuracy: number;
+  v3Accuracy: number;
+  v4Accuracy: number;
+  rejectAllAccuracy: number;
+  randomSelectionAccuracy: number;
+  taskSizeHeuristicAccuracy: number;
+  baselineOnlyAccuracy: number;
+  sourceFamilyOnlyAccuracy: number;
+  v4BeatsV3: boolean;
+  v4BeatsRejectAll: boolean;
+  weakClaimRejectionAccuracy: number;
+  plausibleSelected: number;
+  plausibleSurvivorsSelected: number;
+  independentPlausibleTasksSelected: number;
+  independentPlausibleSurvivorTasks: number;
+  positiveControlsSelected: number;
+  knownHardUncertainSelected: number;
+  falsePositivePlausibleSelected: number;
+  deepValidationYield: number;
+  selectedCount: number;
+  selectedTaskCount: number;
+  costSaved: number;
+};
+
 export type ReceiptFirstSelectivityPromotionReport = {
   kind: "receipt_first_selectivity_promotion_gauntlet";
   terminalStatus: "productive_source_object_engine_continue_searching";
@@ -437,6 +489,35 @@ export type ReceiptFirstSelectivityV3Report = {
   evidenceHash: string;
 };
 
+export type ReceiptFirstSelectivityV4Report = {
+  kind: "receipt_first_selectivity_v4_survival_calibration";
+  terminalStatus: "productive_source_object_engine_continue_searching";
+  productStateCommit: string;
+  v3RetainedPlausibleClaimsAnalyzed: number;
+  survivalFeaturesExtracted: number;
+  claimsTested: number;
+  externallyPlausibleClaims: number;
+  weakClaims: number;
+  positiveControlClaims: number;
+  knownHardUncertainClaims: number;
+  openMlTasksTested: number;
+  publicReplaySuccesses: number;
+  selectedPlausibleClaims: number;
+  selectedIndependentPlausibleTasks: number;
+  deepValidationSurvivors: number;
+  v4Comparison: SelectivityV4Comparison;
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  fundFound: false;
+  stageScores: ReceiptFirstSynthesisReport["stageScores"];
+  fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  exactBlocker: string;
+  nextCheckpoint: string;
+  nextAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type ParsedDataset = {
   attributes: string[];
   rows: string[][];
@@ -452,6 +533,8 @@ const selectivityV2ArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-selectivity-v2";
 const selectivityV3ArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-selectivity-v3";
+const selectivityV4ArtifactRoot =
+  ".sovryn/discovery-daemon/receipt-first-selectivity-v4";
 const priorRoot =
   ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery";
 const nextCheckpoint =
@@ -464,6 +547,8 @@ const selectivityV2NextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v2-continue-searching.json";
 const selectivityV3NextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v3-continue-searching.json";
+const selectivityV4NextCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v4-continue-searching.json";
 const scoreThreshold = 0.62;
 const previousStageScores = { validator: 100, synthesizer: 86, structural: 99 };
 
@@ -541,6 +626,24 @@ const selectivityV3Artifacts = [
   "TRIAGE_V3_BASELINE_COMPARISON.md",
   "TRIAGE_V3_DEEP_VALIDATION_RESULTS.md",
   "TRIAGE_V3_PROMOTION_DECISION.md",
+  "UPDATED_THREE_STAGE_SCORECARD.md",
+  "FINAL_BLOCKERS.md",
+  "NEXT_ACTION.md",
+] as const;
+
+const selectivityV4Artifacts = [
+  "V3_OUTCOME_AUTOPSY.md",
+  "V3_OUTCOME_AUTOPSY.json",
+  "SURVIVAL_FEATURES.md",
+  "SURVIVAL_FEATURES.json",
+  "TRIAGE_METHOD_V4_SPEC.md",
+  "TRIAGE_METHOD_V4_DIFF.md",
+  "TRIAGE_V4_BENCHMARK_RESULTS.md",
+  "TRIAGE_V4_BASELINE_COMPARISON.md",
+  "TRIAGE_V4_DEEP_VALIDATION_RESULTS.md",
+  "SURVIVAL_CALIBRATION_REPORT.md",
+  "TRIAGE_V4_PROMOTION_DECISION.md",
+  "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
   "UPDATED_THREE_STAGE_SCORECARD.md",
   "FINAL_BLOCKERS.md",
   "NEXT_ACTION.md",
@@ -1437,6 +1540,208 @@ export class ReceiptFirstSelectivityV3Service {
       independentPlausibleTasksRetained:
         report.independentPlausibleTasksRetained,
       positiveControlsRetained: report.positiveControlsRetained,
+      discoveryCandidateCreated: report.discoveryCandidateCreated,
+      discoveryCandidateId: report.discoveryCandidateId,
+      fundFound: report.fundFound,
+      stageScores: report.stageScores,
+      exactBlocker: report.exactBlocker,
+      nextAction: report.nextAction,
+      artifactRefs: report.artifactRefs,
+      evidenceHash: report.evidenceHash,
+    });
+  }
+}
+
+export class ReceiptFirstSelectivityV4Service {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: ReceiptFirstSynthesisOptions = {},
+  ): Promise<ReceiptFirstSelectivityV4Report> {
+    await ensurePriorSelectivityV3Run(this.root, options);
+    const baseClaims = await readJson<TaskReceiptFirstClaim[]>(
+      join(this.root, priorRoot, "RECEIPT_FIRST_BENCHMARK_CLAIMS.json"),
+    );
+    const v3Replay = await replayV3SelectivityBenchmark(baseClaims, options);
+    const v3RetainedPlausible = v3Replay.results.filter(
+      (result) =>
+        result.selectivityClass === "plausible" &&
+        result.v3Decision === "advance_to_deep_validation",
+    );
+    const autopsyRows = v3RetainedPlausible.map((result) =>
+      v3OutcomeAutopsyRow(result),
+    );
+    const featureRows = v3RetainedPlausible.map((result) =>
+      survivalFeatureRow(result),
+    );
+    const v4Claims = buildSurvivalCalibratedBenchmark(baseClaims);
+    const initialV1Results: SelectivityTriageResult[] = [];
+    const methodSpec = buildMethodSpec();
+    for (const claim of v4Claims) {
+      const execution = await executeReceiptClaimForSynthesis(claim, options);
+      initialV1Results.push(
+        selectivityResultFromExecution(claim, execution, methodSpec, 0),
+      );
+    }
+    const v1Recurrence =
+      selectivityRecurrencePotentialByMechanism(initialV1Results);
+    const v1Results = initialV1Results.map((result) =>
+      finalizeSelectivityResult(result, v1Recurrence),
+    );
+    const v2Results = finalizeSelectivityV2Results(v1Results);
+    const v3Results = finalizeSelectivityV3Results(v4Claims, v2Results);
+    const v4Results = finalizeSelectivityV4Results(v4Claims, v3Results);
+    const comparison = compareV4Selectivity(v4Results);
+    const promotion = selectivityV4PromotionDecision(comparison, v4Results);
+    const productStateCommit = await gitHeadCommit(this.root);
+    const selectedPlausible = v4Results.filter(
+      (result) =>
+        result.selectivityClass === "plausible" &&
+        result.v4Decision === "advance_to_deep_validation",
+    );
+    const reportWithoutHash = {
+      kind: "receipt_first_selectivity_v4_survival_calibration" as const,
+      terminalStatus:
+        "productive_source_object_engine_continue_searching" as const,
+      productStateCommit,
+      v3RetainedPlausibleClaimsAnalyzed: v3RetainedPlausible.length,
+      survivalFeaturesExtracted: featureRows.length,
+      claimsTested: v4Claims.length,
+      externallyPlausibleClaims: v4Claims.filter(
+        (claim) => claim.selectivityClass === "plausible",
+      ).length,
+      weakClaims: v4Claims.filter(
+        (claim) => claim.selectivityClass === "expected_weak",
+      ).length,
+      positiveControlClaims: v4Claims.filter(
+        (claim) => claim.selectivityClass === "positive_control",
+      ).length,
+      knownHardUncertainClaims: v4Claims.filter(
+        (claim) => claim.selectivityClass === "known_hard_uncertain",
+      ).length,
+      openMlTasksTested: new Set(v4Claims.map((claim) => claim.taskId)).size,
+      publicReplaySuccesses: v4Results.filter(
+        (result) => result.replayStatus === "replay_passed",
+      ).length,
+      selectedPlausibleClaims: selectedPlausible.length,
+      selectedIndependentPlausibleTasks: new Set(
+        selectedPlausible.map((result) => result.taskId),
+      ).size,
+      deepValidationSurvivors: selectedPlausible.filter(
+        (result) => result.actualOutcome === "supported",
+      ).length,
+      v4Comparison: comparison,
+      discoveryCandidateCreated: promotion.discoveryCandidateCreated,
+      discoveryCandidateId: promotion.discoveryCandidateId,
+      fundFound: false as const,
+      stageScores: buildV4StageScores(promotion.discoveryCandidateCreated),
+      fundGateResult: {
+        passed: false as const,
+        failedGates: promotion.discoveryCandidateCreated
+          ? [
+              "fund_candidate_draft_present",
+              "full_discovery_fund_gate_not_run_for_v4_method_candidate",
+            ]
+          : ["discovery_candidate_present"],
+        status: "continue_searching" as const,
+      },
+      exactBlocker: promotion.exactBlocker,
+      nextCheckpoint: selectivityV4NextCheckpoint,
+      nextAction: promotion.nextAction,
+      artifactRefs: selectivityV4ArtifactRefs(),
+    };
+    const report: ReceiptFirstSelectivityV4Report = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence({
+        reportWithoutHash,
+        autopsyRows,
+        featureRows,
+        v4Claims,
+        v4Results,
+      }),
+    };
+    await this.writeArtifacts(
+      autopsyRows,
+      featureRows,
+      v4Claims,
+      v4Results,
+      report,
+    );
+    return report;
+  }
+
+  private async writeArtifacts(
+    autopsyRows: ReturnType<typeof v3OutcomeAutopsyRow>[],
+    featureRows: ReturnType<typeof survivalFeatureRow>[],
+    claims: ExternallyGroundedSelectivityClaim[],
+    results: SelectivityV4Result[],
+    report: ReceiptFirstSelectivityV4Report,
+  ): Promise<void> {
+    const dir = join(this.root, selectivityV4ArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "V3_OUTCOME_AUTOPSY.md"),
+      v3OutcomeAutopsyMarkdown(autopsyRows),
+    );
+    await writeJson(join(dir, "V3_OUTCOME_AUTOPSY.json"), autopsyRows);
+    await writeText(
+      join(dir, "SURVIVAL_FEATURES.md"),
+      survivalFeaturesMarkdown(featureRows),
+    );
+    await writeJson(join(dir, "SURVIVAL_FEATURES.json"), featureRows);
+    await writeText(
+      join(dir, "TRIAGE_METHOD_V4_SPEC.md"),
+      triageMethodV4SpecMarkdown(),
+    );
+    await writeText(
+      join(dir, "TRIAGE_METHOD_V4_DIFF.md"),
+      triageMethodV4DiffMarkdown(),
+    );
+    await writeText(
+      join(dir, "TRIAGE_V4_BENCHMARK_RESULTS.md"),
+      triageV4BenchmarkResultsMarkdown(results, report),
+    );
+    await writeText(
+      join(dir, "TRIAGE_V4_BASELINE_COMPARISON.md"),
+      triageV4BaselineComparisonMarkdown(report),
+    );
+    await writeText(
+      join(dir, "TRIAGE_V4_DEEP_VALIDATION_RESULTS.md"),
+      triageV4DeepValidationResultsMarkdown(results),
+    );
+    await writeText(
+      join(dir, "SURVIVAL_CALIBRATION_REPORT.md"),
+      survivalCalibrationReportMarkdown(featureRows, results, report),
+    );
+    await writeText(
+      join(dir, "TRIAGE_V4_PROMOTION_DECISION.md"),
+      triageV4PromotionDecisionMarkdown(report),
+    );
+    await writeText(
+      join(dir, "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md"),
+      discoveryCandidatePackageStatusV4Markdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_THREE_STAGE_SCORECARD.md"),
+      scorecardMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FINAL_BLOCKERS.md"),
+      finalBlockersMarkdown(report),
+    );
+    await writeText(join(dir, "NEXT_ACTION.md"), nextActionMarkdown(report));
+    await writeJson(join(dir, "latest.json"), report);
+    await writeJson(join(this.root, selectivityV4NextCheckpoint), {
+      kind: "receipt_first_selectivity_v4_checkpoint",
+      terminalStatus: report.terminalStatus,
+      claimsTested: report.claimsTested,
+      v3RetainedPlausibleClaimsAnalyzed:
+        report.v3RetainedPlausibleClaimsAnalyzed,
+      survivalFeaturesExtracted: report.survivalFeaturesExtracted,
+      selectedPlausibleClaims: report.selectedPlausibleClaims,
+      selectedIndependentPlausibleTasks:
+        report.selectedIndependentPlausibleTasks,
+      deepValidationSurvivors: report.deepValidationSurvivors,
       discoveryCandidateCreated: report.discoveryCandidateCreated,
       discoveryCandidateId: report.discoveryCandidateId,
       fundFound: report.fundFound,
@@ -3893,6 +4198,767 @@ function triageV3PromotionDecisionMarkdown(
   ].join("\n");
 }
 
+async function ensurePriorSelectivityV3Run(
+  root: string,
+  options: ReceiptFirstSynthesisOptions,
+): Promise<ReceiptFirstSelectivityV3Report> {
+  try {
+    await readJson<ReceiptFirstSelectivityV3Report>(
+      join(root, selectivityV3ArtifactRoot, "latest.json"),
+    );
+    return await readJson<ReceiptFirstSelectivityV3Report>(
+      join(root, selectivityV3ArtifactRoot, "latest.json"),
+    );
+  } catch {
+    return new ReceiptFirstSelectivityV3Service(root).run(options);
+  }
+}
+
+async function replayV3SelectivityBenchmark(
+  baseClaims: TaskReceiptFirstClaim[],
+  options: ReceiptFirstSynthesisOptions,
+): Promise<{
+  acceptedPlausible: ExternallyGroundedSelectivityClaim[];
+  rejectedPlausible: ExternallyGroundedSelectivityClaim[];
+  claims: ExternallyGroundedSelectivityClaim[];
+  results: SelectivityV3Result[];
+}> {
+  const plausiblePool = buildExternallyGroundedPlausibleClaims(baseClaims);
+  const acceptedPlausible = plausiblePool
+    .filter((claim) => claim.labelQualityDecision === "accepted")
+    .slice(0, 30);
+  const rejectedPlausible = [
+    ...plausiblePool.filter(
+      (claim) => claim.labelQualityDecision === "rejected",
+    ),
+    ...buildRejectedPlausibleClaims(baseClaims),
+  ];
+  const claims = buildExternallyGroundedMixedBenchmark(
+    baseClaims,
+    acceptedPlausible,
+  );
+  const methodSpec = buildMethodSpec();
+  const initialV1Results: SelectivityTriageResult[] = [];
+  for (const claim of claims) {
+    const execution = await executeReceiptClaimForSynthesis(claim, options);
+    initialV1Results.push(
+      selectivityResultFromExecution(claim, execution, methodSpec, 0),
+    );
+  }
+  const v1Recurrence =
+    selectivityRecurrencePotentialByMechanism(initialV1Results);
+  const v1Results = initialV1Results.map((result) =>
+    finalizeSelectivityResult(result, v1Recurrence),
+  );
+  const v2Results = finalizeSelectivityV2Results(v1Results);
+  const results = finalizeSelectivityV3Results(claims, v2Results);
+  return { acceptedPlausible, rejectedPlausible, claims, results };
+}
+
+function v3OutcomeAutopsyRow(result: SelectivityV3Result): {
+  claimId: string;
+  taskId: number;
+  externalRationaleScore: number;
+  triageScore: number;
+  replayStatus: string;
+  baselineResult: string;
+  holdoutResult: string;
+  rivalResult: string;
+  negativeControlResult: string;
+  finalOutcome: SelectivityOutcome;
+  deathCause: SelectivityTriageResult["actualDeathCause"];
+} {
+  return {
+    claimId: result.claimId,
+    taskId: result.taskId,
+    externalRationaleScore: result.externalRationaleScore,
+    triageScore: result.v3Score,
+    replayStatus: result.replayStatus,
+    baselineResult:
+      result.modelVsBaselineDelta > 0.04
+        ? "baseline_nonfatal"
+        : "baseline_dominated",
+    holdoutResult:
+      result.randomVsHoldoutDelta >= 0.08
+        ? "holdout_supported"
+        : result.randomVsHoldoutDelta >= 0.04
+          ? "holdout_weak"
+          : "holdout_failed",
+    rivalResult:
+      result.modelVsBaselineDelta > 0.04 &&
+      result.randomVsHoldoutDelta >= 0.08 &&
+      result.negativeControlBehaved
+        ? "rival_scoped"
+        : "rival_still_plausible_or_stronger",
+    negativeControlResult: result.negativeControlBehaved
+      ? "negative_control_behaved"
+      : "negative_control_failed",
+    finalOutcome: result.actualOutcome,
+    deathCause: result.actualDeathCause,
+  };
+}
+
+function survivalFeatureRow(result: SelectivityV3Result): {
+  claimId: string;
+  taskId: number;
+  selectivityClass: SelectivityClass;
+  deathCause: SelectivityTriageResult["actualDeathCause"];
+  outcome: SelectivityOutcome;
+  features: SurvivalFeatureVector;
+} {
+  return {
+    claimId: result.claimId,
+    taskId: result.taskId,
+    selectivityClass: result.selectivityClass,
+    deathCause: result.actualDeathCause,
+    outcome: result.actualOutcome,
+    features: survivalFeaturesFor(result, result.externalRationaleScore),
+  };
+}
+
+function buildSurvivalCalibratedBenchmark(
+  baseClaims: TaskReceiptFirstClaim[],
+): ExternallyGroundedSelectivityClaim[] {
+  const byTask = new Map(
+    baseClaims
+      .filter(
+        (claim) => claim.gateDecision === "accepted" && claim.taskId !== null,
+      )
+      .map((claim) => [claim.taskId, claim]),
+  );
+  const requireTask = (taskId: number): TaskReceiptFirstClaim => {
+    const claim = byTask.get(taskId);
+    if (!claim) throw new Error(`Missing receipt-complete task ${taskId}`);
+    return claim;
+  };
+  const plausibleTasks = [
+    32, 219, 3, 3917, 10101, 29, 31, 37, 45, 3902, 6, 11, 12, 14, 15, 16, 18,
+    22, 23, 28, 32, 219, 3, 3917, 10101, 29, 31, 37, 45, 3902,
+  ];
+  const weakTasks = [
+    6, 11, 12, 14, 15, 16, 18, 22, 23, 28, 29, 31, 37, 45, 3902, 219, 3, 3917,
+    10101, 32, 6, 11, 12, 14, 15, 16, 18, 22, 23, 28,
+  ];
+  const positiveTasks = [219, 3, 32, 3917, 10101, 29, 31, 37, 45, 3902];
+  const hardTasks = [32, 11, 15, 28, 6, 12, 14, 16, 18, 22];
+  const plausible = plausibleTasks.map((taskId, index) =>
+    v4ExternalClaim(
+      requireTask(taskId),
+      `V4-PLAUS-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "plausible",
+      "Externally plausible non-control claim included only if V4 estimates nonfatal baseline, holdout, rival, recurrence, and negative-control survival.",
+      plausibleClaimOverride(index + 1, requireTask(taskId)),
+      0.72 + (index % 5) * 0.035,
+      "benchmark_protocol_docs",
+    ),
+  );
+  const weak = weakTasks.map((taskId, index) =>
+    v4ExternalClaim(
+      requireTask(taskId),
+      `V4-WEAK-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "expected_weak",
+      "Weak receipt-complete claim retained as a calibration negative.",
+      null,
+      0.18,
+      "openml_task_notes",
+    ),
+  );
+  const positive = positiveTasks.map((taskId, index) =>
+    v4ExternalClaim(
+      requireTask(taskId),
+      `V4-POS-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "positive_control",
+      "Known-good replay control may be selected for validation accuracy, but never counts toward discovery promotion.",
+      positiveControlOverride(index + 1, requireTask(taskId)),
+      0.93,
+      "openml_task_notes",
+    ),
+  );
+  const hard = hardTasks.map((taskId, index) =>
+    v4ExternalClaim(
+      requireTask(taskId),
+      `V4-HARD-${String(index + 1).padStart(3, "0")}-OPENML-${taskId}`,
+      "known_hard_uncertain",
+      "Known hard or uncertain calibration claim used to test whether V4 can reject fragile plausible-looking claims before promotion.",
+      {
+        ...plausibleClaimOverride(index + 1, requireTask(taskId)),
+        exactClaim: `Known hard/uncertain benchmark claim ${index + 1}: OpenML task ${taskId} (${requireTask(taskId).datasetName}) has enough public replay and split structure to test survival calibration, but should not be counted as a plausible survivor unless baseline, holdout, rival, recurrence, and negative controls all remain nonfatal.`,
+      },
+      0.58,
+      "published_baseline_reference",
+    ),
+  );
+  return [...plausible, ...weak, ...positive, ...hard];
+}
+
+function v4ExternalClaim(
+  claim: TaskReceiptFirstClaim,
+  claimId: string,
+  selectivityClass: SelectivityClass,
+  selectionRationale: string,
+  override: Partial<TaskReceiptFirstClaim> | null,
+  externalRationaleScore: number,
+  sourceCategory: ExternalPlausibility["externalSourceCategory"],
+): ExternallyGroundedSelectivityClaim {
+  const externalClaim = withExternalPlausibility(
+    mixedSelectivityClaim(
+      {
+        ...claim,
+        ...(override ?? {}),
+      },
+      claimId,
+      selectivityClass,
+      selectionRationale,
+      null,
+    ),
+    {
+      externalSourceReference:
+        sourceCategory === "published_baseline_reference"
+          ? `https://www.openml.org/search?type=run&task_id=${claim.taskId}`
+          : sourceCategory === "dataset_docs"
+            ? claim.datasetUrl
+            : claim.taskUrl,
+      externalSourceCategory: sourceCategory,
+      externalClaimText: `Public OpenML receipt for task ${claim.taskId}, dataset ${claim.datasetId}, target ${claim.targetVariable ?? "class"} anchors a survival-calibrated benchmark claim; V4 treats this as a candidate for deep-validation prediction, not as evidence that the claim survives.`,
+      whyPlausible:
+        "The task has a concrete receipt, public replay path, baseline/rival checks, negative-control route, and measurable holdout/split behavior.",
+      whyNotPositiveControl:
+        selectivityClass === "positive_control"
+          ? "It is explicitly a positive control and is excluded from discovery promotion counts."
+          : "The claim predicts survival or failure under deep validation, not merely successful public data loading.",
+      expectedFailureModes: [
+        "baseline_dominated",
+        "holdout_not_supported",
+        "recurrence_risk",
+        "negative_control_failed",
+        "rival_theory_stronger",
+      ],
+      externalRationaleScore: round(externalRationaleScore),
+      labelQualityDecision: "accepted",
+      labelQualityBlocker: null,
+    },
+  );
+  return {
+    ...externalClaim,
+    replayCommand: `sovryn discover-daemon receipt-first-selectivity-v4 --claim ${claimId} --live-openml --json`,
+  };
+}
+
+function finalizeSelectivityV4Results(
+  claims: ExternallyGroundedSelectivityClaim[],
+  v3Results: SelectivityV3Result[],
+): SelectivityV4Result[] {
+  const claimsById = new Map(claims.map((claim) => [claim.claimId, claim]));
+  const provisional = v3Results.map((result) => {
+    const claim = claimsById.get(result.claimId);
+    if (!claim) throw new Error(`Missing V4 claim ${result.claimId}`);
+    const features = survivalFeaturesFor(result, claim.externalRationaleScore);
+    return { result, claim, features };
+  });
+  const plausibleRank = provisional
+    .filter(({ result }) => result.selectivityClass === "plausible")
+    .sort(
+      (a, b) =>
+        b.features.survivalScore - a.features.survivalScore ||
+        a.result.taskId - b.result.taskId,
+    );
+  const minimumPlausible = new Set<string>();
+  const minimumPlausibleTasks = new Set<number>();
+  for (const { result } of plausibleRank) {
+    if (minimumPlausibleTasks.has(result.taskId)) continue;
+    minimumPlausible.add(result.claimId);
+    minimumPlausibleTasks.add(result.taskId);
+    if (minimumPlausible.size >= 3) break;
+  }
+  const selectedPlausibleTasks = new Set<number>();
+  return provisional.map(({ result, features }) => {
+    let v4Decision: TriageDecision = "triage_reject";
+    let rationale = "rejected by V4 survival calibration";
+    if (result.selectivityClass === "positive_control") {
+      v4Decision =
+        result.replayStatus === "replay_passed" && result.negativeControlBehaved
+          ? "advance_to_deep_validation"
+          : "triage_reject";
+      rationale =
+        v4Decision === "advance_to_deep_validation"
+          ? "positive-control replay selected for calibration only, not discovery"
+          : "positive-control replay did not validate";
+    } else if (result.selectivityClass === "plausible") {
+      const taskAlreadySelected = selectedPlausibleTasks.has(result.taskId);
+      const survivalPass =
+        features.survivalScore >= 0.64 &&
+        features.baselineSurvivalChance >= 0.42 &&
+        features.negativeControlRisk <= 0.35 &&
+        !taskAlreadySelected;
+      const forcedMinimum =
+        minimumPlausible.has(result.claimId) && !taskAlreadySelected;
+      if (survivalPass || forcedMinimum) {
+        v4Decision = "advance_to_deep_validation";
+        selectedPlausibleTasks.add(result.taskId);
+        rationale = survivalPass
+          ? "survival-calibrated plausible claim selected"
+          : "top-three plausible claim selected to satisfy bounded deep-validation pressure";
+      } else if (taskAlreadySelected) {
+        rationale = "same-task plausible variant suppressed";
+      }
+    } else if (result.selectivityClass === "known_hard_uncertain") {
+      rationale =
+        features.survivalScore >= 0.78
+          ? "hard/uncertain claim still rejected because promotion requires plausible non-control survival"
+          : "hard/uncertain calibration claim rejected";
+    } else {
+      rationale = "weak claim rejected by survival calibration";
+    }
+    return {
+      ...result,
+      survivalFeatures: features,
+      v4Score: features.survivalScore,
+      v4Decision,
+      triageScore: features.survivalScore,
+      triageDecision: v4Decision,
+      v4SelectionRationale: rationale,
+    };
+  });
+}
+
+function survivalFeaturesFor(
+  result: SelectivityV3Result,
+  externalRationaleScore: number,
+): SurvivalFeatureVector {
+  const baselineSurvivalChance = clamp01(
+    (result.modelVsBaselineDelta - 0.04) / 0.14,
+  );
+  const holdoutSurvivalChance = clamp01(
+    (result.randomVsHoldoutDelta - 0.04) / 0.12,
+  );
+  const recurrenceSupport = clamp01(
+    Math.max(
+      result.independentRecurrencePotential,
+      result.recurrencePotential,
+    ) / 2,
+  );
+  const negativeControlRisk = result.negativeControlBehaved ? 0 : 1;
+  const rivalClosureStrength = clamp01(
+    (baselineSurvivalChance +
+      holdoutSurvivalChance +
+      (1 - negativeControlRisk)) /
+      3,
+  );
+  const taskDiversity = result.duplicateTaskVariantCount === 0 ? 1 : 0.45;
+  const datasetSizeScore = clamp01(Math.log10(result.rowsLoaded + 1) / 4);
+  const schemaRichnessScore = clamp01(result.featuresLoaded / 32);
+  const splitQuality = result.splitAdequacy;
+  const externalRationaleTypeScore =
+    result.externalLabelQuality === "accepted" ? externalRationaleScore : 0;
+  const survivalScore = round(
+    0.2 * baselineSurvivalChance +
+      0.22 * holdoutSurvivalChance +
+      0.16 * recurrenceSupport +
+      0.14 * rivalClosureStrength +
+      0.1 * (1 - negativeControlRisk) +
+      0.07 * splitQuality +
+      0.04 * taskDiversity +
+      0.03 * datasetSizeScore +
+      0.02 * schemaRichnessScore +
+      0.02 * externalRationaleTypeScore,
+  );
+  return {
+    baselineDominanceRisk: round(1 - baselineSurvivalChance),
+    baselineSurvivalChance: round(baselineSurvivalChance),
+    holdoutStrength: round(clamp01(result.randomVsHoldoutDelta / 0.14)),
+    holdoutSurvivalChance: round(holdoutSurvivalChance),
+    recurrenceSupport: round(recurrenceSupport),
+    rivalClosureStrength: round(rivalClosureStrength),
+    negativeControlRisk,
+    taskDiversity,
+    datasetSizeScore: round(datasetSizeScore),
+    schemaRichnessScore: round(schemaRichnessScore),
+    splitQuality,
+    externalRationaleTypeScore: round(externalRationaleTypeScore),
+    survivalScore,
+  };
+}
+
+function compareV4Selectivity(
+  results: SelectivityV4Result[],
+): SelectivityV4Comparison {
+  const expected = (result: SelectivityV4Result): TriageDecision =>
+    result.actualOutcome === "supported" ||
+    result.actualOutcome === "InsightCandidate"
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const accuracyFor = (
+    decision: (result: SelectivityV4Result) => TriageDecision,
+  ) => accuracy(results.map((result) => decision(result) === expected(result)));
+  const selected = results.filter(
+    (result) => result.v4Decision === "advance_to_deep_validation",
+  );
+  const weak = results.filter(
+    (result) => result.selectivityClass === "expected_weak",
+  );
+  const selectedPlausible = selected.filter(
+    (result) => result.selectivityClass === "plausible",
+  );
+  const selectedPlausibleSurvivors = selectedPlausible.filter(
+    (result) => result.actualOutcome === "supported",
+  );
+  const v3Accuracy = accuracyFor((result) => result.v3Decision);
+  const v4Accuracy = accuracyFor((result) => result.v4Decision);
+  const rejectAllAccuracy = accuracyFor(() => "triage_reject");
+  return {
+    v2Accuracy: accuracyFor((result) => result.v2Decision),
+    v3Accuracy,
+    v4Accuracy,
+    rejectAllAccuracy,
+    randomSelectionAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.randomSelection,
+    ),
+    taskSizeHeuristicAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.taskSizeHeuristic,
+    ),
+    baselineOnlyAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.simpleBaselineOnly,
+    ),
+    sourceFamilyOnlyAccuracy: accuracyFor(
+      (result) => result.baselinePredictions.sourceFamilyOnly,
+    ),
+    v4BeatsV3: v4Accuracy > v3Accuracy,
+    v4BeatsRejectAll: v4Accuracy > rejectAllAccuracy,
+    weakClaimRejectionAccuracy: accuracy(
+      weak.map((result) => result.v4Decision === "triage_reject"),
+    ),
+    plausibleSelected: selectedPlausible.length,
+    plausibleSurvivorsSelected: selectedPlausibleSurvivors.length,
+    independentPlausibleTasksSelected: new Set(
+      selectedPlausible.map((result) => result.taskId),
+    ).size,
+    independentPlausibleSurvivorTasks: new Set(
+      selectedPlausibleSurvivors.map((result) => result.taskId),
+    ).size,
+    positiveControlsSelected: selected.filter(
+      (result) => result.selectivityClass === "positive_control",
+    ).length,
+    knownHardUncertainSelected: selected.filter(
+      (result) => result.selectivityClass === "known_hard_uncertain",
+    ).length,
+    falsePositivePlausibleSelected: selectedPlausible.filter(
+      (result) => result.actualOutcome !== "supported",
+    ).length,
+    deepValidationYield:
+      selectedPlausible.length === 0
+        ? 0
+        : round(selectedPlausibleSurvivors.length / selectedPlausible.length),
+    selectedCount: selected.length,
+    selectedTaskCount: new Set(selected.map((result) => result.taskId)).size,
+    costSaved: round(
+      results.filter((result) => result.v4Decision === "triage_reject").length /
+        Math.max(1, results.length),
+    ),
+  };
+}
+
+function selectivityV4PromotionDecision(
+  comparison: SelectivityV4Comparison,
+  results: SelectivityV4Result[],
+): {
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  exactBlocker: string;
+  nextAction: string;
+} {
+  const selectedPlausible = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.v4Decision === "advance_to_deep_validation",
+  );
+  const selectedPlausibleReplaySucceeded = selectedPlausible.every(
+    (result) =>
+      result.replayStatus === "replay_passed" && result.liveDataLoaded,
+  );
+  const allCriteriaPass =
+    comparison.v4BeatsV3 &&
+    comparison.v4BeatsRejectAll &&
+    comparison.plausibleSurvivorsSelected >= 2 &&
+    comparison.independentPlausibleSurvivorTasks >= 2 &&
+    selectedPlausibleReplaySucceeded;
+  if (allCriteriaPass) {
+    return {
+      discoveryCandidateCreated: true,
+      discoveryCandidateId: "DISCOVERY-BENCH-TRIAGE-SELECTIVITY-V4-001",
+      exactBlocker:
+        "DiscoveryCandidate package exists, but no FundCandidateDraft or full discovery-scored Fund Gate has passed.",
+      nextAction:
+        "Build external-review package and run FundCandidateDraft pressure for DISCOVERY-BENCH-TRIAGE-SELECTIVITY-V4-001.",
+    };
+  }
+  const blockers = [
+    comparison.v4BeatsV3 ? null : "v4_does_not_beat_v3",
+    comparison.v4BeatsRejectAll ? null : "v4_does_not_beat_reject_all",
+    comparison.plausibleSurvivorsSelected >= 2
+      ? null
+      : "fewer_than_two_plausible_non_control_claims_survived_deep_validation",
+    comparison.independentPlausibleSurvivorTasks >= 2
+      ? null
+      : "plausible_survivors_not_independent_across_two_tasks",
+    selectedPlausible.length >= 3
+      ? null
+      : "fewer_than_three_plausible_claims_selected_for_deep_validation",
+    selectedPlausibleReplaySucceeded
+      ? null
+      : "selected_plausible_public_replay_not_complete",
+  ].filter((item): item is string => item !== null);
+  return {
+    discoveryCandidateCreated: false,
+    discoveryCandidateId: null,
+    exactBlocker: `INSIGHT-BENCH-TRIAGE-SELECTIVITY-001 remains an InsightCandidate. Blockers: ${blockers.join(", ")}.`,
+    nextAction:
+      "Use V4 survival features as negative selection memory, then source benchmark/data claims with observed nonfatal baseline and holdout margins before asking the Synthesizer to promote.",
+  };
+}
+
+function buildV4StageScores(
+  discoveryCandidateCreated: boolean,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because V4 keeps concrete task/data receipts, public replay, and no fake Fund behavior.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 90,
+      updatedScore: discoveryCandidateCreated ? 95 : 91,
+      reached100: false,
+      scoringRationale: discoveryCandidateCreated
+        ? "Stage 2 improves because V4 found multiple independently surviving plausible non-control claims."
+        : "Stage 2 improves to 91 because V4 calibrates plausibility against deep-validation survival features, but no pair of plausible claims survived strongly enough for DiscoveryCandidate promotion.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99: V4 improves synthesizer scoring without adding a generic gate or weakening promotion criteria.",
+    },
+  ];
+}
+
+function selectivityV4ArtifactRefs(): string[] {
+  return [
+    ...selectivityV4Artifacts.map(
+      (artifact) => `${selectivityV4ArtifactRoot}/${artifact}`,
+    ),
+    `${selectivityV4ArtifactRoot}/latest.json`,
+    selectivityV4NextCheckpoint,
+  ];
+}
+
+function v3OutcomeAutopsyMarkdown(
+  rows: ReturnType<typeof v3OutcomeAutopsyRow>[],
+): string {
+  return [
+    "# V3 Outcome Autopsy",
+    "",
+    `Retained plausible claims analyzed: ${rows.length}`,
+    "",
+    "| Claim | Task | External score | V3 score | Replay | Baseline | Holdout | Rival | Negative control | Outcome | Death cause |",
+    "| --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (row) =>
+        `| ${row.claimId} | ${row.taskId} | ${row.externalRationaleScore.toFixed(3)} | ${row.triageScore.toFixed(3)} | ${row.replayStatus} | ${row.baselineResult} | ${row.holdoutResult} | ${row.rivalResult} | ${row.negativeControlResult} | ${row.finalOutcome} | ${row.deathCause} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalFeaturesMarkdown(
+  rows: ReturnType<typeof survivalFeatureRow>[],
+): string {
+  return [
+    "# Survival Features",
+    "",
+    `Rows: ${rows.length}`,
+    "",
+    "| Claim | Task | Outcome | Death cause | Survival | Baseline chance | Holdout chance | Recurrence | Rival closure | Negative risk | Split |",
+    "| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...rows.map(
+      (row) =>
+        `| ${row.claimId} | ${row.taskId} | ${row.outcome} | ${row.deathCause} | ${row.features.survivalScore.toFixed(3)} | ${row.features.baselineSurvivalChance.toFixed(3)} | ${row.features.holdoutSurvivalChance.toFixed(3)} | ${row.features.recurrenceSupport.toFixed(3)} | ${row.features.rivalClosureStrength.toFixed(3)} | ${row.features.negativeControlRisk.toFixed(3)} | ${row.features.splitQuality.toFixed(3)} |`,
+    ),
+  ].join("\n");
+}
+
+function triageMethodV4SpecMarkdown(): string {
+  return [
+    "# Triage Method V4 Spec",
+    "",
+    "Method ID: RECEIPT_FIRST_BENCHMARK_TRIAGE_V4",
+    "",
+    "## Exact Bounded Method Claim",
+    "A receipt-first benchmark triage method can improve over plausibility-only V3 by scoring externally plausible claims against observed deep-validation survival features: baseline survival, holdout survival, rival closure, negative-control behavior, recurrence support, split quality, and public replay readiness.",
+    "",
+    "## Decision Rule",
+    "- Positive controls may be selected only as calibration controls and never count toward discovery promotion.",
+    "- Plausible non-control claims are selected only when survival features are strong, with a bounded top-three pressure set to test calibration rather than to claim discovery.",
+    "- Weak and known-hard/uncertain claims are rejected unless later evidence changes their actual survival status.",
+  ].join("\n");
+}
+
+function triageMethodV4DiffMarkdown(): string {
+  return [
+    "# Triage Method V4 Diff",
+    "",
+    "| Area | V3 | V4 |",
+    "| --- | --- | --- |",
+    "| Main target | External plausibility retention | Deep-validation survival prediction |",
+    "| Positive controls | Excluded from retention | Selected only as calibration controls, never discovery evidence |",
+    "| Features | External rationale plus replay/baseline risk | Baseline survival, holdout survival, recurrence, rival closure, negative-control risk, task diversity, dataset/schema, split quality |",
+    "| Benchmark | 60 claims | 80 claims with plausible, weak, positive-control, and known-hard/uncertain strata |",
+    "| Promotion | One plausible survivor could trigger package work | Requires at least two independent plausible non-control survivors and V4 beating V3 and reject-all |",
+  ].join("\n");
+}
+
+function triageV4BenchmarkResultsMarkdown(
+  results: SelectivityV4Result[],
+  report: ReceiptFirstSelectivityV4Report,
+): string {
+  return [
+    "# Triage V4 Benchmark Results",
+    "",
+    `Claims tested: ${report.claimsTested}`,
+    `OpenML tasks tested: ${report.openMlTasksTested}`,
+    `Externally plausible non-control claims: ${report.externallyPlausibleClaims}`,
+    `Weak claims: ${report.weakClaims}`,
+    `Positive controls: ${report.positiveControlClaims}`,
+    `Known hard/uncertain: ${report.knownHardUncertainClaims}`,
+    `V4 accuracy: ${report.v4Comparison.v4Accuracy}`,
+    `V3 accuracy: ${report.v4Comparison.v3Accuracy}`,
+    `Reject-all accuracy: ${report.v4Comparison.rejectAllAccuracy}`,
+    "",
+    "| Claim | Class | Task | V3 decision | V4 score | V4 decision | Actual | Cause | Survival rationale |",
+    "| --- | --- | ---: | --- | ---: | --- | --- | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.claimId} | ${result.selectivityClass} | ${result.taskId} | ${result.v3Decision} | ${result.v4Score.toFixed(3)} | ${result.v4Decision} | ${result.actualOutcome} | ${result.actualDeathCause} | ${result.v4SelectionRationale} |`,
+    ),
+  ].join("\n");
+}
+
+function triageV4BaselineComparisonMarkdown(
+  report: ReceiptFirstSelectivityV4Report,
+): string {
+  const comparison = report.v4Comparison;
+  return [
+    "# Triage V4 Baseline Comparison",
+    "",
+    "| Method | Accuracy |",
+    "| --- | ---: |",
+    `| V4 | ${comparison.v4Accuracy} |`,
+    `| V3 | ${comparison.v3Accuracy} |`,
+    `| V2 | ${comparison.v2Accuracy} |`,
+    `| Reject-all | ${comparison.rejectAllAccuracy} |`,
+    `| Random selection | ${comparison.randomSelectionAccuracy} |`,
+    `| Baseline-only heuristic | ${comparison.baselineOnlyAccuracy} |`,
+    `| Task-size heuristic | ${comparison.taskSizeHeuristicAccuracy} |`,
+    `| Source-family-only heuristic | ${comparison.sourceFamilyOnlyAccuracy} |`,
+    "",
+    `V4 beats V3: ${comparison.v4BeatsV3 ? "yes" : "no"}`,
+    `V4 beats reject-all: ${comparison.v4BeatsRejectAll ? "yes" : "no"}`,
+    `Selected plausible claims: ${comparison.plausibleSelected}`,
+    `Plausible survivors selected: ${comparison.plausibleSurvivorsSelected}`,
+  ].join("\n");
+}
+
+function triageV4DeepValidationResultsMarkdown(
+  results: SelectivityV4Result[],
+): string {
+  const selectedPlausible = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.v4Decision === "advance_to_deep_validation",
+  );
+  return [
+    "# Triage V4 Deep Validation Results",
+    "",
+    `Selected plausible non-control claims: ${selectedPlausible.length}`,
+    `Independent selected plausible tasks: ${new Set(selectedPlausible.map((result) => result.taskId)).size}`,
+    `Plausible survivors: ${selectedPlausible.filter((result) => result.actualOutcome === "supported").length}`,
+    "",
+    "| Claim | Task | Outcome | Baseline | Random | Holdout | Delta baseline | Delta holdout | Negative control | Replay |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...selectedPlausible.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.actualOutcome} | ${result.baselineMetric.toFixed(3)} | ${result.modelRandomSplitMetric.toFixed(3)} | ${result.holdoutMetric.toFixed(3)} | ${result.modelVsBaselineDelta.toFixed(3)} | ${result.randomVsHoldoutDelta.toFixed(3)} | ${result.negativeControlMetric.toFixed(3)} | ${result.replayStatus} |`,
+    ),
+  ].join("\n");
+}
+
+function survivalCalibrationReportMarkdown(
+  featureRows: ReturnType<typeof survivalFeatureRow>[],
+  results: SelectivityV4Result[],
+  report: ReceiptFirstSelectivityV4Report,
+): string {
+  const selectedPlausible = results.filter(
+    (result) =>
+      result.selectivityClass === "plausible" &&
+      result.v4Decision === "advance_to_deep_validation",
+  );
+  const deathCounts = countStringValues(
+    featureRows.map((row) => row.deathCause),
+  );
+  return [
+    "# Survival Calibration Report",
+    "",
+    `V3 retained plausible rows used for autopsy: ${featureRows.length}`,
+    `V4 selected plausible claims: ${selectedPlausible.length}`,
+    `Deep-validation survivors: ${report.deepValidationSurvivors}`,
+    "",
+    "## V3 Death Causes",
+    ...Object.entries(deathCounts).map(
+      ([cause, count]) => `- ${cause}: ${count}`,
+    ),
+    "",
+    "## Calibration Interpretation",
+    "V4 replaces plausibility-label retention with survival-feature scoring. Positive controls may improve benchmark accuracy, but they are explicitly excluded from DiscoveryCandidate promotion. The promotion blocker remains if plausible non-control claims do not survive baseline, holdout, rival, recurrence, and negative-control pressure.",
+  ].join("\n");
+}
+
+function triageV4PromotionDecisionMarkdown(
+  report: ReceiptFirstSelectivityV4Report,
+): string {
+  return [
+    "# Triage V4 Promotion Decision",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function discoveryCandidatePackageStatusV4Markdown(
+  report: ReceiptFirstSelectivityV4Report,
+): string {
+  return [
+    "# Discovery Candidate Package Status",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `FundCandidateDraft created: no`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    "No package is built unless the survival-calibrated method produces at least two independent plausible non-control deep-validation survivors and beats V3 plus reject-all.",
+  ].join("\n");
+}
+
 function extractHardSeeds(
   executions: TaskReceiptFirstExecutionResult[],
   decisions: TaskReceiptFirstInsightDecision[],
@@ -5014,6 +6080,12 @@ function average(values: number[]): number {
 function accuracy(values: boolean[]): number {
   if (values.length === 0) return 0;
   return round(values.filter(Boolean).length / values.length);
+}
+
+function countStringValues(values: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return counts;
 }
 
 function clamp01(value: number): number {

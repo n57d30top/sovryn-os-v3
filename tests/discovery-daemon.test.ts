@@ -78,6 +78,7 @@ import {
   ReceiptFirstSelectivityPromotionService,
   ReceiptFirstSelectivityV2Service,
   ReceiptFirstSelectivityV3Service,
+  ReceiptFirstSelectivityV4Service,
   ReceiptFirstSynthesisService,
 } from "../src/core/discovery-daemon/receipt-first-synthesis-service.js";
 
@@ -154,6 +155,7 @@ const commands = [
   "receipt-first-selectivity-promotion",
   "receipt-first-selectivity-v2",
   "receipt-first-selectivity-v3",
+  "receipt-first-selectivity-v4",
   "cycle",
   "candidate-status",
   "graveyard",
@@ -9332,6 +9334,83 @@ test("receipt-first selectivity v3 builds externally grounded plausible benchmar
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_selectivity_v3_external_plausibility_benchmark",
+  );
+});
+
+test("receipt-first selectivity v4 calibrates on deep-validation survival outcomes", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  await new ReceiptFirstSelectivityV3Service(root).run();
+
+  const report = await new ReceiptFirstSelectivityV4Service(root).run();
+
+  assert.equal(
+    report.kind,
+    "receipt_first_selectivity_v4_survival_calibration",
+  );
+  assert.ok(report.v3RetainedPlausibleClaimsAnalyzed >= 3);
+  assert.equal(
+    report.survivalFeaturesExtracted,
+    report.v3RetainedPlausibleClaimsAnalyzed,
+  );
+  assert.equal(report.claimsTested, 80);
+  assert.equal(report.externallyPlausibleClaims, 30);
+  assert.equal(report.weakClaims, 30);
+  assert.equal(report.positiveControlClaims, 10);
+  assert.equal(report.knownHardUncertainClaims, 10);
+  assert.ok(report.openMlTasksTested >= 20);
+  assert.ok(report.selectedPlausibleClaims >= 3);
+  assert.ok(report.selectedIndependentPlausibleTasks >= 3);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.fundGateResult.passed, false);
+
+  for (const artifact of [
+    "V3_OUTCOME_AUTOPSY.md",
+    "V3_OUTCOME_AUTOPSY.json",
+    "SURVIVAL_FEATURES.md",
+    "SURVIVAL_FEATURES.json",
+    "TRIAGE_METHOD_V4_SPEC.md",
+    "TRIAGE_METHOD_V4_DIFF.md",
+    "TRIAGE_V4_BENCHMARK_RESULTS.md",
+    "TRIAGE_V4_BASELINE_COMPARISON.md",
+    "TRIAGE_V4_DEEP_VALIDATION_RESULTS.md",
+    "SURVIVAL_CALIBRATION_REPORT.md",
+    "TRIAGE_V4_PROMOTION_DECISION.md",
+    "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+    "UPDATED_THREE_STAGE_SCORECARD.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-selectivity-v4", artifact),
+    );
+  }
+
+  const features = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-selectivity-v4",
+        "SURVIVAL_FEATURES.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<{ features: { survivalScore: number } }>;
+  assert.equal(features.length, report.survivalFeaturesExtracted);
+  assert.equal(
+    features.every((row) => typeof row.features.survivalScore === "number"),
+    true,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-selectivity-v4", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_selectivity_v4_survival_calibration",
   );
 });
 

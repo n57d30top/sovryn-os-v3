@@ -7,6 +7,7 @@ It is an intake specification only. It does not claim external validation, exter
 ## Candidate
 
 Candidate ID: DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
+Public package: https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake
 Current class before external review: `pipeline_fund_candidate`
 Current notification state: `notificationAllowed=false`, `FUND_FOUND=false`
 

@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_audit",
-  "checkedAt": "2026-05-15T15:13:56.145Z",
+  "checkedAt": "2026-05-15T15:29:50.136Z",
   "passed": true,
   "targetRepo": null,
   "criteriaCount": 12,
@@ -35,5 +35,5 @@
     ".sovryn/nobel-readiness/readiness-score.json",
     ".sovryn/nobel-readiness/NOBEL_READINESS_REPORT.md"
   ],
-  "evidenceHash": "c4a34adcef4ccd7e5f49815ea2efc9945647926736b58ff1a7b724c5fb6ac772"
+  "evidenceHash": "72d29c4e6fc3608d45c302ad008085bd6382ce6ad198e9429d9ab9745125b7c3"
 }

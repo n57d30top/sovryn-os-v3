@@ -65638,13 +65638,17 @@ function secondSurvivorIndependentReproducerMarkdown(input: {
 function secondSurvivorExternalReviewTemplate(input: {
   closure: SecondSurvivorClosure;
 }): Record<string, unknown> {
+  const publicPackageUrl = `${publicCorpusBaseRef}/tree/main/${secondSurvivorPublicReviewResultPath}`;
+  const publicPackageRawUrl = `${publicCorpusBaseRef}/raw/main/${secondSurvivorPublicReviewResultPath}`;
   return {
     kind: "second_survivor_external_methodology_review_record_template",
     templateOnly: true,
     compatibleNobelReadinessReviewRecordSchema:
       EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
     candidateId: secondSurvivorDiscoveryCandidateId,
-    resultSlug: "second-survivor-benchmark-triage-methodology",
+    resultSlug: secondSurvivorPublicReviewSlug,
+    publicPackageRef: secondSurvivorPublicReviewResultPath,
+    publicPackageUrl,
     candidateFundClassBeforeReview: "pipeline_fund_candidate",
     scoreImpactBeforeValidExternalReview: "none",
     reviewDirectory: ".sovryn/nobel-readiness/external-review-reviews",
@@ -65655,7 +65659,7 @@ function secondSurvivorExternalReviewTemplate(input: {
       kind: "external_human_review",
       reviewRecordSchemaVersion: EXTERNAL_REVIEW_RECORD_SCHEMA_VERSION,
       candidateId: secondSurvivorDiscoveryCandidateId,
-      resultSlug: "second-survivor-benchmark-triage-methodology",
+      resultSlug: secondSurvivorPublicReviewSlug,
       reviewerRole: "",
       reviewDate: "",
       reviewSourceRef: "",
@@ -65665,11 +65669,13 @@ function secondSurvivorExternalReviewTemplate(input: {
       noveltyAssessment: "unclear",
       overclaimFindings: [],
       evidenceRefs: [
-        `${secondSurvivorFundDraftPackagePath}/REVIEWER_SUMMARY.md`,
-        `${secondSurvivorFundDraftPackagePath}/EXACT_CLAIM.md`,
-        `${secondSurvivorFundDraftPackagePath}/REPRODUCE.md`,
-        `${secondSurvivorMethodologyEvidenceRoot}/INDEPENDENT_REPRODUCER_PACKAGE.md`,
-        `${secondSurvivorMethodologyEvidenceRoot}/METHODOLOGY_VALUE_TESTS.md`,
+        `${publicPackageUrl}/REVIEWER_SUMMARY.md`,
+        `${publicPackageUrl}/EXACT_CLAIM.md`,
+        `${publicPackageUrl}/REPRODUCE.md`,
+        `${publicPackageUrl}/INDEPENDENT_REPRODUCER_PACKAGE.md`,
+        `${publicPackageUrl}/METHODOLOGY_VALUE_TESTS.md`,
+        `${publicPackageUrl}/STANDALONE_REPLAY_RESULTS.md`,
+        `${publicPackageRawUrl}/standalone_replay_results.json`,
       ],
     },
     requiredForSupportiveScoreImpact: [
@@ -65709,6 +65715,7 @@ function secondSurvivorExternalReviewTemplate(input: {
 function secondSurvivorExternalReviewIntakeMarkdown(input: {
   closure: SecondSurvivorClosure;
 }): string {
+  const publicPackageUrl = `${publicCorpusBaseRef}/tree/main/${secondSurvivorPublicReviewResultPath}`;
   return [
     "# External Methodology Review Intake",
     "",
@@ -65719,6 +65726,7 @@ function secondSurvivorExternalReviewIntakeMarkdown(input: {
     "## Candidate",
     "",
     `Candidate ID: ${secondSurvivorDiscoveryCandidateId}`,
+    `Public package: ${publicPackageUrl}`,
     "Current class before external review: `pipeline_fund_candidate`",
     "Current notification state: `notificationAllowed=false`, `FUND_FOUND=false`",
     "",

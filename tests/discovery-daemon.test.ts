@@ -10119,6 +10119,34 @@ test("second survivor methodology evidence hardens package without fake Fund", a
       join(root, daemonRoot, "second-survivor-methodology-evidence", artifact),
     );
   }
+  const reviewTemplate = JSON.parse(
+    await readFile(
+      join(root, "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json"),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(
+    reviewTemplate.resultSlug,
+    "second-survivor-benchmark-triage-methodology-review-intake",
+  );
+  assert.match(
+    String(reviewTemplate.publicPackageUrl),
+    /sovryn-open-inventions\/tree\/main\/results\/second-survivor-benchmark-triage-methodology-review-intake/,
+  );
+  const reviewRecord = reviewTemplate.recordTemplate as Record<string, unknown>;
+  assert.equal(
+    reviewRecord.resultSlug,
+    "second-survivor-benchmark-triage-methodology-review-intake",
+  );
+  const evidenceRefs = reviewRecord.evidenceRefs as string[];
+  assert.equal(
+    evidenceRefs.every((ref) => ref.startsWith("https://")),
+    true,
+  );
+  assert.equal(
+    evidenceRefs.some((ref) => ref.includes(".sovryn/")),
+    false,
+  );
   await access(
     join(
       root,

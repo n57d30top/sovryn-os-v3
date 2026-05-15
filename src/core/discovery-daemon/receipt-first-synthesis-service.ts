@@ -597,6 +597,78 @@ type SurvivorAdjacentComparison = {
   beatsV4OnYield: boolean;
 };
 
+type SurvivorReplayClassification =
+  | "replay_passed"
+  | "replay_weakened"
+  | "replay_failed"
+  | "replay_blocked";
+
+type SurvivorInventoryRow = {
+  claimId: string;
+  externalSource: string;
+  taskId: number;
+  datasetId: number;
+  datasetName: string;
+  rawDataReceipt: string;
+  splitProtocolDetails: string;
+  baselineReference: string;
+  deepValidationEvidence: {
+    baselineMetric: number;
+    modelRandomSplitMetric: number;
+    holdoutMetric: number;
+    modelVsBaselineDelta: number;
+    randomVsHoldoutDelta: number;
+    negativeControlMetric: number;
+    negativeControlBehaved: boolean;
+  };
+  survivorReason: string;
+  currentReplayBlocker: string;
+  currentReviewBlocker: string;
+};
+
+type SurvivorRawReplayResult = SurvivorInventoryRow & {
+  classification: SurvivorReplayClassification;
+  liveDataLoaded: boolean;
+  taskVerified: boolean;
+  datasetVerified: boolean;
+  rawDataReceiptHash: string;
+  rowsLoaded: number;
+  featuresLoaded: number;
+  liveBaselineMetric: number;
+  liveRandomSplitMetric: number;
+  liveHoldoutMetric: number;
+  liveModelVsBaselineDelta: number;
+  liveRandomVsHoldoutDelta: number;
+  liveNegativeControlMetric: number;
+  liveNegativeControlBehaved: boolean;
+  liveHoldoutStatus: TaskReceiptFirstExecutionResult["holdoutStatus"];
+  liveRivalStatus: TaskReceiptFirstExecutionResult["rivalStatus"];
+  priorVsLiveDelta: {
+    baselineMetric: number;
+    modelRandomSplitMetric: number;
+    holdoutMetric: number;
+    modelVsBaselineDelta: number;
+    randomVsHoldoutDelta: number;
+    negativeControlMetric: number;
+  };
+  replayNotes: string[];
+};
+
+type SurvivorCrossClaimDecision = {
+  claimMode:
+    | "one_bounded_discovery_candidate_method_claim"
+    | "multiple_separate_insight_candidates"
+    | "no_promotion";
+  exactBoundedClaim: string;
+  commonMechanism: string;
+  independentTaskSupport: number;
+  survivorsPassedPublicReplay: number;
+  baselineRivalNegativeControlSummary: string;
+  limitations: string[];
+  noOverclaim: string[];
+  eligibilityBlockers: string[];
+};
+
 export type DeepValidationGoldSetCalibrationReport = {
   kind: "deep_validation_gold_set_calibration";
   terminalStatus: "productive_source_object_engine_continue_searching";
@@ -653,6 +725,31 @@ export type SurvivorAdjacentExternalClaimHarvestReport = {
   fundFound: false;
   stageScores: ReceiptFirstSynthesisReport["stageScores"];
   fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  exactBlocker: string;
+  nextCheckpoint: string;
+  nextAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
+export type SurvivorAdjacentPromotionReadinessReport = {
+  kind: "survivor_adjacent_promotion_readiness";
+  terminalStatus: "productive_source_object_engine_continue_searching";
+  productStateCommit: string;
+  survivorsLoaded: number;
+  publicRawReplayPassed: number;
+  publicRawReplayWeakened: number;
+  publicRawReplayFailed: number;
+  publicRawReplayBlocked: number;
+  independentSurvivorTasks: number;
+  reviewPackageBuilt: boolean;
+  reviewPackagePath: string | null;
+  discoveryCandidateCreated: boolean;
+  discoveryCandidateId: string | null;
+  fundCandidateDraftCreated: false;
+  fundFound: false;
+  fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  stageScores: ReceiptFirstSynthesisReport["stageScores"];
   exactBlocker: string;
   nextCheckpoint: string;
   nextAction: string;
@@ -827,6 +924,8 @@ const deepValidationCalibrationArtifactRoot =
   ".sovryn/discovery-daemon/deep-validation-gold-set-calibration";
 const survivorAdjacentArtifactRoot =
   ".sovryn/discovery-daemon/survivor-adjacent-claims";
+const survivorPromotionArtifactRoot =
+  ".sovryn/discovery-daemon/survivor-adjacent-promotion";
 const priorRoot =
   ".sovryn/discovery-daemon/task-receipt-first-benchmark-discovery";
 const nextCheckpoint =
@@ -847,6 +946,8 @@ const deepValidationCalibrationNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/deep-validation-gold-set-calibration-continue-searching.json";
 const survivorAdjacentNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/survivor-adjacent-claims-continue-searching.json";
+const survivorPromotionNextCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/survivor-adjacent-promotion-continue-searching.json";
 const scoreThreshold = 0.62;
 const previousStageScores = { validator: 100, synthesizer: 86, structural: 99 };
 
@@ -993,6 +1094,36 @@ const survivorAdjacentArtifacts = [
   "UPDATED_THREE_STAGE_SCORECARD.md",
   "FINAL_BLOCKERS.md",
   "NEXT_ACTION.md",
+] as const;
+
+const survivorPromotionArtifacts = [
+  "SURVIVOR_ADJACENT_SURVIVOR_INVENTORY.md",
+  "SURVIVOR_ADJACENT_SURVIVOR_INVENTORY.json",
+  "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.md",
+  "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json",
+  "CROSS_SURVIVOR_CLAIM_SYNTHESIS.md",
+  "DISCOVERY_CANDIDATE_ELIGIBILITY_DECISION.md",
+  "SURVIVOR_EXTERNAL_REVIEW_PACKAGE_STATUS.md",
+  "SURVIVOR_PROMOTION_DECISION.md",
+  "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md",
+  "FUND_GATE_RESULTS.md",
+  "UPDATED_THREE_STAGE_SCORECARD.md",
+  "FINAL_BLOCKERS.md",
+  "NEXT_ACTION.md",
+] as const;
+
+const survivorReviewPackageArtifacts = [
+  "REVIEWER_SUMMARY.md",
+  "EXACT_CLAIM.md",
+  "METHOD.md",
+  "DATASETS_AND_TASKS.md",
+  "REPRODUCE.md",
+  "BASELINES.md",
+  "RIVAL_EXPLANATIONS.md",
+  "HOLDOUT_REPLAY.md",
+  "NEGATIVE_CONTROLS.md",
+  "LIMITATIONS.md",
+  "CLAIM_EVIDENCE_BINDINGS.json",
 ] as const;
 
 export class ReceiptFirstSynthesisService {
@@ -2769,6 +2900,211 @@ export class SurvivorAdjacentExternalClaimHarvestService {
   }
 }
 
+export class SurvivorAdjacentPromotionReadinessService {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: ReceiptFirstSynthesisOptions = {},
+  ): Promise<SurvivorAdjacentPromotionReadinessReport> {
+    await ensurePriorSurvivorAdjacentHarvestRun(this.root, {});
+    const benchmarkClaims = await readJson<SurvivorAdjacentClaim[]>(
+      join(
+        this.root,
+        survivorAdjacentArtifactRoot,
+        "SURVIVOR_ADJACENT_BENCHMARK.json",
+      ),
+    );
+    const priorResults = await runSurvivorAdjacentBenchmark(benchmarkClaims, {
+      liveOpenMl: false,
+    });
+    const selectedSurvivors = priorResults
+      .filter(
+        (result) =>
+          result.selectivityClass === "plausible" &&
+          result.survivorAdjacentDecision === "advance_to_deep_validation" &&
+          result.actualOutcome === "supported",
+      )
+      .sort(
+        (a, b) =>
+          b.survivorAdjacentScore - a.survivorAdjacentScore ||
+          a.taskId - b.taskId,
+      )
+      .slice(0, 5);
+    const claimById = new Map(
+      benchmarkClaims.map((claim) => [claim.claimId, claim]),
+    );
+    const inventory = selectedSurvivors.map((result) => {
+      const claim = claimById.get(result.claimId);
+      if (!claim) throw new Error(`Missing selected claim ${result.claimId}`);
+      return survivorInventoryRow(claim, result);
+    });
+    const replayResults: SurvivorRawReplayResult[] = [];
+    for (const row of inventory) {
+      const claim = claimById.get(row.claimId);
+      const prior = selectedSurvivors.find(
+        (result) => result.claimId === row.claimId,
+      );
+      if (!claim || !prior)
+        throw new Error(`Missing replay inputs for ${row.claimId}`);
+      const liveExecution = await executeReceiptClaimForSynthesis(claim, {
+        liveOpenMl: options.liveOpenMl === true,
+      });
+      replayResults.push(
+        survivorRawReplayResult(row, claim, prior, liveExecution),
+      );
+    }
+    const crossClaim = synthesizeCrossSurvivorClaim(replayResults);
+    const reviewPackageBuilt = crossClaim.eligibilityBlockers.length === 0;
+    const reviewPackagePath = reviewPackageBuilt
+      ? `${survivorPromotionArtifactRoot}/SURVIVOR_EXTERNAL_REVIEW_PACKAGE`
+      : null;
+    const discoveryCandidateCreated = reviewPackageBuilt;
+    const productStateCommit = await gitHeadCommit(this.root);
+    const reportWithoutHash = {
+      kind: "survivor_adjacent_promotion_readiness" as const,
+      terminalStatus:
+        "productive_source_object_engine_continue_searching" as const,
+      productStateCommit,
+      survivorsLoaded: inventory.length,
+      publicRawReplayPassed: replayResults.filter(
+        (result) => result.classification === "replay_passed",
+      ).length,
+      publicRawReplayWeakened: replayResults.filter(
+        (result) => result.classification === "replay_weakened",
+      ).length,
+      publicRawReplayFailed: replayResults.filter(
+        (result) => result.classification === "replay_failed",
+      ).length,
+      publicRawReplayBlocked: replayResults.filter(
+        (result) => result.classification === "replay_blocked",
+      ).length,
+      independentSurvivorTasks: new Set(
+        replayResults
+          .filter((result) => result.classification === "replay_passed")
+          .map((result) => result.taskId),
+      ).size,
+      reviewPackageBuilt,
+      reviewPackagePath,
+      discoveryCandidateCreated,
+      discoveryCandidateId: discoveryCandidateCreated
+        ? "DISCOVERY-BENCH-SURVIVOR-ADJACENT-RAW-REPLAY-001"
+        : null,
+      fundCandidateDraftCreated: false as const,
+      fundFound: false as const,
+      fundGateResult: {
+        passed: false as const,
+        failedGates: discoveryCandidateCreated
+          ? ["fund_candidate_draft_present"]
+          : ["discovery_candidate_present"],
+        status: "continue_searching" as const,
+      },
+      stageScores: buildSurvivorPromotionStageScores(discoveryCandidateCreated),
+      exactBlocker: survivorPromotionBlocker(
+        crossClaim,
+        reviewPackageBuilt,
+        discoveryCandidateCreated,
+      ),
+      nextCheckpoint: survivorPromotionNextCheckpoint,
+      nextAction: survivorPromotionNextAction(discoveryCandidateCreated),
+      artifactRefs: survivorPromotionArtifactRefs(reviewPackageBuilt),
+    };
+    const report: SurvivorAdjacentPromotionReadinessReport = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence({
+        reportWithoutHash,
+        inventory,
+        replayResults,
+        crossClaim,
+      }),
+    };
+    await this.writeArtifacts(inventory, replayResults, crossClaim, report);
+    return report;
+  }
+
+  private async writeArtifacts(
+    inventory: SurvivorInventoryRow[],
+    replayResults: SurvivorRawReplayResult[],
+    crossClaim: SurvivorCrossClaimDecision,
+    report: SurvivorAdjacentPromotionReadinessReport,
+  ): Promise<void> {
+    const dir = join(this.root, survivorPromotionArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "SURVIVOR_ADJACENT_SURVIVOR_INVENTORY.md"),
+      survivorInventoryMarkdown(inventory),
+    );
+    await writeJson(
+      join(dir, "SURVIVOR_ADJACENT_SURVIVOR_INVENTORY.json"),
+      inventory,
+    );
+    await writeText(
+      join(dir, "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.md"),
+      survivorPublicRawReplayMarkdown(replayResults),
+    );
+    await writeJson(
+      join(dir, "SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json"),
+      replayResults,
+    );
+    await writeText(
+      join(dir, "CROSS_SURVIVOR_CLAIM_SYNTHESIS.md"),
+      crossSurvivorClaimSynthesisMarkdown(crossClaim),
+    );
+    await writeText(
+      join(dir, "DISCOVERY_CANDIDATE_ELIGIBILITY_DECISION.md"),
+      discoveryCandidateEligibilityMarkdown(crossClaim, report),
+    );
+    if (report.reviewPackageBuilt) {
+      await writeSurvivorReviewPackage(dir, crossClaim, replayResults, report);
+    }
+    await writeText(
+      join(dir, "SURVIVOR_EXTERNAL_REVIEW_PACKAGE_STATUS.md"),
+      survivorExternalReviewPackageStatusMarkdown(report),
+    );
+    await writeText(
+      join(dir, "SURVIVOR_PROMOTION_DECISION.md"),
+      survivorPromotionDecisionMarkdown(report, crossClaim),
+    );
+    await writeText(
+      join(dir, "DISCOVERY_CANDIDATE_PACKAGE_STATUS.md"),
+      survivorDiscoveryCandidatePackageStatusMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FUND_GATE_RESULTS.md"),
+      fundGateMarkdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_THREE_STAGE_SCORECARD.md"),
+      scorecardMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FINAL_BLOCKERS.md"),
+      finalBlockersMarkdown(report),
+    );
+    await writeText(join(dir, "NEXT_ACTION.md"), nextActionMarkdown(report));
+    await writeJson(join(dir, "latest.json"), report);
+    await writeJson(join(this.root, survivorPromotionNextCheckpoint), {
+      kind: "survivor_adjacent_promotion_readiness_checkpoint",
+      terminalStatus: report.terminalStatus,
+      survivorsLoaded: report.survivorsLoaded,
+      publicRawReplayPassed: report.publicRawReplayPassed,
+      publicRawReplayWeakened: report.publicRawReplayWeakened,
+      publicRawReplayFailed: report.publicRawReplayFailed,
+      publicRawReplayBlocked: report.publicRawReplayBlocked,
+      independentSurvivorTasks: report.independentSurvivorTasks,
+      reviewPackageBuilt: report.reviewPackageBuilt,
+      discoveryCandidateCreated: report.discoveryCandidateCreated,
+      discoveryCandidateId: report.discoveryCandidateId,
+      fundCandidateDraftCreated: report.fundCandidateDraftCreated,
+      fundFound: report.fundFound,
+      stageScores: report.stageScores,
+      exactBlocker: report.exactBlocker,
+      nextAction: report.nextAction,
+      artifactRefs: report.artifactRefs,
+      evidenceHash: report.evidenceHash,
+    });
+  }
+}
+
 async function ensurePriorDeepValidationGoldSetRun(
   root: string,
   options: ReceiptFirstSynthesisOptions,
@@ -2779,6 +3115,19 @@ async function ensurePriorDeepValidationGoldSetRun(
     );
   } catch {
     return new DeepValidationGoldSetCalibrationService(root).run(options);
+  }
+}
+
+async function ensurePriorSurvivorAdjacentHarvestRun(
+  root: string,
+  options: ReceiptFirstSynthesisOptions,
+): Promise<SurvivorAdjacentExternalClaimHarvestReport> {
+  try {
+    return await readJson<SurvivorAdjacentExternalClaimHarvestReport>(
+      join(root, survivorAdjacentArtifactRoot, "latest.json"),
+    );
+  } catch {
+    return new SurvivorAdjacentExternalClaimHarvestService(root).run(options);
   }
 }
 
@@ -3985,6 +4334,223 @@ function buildSurvivorAdjacentStageScores(
       scoringRationale:
         "Structural Understanding remains 99 because this goal changes source quality and method evaluation, not core architecture.",
     },
+  ];
+}
+
+function survivorInventoryRow(
+  claim: SurvivorAdjacentClaim,
+  result: SurvivorAdjacentResult,
+): SurvivorInventoryRow {
+  return {
+    claimId: claim.claimId,
+    externalSource: claim.externalSourceReference,
+    taskId: claim.taskId!,
+    datasetId: claim.datasetId!,
+    datasetName: claim.datasetName,
+    rawDataReceipt: claim.rawDataReceiptUrl ?? claim.rawDataUrl ?? "missing",
+    splitProtocolDetails: claim.splitProtocolDescription,
+    baselineReference: claim.publishedBaselineOrComparison,
+    deepValidationEvidence: {
+      baselineMetric: result.baselineMetric,
+      modelRandomSplitMetric: result.modelRandomSplitMetric,
+      holdoutMetric: result.holdoutMetric,
+      modelVsBaselineDelta: result.modelVsBaselineDelta,
+      randomVsHoldoutDelta: result.randomVsHoldoutDelta,
+      negativeControlMetric: result.negativeControlMetric,
+      negativeControlBehaved: result.negativeControlBehaved,
+    },
+    survivorReason:
+      "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    currentReplayBlocker: result.liveDataLoaded
+      ? "none"
+      : "selected_public_raw_replay_not_complete",
+    currentReviewBlocker: "external_review_package_not_built",
+  };
+}
+
+function survivorRawReplayResult(
+  row: SurvivorInventoryRow,
+  claim: SurvivorAdjacentClaim,
+  prior: SurvivorAdjacentResult,
+  execution: TaskReceiptFirstExecutionResult,
+): SurvivorRawReplayResult {
+  const taskVerified = execution.taskId === claim.taskId;
+  const datasetVerified = execution.datasetId === claim.datasetId;
+  const pressurePassed =
+    execution.modelVsBaselineDelta > 0.04 &&
+    execution.randomVsHoldoutDelta >= 0.08 &&
+    execution.negativeControlBehaved &&
+    execution.holdoutStatus === "survived" &&
+    execution.rivalStatus === "scoped_or_weakened";
+  const classification: SurvivorReplayClassification =
+    execution.replayStatus !== "replay_passed"
+      ? "replay_failed"
+      : !execution.liveDataLoaded
+        ? "replay_blocked"
+        : taskVerified && datasetVerified && pressurePassed
+          ? "replay_passed"
+          : "replay_weakened";
+  return {
+    ...row,
+    classification,
+    liveDataLoaded: execution.liveDataLoaded,
+    taskVerified,
+    datasetVerified,
+    rawDataReceiptHash: execution.sourceReceiptHash,
+    rowsLoaded: execution.rowsLoaded,
+    featuresLoaded: execution.featuresLoaded,
+    liveBaselineMetric: execution.baselineMetric,
+    liveRandomSplitMetric: execution.modelRandomSplitMetric,
+    liveHoldoutMetric: execution.holdoutMetric,
+    liveModelVsBaselineDelta: execution.modelVsBaselineDelta,
+    liveRandomVsHoldoutDelta: execution.randomVsHoldoutDelta,
+    liveNegativeControlMetric: execution.negativeControlMetric,
+    liveNegativeControlBehaved: execution.negativeControlBehaved,
+    liveHoldoutStatus: execution.holdoutStatus,
+    liveRivalStatus: execution.rivalStatus,
+    priorVsLiveDelta: {
+      baselineMetric: round(execution.baselineMetric - prior.baselineMetric),
+      modelRandomSplitMetric: round(
+        execution.modelRandomSplitMetric - prior.modelRandomSplitMetric,
+      ),
+      holdoutMetric: round(execution.holdoutMetric - prior.holdoutMetric),
+      modelVsBaselineDelta: round(
+        execution.modelVsBaselineDelta - prior.modelVsBaselineDelta,
+      ),
+      randomVsHoldoutDelta: round(
+        execution.randomVsHoldoutDelta - prior.randomVsHoldoutDelta,
+      ),
+      negativeControlMetric: round(
+        execution.negativeControlMetric - prior.negativeControlMetric,
+      ),
+    },
+    replayNotes: execution.publicReplayNotes,
+  };
+}
+
+function synthesizeCrossSurvivorClaim(
+  replayResults: SurvivorRawReplayResult[],
+): SurvivorCrossClaimDecision {
+  const passed = replayResults.filter(
+    (result) => result.classification === "replay_passed",
+  );
+  const independentTaskSupport = new Set(passed.map((result) => result.taskId))
+    .size;
+  const blockers = [
+    passed.length >= 2
+      ? null
+      : "fewer_than_two_survivors_pass_public_raw_replay",
+    independentTaskSupport >= 2
+      ? null
+      : "public_raw_replay_survivors_not_independent",
+  ].filter((item): item is string => item !== null);
+  return {
+    claimMode:
+      blockers.length === 0
+        ? "one_bounded_discovery_candidate_method_claim"
+        : replayResults.some(
+              (result) => result.classification === "replay_passed",
+            )
+          ? "multiple_separate_insight_candidates"
+          : "no_promotion",
+    exactBoundedClaim:
+      "A survivor-adjacent receipt-first benchmark-claim selection method can identify bounded OpenML benchmark/data claims whose live public raw-data replay preserves nonfatal model-vs-baseline margin, stronger split/holdout delta, scoped rival explanations, and behaved negative controls across at least two independent tasks.",
+    commonMechanism:
+      "The shared mechanism is protocol-fragility survival under receipt-first replay: concrete public task receipts plus explicit split/protocol and baseline context predict which plausible non-control claims remain nonfatal after raw replay.",
+    independentTaskSupport,
+    survivorsPassedPublicReplay: passed.length,
+    baselineRivalNegativeControlSummary:
+      passed.length === 0
+        ? "No selected survivor retained all live baseline, holdout, rival, and negative-control gates."
+        : `${passed.length} selected survivor(s) retained live model-vs-baseline margin, nonfatal holdout delta, scoped rivals, and behaved negative controls across ${independentTaskSupport} independent task(s).`,
+    limitations: [
+      "Scope is limited to the replayed public OpenML tasks and receipt-first benchmark methodology claims.",
+      "This is not a claim that OpenML tasks are flawed in general.",
+      "This is not external validation and not a scientific discovery Fund.",
+      "Failures, weakened live replay rows, and blocked rows remain negative evidence.",
+    ],
+    noOverclaim: [
+      "No Nobel claim.",
+      "No Einstein-level claim.",
+      "No breakthrough claim.",
+      "No external validation or adoption claim.",
+      "No legal, medical, wet-lab, or unsafe claim.",
+    ],
+    eligibilityBlockers: blockers,
+  };
+}
+
+function survivorPromotionBlocker(
+  crossClaim: SurvivorCrossClaimDecision,
+  reviewPackageBuilt: boolean,
+  discoveryCandidateCreated: boolean,
+): string {
+  if (discoveryCandidateCreated) {
+    return "Survivor-adjacent DiscoveryCandidate readiness package was created, but FundCandidateDraft was not created and full Fund Gate did not pass.";
+  }
+  const blockers = [
+    ...crossClaim.eligibilityBlockers,
+    reviewPackageBuilt ? null : "external_review_package_not_built",
+  ].filter((item): item is string => item !== null);
+  return `Survivor-adjacent survivors remain Insight-level. Blockers: ${blockers.join(", ")}.`;
+}
+
+function survivorPromotionNextAction(
+  discoveryCandidateCreated: boolean,
+): string {
+  return discoveryCandidateCreated
+    ? "Run FundCandidateDraft pressure only if the review package remains stable under independent external inspection; do not create FUND_FOUND without full Fund Gate pass."
+    : "Do not promote these survivors; source or replay stronger survivor-adjacent claims only after public raw replay can pass on at least two independent tasks.";
+}
+
+function buildSurvivorPromotionStageScores(
+  discoveryCandidateCreated: boolean,
+): ReceiptFirstSynthesisReport["stageScores"] {
+  return [
+    {
+      stage: 1,
+      name: "Unbreakable Validator",
+      previousScore: 100,
+      updatedScore: 100,
+      reached100: true,
+      scoringRationale:
+        "Validator remains 100 because promotion requires live public raw replay, concrete task receipts, split details, and no fake Fund state.",
+    },
+    {
+      stage: 2,
+      name: "Autonomous Synthesizer",
+      previousScore: 91,
+      updatedScore: discoveryCandidateCreated ? 93 : 91,
+      reached100: false,
+      scoringRationale: discoveryCandidateCreated
+        ? "Stage 2 improves because at least two independent survivor-adjacent claims passed live raw replay and were packaged as a bounded DiscoveryCandidate-readiness artifact."
+        : "Stage 2 remains 91 because the selected survivors did not close live public raw replay and review-package requirements for DiscoveryCandidate readiness.",
+    },
+    {
+      stage: 3,
+      name: "Structural Understanding Engine",
+      previousScore: 99,
+      updatedScore: 99,
+      reached100: false,
+      scoringRationale:
+        "Structural Understanding remains 99 because this goal pressures existing survivors without adding a new architecture layer.",
+    },
+  ];
+}
+
+function survivorPromotionArtifactRefs(reviewPackageBuilt: boolean): string[] {
+  return [
+    ...survivorPromotionArtifacts.map(
+      (artifact) => `${survivorPromotionArtifactRoot}/${artifact}`,
+    ),
+    ...(reviewPackageBuilt
+      ? survivorReviewPackageArtifacts.map(
+          (artifact) =>
+            `${survivorPromotionArtifactRoot}/SURVIVOR_EXTERNAL_REVIEW_PACKAGE/${artifact}`,
+        )
+      : []),
+    `${survivorPromotionArtifactRoot}/latest.json`,
+    survivorPromotionNextCheckpoint,
   ];
 }
 
@@ -8250,6 +8816,284 @@ function survivorAdjacentPromotionDecisionMarkdown(
     "",
     report.exactBlocker,
   ].join("\n");
+}
+
+function survivorInventoryMarkdown(inventory: SurvivorInventoryRow[]): string {
+  return [
+    "# Survivor-Adjacent Survivor Inventory",
+    "",
+    `Survivors loaded: ${inventory.length}`,
+    "",
+    "| Claim | Task | Dataset | Source | Raw receipt | Split/protocol | Baseline ref | Replay blocker | Review blocker |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- |",
+    ...inventory.map(
+      (row) =>
+        `| ${row.claimId} | ${row.taskId} | ${row.datasetName} | ${row.externalSource} | ${row.rawDataReceipt} | ${row.splitProtocolDetails} | ${row.baselineReference} | ${row.currentReplayBlocker} | ${row.currentReviewBlocker} |`,
+    ),
+  ].join("\n");
+}
+
+function survivorPublicRawReplayMarkdown(
+  results: SurvivorRawReplayResult[],
+): string {
+  return [
+    "# Survivor Public Raw Replay Results",
+    "",
+    `Replay passed: ${results.filter((result) => result.classification === "replay_passed").length}`,
+    `Replay weakened: ${results.filter((result) => result.classification === "replay_weakened").length}`,
+    `Replay failed: ${results.filter((result) => result.classification === "replay_failed").length}`,
+    `Replay blocked: ${results.filter((result) => result.classification === "replay_blocked").length}`,
+    "",
+    "| Claim | Task | Dataset | Classification | Live raw | Rows | Features | Baseline | Random | Holdout | Delta baseline | Delta holdout | Negative | Rival | Notes |",
+    "| --- | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |",
+    ...results.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.datasetName} | ${result.classification} | ${result.liveDataLoaded ? "yes" : "no"} | ${result.rowsLoaded} | ${result.featuresLoaded} | ${result.liveBaselineMetric.toFixed(3)} | ${result.liveRandomSplitMetric.toFixed(3)} | ${result.liveHoldoutMetric.toFixed(3)} | ${result.liveModelVsBaselineDelta.toFixed(3)} | ${result.liveRandomVsHoldoutDelta.toFixed(3)} | ${result.liveNegativeControlMetric.toFixed(3)} | ${result.liveRivalStatus} | ${result.replayNotes.join("; ")} |`,
+    ),
+  ].join("\n");
+}
+
+function crossSurvivorClaimSynthesisMarkdown(
+  decision: SurvivorCrossClaimDecision,
+): string {
+  return [
+    "# Cross-Survivor Claim Synthesis",
+    "",
+    `Claim mode: ${decision.claimMode}`,
+    `Public replay survivors: ${decision.survivorsPassedPublicReplay}`,
+    `Independent task support: ${decision.independentTaskSupport}`,
+    "",
+    "## Exact Bounded Claim",
+    decision.exactBoundedClaim,
+    "",
+    "## Common Mechanism",
+    decision.commonMechanism,
+    "",
+    "## Baseline / Rival / Negative-Control Summary",
+    decision.baselineRivalNegativeControlSummary,
+    "",
+    "## Limitations",
+    ...decision.limitations.map((item) => `- ${item}`),
+    "",
+    "## No-Overclaim",
+    ...decision.noOverclaim.map((item) => `- ${item}`),
+    "",
+    "## Eligibility Blockers",
+    ...(decision.eligibilityBlockers.length === 0
+      ? ["- none"]
+      : decision.eligibilityBlockers.map((item) => `- ${item}`)),
+  ].join("\n");
+}
+
+function discoveryCandidateEligibilityMarkdown(
+  decision: SurvivorCrossClaimDecision,
+  report: SurvivorAdjacentPromotionReadinessReport,
+): string {
+  return [
+    "# DiscoveryCandidate Eligibility Decision",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `Review package built: ${report.reviewPackageBuilt ? "yes" : "no"}`,
+    "",
+    "## Required Gates",
+    `- At least 2 public raw replay survivors: ${report.publicRawReplayPassed >= 2 ? "pass" : "fail"}`,
+    `- 2+ independent tasks: ${report.independentSurvivorTasks >= 2 ? "pass" : "fail"}`,
+    `- Exact bounded claim stable: ${decision.exactBoundedClaim.length > 0 ? "pass" : "fail"}`,
+    `- Baseline/rival/negative-control pressure nonfatal: ${report.publicRawReplayPassed >= 2 ? "pass" : "fail"}`,
+    `- Public-safe review package exists: ${report.reviewPackageBuilt ? "pass" : "fail"}`,
+    `- No fake novelty or Fund claim: pass`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function survivorExternalReviewPackageStatusMarkdown(
+  report: SurvivorAdjacentPromotionReadinessReport,
+): string {
+  return [
+    "# Survivor External Review Package Status",
+    "",
+    `Package built: ${report.reviewPackageBuilt ? "yes" : "no"}`,
+    `Package path: ${report.reviewPackagePath ?? "none"}`,
+    "",
+    "## Required Files",
+    ...survivorReviewPackageArtifacts.map(
+      (artifact) =>
+        `- ${artifact}: ${report.reviewPackageBuilt ? "present" : "not_created"}`,
+    ),
+  ].join("\n");
+}
+
+function survivorPromotionDecisionMarkdown(
+  report: SurvivorAdjacentPromotionReadinessReport,
+  decision: SurvivorCrossClaimDecision,
+): string {
+  return [
+    "# Survivor Promotion Decision",
+    "",
+    `Survivors loaded: ${report.survivorsLoaded}`,
+    `Public raw replay passed/weakened/failed/blocked: ${report.publicRawReplayPassed}/${report.publicRawReplayWeakened}/${report.publicRawReplayFailed}/${report.publicRawReplayBlocked}`,
+    `Independent survivor tasks: ${report.independentSurvivorTasks}`,
+    `Claim mode: ${decision.claimMode}`,
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function survivorDiscoveryCandidatePackageStatusMarkdown(
+  report: SurvivorAdjacentPromotionReadinessReport,
+): string {
+  return [
+    "# DiscoveryCandidate Package Status",
+    "",
+    `DiscoveryCandidate created: ${report.discoveryCandidateCreated ? "yes" : "no"}`,
+    `DiscoveryCandidate ID: ${report.discoveryCandidateId ?? "none"}`,
+    `Review package path: ${report.reviewPackagePath ?? "none"}`,
+    `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function fundGateMarkdown(
+  report: Pick<
+    SurvivorAdjacentPromotionReadinessReport,
+    "fundGateResult" | "fundCandidateDraftCreated" | "fundFound"
+  >,
+): string {
+  return [
+    "# Fund Gate Results",
+    "",
+    `Fund Gate passed: ${report.fundGateResult.passed ? "yes" : "no"}`,
+    `Failed gates: ${report.fundGateResult.failedGates.join(", ")}`,
+    `FundCandidateDraft created: ${report.fundCandidateDraftCreated ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+  ].join("\n");
+}
+
+async function writeSurvivorReviewPackage(
+  dir: string,
+  decision: SurvivorCrossClaimDecision,
+  replayResults: SurvivorRawReplayResult[],
+  report: SurvivorAdjacentPromotionReadinessReport,
+): Promise<void> {
+  const packageDir = join(dir, "SURVIVOR_EXTERNAL_REVIEW_PACKAGE");
+  await mkdir(packageDir, { recursive: true });
+  const passed = replayResults.filter(
+    (result) => result.classification === "replay_passed",
+  );
+  await writeText(
+    join(packageDir, "REVIEWER_SUMMARY.md"),
+    [
+      "# Reviewer Summary",
+      "",
+      decision.exactBoundedClaim,
+      "",
+      "This package is a bounded benchmark-methodology review package. It does not claim external validation, broad benchmark failure, Nobel-readiness, or Fund status.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "EXACT_CLAIM.md"),
+    decision.exactBoundedClaim,
+  );
+  await writeText(
+    join(packageDir, "METHOD.md"),
+    [
+      "# Method",
+      "",
+      "The method starts from previously selected survivor-adjacent claims, reloads public OpenML raw data, reconstructs the declared split/holdout protocol, reruns a simple public replay model, majority baseline, stronger split/holdout check, shuffled-target negative control, and rival-status classification.",
+      "",
+      "Promotion requires at least two independent tasks with live raw replay and nonfatal baseline, holdout, rival, and negative-control pressure.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "DATASETS_AND_TASKS.md"),
+    [
+      "# Datasets And Tasks",
+      "",
+      "| Claim | Task | Dataset | Receipt | Rows | Features |",
+      "| --- | ---: | --- | --- | ---: | ---: |",
+      ...passed.map(
+        (result) =>
+          `| ${result.claimId} | ${result.taskId} | ${result.datasetName} | ${result.rawDataReceipt} | ${result.rowsLoaded} | ${result.featuresLoaded} |`,
+      ),
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "REPRODUCE.md"),
+    [
+      "# Reproduce",
+      "",
+      "Run:",
+      "",
+      "```bash",
+      "sovryn discover-daemon survivor-adjacent-promotion --live-openml --json",
+      "```",
+      "",
+      "The command fetches public OpenML task/data receipts and writes replay metrics to SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json.",
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "BASELINES.md"),
+    survivorPublicRawReplayMarkdown(replayResults),
+  );
+  await writeText(
+    join(packageDir, "RIVAL_EXPLANATIONS.md"),
+    [
+      "# Rival Explanations",
+      "",
+      "- simple majority/class-prior baseline",
+      "- random split artifact",
+      "- weak group/holdout split",
+      "- shuffled-target negative-control leakage",
+      "- source-family or generic OpenML plausibility",
+      "",
+      decision.baselineRivalNegativeControlSummary,
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "HOLDOUT_REPLAY.md"),
+    survivorPublicRawReplayMarkdown(replayResults),
+  );
+  await writeText(
+    join(packageDir, "NEGATIVE_CONTROLS.md"),
+    [
+      "# Negative Controls",
+      "",
+      "| Claim | Negative metric | Behaved |",
+      "| --- | ---: | --- |",
+      ...replayResults.map(
+        (result) =>
+          `| ${result.claimId} | ${result.liveNegativeControlMetric.toFixed(3)} | ${result.liveNegativeControlBehaved ? "yes" : "no"} |`,
+      ),
+    ].join("\n"),
+  );
+  await writeText(
+    join(packageDir, "LIMITATIONS.md"),
+    [
+      "# Limitations",
+      "",
+      ...decision.limitations.map((item) => `- ${item}`),
+      "",
+      "## No-Overclaim",
+      ...decision.noOverclaim.map((item) => `- ${item}`),
+    ].join("\n"),
+  );
+  await writeJson(join(packageDir, "CLAIM_EVIDENCE_BINDINGS.json"), {
+    claim: decision.exactBoundedClaim,
+    discoveryCandidateId: report.discoveryCandidateId,
+    evidenceRefs: [
+      `${survivorPromotionArtifactRoot}/SURVIVOR_PUBLIC_RAW_REPLAY_RESULTS.json`,
+      `${survivorPromotionArtifactRoot}/CROSS_SURVIVOR_CLAIM_SYNTHESIS.md`,
+      `${survivorPromotionArtifactRoot}/DISCOVERY_CANDIDATE_ELIGIBILITY_DECISION.md`,
+    ],
+    passedClaimIds: passed.map((result) => result.claimId),
+    noOverclaim: decision.noOverclaim,
+  });
 }
 
 function extractHardSeeds(

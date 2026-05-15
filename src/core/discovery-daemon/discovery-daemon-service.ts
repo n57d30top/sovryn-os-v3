@@ -76,6 +76,7 @@ import {
   ReceiptFirstSurvivalPotentialService,
   ReceiptFirstSynthesisService,
   SurvivorAdjacentExternalClaimHarvestService,
+  SurvivorAdjacentPromotionReadinessService,
   type ReceiptFirstSelectivityReport,
   type ReceiptFirstSelectivityPromotionReport,
   type ReceiptFirstSelectivityV2Report,
@@ -85,6 +86,7 @@ import {
   type ReceiptFirstSynthesisReport,
   type DeepValidationGoldSetCalibrationReport,
   type SurvivorAdjacentExternalClaimHarvestReport,
+  type SurvivorAdjacentPromotionReadinessReport,
 } from "./receipt-first-synthesis-service.js";
 
 export type DiscoveryDaemonInternalStatus =
@@ -66093,6 +66095,17 @@ export class AutonomousDiscoveryDaemonService {
   ): Promise<SurvivorAdjacentExternalClaimHarvestReport> {
     await this.ensureInitialized();
     return new SurvivorAdjacentExternalClaimHarvestService(this.root).run({
+      liveOpenMl: input.liveOpenMl,
+    });
+  }
+
+  async survivorAdjacentPromotion(
+    input: {
+      liveOpenMl?: boolean;
+    } = {},
+  ): Promise<SurvivorAdjacentPromotionReadinessReport> {
+    await this.ensureInitialized();
+    return new SurvivorAdjacentPromotionReadinessService(this.root).run({
       liveOpenMl: input.liveOpenMl,
     });
   }

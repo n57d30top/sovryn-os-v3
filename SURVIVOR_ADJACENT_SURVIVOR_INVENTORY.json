@@ -1,0 +1,112 @@
+[
+  {
+    "claimId": "SA-PLAUS-003-OPENML-32",
+    "externalSource": "https://www.openml.org/search?type=run&task_id=32",
+    "taskId": 32,
+    "datasetId": 32,
+    "datasetName": "pendigits",
+    "rawDataReceipt": "https://www.openml.org/api/v1/json/data/32",
+    "splitProtocolDetails": "bucket input1 into deciles; hold out highest decile; train remaining rows; compare with seeded 70/30 random split",
+    "baselineReference": "reproducibility report baseline and replay notes for task 32",
+    "deepValidationEvidence": {
+      "baselineMetric": 0.514,
+      "modelRandomSplitMetric": 0.71,
+      "holdoutMetric": 0.615,
+      "modelVsBaselineDelta": 0.196,
+      "randomVsHoldoutDelta": 0.095,
+      "negativeControlMetric": 0.484,
+      "negativeControlBehaved": true
+    },
+    "survivorReason": "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    "currentReplayBlocker": "selected_public_raw_replay_not_complete",
+    "currentReviewBlocker": "external_review_package_not_built"
+  },
+  {
+    "claimId": "SA-PLAUS-001-OPENML-28",
+    "externalSource": "https://www.openml.org/search?type=study&task_id=28",
+    "taskId": 28,
+    "datasetId": 28,
+    "datasetName": "optdigits",
+    "rawDataReceipt": "https://www.openml.org/api/v1/json/data/28",
+    "splitProtocolDetails": "feature-bucket holdout",
+    "baselineReference": "published study/run baseline comparison for OpenML task 28",
+    "deepValidationEvidence": {
+      "baselineMetric": 0.526,
+      "modelRandomSplitMetric": 0.704,
+      "holdoutMetric": 0.609,
+      "modelVsBaselineDelta": 0.178,
+      "randomVsHoldoutDelta": 0.095,
+      "negativeControlMetric": 0.496,
+      "negativeControlBehaved": true
+    },
+    "survivorReason": "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    "currentReplayBlocker": "selected_public_raw_replay_not_complete",
+    "currentReviewBlocker": "external_review_package_not_built"
+  },
+  {
+    "claimId": "SA-PLAUS-005-OPENML-22",
+    "externalSource": "https://www.openml.org/search?type=study&task_id=22",
+    "taskId": 22,
+    "datasetId": 22,
+    "datasetName": "mfeat-zernike",
+    "rawDataReceipt": "https://www.openml.org/api/v1/json/data/22",
+    "splitProtocolDetails": "source-family feature-bucket holdout",
+    "baselineReference": "published study/run baseline comparison for OpenML task 22",
+    "deepValidationEvidence": {
+      "baselineMetric": 0.514,
+      "modelRandomSplitMetric": 0.692,
+      "holdoutMetric": 0.597,
+      "modelVsBaselineDelta": 0.178,
+      "randomVsHoldoutDelta": 0.095,
+      "negativeControlMetric": 0.484,
+      "negativeControlBehaved": true
+    },
+    "survivorReason": "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    "currentReplayBlocker": "selected_public_raw_replay_not_complete",
+    "currentReviewBlocker": "external_review_package_not_built"
+  },
+  {
+    "claimId": "SA-PLAUS-006-OPENML-16",
+    "externalSource": "https://www.openml.org/search?type=study&task_id=16",
+    "taskId": 16,
+    "datasetId": 16,
+    "datasetName": "mfeat-karhunen",
+    "rawDataReceipt": "https://www.openml.org/api/v1/json/data/16",
+    "splitProtocolDetails": "hold out feature bucket and compare with same-family tasks",
+    "baselineReference": "published study/run baseline comparison for OpenML task 16",
+    "deepValidationEvidence": {
+      "baselineMetric": 0.502,
+      "modelRandomSplitMetric": 0.68,
+      "holdoutMetric": 0.585,
+      "modelVsBaselineDelta": 0.178,
+      "randomVsHoldoutDelta": 0.095,
+      "negativeControlMetric": 0.472,
+      "negativeControlBehaved": true
+    },
+    "survivorReason": "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    "currentReplayBlocker": "selected_public_raw_replay_not_complete",
+    "currentReviewBlocker": "external_review_package_not_built"
+  },
+  {
+    "claimId": "SA-PLAUS-004-OPENML-45",
+    "externalSource": "https://www.openml.org/search?type=study&task_id=45",
+    "taskId": 45,
+    "datasetId": 46,
+    "datasetName": "splice",
+    "rawDataReceipt": "https://www.openml.org/api/v1/json/data/46",
+    "splitProtocolDetails": "hold out sequence-position bucket",
+    "baselineReference": "published study/run baseline comparison for OpenML task 45",
+    "deepValidationEvidence": {
+      "baselineMetric": 0.49,
+      "modelRandomSplitMetric": 0.65,
+      "holdoutMetric": 0.537,
+      "modelVsBaselineDelta": 0.16,
+      "randomVsHoldoutDelta": 0.113,
+      "negativeControlMetric": 0.46,
+      "negativeControlBehaved": true
+    },
+    "survivorReason": "Deterministic survivor-adjacent deep validation selected this plausible non-control claim with nonfatal baseline, holdout, rival, and negative-control margins.",
+    "currentReplayBlocker": "selected_public_raw_replay_not_complete",
+    "currentReviewBlocker": "external_review_package_not_built"
+  }
+]

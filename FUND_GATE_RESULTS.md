@@ -1,10 +1,6 @@
 # Fund Gate Results
 
-Passed: no
-Status: continue_searching
-Failed gates: candidate_present
-
-DiscoveryCandidates created: 0
+Fund Gate passed: no
+Failed gates: discovery_candidate_present
+FundCandidateDraft created: no
 FUND_FOUND: no
-
-No fake `FUND_FOUND.md` or `fund-candidate.json` was created.

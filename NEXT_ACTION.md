@@ -1,5 +1,5 @@
 # Next Action
 
-Run live raw public replay on the selected survivor-adjacent claims and build a public-safe review package only if at least two independent non-control claims still survive.
+Do not promote these survivors; source or replay stronger survivor-adjacent claims only after public raw replay can pass on at least two independent tasks.
 
-Checkpoint: .sovryn/discovery-daemon/checkpoints/survivor-adjacent-claims-continue-searching.json
+Checkpoint: .sovryn/discovery-daemon/checkpoints/survivor-adjacent-promotion-continue-searching.json

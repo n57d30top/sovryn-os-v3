@@ -10100,6 +10100,7 @@ test("second survivor methodology evidence hardens package without fake Fund", a
     "EXTERNAL_METHODOLOGY_COMPARISON.md",
     "PRIOR_ART_AND_DIFFERENTIATION.md",
     "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    "REVIEWER_REPLAY_QUICKCHECK.md",
     "REPRODUCER_CHECKLIST.md",
     "EXTERNAL_METHODOLOGY_REVIEW_INTAKE.md",
     "EXTERNAL_METHODOLOGY_REVIEW_RECORD_TEMPLATE.json",
@@ -10154,6 +10155,15 @@ test("second survivor methodology evidence hardens package without fake Fund", a
       "evidence-packages",
       "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
       "INDEPENDENT_REPRODUCER_PACKAGE.md",
+    ),
+  );
+  await access(
+    join(
+      root,
+      daemonRoot,
+      "evidence-packages",
+      "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+      "reviewer_replay_quickcheck.js",
     ),
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);

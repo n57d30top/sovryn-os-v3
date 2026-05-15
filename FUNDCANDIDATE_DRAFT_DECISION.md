@@ -2,7 +2,7 @@
 
 FundCandidateDraft created: yes
 Draft validation accepted: yes
-Fund Gate passed: yes
+Fund Gate passed: no
 Fund Gate status: continue_searching
 Fund class: pipeline_fund_candidate
 Notification allowed: no

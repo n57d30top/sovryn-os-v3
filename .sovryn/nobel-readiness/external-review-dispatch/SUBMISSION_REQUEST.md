@@ -7,7 +7,7 @@ This request asks an independent domain reviewer to inspect one bounded discover
 ## Candidate
 
 - Candidate ID: missing
-- Fund class: missing
+- Fund class: pipeline_fund_candidate
 - Package path: missing
 - Bundle path: .sovryn/nobel-readiness/external-review-bundle
 - Review record directory: .sovryn/nobel-readiness/external-review-reviews

@@ -3221,6 +3221,10 @@ export class NobelReadinessService {
             "STANDALONE_REPLAY_RESULTS.md",
             "standalone_replay_results.json",
             "reproduce_second_survivor_benchmark.js",
+            "REVIEWER_REPLAY_QUICKCHECK.md",
+            "reviewer_replay_quickcheck.js",
+            "reviewer_replay_quickcheck_result.json",
+            "REVIEWER_REPLAY_QUICKCHECK_RESULT.md",
             "EXTERNAL_REVIEW_REQUEST.md",
             "EXTERNAL_REVIEW_RECORD_TEMPLATE.json",
           ]

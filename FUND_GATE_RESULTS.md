@@ -1,11 +1,13 @@
 # Fund Gate Results
 
-Passed: false
-Status: continue_searching
+Fund Gate passed: no
+Fund Gate status: continue_searching
 Fund class: pipeline_fund_candidate
-Counts for Einstein/Nobel discovery score: false
-Notification allowed: false
+Counts for discovery score: no
+Notification allowed: no
+Methodology discovery-scored: no
+FUND_FOUND: no
 
-## Failed Gates
+Failed gates:
 
 - public_corpus_downgrade

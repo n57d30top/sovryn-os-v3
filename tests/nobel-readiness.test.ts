@@ -2384,6 +2384,8 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
     "LIMITATIONS.md",
     "DATASETS_AND_TASKS.md",
     "STANDALONE_REPLAY_RESULTS.md",
+    "REVIEWER_REPLAY_QUICKCHECK.md",
+    "REVIEWER_REPLAY_QUICKCHECK_RESULT.md",
   ]) {
     await writeFile(join(resultRoot, file), `# ${file}\n`, "utf8");
   }
@@ -2401,6 +2403,18 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
     "utf8",
   );
   await writeFile(
+    join(resultRoot, "reviewer_replay_quickcheck.js"),
+    "console.log('fixture quickcheck');\n",
+    "utf8",
+  );
+  await writeJson(join(resultRoot, "reviewer_replay_quickcheck_result.json"), {
+    candidateId,
+    passed: true,
+    replayStatus: "public_raw_replay_reproduced_with_rounding_caveat",
+    fundFound: false,
+    countsForDiscoveryScore: false,
+  });
+  await writeFile(
     join(resultRoot, "PUBLIC_REVIEW_URLS.md"),
     `# Public Review URLs
 
@@ -2415,6 +2429,10 @@ async function writeBenchmarkReviewIntakeCorpusPackage(
 - https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/STANDALONE_REPLAY_RESULTS.md
 - https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/standalone_replay_results.json
 - https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/reproduce_second_survivor_benchmark.js
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REVIEWER_REPLAY_QUICKCHECK.md
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/reviewer_replay_quickcheck.js
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/reviewer_replay_quickcheck_result.json
+- https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/REVIEWER_REPLAY_QUICKCHECK_RESULT.md
 - https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_REQUEST.md
 - https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/${resultPath}/EXTERNAL_REVIEW_RECORD_TEMPLATE.json
 `,

@@ -29,9 +29,11 @@
       "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXACT_CLAIM.md",
       "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/REPRODUCE.md",
       "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/INDEPENDENT_REPRODUCER_PACKAGE.md",
+      "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/REVIEWER_REPLAY_QUICKCHECK.md",
       "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHODOLOGY_VALUE_TESTS.md",
       "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/STANDALONE_REPLAY_RESULTS.md",
-      "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json"
+      "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json",
+      "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/reviewer_replay_quickcheck.js"
     ]
   },
   "requiredForSupportiveScoreImpact": [

@@ -66573,7 +66573,9 @@ function allLayer100TargetedRun(input: {
   methodologyReport: Record<string, unknown>;
   fundGateResult: FundGateResult;
   publicReviewPackage: AllLayer100PublicReviewPackage;
+  survivorAdjacentPromotion: Record<string, unknown> | null;
 }): Record<string, unknown> {
+  const survivorAdjacentPromotion = input.survivorAdjacentPromotion;
   return {
     runId: "second-survivor-methodology-evidence",
     path: secondSurvivorMethodologyEvidenceRoot,
@@ -66608,8 +66610,32 @@ function allLayer100TargetedRun(input: {
     publicPackageFundFound: input.publicReviewPackage.fundFound === true,
     publicPackageRef: input.publicReviewPackage.resultPath,
     publicPackageUrl: input.publicReviewPackage.publicResultUrl,
+    survivorAdjacentPromotionPresent: survivorAdjacentPromotion !== null,
+    survivorAdjacentPromotionRunId: survivorAdjacentPromotion
+      ? "survivor-adjacent-promotion-live-openml"
+      : null,
+    survivorAdjacentSurvivorsLoaded:
+      survivorAdjacentPromotion?.survivorsLoaded ?? null,
+    survivorAdjacentPublicRawReplayPassed:
+      survivorAdjacentPromotion?.publicRawReplayPassed ?? null,
+    survivorAdjacentPublicRawReplayWeakened:
+      survivorAdjacentPromotion?.publicRawReplayWeakened ?? null,
+    survivorAdjacentIndependentSurvivorTasks:
+      survivorAdjacentPromotion?.independentSurvivorTasks ?? null,
+    survivorAdjacentReviewPackageBuilt:
+      survivorAdjacentPromotion?.reviewPackageBuilt ?? null,
+    survivorAdjacentDiscoveryCandidateCreated:
+      survivorAdjacentPromotion?.discoveryCandidateCreated ?? null,
+    survivorAdjacentFundCandidateDraftCreated:
+      survivorAdjacentPromotion?.fundCandidateDraftCreated ?? null,
+    survivorAdjacentFundFound: survivorAdjacentPromotion?.fundFound ?? null,
+    survivorAdjacentExactBlocker:
+      optionalString(survivorAdjacentPromotion?.exactBlocker) ?? null,
     result:
       "Targeted evidence run hardened the strongest candidate package and surfaced public standalone replay evidence, but did not produce discovery-scored notification authority or external validation.",
+    survivorAdjacentResult: survivorAdjacentPromotion
+      ? "Live OpenML replay on existing survivor-adjacent survivors proved current promotion absence: fewer than two independent public raw replay survivors passed, so no DiscoveryCandidate or FundCandidateDraft was created."
+      : "No survivor-adjacent live replay artifact was available to bind as secondary targeted evidence.",
   };
 }
 
@@ -66655,6 +66681,7 @@ function allLayer100CompletionAudit(input: {
   fundGateResult: FundGateResult;
   nobelReadiness: Record<string, unknown>;
   publicReviewPackage: AllLayer100PublicReviewPackage;
+  survivorAdjacentPromotion: Record<string, unknown> | null;
 }): Record<string, unknown> {
   const requiredArtifacts = allLayer100ArtifactRefs().filter((ref) =>
     ref.endsWith(".md"),
@@ -66679,6 +66706,13 @@ function allLayer100CompletionAudit(input: {
         requirement: "Prioritize receipt-first benchmark methodology path",
         evidence: "TARGETED_DISCOVERY_RUN_RESULTS.md",
         covered: true,
+      },
+      {
+        requirement:
+          "Run targeted evidence-producing experiment or prove blocker is real signal absence",
+        evidence:
+          ".sovryn/discovery-daemon/survivor-adjacent-promotion/latest.json and TARGETED_DISCOVERY_RUN_RESULTS.md record the live public raw replay result.",
+        covered: input.survivorAdjacentPromotion !== null,
       },
       {
         requirement:
@@ -66719,6 +66753,9 @@ function allLayer100CompletionAudit(input: {
       ...(input.scoreRows.every((row) => row.after >= row.target)
         ? []
         : ["not_all_layers_at_100"]),
+      ...(input.survivorAdjacentPromotion !== null
+        ? []
+        : ["survivor_adjacent_live_replay_not_recorded"]),
     ],
     achieved: false,
   };
@@ -66889,7 +66926,7 @@ function allLayer100EinsteinNobelGapMarkdown(input: {
 }
 
 function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
-  return [
+  const lines = [
     "# Targeted Discovery Run Results",
     "",
     `Run ID: ${String(run.runId)}`,
@@ -66911,7 +66948,27 @@ function allLayer100TargetedRunMarkdown(run: Record<string, unknown>): string {
     `Notification allowed: ${String(run.notificationAllowed)}`,
     "",
     String(run.result),
-  ].join("\n");
+  ];
+  if (run.survivorAdjacentPromotionPresent === true) {
+    lines.push(
+      "",
+      "## Survivor-Adjacent Live Replay",
+      "",
+      `Run ID: ${String(run.survivorAdjacentPromotionRunId)}`,
+      `Survivors loaded: ${String(run.survivorAdjacentSurvivorsLoaded)}`,
+      `Public raw replay passed: ${String(run.survivorAdjacentPublicRawReplayPassed)}`,
+      `Public raw replay weakened: ${String(run.survivorAdjacentPublicRawReplayWeakened)}`,
+      `Independent survivor tasks: ${String(run.survivorAdjacentIndependentSurvivorTasks)}`,
+      `Review package built: ${String(run.survivorAdjacentReviewPackageBuilt)}`,
+      `DiscoveryCandidate created: ${String(run.survivorAdjacentDiscoveryCandidateCreated)}`,
+      `FundCandidateDraft created: ${String(run.survivorAdjacentFundCandidateDraftCreated)}`,
+      `FUND_FOUND: ${String(run.survivorAdjacentFundFound)}`,
+      `Exact blocker: ${String(run.survivorAdjacentExactBlocker)}`,
+      "",
+      String(run.survivorAdjacentResult),
+    );
+  }
+  return lines.join("\n");
 }
 
 function allLayer100PromotionDecisionMarkdown(
@@ -69630,6 +69687,13 @@ export class AutonomousDiscoveryDaemonService {
       )) ?? {};
     const publicReviewPackage =
       await readAllLayer100PublicSecondSurvivorPackage(this.root);
+    const survivorAdjacentPromotion =
+      (await readOptionalJson<Record<string, unknown>>(
+        join(
+          this.root,
+          ".sovryn/discovery-daemon/survivor-adjacent-promotion/latest.json",
+        ),
+      )) ?? null;
     const scoreRows = allLayer100ScoreRows({
       methodologyReport,
       nobelReadiness,
@@ -69647,6 +69711,7 @@ export class AutonomousDiscoveryDaemonService {
       methodologyReport,
       fundGateResult,
       publicReviewPackage,
+      survivorAdjacentPromotion,
     });
     const promotionDecision = allLayer100PromotionDecision({
       methodologyReport,
@@ -69660,8 +69725,12 @@ export class AutonomousDiscoveryDaemonService {
       fundGateResult,
       nobelReadiness,
       publicReviewPackage,
+      survivorAdjacentPromotion,
     });
     const artifactRefs = allLayer100ArtifactRefs();
+    const survivorAdjacentBlocker = optionalString(
+      survivorAdjacentPromotion?.exactBlocker,
+    );
     const report = withEvidenceHash({
       kind: "all_layer_100_closure" as const,
       status: "productive_discovery_engine_continue_searching" as const,
@@ -69670,6 +69739,7 @@ export class AutonomousDiscoveryDaemonService {
       targetedRun,
       promotionDecision,
       publicReviewPackage,
+      survivorAdjacentPromotion,
       currentStrongestPath:
         "receipt-first benchmark methodology candidate with public replay and external-review package hardening",
       routeReadinessStatus:
@@ -69681,10 +69751,12 @@ export class AutonomousDiscoveryDaemonService {
       fundFound: false,
       einsteinNobelEligible:
         nobelReadiness.einsteinNobelDiscoveryScoreEligible === true,
-      exactBlocker:
-        "All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate with public standalone replay, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction.",
-      nextAction:
-        "Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise harvest stronger receipt-complete benchmark claims with pre-existing survival evidence.",
+      exactBlocker: survivorAdjacentBlocker
+        ? `All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate with public standalone replay, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction. A targeted survivor-adjacent live replay also remains blocked: ${survivorAdjacentBlocker}`
+        : "All-layer 100 remains blocked because the strongest candidate is a review-hardened pipeline_fund_candidate with public standalone replay, not a discovery-scored candidate with independent external benchmark-methodology review or independent external reproduction.",
+      nextAction: survivorAdjacentBlocker
+        ? "Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise source stronger receipt-complete survivor-adjacent claims only when public raw replay can pass on at least two independent tasks."
+        : "Seek or ingest independent external benchmark-methodology review for the second-survivor package; otherwise harvest stronger receipt-complete benchmark claims with pre-existing survival evidence.",
       completionAudit,
       artifactRefs,
     });

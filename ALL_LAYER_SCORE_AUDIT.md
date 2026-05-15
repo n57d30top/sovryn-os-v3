@@ -35,6 +35,11 @@
 "covered": true
 },
 {
+"requirement": "Run targeted evidence-producing experiment or prove blocker is real signal absence",
+"evidence": ".sovryn/discovery-daemon/survivor-adjacent-promotion/latest.json and TARGETED_DISCOVERY_RUN_RESULTS.md record the live public raw replay result.",
+"covered": true
+},
+{
 "requirement": "Surface public corpus review package and standalone replay evidence",
 "evidence": "results/second-survivor-benchmark-triage-methodology-review-intake/SUMMARY.json and results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json",
 "covered": true

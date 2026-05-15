@@ -19,3 +19,18 @@ Fund class: pipeline_fund_candidate
 Notification allowed: false
 
 Targeted evidence run hardened the strongest candidate package and surfaced public standalone replay evidence, but did not produce discovery-scored notification authority or external validation.
+
+## Survivor-Adjacent Live Replay
+
+Run ID: survivor-adjacent-promotion-live-openml
+Survivors loaded: 5
+Public raw replay passed: 1
+Public raw replay weakened: 4
+Independent survivor tasks: 1
+Review package built: false
+DiscoveryCandidate created: false
+FundCandidateDraft created: false
+FUND_FOUND: false
+Exact blocker: Survivor-adjacent survivors remain Insight-level. Blockers: fewer_than_two_survivors_pass_public_raw_replay, public_raw_replay_survivors_not_independent, external_review_package_not_built.
+
+Live OpenML replay on existing survivor-adjacent survivors proved current promotion absence: fewer than two independent public raw replay survivors passed, so no DiscoveryCandidate or FundCandidateDraft was created.

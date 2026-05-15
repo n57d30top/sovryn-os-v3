@@ -10249,6 +10249,29 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
       2,
     ),
   );
+  await mkdir(join(root, daemonRoot, "survivor-adjacent-promotion"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(root, daemonRoot, "survivor-adjacent-promotion", "latest.json"),
+    JSON.stringify(
+      {
+        kind: "survivor_adjacent_promotion_readiness",
+        survivorsLoaded: 5,
+        publicRawReplayPassed: 1,
+        publicRawReplayWeakened: 4,
+        independentSurvivorTasks: 1,
+        reviewPackageBuilt: false,
+        discoveryCandidateCreated: false,
+        fundCandidateDraftCreated: false,
+        fundFound: false,
+        exactBlocker:
+          "Survivor-adjacent survivors remain Insight-level. Blockers: fewer_than_two_survivors_pass_public_raw_replay, public_raw_replay_survivors_not_independent, external_review_package_not_built.",
+      },
+      null,
+      2,
+    ),
+  );
 
   const report = await new AutonomousDiscoveryDaemonService(
     root,
@@ -10282,6 +10305,10 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   assert.equal(targetedRun.publicCorpusReviewPackagePresent, true);
   assert.equal(targetedRun.standaloneReplayWithinRoundingTolerance, true);
   assert.equal(targetedRun.publicPackageCountsForDiscoveryScore, false);
+  assert.equal(targetedRun.survivorAdjacentPromotionPresent, true);
+  assert.equal(targetedRun.survivorAdjacentPublicRawReplayPassed, 1);
+  assert.equal(targetedRun.survivorAdjacentIndependentSurvivorTasks, 1);
+  assert.equal(targetedRun.survivorAdjacentDiscoveryCandidateCreated, false);
   for (const artifact of [
     "ALL_LAYER_SCORE_AUDIT.md",
     "DISCOVERY_SCIENTIST_100_PLAN.md",
@@ -10310,6 +10337,12 @@ test("all-layer 100 closure audits current blockers without fake Fund", async ()
   assert.match(
     targetedRunMarkdown,
     /Standalone replay external validation: false/,
+  );
+  assert.match(targetedRunMarkdown, /Survivor-Adjacent Live Replay/);
+  assert.match(targetedRunMarkdown, /Public raw replay passed: 1/);
+  assert.match(
+    targetedRunMarkdown,
+    /fewer_than_two_survivors_pass_public_raw_replay/,
   );
   assert.equal(await exists(join(root, daemonRoot, "FUND_FOUND.md")), false);
   assert.equal(

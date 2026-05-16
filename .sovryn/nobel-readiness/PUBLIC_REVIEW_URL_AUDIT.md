@@ -42,6 +42,7 @@ This audit verifies that the public corpus exposes a reviewer-facing URL index f
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REVIEWER_CHECKLIST.md | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_SUBMISSION_COVER.md | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/HOLDOUT_REPLAY.md | yes | no | yes |
+| https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/INTERNAL_CODEX_REVIEW.md | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/LIMITATIONS.md | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHOD.md | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHODOLOGY_VALUE_TESTS.md | yes | no | yes |
@@ -57,6 +58,7 @@ This audit verifies that the public corpus exposes a reviewer-facing URL index f
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/reviewer_replay_quickcheck.js | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/reviewer_replay_quickcheck_result.json | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/standalone_replay_results.json | yes | no | yes |
+| https://github.com/n57d30top/sovryn-open-inventions/issues/1 | yes | no | yes |
 | https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake | yes | no | yes |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/BASELINES.md | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/CLAIM_EVIDENCE_BINDINGS.json | yes | yes | no |
@@ -71,6 +73,7 @@ This audit verifies that the public corpus exposes a reviewer-facing URL index f
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_REVIEWER_CHECKLIST.md | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/EXTERNAL_REVIEW_SUBMISSION_COVER.md | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/HOLDOUT_REPLAY.md | yes | yes | no |
+| https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/INTERNAL_CODEX_REVIEW_RECORD.json | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/LIMITATIONS.md | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHOD.md | yes | yes | no |
 | https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/METHODOLOGY_VALUE_TESTS.md | yes | yes | no |

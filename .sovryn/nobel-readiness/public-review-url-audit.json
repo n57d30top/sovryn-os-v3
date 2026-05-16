@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_public_review_url_audit",
-  "generatedAt": "2026-05-16T09:43:11.158Z",
+  "generatedAt": "2026-05-16T12:03:41.594Z",
   "status": "public_review_urls_ready",
   "passed": true,
   "targetRepo": "/Users/sovryn/Desktop/sovryn-open-inventions",
@@ -120,6 +120,12 @@
       "repositoryUrl": true
     },
     {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/INTERNAL_CODEX_REVIEW.md",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
       "url": "https://github.com/n57d30top/sovryn-open-inventions/blob/main/results/second-survivor-benchmark-triage-methodology-review-intake/LIMITATIONS.md",
       "expectedHost": true,
       "rawGithub": false,
@@ -210,6 +216,12 @@
       "repositoryUrl": true
     },
     {
+      "url": "https://github.com/n57d30top/sovryn-open-inventions/issues/1",
+      "expectedHost": true,
+      "rawGithub": false,
+      "repositoryUrl": true
+    },
+    {
       "url": "https://github.com/n57d30top/sovryn-open-inventions/tree/main/results/second-survivor-benchmark-triage-methodology-review-intake",
       "expectedHost": true,
       "rawGithub": false,
@@ -289,6 +301,12 @@
     },
     {
       "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/HOLDOUT_REPLAY.md",
+      "expectedHost": true,
+      "rawGithub": true,
+      "repositoryUrl": false
+    },
+    {
+      "url": "https://raw.githubusercontent.com/n57d30top/sovryn-open-inventions/main/results/second-survivor-benchmark-triage-methodology-review-intake/INTERNAL_CODEX_REVIEW_RECORD.json",
       "expectedHost": true,
       "rawGithub": true,
       "repositoryUrl": false
@@ -451,5 +469,5 @@
     ".sovryn/nobel-readiness/public-review-url-audit.json",
     ".sovryn/nobel-readiness/PUBLIC_REVIEW_URL_AUDIT.md"
   ],
-  "evidenceHash": "fbc267dafa4032b49a10dea7f8ebd1a9f8b58084cb50f3c7c2e437623c55470c"
+  "evidenceHash": "3ac39685470da351ca08e6738cc7517bdcc923096a5fc271e3e55be4c5b5786e"
 }

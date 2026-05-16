@@ -1,0 +1,22 @@
+{
+  "kind": "nobel_readiness_external_review_source_receipt",
+  "generatedAt": "2026-05-16T12:01:41.163Z",
+  "passed": false,
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "sourceUrl": "https://api.github.com/repos/n57d30top/sovryn-open-inventions/issues/comments/4466753985",
+  "publicSafe": true,
+  "external": true,
+  "fetched": true,
+  "statusCode": 200,
+  "contentType": "application/json; charset=utf-8",
+  "contentLength": 2841,
+  "sourceContentSha256": "fe1608ef53e69d5acfc168668935cb46e2bea1147cfe1ff53d0bd0009a0863a5",
+  "candidateIdMentioned": false,
+  "schemaVersionMentioned": false,
+  "fetchError": null,
+  "receiptRef": ".sovryn/nobel-readiness/external-review-source-receipts/external-review-source-2e03accef137618a.json",
+  "artifactRefs": [
+    ".sovryn/nobel-readiness/external-review-source-receipts/external-review-source-2e03accef137618a.json"
+  ],
+  "evidenceHash": "075fdcede4335443f3ab94b39e0e1daadea4ffa348fb49211960d0f18990aab5"
+}

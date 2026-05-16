@@ -1,6 +1,6 @@
 {
   "kind": "external_review_dispatch_manifest",
-  "generatedAt": "2026-05-16T09:24:54.260Z",
+  "generatedAt": "2026-05-16T09:43:11.117Z",
   "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "fundClass": "pipeline_fund_candidate",
   "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",

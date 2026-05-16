@@ -81,6 +81,7 @@ import {
   ReceiptFirstSelectivityV3Service,
   ReceiptFirstSelectivityV4Service,
   ReceiptFirstSurvivalPotentialService,
+  ReceiptFirstV2SurvivorYieldService,
   ReceiptFirstSynthesisService,
   SecondIndependentSurvivorSearchService,
   SurvivorAdjacentExternalClaimHarvestService,
@@ -162,6 +163,7 @@ const commands = [
   "receipt-first-selectivity-v3",
   "receipt-first-selectivity-v4",
   "receipt-first-survival-potential",
+  "receipt-first-v2-survivor-yield",
   "deep-validation-gold-set-calibration",
   "survivor-adjacent-claims",
   "survivor-adjacent-promotion",
@@ -9501,6 +9503,70 @@ test("receipt-first survival-potential harvest builds source-quality benchmark",
   assert.equal(
     (cli.data as Record<string, unknown>).kind,
     "receipt_first_survival_potential_claim_harvest",
+  );
+});
+
+test("receipt-first V2 survivor-yield challenge compares against baseline-only", async () => {
+  const root = await tempRoot();
+  await new TaskReceiptFirstBenchmarkDiscoveryService(root).run();
+  const report = await new ReceiptFirstV2SurvivorYieldService(root).run();
+  assert.equal(report.kind, "receipt_first_v2_survivor_yield");
+  assert.equal(report.benchmarkSize, 100);
+  assert.ok(report.independentTasks >= 25);
+  assert.ok(report.plausibleNonControlClaims >= 30);
+  assert.ok(report.weakClaims >= 30);
+  assert.ok(report.positiveControls >= 10);
+  assert.ok(report.groupTimeEntityManifestClaims >= 20);
+  assert.equal(report.discoveryScored, false);
+  assert.equal(report.fundFound, false);
+  assert.equal(report.notificationAllowed, false);
+  assert.ok(report.comparison.v2Selected >= 0);
+  assert.ok(report.comparison.baselineOnlySelected >= 0);
+
+  for (const artifact of [
+    "V2_SURVIVOR_YIELD_BENCHMARK.md",
+    "V2_SURVIVOR_YIELD_BENCHMARK.json",
+    "V2_METHOD_COMPARISON_RESULTS.md",
+    "V2_BASELINE_ONLY_COMPARISON.md",
+    "V2_DEEP_VALIDATION_RESULTS.md",
+    "BASELINE_ONLY_DEEP_VALIDATION_RESULTS.md",
+    "GROUP_TIME_ENTITY_HOLDOUT_RESULTS.md",
+    "V2_SURVIVOR_YIELD_DECISION.md",
+    "UPDATED_REVIEW_PACKAGE_STATUS.md",
+    "UPDATED_FUND_GATE_RESULTS.md",
+    "FINAL_BLOCKERS.md",
+    "NEXT_ACTION.md",
+  ]) {
+    await access(
+      join(root, daemonRoot, "receipt-first-v2-survivor-yield", artifact),
+    );
+  }
+
+  const claims = JSON.parse(
+    await readFile(
+      join(
+        root,
+        daemonRoot,
+        "receipt-first-v2-survivor-yield",
+        "V2_SURVIVOR_YIELD_BENCHMARK.json",
+      ),
+      "utf8",
+    ),
+  ) as Array<Record<string, unknown>>;
+  assert.equal(claims.length, 100);
+  assert.ok(
+    claims.filter((claim) => claim.groupTimeEntityManifest !== null).length >=
+      20,
+  );
+
+  const cli = await executeCli(
+    ["discover-daemon", "receipt-first-v2-survivor-yield", "--json"],
+    root,
+  );
+  assert.equal(cli.ok, true, JSON.stringify(cli.errors));
+  assert.equal(
+    (cli.data as Record<string, unknown>).kind,
+    "receipt_first_v2_survivor_yield",
   );
 });
 

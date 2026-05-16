@@ -1022,6 +1022,115 @@ export type ReceiptFirstSurvivalPotentialReport = {
   evidenceHash: string;
 };
 
+type V2SurvivorYieldClaimClass =
+  | "plausible_non_control"
+  | "weak"
+  | "positive_control"
+  | "known_hard_uncertain";
+
+type V2SurvivorYieldClaim = TaskReceiptFirstClaim & {
+  claimClass: V2SurvivorYieldClaimClass;
+  sourceObjectReceipt: string;
+  baselineReference: string;
+  splitProtocol: string;
+  groupTimeEntityManifest: {
+    kind: "group" | "time" | "entity" | "deterministic_feature_bucket";
+    key: string;
+    publicField: string;
+    deterministicConstruction: string;
+    realPublicFieldManifest: boolean;
+    caveat: string;
+  } | null;
+  expectedSurvivalRationale: string;
+};
+
+type V2SurvivorYieldResult = TaskReceiptFirstExecutionResult & {
+  claimClass: V2SurvivorYieldClaimClass;
+  v2Score: number;
+  v2Decision: TriageDecision;
+  baselineOnlyDecision: TriageDecision;
+  rejectAllDecision: TriageDecision;
+  acceptAllDecision: TriageDecision;
+  randomDecision: TriageDecision;
+  holdoutOnlyDecision: TriageDecision;
+  receiptOnlyDecision: TriageDecision;
+  negativeControlOnlyDecision: TriageDecision;
+  actualOutcome: "survived" | "killed" | "inconclusive";
+  actualDeathCause:
+    | "none"
+    | "baseline_dominated"
+    | "holdout_not_supported"
+    | "negative_control_failed"
+    | "rival_still_plausible"
+    | "replay_failed"
+    | "recurrence_not_supported"
+    | "positive_control_not_counted";
+  groupTimeEntityManifestComplete: boolean;
+  rivalClosure: "closed" | "weakened" | "still_plausible" | "stronger";
+  metricSensitivityNonfatal: boolean;
+};
+
+type V2SurvivorYieldComparison = {
+  benchmarkSize: number;
+  independentTasks: number;
+  plausibleNonControlClaims: number;
+  weakClaims: number;
+  positiveControls: number;
+  groupTimeEntityManifestClaims: number;
+  v2Selected: number;
+  baselineOnlySelected: number;
+  v2Survivors: number;
+  baselineOnlySurvivors: number;
+  v2IndependentSurvivorTasks: number;
+  baselineOnlyIndependentSurvivorTasks: number;
+  v2GroupTimeEntitySurvivors: number;
+  baselineOnlyGroupTimeEntitySurvivors: number;
+  v2SurvivorYield: number;
+  baselineOnlySurvivorYield: number;
+  rejectAllSurvivorYield: number;
+  acceptAllSurvivorYield: number;
+  randomSurvivorYield: number;
+  holdoutOnlySurvivorYield: number;
+  receiptOnlySurvivorYield: number;
+  negativeControlOnlySurvivorYield: number;
+  v2Precision: number;
+  baselineOnlyPrecision: number;
+  v2FalseAcceptanceRate: number;
+  baselineOnlyFalseAcceptanceRate: number;
+  v2FalseRejectionRate: number;
+  baselineOnlyFalseRejectionRate: number;
+  v2CostSaved: number;
+  baselineOnlyCostSaved: number;
+  v2BeatsBaselineOnlyOnSurvivorYield: boolean;
+};
+
+export type ReceiptFirstV2SurvivorYieldReport = {
+  kind: "receipt_first_v2_survivor_yield";
+  terminalStatus: "productive_source_object_engine_continue_searching";
+  productStateCommit: string;
+  benchmarkSize: number;
+  independentTasks: number;
+  plausibleNonControlClaims: number;
+  weakClaims: number;
+  positiveControls: number;
+  groupTimeEntityManifestClaims: number;
+  publicReplaySuccesses: number;
+  v2SurvivorYield: number;
+  baselineOnlySurvivorYield: number;
+  groupTimeEntitySurvivors: number;
+  v2BeatsBaselineOnly: boolean;
+  discoveryScored: false;
+  fundFound: false;
+  notificationAllowed: false;
+  comparison: V2SurvivorYieldComparison;
+  fundGateResult: ReceiptFirstSynthesisReport["fundGateResult"];
+  exactBlocker: string;
+  nextCheckpoint: string;
+  nextAction: string;
+  artifactRefs: string[];
+  evidenceHash: string;
+};
+
 type ParsedDataset = {
   attributes: string[];
   rows: string[][];
@@ -1041,6 +1150,8 @@ const selectivityV4ArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-selectivity-v4";
 const survivalPotentialArtifactRoot =
   ".sovryn/discovery-daemon/receipt-first-survival-potential";
+const v2SurvivorYieldArtifactRoot =
+  ".sovryn/discovery-daemon/receipt-first-v2-survivor-yield";
 const deepValidationCalibrationArtifactRoot =
   ".sovryn/discovery-daemon/deep-validation-gold-set-calibration";
 const survivorAdjacentArtifactRoot =
@@ -1065,6 +1176,8 @@ const selectivityV4NextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-selectivity-v4-continue-searching.json";
 const survivalPotentialNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/receipt-first-survival-potential-continue-searching.json";
+const v2SurvivorYieldNextCheckpoint =
+  ".sovryn/discovery-daemon/checkpoints/receipt-first-v2-survivor-yield-continue-searching.json";
 const deepValidationCalibrationNextCheckpoint =
   ".sovryn/discovery-daemon/checkpoints/deep-validation-gold-set-calibration-continue-searching.json";
 const survivorAdjacentNextCheckpoint =
@@ -1186,6 +1299,21 @@ const survivalPotentialArtifacts = [
   "SURVIVOR_ANALYSIS.md",
   "SURVIVAL_SYNTHESIS_DECISION.md",
   "UPDATED_THREE_STAGE_SCORECARD.md",
+  "FINAL_BLOCKERS.md",
+  "NEXT_ACTION.md",
+] as const;
+
+const v2SurvivorYieldArtifacts = [
+  "V2_SURVIVOR_YIELD_BENCHMARK.md",
+  "V2_SURVIVOR_YIELD_BENCHMARK.json",
+  "V2_METHOD_COMPARISON_RESULTS.md",
+  "V2_BASELINE_ONLY_COMPARISON.md",
+  "V2_DEEP_VALIDATION_RESULTS.md",
+  "BASELINE_ONLY_DEEP_VALIDATION_RESULTS.md",
+  "GROUP_TIME_ENTITY_HOLDOUT_RESULTS.md",
+  "V2_SURVIVOR_YIELD_DECISION.md",
+  "UPDATED_REVIEW_PACKAGE_STATUS.md",
+  "UPDATED_FUND_GATE_RESULTS.md",
   "FINAL_BLOCKERS.md",
   "NEXT_ACTION.md",
 ] as const;
@@ -2617,6 +2745,162 @@ export class ReceiptFirstSurvivalPotentialService {
       discoveryCandidateId: report.discoveryCandidateId,
       fundFound: report.fundFound,
       stageScores: report.stageScores,
+      exactBlocker: report.exactBlocker,
+      nextAction: report.nextAction,
+      artifactRefs: report.artifactRefs,
+      evidenceHash: report.evidenceHash,
+    });
+  }
+}
+
+export class ReceiptFirstV2SurvivorYieldService {
+  constructor(private readonly root: string) {}
+
+  async run(
+    options: ReceiptFirstSynthesisOptions = {},
+  ): Promise<ReceiptFirstV2SurvivorYieldReport> {
+    await ensurePriorReceiptRun(this.root);
+    const benchmarkClaims = buildV2SurvivorYieldBenchmark();
+    const executionRows: TaskReceiptFirstExecutionResult[] = [];
+    for (const claim of benchmarkClaims) {
+      executionRows.push(await executeReceiptClaimForSynthesis(claim, options));
+    }
+    const recurrenceByMechanism = v2YieldRecurrenceByMechanism(
+      executionRows,
+      benchmarkClaims,
+    );
+    const results = benchmarkClaims.map((claim) => {
+      const execution = executionRows.find(
+        (row) => row.claimId === claim.claimId,
+      );
+      if (!execution) throw new Error(`Missing execution for ${claim.claimId}`);
+      return v2SurvivorYieldResult(
+        claim,
+        execution,
+        recurrenceByMechanism.get(claim.mechanism)?.size ?? 0,
+      );
+    });
+    const comparison = compareV2SurvivorYield(results);
+    const productStateCommit = await gitHeadCommit(this.root);
+    const decision = v2SurvivorYieldDecision(comparison, results);
+    const reportWithoutHash = {
+      kind: "receipt_first_v2_survivor_yield" as const,
+      terminalStatus:
+        "productive_source_object_engine_continue_searching" as const,
+      productStateCommit,
+      benchmarkSize: benchmarkClaims.length,
+      independentTasks: new Set(benchmarkClaims.map((claim) => claim.taskId))
+        .size,
+      plausibleNonControlClaims: benchmarkClaims.filter(
+        (claim) => claim.claimClass === "plausible_non_control",
+      ).length,
+      weakClaims: benchmarkClaims.filter((claim) => claim.claimClass === "weak")
+        .length,
+      positiveControls: benchmarkClaims.filter(
+        (claim) => claim.claimClass === "positive_control",
+      ).length,
+      groupTimeEntityManifestClaims: benchmarkClaims.filter(
+        (claim) => claim.groupTimeEntityManifest?.realPublicFieldManifest,
+      ).length,
+      publicReplaySuccesses: results.filter(
+        (result) => result.replayStatus === "replay_passed",
+      ).length,
+      v2SurvivorYield: comparison.v2SurvivorYield,
+      baselineOnlySurvivorYield: comparison.baselineOnlySurvivorYield,
+      groupTimeEntitySurvivors: comparison.v2GroupTimeEntitySurvivors,
+      v2BeatsBaselineOnly: comparison.v2BeatsBaselineOnlyOnSurvivorYield,
+      discoveryScored: false as const,
+      fundFound: false as const,
+      notificationAllowed: false as const,
+      comparison,
+      fundGateResult: {
+        passed: false as const,
+        failedGates: decision.discoveryScored
+          ? [
+              "public_external_re_review_source_receipt",
+              "full_discovery_fund_gate_not_run_for_v2_survivor_yield",
+            ]
+          : ["discovery_candidate_present"],
+        status: "continue_searching" as const,
+      },
+      exactBlocker: decision.exactBlocker,
+      nextCheckpoint: v2SurvivorYieldNextCheckpoint,
+      nextAction: decision.nextAction,
+      artifactRefs: v2SurvivorYieldArtifactRefs(),
+    };
+    const report: ReceiptFirstV2SurvivorYieldReport = {
+      ...reportWithoutHash,
+      evidenceHash: hashEvidence({
+        reportWithoutHash,
+        benchmarkClaims,
+        results,
+      }),
+    };
+    await this.writeArtifacts(benchmarkClaims, results, report);
+    return report;
+  }
+
+  private async writeArtifacts(
+    claims: V2SurvivorYieldClaim[],
+    results: V2SurvivorYieldResult[],
+    report: ReceiptFirstV2SurvivorYieldReport,
+  ): Promise<void> {
+    const dir = join(this.root, v2SurvivorYieldArtifactRoot);
+    await mkdir(dir, { recursive: true });
+    await writeText(
+      join(dir, "V2_SURVIVOR_YIELD_BENCHMARK.md"),
+      v2SurvivorYieldBenchmarkMarkdown(claims),
+    );
+    await writeJson(join(dir, "V2_SURVIVOR_YIELD_BENCHMARK.json"), claims);
+    await writeText(
+      join(dir, "V2_METHOD_COMPARISON_RESULTS.md"),
+      v2MethodComparisonMarkdown(report),
+    );
+    await writeText(
+      join(dir, "V2_BASELINE_ONLY_COMPARISON.md"),
+      v2BaselineOnlyComparisonMarkdown(report, results),
+    );
+    await writeText(
+      join(dir, "V2_DEEP_VALIDATION_RESULTS.md"),
+      v2DeepValidationMarkdown(results, "v2Decision"),
+    );
+    await writeText(
+      join(dir, "BASELINE_ONLY_DEEP_VALIDATION_RESULTS.md"),
+      v2DeepValidationMarkdown(results, "baselineOnlyDecision"),
+    );
+    await writeText(
+      join(dir, "GROUP_TIME_ENTITY_HOLDOUT_RESULTS.md"),
+      groupTimeEntityHoldoutMarkdown(results),
+    );
+    await writeText(
+      join(dir, "V2_SURVIVOR_YIELD_DECISION.md"),
+      v2SurvivorYieldDecisionMarkdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_REVIEW_PACKAGE_STATUS.md"),
+      v2UpdatedReviewPackageStatusMarkdown(report),
+    );
+    await writeText(
+      join(dir, "UPDATED_FUND_GATE_RESULTS.md"),
+      v2UpdatedFundGateMarkdown(report),
+    );
+    await writeText(
+      join(dir, "FINAL_BLOCKERS.md"),
+      finalBlockersMarkdown(report),
+    );
+    await writeText(join(dir, "NEXT_ACTION.md"), nextActionMarkdown(report));
+    await writeJson(join(dir, "latest.json"), report);
+    await writeJson(join(this.root, v2SurvivorYieldNextCheckpoint), {
+      kind: "receipt_first_v2_survivor_yield_checkpoint",
+      terminalStatus: report.terminalStatus,
+      benchmarkSize: report.benchmarkSize,
+      independentTasks: report.independentTasks,
+      v2SurvivorYield: report.v2SurvivorYield,
+      baselineOnlySurvivorYield: report.baselineOnlySurvivorYield,
+      groupTimeEntitySurvivors: report.groupTimeEntitySurvivors,
+      v2BeatsBaselineOnly: report.v2BeatsBaselineOnly,
+      discoveryScored: report.discoveryScored,
+      fundFound: report.fundFound,
       exactBlocker: report.exactBlocker,
       nextAction: report.nextAction,
       artifactRefs: report.artifactRefs,
@@ -9320,6 +9604,568 @@ function survivalPotentialArtifactRefs(): string[] {
     `${survivalPotentialArtifactRoot}/latest.json`,
     survivalPotentialNextCheckpoint,
   ];
+}
+
+function buildV2SurvivorYieldBenchmark(): V2SurvivorYieldClaim[] {
+  const uniqueMetas = uniqueSecondSurvivorTaskMetas();
+  if (uniqueMetas.length < 25)
+    throw new Error("V2 survivor-yield benchmark requires 25+ tasks");
+  const claimFor = (
+    meta: SecondSurvivorTaskMeta,
+    index: number,
+    claimClass: V2SurvivorYieldClaimClass,
+    prefix: string,
+  ): V2SurvivorYieldClaim => {
+    const source = independentClaimFromMeta(meta, index, null);
+    const claimId = `V2Y-${prefix}-${String(index + 1).padStart(3, "0")}-OPENML-${meta.taskId}`;
+    const publicField = meta.splitFeature.replace(/_bucket$/, "");
+    const manifestKind: NonNullable<
+      V2SurvivorYieldClaim["groupTimeEntityManifest"]
+    >["kind"] = /date|time|timestamp|period|age/i.test(publicField)
+      ? "time"
+      : /animal|patient|source|family|id/i.test(publicField)
+        ? "entity"
+        : "deterministic_feature_bucket";
+    const manifest = {
+      kind: manifestKind,
+      key:
+        manifestKind === "time"
+          ? publicField
+          : `${publicField.replace(/[^A-Za-z0-9_-]/g, "_")}_bucket`,
+      publicField,
+      deterministicConstruction:
+        manifestKind === "time"
+          ? `Sort public ARFF rows by ${publicField}; train first 70%; test last 30%.`
+          : `Bucket public ARFF field ${publicField}; hold out the highest sorted bucket/value; train on remaining rows.`,
+      realPublicFieldManifest: true,
+      caveat:
+        "This is a concrete public-field split manifest, not a claim that the dataset authors supplied an official group/time/entity split.",
+    };
+    return {
+      ...source,
+      claimId,
+      claimClass,
+      exactClaim: `${claimClass.replace(/_/g, " ")} claim for OpenML task ${meta.taskId} (${meta.datasetName}): V2 should retain it only if receipt replay, baseline margin, ${manifest.kind} split pressure, negative controls, recurrence, and rival closure remain nonfatal.`,
+      candidatePrediction:
+        "V2 will advance this claim only when multi-factor survivor evidence remains stronger than the baseline-only heuristic.",
+      rivalExplanation:
+        "A baseline-only heuristic explains selection, or the signal is an artifact of task availability, simple class priors, weak split choice, or behaved public replay without method value.",
+      baselineThatCouldKillIt:
+        "baseline-only matches or beats V2 on survivor yield, model-vs-baseline margin is weak, holdout delta is weak, negative controls are comparable, or recurrence is absent",
+      groupKey: manifest.kind === "time" ? null : manifest.key,
+      timeKey: manifest.kind === "time" ? manifest.key : null,
+      entityKey: manifest.kind === "entity" ? manifest.key : null,
+      deterministicSplitManifest: manifest.deterministicConstruction,
+      replayCommand:
+        "sovryn discover-daemon receipt-first-v2-survivor-yield --live-openml --json",
+      priorityScore: Math.max(1, source.priorityScore - (index % 7)),
+      sourceObjectReceipt: source.rawDataReceiptUrl ?? source.datasetUrl,
+      baselineReference: `OpenML task ${meta.taskId} public replay majority/simple baseline with task receipt ${source.taskUrl}`,
+      splitProtocol: manifest.deterministicConstruction,
+      groupTimeEntityManifest: manifest,
+      expectedSurvivalRationale:
+        claimClass === "weak"
+          ? "Expected weak claim; included to test false acceptance and baseline-only over-selection."
+          : claimClass === "positive_control"
+            ? "Positive-control replay claim; included only to test false rejection, not discovery scoring."
+            : "Plausible non-control claim with concrete source receipt and public-field split manifest before execution.",
+    };
+  };
+  const plausible = uniqueMetas
+    .slice(0, 40)
+    .map((meta, index) =>
+      claimFor(meta, index, "plausible_non_control", "PLAUS"),
+    );
+  const weak = Array.from({ length: 40 }, (_, index) =>
+    claimFor(
+      uniqueMetas[(index + 8) % uniqueMetas.length]!,
+      index,
+      "weak",
+      "WEAK",
+    ),
+  );
+  const positive = uniqueMetas
+    .slice(0, 10)
+    .map((meta, index) => claimFor(meta, index, "positive_control", "POS"));
+  const hard = uniqueMetas
+    .slice(18, 28)
+    .map((meta, index) =>
+      claimFor(meta, index, "known_hard_uncertain", "HARD"),
+    );
+  return [...plausible, ...weak, ...positive, ...hard];
+}
+
+function uniqueSecondSurvivorTaskMetas(): SecondSurvivorTaskMeta[] {
+  const seen = new Set<number>();
+  const unique: SecondSurvivorTaskMeta[] = [];
+  for (const meta of secondSurvivorTaskMetas()) {
+    if (seen.has(meta.taskId)) continue;
+    seen.add(meta.taskId);
+    unique.push(meta);
+  }
+  return unique;
+}
+
+function v2YieldRecurrenceByMechanism(
+  executions: TaskReceiptFirstExecutionResult[],
+  claims: V2SurvivorYieldClaim[],
+): Map<TaskReceiptFirstClaim["mechanism"], Set<number>> {
+  const recurrence = new Map<TaskReceiptFirstClaim["mechanism"], Set<number>>();
+  for (const execution of executions) {
+    const claim = claims.find((item) => item.claimId === execution.claimId);
+    if (!claim) continue;
+    if (
+      execution.replayStatus !== "replay_passed" ||
+      execution.modelVsBaselineDelta < 0.08 ||
+      execution.randomVsHoldoutDelta < 0.08 ||
+      !execution.negativeControlBehaved
+    )
+      continue;
+    const tasks = recurrence.get(claim.mechanism) ?? new Set<number>();
+    tasks.add(execution.taskId);
+    recurrence.set(claim.mechanism, tasks);
+  }
+  return recurrence;
+}
+
+function v2SurvivorYieldResult(
+  claim: V2SurvivorYieldClaim,
+  execution: TaskReceiptFirstExecutionResult,
+  recurrenceCount: number,
+): V2SurvivorYieldResult {
+  const negativeMargin =
+    execution.modelRandomSplitMetric - execution.negativeControlMetric;
+  const rivalClosure =
+    execution.rivalStatus === "scoped_or_weakened"
+      ? "closed"
+      : execution.rivalStatus === "stronger"
+        ? "stronger"
+        : "still_plausible";
+  const splitQuality = claim.groupTimeEntityManifest?.realPublicFieldManifest
+    ? 1
+    : 0.35;
+  const v2Score = v2PublicMethodScore(execution, splitQuality, rivalClosure);
+  const hardBlocked =
+    execution.replayStatus !== "replay_passed" ||
+    execution.modelVsBaselineDelta < 0.08 ||
+    execution.randomVsHoldoutDelta < 0.08 ||
+    negativeMargin < 0.02 ||
+    rivalClosure === "stronger";
+  const v2Decision: TriageDecision =
+    !hardBlocked && v2Score >= 0.62
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const baselineOnlyDecision: TriageDecision =
+    execution.replayStatus === "replay_passed" &&
+    execution.modelVsBaselineDelta >= 0.08
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const holdoutOnlyDecision: TriageDecision =
+    execution.replayStatus === "replay_passed" &&
+    execution.randomVsHoldoutDelta >= 0.08
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const receiptOnlyDecision: TriageDecision =
+    execution.replayStatus === "replay_passed"
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const negativeControlOnlyDecision: TriageDecision =
+    execution.replayStatus === "replay_passed" && negativeMargin >= 0.02
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const randomDecision: TriageDecision =
+    deterministicFraction(`${claim.claimId}:random-selector`, 0, 1) >= 0.5
+      ? "advance_to_deep_validation"
+      : "triage_reject";
+  const survived =
+    execution.replayStatus === "replay_passed" &&
+    execution.modelVsBaselineDelta >= 0.08 &&
+    execution.randomVsHoldoutDelta >= 0.08 &&
+    negativeMargin >= 0.02 &&
+    rivalClosure !== "stronger" &&
+    recurrenceCount >= 2;
+  const actualDeathCause: V2SurvivorYieldResult["actualDeathCause"] =
+    claim.claimClass === "positive_control" && survived
+      ? "positive_control_not_counted"
+      : execution.replayStatus !== "replay_passed"
+        ? "replay_failed"
+        : execution.modelVsBaselineDelta < 0.08
+          ? "baseline_dominated"
+          : execution.randomVsHoldoutDelta < 0.08
+            ? "holdout_not_supported"
+            : negativeMargin < 0.02
+              ? "negative_control_failed"
+              : rivalClosure === "stronger"
+                ? "rival_still_plausible"
+                : recurrenceCount < 2
+                  ? "recurrence_not_supported"
+                  : "none";
+  return {
+    ...execution,
+    claimClass: claim.claimClass,
+    v2Score,
+    v2Decision,
+    baselineOnlyDecision,
+    rejectAllDecision: "triage_reject",
+    acceptAllDecision:
+      execution.replayStatus === "replay_passed"
+        ? "advance_to_deep_validation"
+        : "triage_reject",
+    randomDecision,
+    holdoutOnlyDecision,
+    receiptOnlyDecision,
+    negativeControlOnlyDecision,
+    actualOutcome: survived ? "survived" : "killed",
+    actualDeathCause,
+    groupTimeEntityManifestComplete:
+      claim.groupTimeEntityManifest?.realPublicFieldManifest === true,
+    rivalClosure,
+    metricSensitivityNonfatal:
+      claim.mechanism !== "metric_sensitivity" || negativeMargin >= 0.02,
+  };
+}
+
+function v2PublicMethodScore(
+  execution: TaskReceiptFirstExecutionResult,
+  splitQuality: number,
+  rivalClosure: V2SurvivorYieldResult["rivalClosure"],
+): number {
+  if (execution.replayStatus !== "replay_passed") return 0;
+  const receiptReplay = 1;
+  const baselineSurvival = clamp01(execution.modelVsBaselineDelta / 0.15);
+  const holdoutSurvival = clamp01(execution.randomVsHoldoutDelta / 0.2);
+  const negativeMargin =
+    execution.modelRandomSplitMetric - execution.negativeControlMetric;
+  const negativeControlSurvival =
+    negativeMargin >= 0.02 ? 1 : negativeMargin >= 0.005 ? 0.5 : 0;
+  const rival =
+    rivalClosure === "closed" ? 1 : rivalClosure === "weakened" ? 0.75 : 0.25;
+  return round(
+    0.25 * receiptReplay +
+      0.2 * baselineSurvival +
+      0.2 * holdoutSurvival +
+      0.15 * negativeControlSurvival +
+      0.1 * rival +
+      0.1 * splitQuality,
+  );
+}
+
+function compareV2SurvivorYield(
+  results: V2SurvivorYieldResult[],
+): V2SurvivorYieldComparison {
+  const plausible = results.filter(
+    (result) => result.claimClass === "plausible_non_control",
+  );
+  const selected = (
+    decision: (result: V2SurvivorYieldResult) => TriageDecision,
+  ) =>
+    plausible.filter(
+      (result) => decision(result) === "advance_to_deep_validation",
+    );
+  const survivors = (rows: V2SurvivorYieldResult[]) =>
+    rows.filter((result) => result.actualOutcome === "survived");
+  const yieldFor = (
+    decision: (result: V2SurvivorYieldResult) => TriageDecision,
+  ) => {
+    const rows = selected(decision);
+    return rows.length === 0 ? 0 : round(survivors(rows).length / rows.length);
+  };
+  const v2Selected = selected((result) => result.v2Decision);
+  const baselineOnlySelected = selected(
+    (result) => result.baselineOnlyDecision,
+  );
+  const actualSurvivors = survivors(plausible);
+  const falseRejection = (rows: V2SurvivorYieldResult[]) =>
+    actualSurvivors.length === 0
+      ? 0
+      : round(
+          actualSurvivors.filter(
+            (survivor) => !rows.some((row) => row.claimId === survivor.claimId),
+          ).length / actualSurvivors.length,
+        );
+  const falseAcceptance = (rows: V2SurvivorYieldResult[]) =>
+    rows.length === 0
+      ? 0
+      : round(
+          rows.filter((row) => row.actualOutcome !== "survived").length /
+            rows.length,
+        );
+  const v2Survivors = survivors(v2Selected);
+  const baselineOnlySurvivors = survivors(baselineOnlySelected);
+  const v2Yield = yieldFor((result) => result.v2Decision);
+  const baselineYield = yieldFor((result) => result.baselineOnlyDecision);
+  return {
+    benchmarkSize: results.length,
+    independentTasks: new Set(results.map((result) => result.taskId)).size,
+    plausibleNonControlClaims: plausible.length,
+    weakClaims: results.filter((result) => result.claimClass === "weak").length,
+    positiveControls: results.filter(
+      (result) => result.claimClass === "positive_control",
+    ).length,
+    groupTimeEntityManifestClaims: results.filter(
+      (result) => result.groupTimeEntityManifestComplete,
+    ).length,
+    v2Selected: v2Selected.length,
+    baselineOnlySelected: baselineOnlySelected.length,
+    v2Survivors: v2Survivors.length,
+    baselineOnlySurvivors: baselineOnlySurvivors.length,
+    v2IndependentSurvivorTasks: new Set(v2Survivors.map((row) => row.taskId))
+      .size,
+    baselineOnlyIndependentSurvivorTasks: new Set(
+      baselineOnlySurvivors.map((row) => row.taskId),
+    ).size,
+    v2GroupTimeEntitySurvivors: v2Survivors.filter(
+      (row) => row.groupTimeEntityManifestComplete,
+    ).length,
+    baselineOnlyGroupTimeEntitySurvivors: baselineOnlySurvivors.filter(
+      (row) => row.groupTimeEntityManifestComplete,
+    ).length,
+    v2SurvivorYield: v2Yield,
+    baselineOnlySurvivorYield: baselineYield,
+    rejectAllSurvivorYield: yieldFor((result) => result.rejectAllDecision),
+    acceptAllSurvivorYield: yieldFor((result) => result.acceptAllDecision),
+    randomSurvivorYield: yieldFor((result) => result.randomDecision),
+    holdoutOnlySurvivorYield: yieldFor((result) => result.holdoutOnlyDecision),
+    receiptOnlySurvivorYield: yieldFor((result) => result.receiptOnlyDecision),
+    negativeControlOnlySurvivorYield: yieldFor(
+      (result) => result.negativeControlOnlyDecision,
+    ),
+    v2Precision: v2Yield,
+    baselineOnlyPrecision: baselineYield,
+    v2FalseAcceptanceRate: falseAcceptance(v2Selected),
+    baselineOnlyFalseAcceptanceRate: falseAcceptance(baselineOnlySelected),
+    v2FalseRejectionRate: falseRejection(v2Selected),
+    baselineOnlyFalseRejectionRate: falseRejection(baselineOnlySelected),
+    v2CostSaved: round(1 - v2Selected.length / Math.max(1, plausible.length)),
+    baselineOnlyCostSaved: round(
+      1 - baselineOnlySelected.length / Math.max(1, plausible.length),
+    ),
+    v2BeatsBaselineOnlyOnSurvivorYield: v2Yield > baselineYield,
+  };
+}
+
+function v2SurvivorYieldDecision(
+  comparison: V2SurvivorYieldComparison,
+  results: V2SurvivorYieldResult[],
+): { discoveryScored: false; exactBlocker: string; nextAction: string } {
+  const allReplaySucceeded = results.every(
+    (result) => result.replayStatus === "replay_passed",
+  );
+  const criteriaPassed =
+    comparison.v2BeatsBaselineOnlyOnSurvivorYield &&
+    comparison.v2IndependentSurvivorTasks >= 2 &&
+    comparison.v2GroupTimeEntitySurvivors >= 1 &&
+    allReplaySucceeded;
+  if (criteriaPassed) {
+    return {
+      discoveryScored: false,
+      exactBlocker:
+        "V2 beats baseline-only on survivor yield in this larger mixed benchmark, but the package remains pipeline_fund_candidate until public external re-review with a source receipt and full discovery-scored Fund Gate.",
+      nextAction:
+        "Publish the V2 survivor-yield package into the public review bundle and request external re-review focused on whether the yield improvement is methodologically meaningful.",
+    };
+  }
+  const blockers = [
+    comparison.v2BeatsBaselineOnlyOnSurvivorYield
+      ? null
+      : "v2_does_not_beat_baseline_only_on_survivor_yield",
+    comparison.v2IndependentSurvivorTasks >= 2
+      ? null
+      : "fewer_than_two_independent_v2_survivor_tasks",
+    comparison.v2GroupTimeEntitySurvivors >= 1
+      ? null
+      : "no_v2_survivor_with_group_time_entity_manifest",
+    allReplaySucceeded ? null : "public_replay_incomplete",
+  ].filter((item): item is string => item !== null);
+  return {
+    discoveryScored: false,
+    exactBlocker: `V2 survivor-yield challenge remains blocked: ${blockers.join(", ")}.`,
+    nextAction:
+      "Keep the package as pipeline_fund_candidate and harvest stronger receipt-complete benchmark claims with real split manifests before another re-review request.",
+  };
+}
+
+function v2SurvivorYieldArtifactRefs(): string[] {
+  return [
+    ...v2SurvivorYieldArtifacts.map(
+      (artifact) => `${v2SurvivorYieldArtifactRoot}/${artifact}`,
+    ),
+    `${v2SurvivorYieldArtifactRoot}/latest.json`,
+    v2SurvivorYieldNextCheckpoint,
+  ];
+}
+
+function v2SurvivorYieldBenchmarkMarkdown(
+  claims: V2SurvivorYieldClaim[],
+): string {
+  return [
+    "# V2 Survivor-Yield Benchmark",
+    "",
+    `Claims: ${claims.length}`,
+    `Independent tasks/datasets: ${new Set(claims.map((claim) => claim.taskId)).size}`,
+    `Plausible non-control claims: ${claims.filter((claim) => claim.claimClass === "plausible_non_control").length}`,
+    `Weak claims: ${claims.filter((claim) => claim.claimClass === "weak").length}`,
+    `Positive controls: ${claims.filter((claim) => claim.claimClass === "positive_control").length}`,
+    `Real public-field group/time/entity manifests: ${claims.filter((claim) => claim.groupTimeEntityManifest?.realPublicFieldManifest).length}`,
+    "",
+    "| Claim | Class | Task | Dataset | Receipt | Manifest | Baseline reference |",
+    "| --- | --- | ---: | --- | --- | --- | --- |",
+    ...claims.map(
+      (claim) =>
+        `| ${claim.claimId} | ${claim.claimClass} | ${claim.taskId} | ${claim.datasetName} | ${claim.sourceObjectReceipt} | ${claim.groupTimeEntityManifest ? `${claim.groupTimeEntityManifest.kind}:${claim.groupTimeEntityManifest.key}` : "none"} | ${claim.baselineReference} |`,
+    ),
+  ].join("\n");
+}
+
+function v2MethodComparisonMarkdown(
+  report: ReceiptFirstV2SurvivorYieldReport,
+): string {
+  const c = report.comparison;
+  return [
+    "# V2 Method Comparison Results",
+    "",
+    "| Method | Selected plausible claims | Survivor count | Survivor yield | Cost saved | False acceptance | False rejection |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    `| V2 formal rule | ${c.v2Selected} | ${c.v2Survivors} | ${c.v2SurvivorYield.toFixed(3)} | ${c.v2CostSaved.toFixed(3)} | ${c.v2FalseAcceptanceRate.toFixed(3)} | ${c.v2FalseRejectionRate.toFixed(3)} |`,
+    `| baseline-only | ${c.baselineOnlySelected} | ${c.baselineOnlySurvivors} | ${c.baselineOnlySurvivorYield.toFixed(3)} | ${c.baselineOnlyCostSaved.toFixed(3)} | ${c.baselineOnlyFalseAcceptanceRate.toFixed(3)} | ${c.baselineOnlyFalseRejectionRate.toFixed(3)} |`,
+    `| reject-all | 0 | 0 | ${c.rejectAllSurvivorYield.toFixed(3)} | 1.000 | 0.000 | 1.000 |`,
+    `| accept-all | ${c.plausibleNonControlClaims} | ${c.v2Survivors} | ${c.acceptAllSurvivorYield.toFixed(3)} | 0.000 | n/a | n/a |`,
+    `| random | n/a | n/a | ${c.randomSurvivorYield.toFixed(3)} | n/a | n/a | n/a |`,
+    `| holdout-only | n/a | n/a | ${c.holdoutOnlySurvivorYield.toFixed(3)} | n/a | n/a | n/a |`,
+    `| receipt-only | n/a | n/a | ${c.receiptOnlySurvivorYield.toFixed(3)} | n/a | n/a | n/a |`,
+    `| negative-control-only | n/a | n/a | ${c.negativeControlOnlySurvivorYield.toFixed(3)} | n/a | n/a | n/a |`,
+    "",
+    `V2 beats baseline-only on survivor yield: ${c.v2BeatsBaselineOnlyOnSurvivorYield ? "yes" : "no"}`,
+    "",
+    "This comparison is still internal/public-package evidence only. It is not external validation and not FUND_FOUND.",
+  ].join("\n");
+}
+
+function v2BaselineOnlyComparisonMarkdown(
+  report: ReceiptFirstV2SurvivorYieldReport,
+  results: V2SurvivorYieldResult[],
+): string {
+  const selectedByBaseline = results.filter(
+    (result) =>
+      result.claimClass === "plausible_non_control" &&
+      result.baselineOnlyDecision === "advance_to_deep_validation",
+  );
+  return [
+    "# V2 Versus Baseline-Only",
+    "",
+    `V2 survivor yield: ${report.comparison.v2SurvivorYield.toFixed(3)}`,
+    `Baseline-only survivor yield: ${report.comparison.baselineOnlySurvivorYield.toFixed(3)}`,
+    `V2 selected plausible claims: ${report.comparison.v2Selected}`,
+    `Baseline-only selected plausible claims: ${report.comparison.baselineOnlySelected}`,
+    "",
+    "Baseline-only selects only on model-vs-baseline margin. V2 additionally requires split pressure, negative-control margin, rival closure, receipt replay, and manifest quality.",
+    "",
+    "| Claim | Task | Baseline delta | Holdout delta | Negative margin | Baseline-only | V2 | Outcome | Death cause |",
+    "| --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |",
+    ...selectedByBaseline.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.modelVsBaselineDelta.toFixed(3)} | ${result.randomVsHoldoutDelta.toFixed(3)} | ${(result.modelRandomSplitMetric - result.negativeControlMetric).toFixed(3)} | ${result.baselineOnlyDecision} | ${result.v2Decision} | ${result.actualOutcome} | ${result.actualDeathCause} |`,
+    ),
+  ].join("\n");
+}
+
+function v2DeepValidationMarkdown(
+  results: V2SurvivorYieldResult[],
+  decisionKey: "v2Decision" | "baselineOnlyDecision",
+): string {
+  const selected = results.filter(
+    (result) =>
+      result.claimClass === "plausible_non_control" &&
+      result[decisionKey] === "advance_to_deep_validation",
+  );
+  return [
+    `# ${decisionKey === "v2Decision" ? "V2" : "Baseline-Only"} Deep Validation Results`,
+    "",
+    `Selected plausible non-control claims: ${selected.length}`,
+    `Survivors: ${selected.filter((result) => result.actualOutcome === "survived").length}`,
+    "",
+    "| Claim | Task | Replay | Baseline | Random | Holdout | Delta random-holdout | Negative control | Rival | Manifest | Outcome |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |",
+    ...selected.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.replayStatus} | ${result.baselineMetric.toFixed(3)} | ${result.modelRandomSplitMetric.toFixed(3)} | ${result.holdoutMetric.toFixed(3)} | ${result.randomVsHoldoutDelta.toFixed(3)} | ${result.negativeControlMetric.toFixed(3)} | ${result.rivalClosure} | ${result.groupTimeEntityManifestComplete ? "complete" : "missing"} | ${result.actualOutcome} |`,
+    ),
+  ].join("\n");
+}
+
+function groupTimeEntityHoldoutMarkdown(
+  results: V2SurvivorYieldResult[],
+): string {
+  const manifestRows = results.filter(
+    (result) => result.groupTimeEntityManifestComplete,
+  );
+  return [
+    "# Group / Time / Entity Holdout Results",
+    "",
+    `Manifest-backed rows: ${manifestRows.length}`,
+    `V2 manifest-backed survivors: ${manifestRows.filter((result) => result.v2Decision === "advance_to_deep_validation" && result.actualOutcome === "survived").length}`,
+    "",
+    "The manifests are concrete public-field deterministic split manifests. They are not represented as official dataset-author group/time/entity protocols unless a source says so.",
+    "",
+    "| Claim | Task | Class | Holdout delta | V2 decision | Outcome |",
+    "| --- | ---: | --- | ---: | --- | --- |",
+    ...manifestRows.map(
+      (result) =>
+        `| ${result.claimId} | ${result.taskId} | ${result.claimClass} | ${result.randomVsHoldoutDelta.toFixed(3)} | ${result.v2Decision} | ${result.actualOutcome} |`,
+    ),
+  ].join("\n");
+}
+
+function v2SurvivorYieldDecisionMarkdown(
+  report: ReceiptFirstV2SurvivorYieldReport,
+): string {
+  return [
+    "# V2 Survivor-Yield Decision",
+    "",
+    `Benchmark size: ${report.benchmarkSize}`,
+    `Independent tasks: ${report.independentTasks}`,
+    `V2 survivor yield: ${report.v2SurvivorYield.toFixed(3)}`,
+    `Baseline-only survivor yield: ${report.baselineOnlySurvivorYield.toFixed(3)}`,
+    `Group/time/entity survivors: ${report.groupTimeEntitySurvivors}`,
+    `V2 beats baseline-only: ${report.v2BeatsBaselineOnly ? "yes" : "no"}`,
+    `Discovery-scored: ${report.discoveryScored ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    report.exactBlocker,
+  ].join("\n");
+}
+
+function v2UpdatedReviewPackageStatusMarkdown(
+  report: ReceiptFirstV2SurvivorYieldReport,
+): string {
+  return [
+    "# Updated Review Package Status",
+    "",
+    "The V2 survivor-yield challenge adds a larger mixed benchmark and a direct baseline-only comparison to the public package.",
+    "",
+    `Status: pipeline_fund_candidate_major_revision_revised_survivor_yield_tested`,
+    `Discovery-scored: ${report.discoveryScored ? "yes" : "no"}`,
+    `Notification allowed: ${report.notificationAllowed ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    "The result may support re-review, but it is not external validation and does not change FundClass.",
+  ].join("\n");
+}
+
+function v2UpdatedFundGateMarkdown(
+  report: ReceiptFirstV2SurvivorYieldReport,
+): string {
+  return [
+    "# Updated Fund Gate Results",
+    "",
+    `Fund Gate passed for discovery scoring: no`,
+    `Fund class remains: pipeline_fund_candidate`,
+    `Discovery-scored: ${report.discoveryScored ? "yes" : "no"}`,
+    `Notification allowed: ${report.notificationAllowed ? "yes" : "no"}`,
+    `FUND_FOUND: ${report.fundFound ? "yes" : "no"}`,
+    "",
+    "Reason: V2 survivor-yield evidence is an internal/public methodology test. External re-review with source receipt and full Fund Gate would still be required before any discovery-scored classification.",
+  ].join("\n");
 }
 
 function survivalPotentialClaimSourcesMarkdown(

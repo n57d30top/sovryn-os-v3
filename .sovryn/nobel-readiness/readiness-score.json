@@ -1,6 +1,6 @@
 {
   "kind": "nobel_readiness_score",
-  "scoredAt": "2026-05-16T18:03:14.718Z",
+  "scoredAt": "2026-05-16T19:31:19.553Z",
   "scientific_importance_score": 76,
   "novelty_risk_score": 48,
   "baseline_resistance_score": 54,
@@ -63,5 +63,5 @@
     "The candidate is not counted as externally-review-ready until a new review resolves the blocker.",
     "The layer records outside review status without creating a Nobel, Einstein, breakthrough, AGI, or adoption claim."
   ],
-  "evidenceHash": "316ba5c810417254cc179396d1985c4d28775a8cd6df7d45897880853ec99af9"
+  "evidenceHash": "ebc42577ae8c2915e3b528d5206e917940c0490c944069ca4bbe44f86b537c03"
 }

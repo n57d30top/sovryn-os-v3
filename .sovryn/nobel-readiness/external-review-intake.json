@@ -1,20 +1,53 @@
 {
   "kind": "nobel_readiness_external_review_intake",
-  "generatedAt": "2026-05-16T13:22:45.572Z",
-  "status": "awaiting_external_review",
+  "generatedAt": "2026-05-16T16:25:15.823Z",
+  "status": "external_review_requires_revision_or_rejects",
   "passed": true,
   "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "fundClass": "pipeline_fund_candidate",
   "packagePath": ".sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
   "reviewDirectory": ".sovryn/nobel-readiness/external-review-reviews",
-  "reviewCount": 0,
-  "validReviewCount": 0,
+  "reviewCount": 1,
+  "validReviewCount": 1,
   "supportiveReviewCount": 0,
   "independentReproductionCount": 0,
-  "revisionOrRejectionCount": 0,
+  "revisionOrRejectionCount": 1,
   "externalExpertValidationClaimed": false,
-  "scoreImpact": "none_awaiting_external_review",
-  "records": [],
+  "scoreImpact": "blocks_discovery_readiness",
+  "records": [
+    {
+      "path": ".sovryn/nobel-readiness/external-review-reviews/reported-major-revision-review-001.json",
+      "exists": true,
+      "reviewRecordSchemaVersion": "sovryn_external_human_review_v1",
+      "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+      "resultSlug": "second-survivor-benchmark-triage-methodology-review-intake",
+      "reviewerRole": "reported_external_benchmark_methodology_reviewer_public_source_missing",
+      "reviewDate": "2026-05-16",
+      "reviewSourceRef": "reported-major-revision-review-001.md",
+      "reviewSourceReceiptRef": null,
+      "reviewSourceResolved": true,
+      "reviewSourcePublicSafe": true,
+      "reviewSourceExternal": false,
+      "reviewSourceReceiptResolved": false,
+      "reviewSourceReceiptValid": false,
+      "reviewSourceReceiptHashValid": false,
+      "decision": "major_revision",
+      "independentReproductionStatus": "partially_reproduced",
+      "noveltyAssessment": "unclear",
+      "overclaimFindings": [],
+      "evidenceRefs": [
+        ".sovryn/nobel-readiness/external-review-bundle/MANIFEST.json",
+        ".sovryn/nobel-readiness/external-review-bundle/SUBMISSION_COVER.md",
+        ".sovryn/nobel-readiness/external-review-bundle/REVIEWER_CHECKLIST.md",
+        ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
+        ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
+      ],
+      "valid": true,
+      "supportive": false,
+      "revisionOrRejection": true,
+      "reasons": []
+    }
+  ],
   "gates": [
     {
       "code": "handoff_exists",
@@ -72,11 +105,11 @@
       "message": "Independent external reproduction can clear bounded-100 blockers only when its review source is an external public URL."
     }
   ],
-  "nextHumanAction": "Place candidate-matching external human review JSON records in .sovryn/nobel-readiness/external-review-reviews, then rerun this intake.",
+  "nextHumanAction": "Resolve invalid, revision, rejection, non-reproduction, known/trivial, or overclaim findings before treating the package as stronger.",
   "artifactRefs": [
     ".sovryn/nobel-readiness/external-review-intake.json",
     ".sovryn/nobel-readiness/EXTERNAL_REVIEW_INTAKE.md",
     ".sovryn/nobel-readiness/external-review-reviews"
   ],
-  "evidenceHash": "6670ff468f8d00879fc7e090622de86a2eb2b9aeda98378998f4d25a06eb1fb6"
+  "evidenceHash": "803464988631b149663a43447d853fb7f531b67e9d0ec6466c723571b2099ce4"
 }

@@ -1,0 +1,22 @@
+{
+  "kind": "external_human_review_record",
+  "reviewRecordSchemaVersion": "sovryn_external_human_review_v1",
+  "candidateId": "DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001",
+  "resultSlug": "second-survivor-benchmark-triage-methodology-review-intake",
+  "reviewerRole": "reported_external_benchmark_methodology_reviewer_public_source_missing",
+  "reviewDate": "2026-05-16",
+  "reviewSourceRef": "reported-major-revision-review-001.md",
+  "reviewSourceReceiptRef": null,
+  "decision": "major_revision",
+  "independentReproductionStatus": "partially_reproduced",
+  "noveltyAssessment": "unclear",
+  "evidenceRefs": [
+    ".sovryn/nobel-readiness/external-review-bundle/MANIFEST.json",
+    ".sovryn/nobel-readiness/external-review-bundle/SUBMISSION_COVER.md",
+    ".sovryn/nobel-readiness/external-review-bundle/REVIEWER_CHECKLIST.md",
+    ".sovryn/nobel-readiness/external-review-bundle/EVIDENCE_REF_INDEX.md",
+    ".sovryn/nobel-readiness/external-review-bundle/REPRODUCTION_QUEUE.md"
+  ],
+  "overclaimFindings": [],
+  "reviewerNotes": "User-reported major revision review. Public reproducer and quickcheck were reported as completed with network access, validating 7/7 rows and confirming public_raw_replay_reproduced_with_rounding_caveat. Because no public review URL or source receipt is available, this record is encoded as partially_reproduced for intake scoring and cannot raise readiness. The critique supports pipeline_fund_candidate reviewability but not a scoring methodology contribution."
+}

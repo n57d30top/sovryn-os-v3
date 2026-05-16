@@ -2,7 +2,7 @@
 
 ## Decision
 
-Status: `awaiting_external_review`
+Status: `external_review_requires_revision_or_rejects`
 
 This intake records independent human review files when they exist. It does not claim prize significance, field uptake, or outside validation merely because a package is ready for review.
 
@@ -13,21 +13,21 @@ This intake records independent human review files when they exist. It does not 
 - Package path: .sovryn/discovery-daemon/evidence-packages/DISCOVERY-BENCH-TRIAGE-SECOND-INDEPENDENT-SURVIVOR-001
 - Review directory: .sovryn/nobel-readiness/external-review-reviews
 - External expert validation claimed by Sovryn: no
-- Score impact: none_awaiting_external_review
+- Score impact: blocks_discovery_readiness
 
 ## Review Summary
 
-- Review records: 0
-- Valid review records: 0
+- Review records: 1
+- Valid review records: 1
 - Supportive review records: 0
 - Independent reproductions recorded: 0
-- Revision or rejection records: 0
+- Revision or rejection records: 1
 
 ## Records
 
 | Path | Valid | Decision | Reproduction | Novelty | Supportive | Revision/rejection | Reasons |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| none | no | missing | missing | missing | no | no | awaiting external human review |
+| .sovryn/nobel-readiness/external-review-reviews/reported-major-revision-review-001.json | yes | major_revision | partially_reproduced | unclear | no | yes | none |
 
 ## Gates
 
@@ -47,4 +47,4 @@ This intake records independent human review files when they exist. It does not 
 
 ## Next Human Action
 
-Place candidate-matching external human review JSON records in .sovryn/nobel-readiness/external-review-reviews, then rerun this intake.
+Resolve invalid, revision, rejection, non-reproduction, known/trivial, or overclaim findings before treating the package as stronger.

@@ -1,7 +1,7 @@
-# Graph Report - /Users/sovryn/Desktop/sovryn-os-v3  (2026-05-16)
+# Graph Report - /Users/sovryn/Desktop/sovryn-os-v3  (2026-05-17)
 
 ## Corpus Check
-- 205 files · ~1,405,205 words
+- 205 files · ~1,405,253 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -110,7 +110,7 @@ Nodes (370): writePilotFixture(), appendLedger(), applyStagedCorpus(), autopubli
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (405): additionalExternalFormalAnchors(), anchorQualityGateMarkdown(), binaryVectorMatroidSummary(), bipartitePerfectMatchingExists(), bitCount(), certificateDomainForExternalObject(), certificateFriendlyDomainSelectionMarkdown(), certificateValidationResultsMarkdown() (+397 more)
+Nodes (400): additionalExternalFormalAnchors(), anchorQualityGateMarkdown(), binaryVectorMatroidSummary(), bipartitePerfectMatchingExists(), bitCount(), broaderClaimText(), candidateClaimChangeReasons(), certificateFriendlyDomainSelectionMarkdown() (+392 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.02
@@ -121,28 +121,28 @@ Cohesion: 0.02
 Nodes (120): auditRef(), AuditService, countKind(), errorMessage(), fileNameFindings(), gate(), hasKind(), listFiles() (+112 more)
 
 ### Community 5 - "Community 5"
+Cohesion: 0.03
+Nodes (55): allLayer100ArtifactRefs(), allLayer100CompletionAudit(), allLayer100PromotionDecision(), AutonomousDiscoveryDaemonService, buildCandidateIdeas(), buildCounterexampleResults(), buildDaemonKillWeek(), buildDeathGateResults() (+47 more)
+
+### Community 6 - "Community 6"
 Cohesion: 0.02
 Nodes (132): factorySourceReadingFixtures(), patentSourceReadingFixture(), exists(), InventionService, slugify(), titleFromBrief(), ArxivSearchAdapter, asArray() (+124 more)
 
-### Community 6 - "Community 6"
+### Community 7 - "Community 7"
 Cohesion: 0.03
 Nodes (116): auditFromGates(), buildBaselineTools(), buildExternalClaimBindings(), buildHoldoutTasks(), buildMethodIdeas(), buildProblemCandidates(), exists(), ExternalProductionService (+108 more)
 
-### Community 7 - "Community 7"
-Cohesion: 0.02
-Nodes (118): analyzePublicResultQuality(), average(), buildReadabilityReport(), clampScore(), collectTextFiles(), fileText(), finding(), listFiles() (+110 more)
-
 ### Community 8 - "Community 8"
-Cohesion: 0.04
-Nodes (30): AutonomousDiscoveryDaemonService, candidateFromUnknown(), CandidateGraveyardService, compactSearchCycleReceipt(), cycleFilesByNumber(), DeathCauseClassifier, deathCauseFromRejectedFundCandidate(), discoveryDaemonInternalStatuses() (+22 more)
+Cohesion: 0.02
+Nodes (189): archivedProofMechanismExecutionResults(), autopsyCheckedCounterexamples(), autopsyExtractedWitnesses(), buildExternalFormalAnchorSources(), buildFormalProofObligations(), buildFormalSourceObjectBank(), CandidateGenerationQualityMeter, certificateDomainForExternalObject() (+181 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.02
-Nodes (162): archivedProofMechanismExecutionResults(), autopsyCheckedCounterexamples(), autopsyExtractedWitnesses(), buildExternalFormalAnchorSources(), buildFormalProofObligations(), buildFormalSourceObjectBank(), CandidateGenerationQualityMeter, certificateDomainItem() (+154 more)
+Nodes (118): analyzePublicResultQuality(), average(), buildReadabilityReport(), clampScore(), collectTextFiles(), fileText(), finding(), listFiles() (+110 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.02
-Nodes (159): arrayOfRecords(), claimEvidenceBindingSummary(), claimLiftEvidenceRefsResolvable(), claimLiftPackageRefResolvable(), corpusSeedCandidateBindingValid(), corpusSeedDiscoveryDomain(), corpusSeedGraveyardReuseBlocked(), curatedChallengeExecutionResult() (+151 more)
+Nodes (123): acceptedPackageHardSeed(), allLayer100EinsteinNobelGapMarkdown(), allLayer100FundGateMarkdown(), allLayer100PlanMarkdown(), allLayer100PromotionDecisionMarkdown(), allLayer100ScoreAuditMarkdown(), allLayer100TargetedRunMarkdown(), allLayer100UpdatedScorecardMarkdown() (+115 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.03
@@ -153,148 +153,148 @@ Cohesion: 0.04
 Nodes (77): isDependencyOrCachePath(), domainFromReceipt(), ExternalSourceObjectHarvester, formalSourceObjectRef(), realityDomainFromIndexResult(), unsafeDomainText(), labCommand(), analysisOperations() (+69 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.03
-Nodes (83): auditFormalPublicText(), AutomataPatternExplorer, baselineFor(), BoundedToFormalBridge, candidateFixture(), ConjectureCandidateScorer, ConjectureFamilyBuilder, conjectureFamilyFixture() (+75 more)
+Cohesion: 0.02
+Nodes (136): allLayer100Blockers(), allLayer100TargetedRun(), arrayOfRecords(), candidateFromUnknown(), claimEvidenceBindingSummary(), claimLiftEvidenceRefsResolvable(), claimLiftPackageRefResolvable(), corpusSeedCandidateBindingValid() (+128 more)
 
 ### Community 14 - "Community 14"
 Cohesion: 0.03
-Nodes (84): factoryPriorArtFixtures(), concreteSourceTypesRead(), directorySize(), evaluateFactoryGates(), evidenceHashValid(), exists(), findMissionById(), generatedSafetyReviewsPresent() (+76 more)
+Nodes (83): auditFormalPublicText(), AutomataPatternExplorer, baselineFor(), BoundedToFormalBridge, candidateFixture(), ConjectureCandidateScorer, ConjectureFamilyBuilder, conjectureFamilyFixture() (+75 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.02
-Nodes (100): nasaPowerSolarFixtureJson(), stripGraphMinorRuntimeSourceDepth(), average(), baselineAuditMarkdown(), benchmarkTrackMarkdown(), candidateClassificationMarkdown(), discoveryCandidateGauntletMarkdown(), discoveryLoopAnalysisMarkdown() (+92 more)
+Cohesion: 0.03
+Nodes (84): factoryPriorArtFixtures(), concreteSourceTypesRead(), directorySize(), evaluateFactoryGates(), evidenceHashValid(), exists(), findMissionById(), generatedSafetyReviewsPresent() (+76 more)
 
 ### Community 16 - "Community 16"
 Cohesion: 0.02
-Nodes (78): buildAnomalyFamilies(), buildFallbackSignalBirthGateEvaluations(), buildFallbackSignalHoldoutAssessments(), buildSignalQualityCandidates(), CandidateIdentityLedger, countBy(), cycleNumberFromCycleId(), generatorBornClaimLiftDeathCauseFromNoveltyPressure() (+70 more)
+Nodes (100): nasaPowerSolarFixtureJson(), stripGraphMinorRuntimeSourceDepth(), average(), baselineAuditMarkdown(), benchmarkTrackMarkdown(), candidateClassificationMarkdown(), discoveryCandidateGauntletMarkdown(), discoveryLoopAnalysisMarkdown() (+92 more)
 
 ### Community 17 - "Community 17"
+Cohesion: 0.02
+Nodes (77): buildAnomalyFamilies(), buildFallbackSignalBirthGateEvaluations(), buildFallbackSignalHoldoutAssessments(), buildSignalQualityCandidates(), CandidateIdentityLedger, countBy(), countStringValues(), externalFormalDeathCauseIntegrityAudit() (+69 more)
+
+### Community 18 - "Community 18"
 Cohesion: 0.03
 Nodes (76): mechanismExecutionTarget(), mechanismModuleName(), MechanismPlanExecutor, sharedMechanismTool(), classifyFundCandidate(), fundClassCountsForEinsteinNobelDiscoveryScore(), fundClassRationale(), nobelReadinessCommand() (+68 more)
 
-### Community 18 - "Community 18"
+### Community 19 - "Community 19"
 Cohesion: 0.04
 Nodes (57): InsightCandidateBirthGate, strategyCommand(), artifactConsumerGaps(), artifactProducerGaps(), artifactTokens(), artifactTokensOverlap(), buildProposedFixes(), domainFromOpportunity() (+49 more)
 
-### Community 19 - "Community 19"
+### Community 20 - "Community 20"
 Cohesion: 0.04
 Nodes (70): accelerationFactorForOS15Target(), auditOS15PublicText(), average(), buildOS15ScaleRun(), caveatsForOS15Target(), ClassHardeningPlanner, classLimitations(), CorpusFacetedIndexExporter (+62 more)
 
-### Community 20 - "Community 20"
+### Community 21 - "Community 21"
 Cohesion: 0.03
 Nodes (88): asRecordNumber(), blockedInsightBirthsMarkdown(), booleanField(), bulletList(), CandidateYieldController, candidateYieldMarkdown(), classifyFailedEvidenceRefs(), collectEvidenceRefs() (+80 more)
 
-### Community 21 - "Community 21"
+### Community 22 - "Community 22"
 Cohesion: 0.04
 Nodes (101): booleanEvidencePassed(), buildPublicCorpusModel(), buildResultGraph(), buildSearchIndex(), buildVersionGroups(), compactSummary(), comparableTokens(), compareShowcaseCandidates() (+93 more)
 
-### Community 22 - "Community 22"
-Cohesion: 0.03
-Nodes (60): CandidateClaimCanonicalizer, classifyFundCandidateForGate(), countOutcomeDeathCauses(), defaultDimacsFailureLessons(), defaultFailedTopThreeLessons(), discoveryFundNotificationAllowed(), discoveryGeneratorDesignQueueMarkdown(), discoveryGradeAnchorAuditMarkdown() (+52 more)
-
 ### Community 23 - "Community 23"
-Cohesion: 0.03
-Nodes (69): baseHardSeed(), corpusSeedClaim(), defineInsightPatternVariables(), discoveryGradeAnchorExecutorId(), discoveryGradeAnchorHardSeed(), discoveryGradeAnchorRuntimeCheck(), discoveryGradeAnchorRuntimeProfile(), domainSignificanceHypothesisFromExternalAnchor() (+61 more)
-
-### Community 24 - "Community 24"
 Cohesion: 0.04
 Nodes (42): AccelerationScoreService, auditRoutePublicText(), average(), buildBatch(), classificationReasons(), CrossDomainEvidenceRoutingService, CrossDomainTargetClassifier, DeepValidationRouter (+34 more)
 
-### Community 25 - "Community 25"
-Cohesion: 0.03
-Nodes (77): allLayer100ArtifactRefs(), allLayer100Blockers(), allLayer100CompletionAudit(), allLayer100PromotionDecision(), allLayer100ScoreRows(), allLayer100TargetedRun(), dimacsClosureArtifactRefs(), dimacsExactFormalClaim() (+69 more)
-
-### Community 26 - "Community 26"
+### Community 24 - "Community 24"
 Cohesion: 0.06
 Nodes (38): auditFromGates(), baselinesForDomain(), candidatesForDomain(), challengeResult(), challengeTask(), clampInt(), exists(), FieldGradeService (+30 more)
 
-### Community 27 - "Community 27"
+### Community 25 - "Community 25"
 Cohesion: 0.07
 Nodes (64): number(), renderVerification(), arrayOfLaunchLimitations(), buildE2EScorecard(), buildLaunchLimitations(), buildReplayContract(), buildReplayDiagnostics(), check() (+56 more)
 
-### Community 28 - "Community 28"
-Cohesion: 0.03
-Nodes (64): artifactRefsOf(), blockedGeneratorOutputsMarkdown(), discoveryGradeAnchorBirthEvaluationMarkdown(), discoveryGradeAnchorBlockedOutputsMarkdown(), discoveryGradeAnchorBornSeedsMarkdown(), discoveryGradeAnchorRunArtifactRefs(), discoveryGradeAnchorRunAuditMarkdown(), discoveryGradeAnchorRunBlockedByCause() (+56 more)
-
-### Community 29 - "Community 29"
-Cohesion: 0.03
-Nodes (76): arrayLength(), averageNumbers(), boundedGraphMinorFormalBaselineResults(), boundedGraphMinorFormalObjectChecks(), boundedGraphMinorFormalRuntimeSourceContext(), boundedGraphMinorGraphMetrics(), boundedInstrumentScore(), clampScore() (+68 more)
-
-### Community 30 - "Community 30"
+### Community 26 - "Community 26"
 Cohesion: 0.05
 Nodes (74): assertTargetRepo(), buildChecks(), check(), countBy(), counterEvidenceSummary(), FalsificationService, findOverclaims(), hasBenignCase() (+66 more)
 
-### Community 31 - "Community 31"
+### Community 27 - "Community 27"
+Cohesion: 0.04
+Nodes (73): allLayer100ScoreRows(), arrayLength(), averageNumbers(), boundedGraphMinorFormalBaselineResults(), boundedGraphMinorFormalObjectChecks(), boundedGraphMinorFormalRuntimeSourceContext(), boundedGraphMinorGraphMetrics(), boundedInstrumentScore() (+65 more)
+
+### Community 28 - "Community 28"
 Cohesion: 0.06
 Nodes (45): artifactsForRoute(), assertSafeGoal(), auditScientificClaimText(), average(), boundedScientistLimitations(), buildMemoryUpdate(), candidate(), containsUnsafeDomainClaim() (+37 more)
 
-### Community 32 - "Community 32"
+### Community 29 - "Community 29"
 Cohesion: 0.05
 Nodes (63): accuracy(), artifactRefsForBenchmarkFragility(), average(), balancedAccuracy(), baselineResultsMarkdown(), BenchmarkFragilityRecurrenceGauntletService, BenchmarkProtocolFragilityPilotService, candidateProfileMarkdown() (+55 more)
 
-### Community 33 - "Community 33"
+### Community 30 - "Community 30"
 Cohesion: 0.07
 Nodes (33): auditFromGates(), baselinesForDomain(), benchmarkResult(), benchmarkTask(), clampInt(), dedupeBy(), exists(), gate() (+25 more)
 
-### Community 34 - "Community 34"
+### Community 31 - "Community 31"
+Cohesion: 0.04
+Nodes (51): blockedGeneratorOutputsMarkdown(), DomainToolMechanismFirstPressure, exists(), externalProblemAnchorsMarkdown(), externalValueGateResultsMarkdown(), generatorAuditMarkdown(), generatorBirthGateCriteria(), generatorBlockedOutputsByCause() (+43 more)
+
+### Community 32 - "Community 32"
+Cohesion: 0.04
+Nodes (69): cycleCandidateEvidenceScope(), cycleCandidateMechanism(), discoveryGradeAnchorRejectionReasons(), discoveryGradeAnchorScore(), discoveryGradeAnchorStatus(), DomainSignificanceHypothesisGate, domainSignificanceRefsForOutput(), externalAnchorHasDomainScientificSignificance() (+61 more)
+
+### Community 33 - "Community 33"
 Cohesion: 0.09
 Nodes (38): theoryCommand(), arrayLength(), benchmarkEvidenceTable(), buildCorpusPatternScan(), calibratePredictions(), compareTheories(), conceptCandidates(), containsFakeTheoryClaim() (+30 more)
 
-### Community 35 - "Community 35"
-Cohesion: 0.04
-Nodes (39): buildRivalMatchedControls(), emptyMeasurementDeathCauses(), matchedControlDesignMarkdown(), measurementDepthArtifactRefs(), MeasurementDepthSeedQualityGauntlet, rebuildMeasurementDepthChecksForReport(), reclassifyMeasurementDepthDeaths(), RemainingStrictCandidateClosure (+31 more)
-
-### Community 36 - "Community 36"
+### Community 34 - "Community 34"
 Cohesion: 0.08
 Nodes (38): auditFromGates(), baselineDominanceRow(), buildBenchmarkSources(), buildBenchmarkTasks(), buildCandidateMethods(), buildClaimEvidenceBindings(), exists(), frontierPaperFiles() (+30 more)
 
-### Community 37 - "Community 37"
+### Community 35 - "Community 35"
 Cohesion: 0.04
-Nodes (55): acceptedPackageHardSeed(), allLayer100EinsteinNobelGapMarkdown(), allLayer100FundGateMarkdown(), allLayer100PlanMarkdown(), allLayer100PromotionDecisionMarkdown(), allLayer100ScoreAuditMarkdown(), allLayer100TargetedRunMarkdown(), allLayer100UpdatedScorecardMarkdown() (+47 more)
+Nodes (40): buildInstrumentedMarathonPipelineExecutions(), buildInstrumentedMarathonTargetUniverse(), buildInstrumentedMarathonToolchains(), buildRealityMeasuredSeeds(), buildRealityTargetUniverse(), counterexampleDenseRealityDomains(), countOutcomeWarDeathCauses(), formalRealityFallbackResults() (+32 more)
 
-### Community 38 - "Community 38"
+### Community 36 - "Community 36"
+Cohesion: 0.06
+Nodes (62): adjacencyFromEdges(), bowTieGraph(), brooksTheoremPilotProfile(), CandidateGraveyardService, chordalGraphPeoPilotProfile(), commonNeighborCount(), complementAdjacency(), completeBipartiteGraph() (+54 more)
+
+### Community 37 - "Community 37"
 Cohesion: 0.07
 Nodes (22): auditReviewPublicText(), decisionFromReceipt(), ensureReviewDirs(), EvidenceReceiptService, executionNeedForFamily(), ExecutionWavePlanner, ExternalReviewScientistService, ExternalTargetMiner (+14 more)
 
+### Community 38 - "Community 38"
+Cohesion: 0.05
+Nodes (37): defaultDimacsFailureLessons(), dimacsFailureLessonsMarkdown(), discoveryAnchorSourceLoadArtifactRefs(), discoveryAnchorSourceLoadBlockedByCause(), discoveryGeneratorDesignQueueMarkdown(), discoveryGradeAnchorAuditMarkdown(), discoveryGradeAnchorNextCheckpointMarkdown(), discoveryGradeAnchorSelectionArtifactRefs() (+29 more)
+
 ### Community 39 - "Community 39"
 Cohesion: 0.05
-Nodes (38): buildInstrumentedMarathonPipelineExecutions(), buildInstrumentedMarathonTargetUniverse(), buildInstrumentedMarathonToolchains(), buildRealityMeasuredSeeds(), buildRealityTargetUniverse(), counterexampleDenseRealityDomains(), countOutcomeWarDeathCauses(), formalRealityFallbackResults() (+30 more)
+Nodes (39): artifactRefsOf(), discoveryGradeAnchorBirthEvaluationMarkdown(), discoveryGradeAnchorBlockedOutputsMarkdown(), discoveryGradeAnchorBornSeedsMarkdown(), discoveryGradeAnchorRunArtifactRefs(), discoveryGradeAnchorRunAuditMarkdown(), discoveryGradeAnchorRunBlockedByCause(), discoveryGradeAnchorRunFundGateMarkdown() (+31 more)
 
 ### Community 40 - "Community 40"
-Cohesion: 0.04
-Nodes (45): broaderClaimText(), buildCandidateIdeas(), buildCounterexampleResults(), buildDaemonKillWeek(), buildDeathGateResults(), buildFrozenPredictions(), buildHoldoutResults(), buildMechanismRoutingSummary() (+37 more)
+Cohesion: 0.05
+Nodes (29): insightCandidateFromUnknown(), matchedControlDesignMarkdown(), rebuildMeasurementDepthChecksForReport(), RemainingStrictCandidateClosure, remainingStrictClosureArtifactRefs(), remainingStrictClosureRows(), remainingStrictLimitationsMarkdown(), remainingStrictMethodMarkdown() (+21 more)
 
 ### Community 41 - "Community 41"
 Cohesion: 0.11
 Nodes (25): ChemistryRecordAuditorResearchService, commandSummary(), containerNetoffValidationTest(), fixturePint(), happyDataset(), malformedRecord(), matrixRow(), pythonAuditorSource() (+17 more)
 
 ### Community 42 - "Community 42"
-Cohesion: 0.08
-Nodes (47): adjacencyFromEdges(), bowTieGraph(), brooksTheoremPilotProfile(), chordalGraphPeoPilotProfile(), commonNeighborCount(), complementAdjacency(), completeBipartiteGraph(), completeGraph() (+39 more)
+Cohesion: 0.05
+Nodes (37): crossSourceResidualTargets(), discoveryToolCapabilityCards(), DiscoveryToolExpansion, discoveryToolExpansionArtifactRefs(), discoveryToolFundGateMarkdown(), discoveryToolNeeds(), discoveryToolNextCheckpointMarkdown(), discoveryToolTask() (+29 more)
 
 ### Community 43 - "Community 43"
-Cohesion: 0.05
-Nodes (36): crossSourceControlsMarkdown(), crossSourceFundGateMarkdown(), crossSourceHoldoutsMarkdown(), crossSourceInsightCandidatesMarkdown(), crossSourceMeasurementsMarkdown(), crossSourceNextCheckpointMarkdown(), crossSourcePatternsMarkdown(), crossSourceReplayMarkdown() (+28 more)
-
-### Community 44 - "Community 44"
 Cohesion: 0.14
 Nodes (16): detectDomain(), DiscoveryService, exists(), gate(), publicDisclaimer(), renderBreakthroughReport(), renderCampaignReport(), renderDiscoveryReport() (+8 more)
 
-### Community 45 - "Community 45"
+### Community 44 - "Community 44"
 Cohesion: 0.11
 Nodes (32): baselineAuditMarkdown(), blockersMarkdown(), buildClaimValidations(), buildStageDecisions(), buildStructuralRules(), buildSynthesisCandidates(), checklistMarkdown(), claim() (+24 more)
 
-### Community 46 - "Community 46"
+### Community 45 - "Community 45"
 Cohesion: 0.11
 Nodes (28): buildMemoryGatedExecutions(), buildStageScores(), buildStrategyMemoryCandidates(), buildStructuralKillRules(), candidate(), candidateTable(), checklistMarkdown(), countBy() (+20 more)
+
+### Community 46 - "Community 46"
+Cohesion: 0.08
+Nodes (24): dimacsBaselineRivalMarkdown(), dimacsBaselineRows(), dimacsCandidateProfileMarkdown(), dimacsClosureArtifactRefs(), dimacsClosureDecision(), dimacsCounterexampleMarkdown(), dimacsCounterexampleRows(), dimacsExactFormalClaim() (+16 more)
 
 ### Community 47 - "Community 47"
 Cohesion: 0.11
 Nodes (21): buildFrozenClaims(), classificationMarkdown(), countBy(), executeClaim(), executionResultsMarkdown(), exists(), finalDecisionMarkdown(), finalScorecardMarkdown() (+13 more)
 
 ### Community 48 - "Community 48"
-Cohesion: 0.13
-Nodes (14): discoveryToolCapabilityCards(), DiscoveryToolExpansion, discoveryToolExpansionArtifactRefs(), discoveryToolFundGateMarkdown(), discoveryToolNeeds(), discoveryToolNextCheckpointMarkdown(), discoveryToolTask(), domainEvidencePipelinesMarkdown() (+6 more)
+Cohesion: 0.14
+Nodes (13): crossSourceControlsMarkdown(), crossSourceFundGateMarkdown(), crossSourceHoldoutsMarkdown(), crossSourceInsightCandidatesMarkdown(), crossSourceMeasurementsMarkdown(), crossSourceNextCheckpointMarkdown(), crossSourcePatternsMarkdown(), crossSourceReplayMarkdown() (+5 more)
 
 ### Community 49 - "Community 49"
 Cohesion: 0.28
@@ -381,12 +381,12 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `writeJson()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`, `Community 32`, `Community 33`, `Community 34`, `Community 35`, `Community 36`, `Community 37`, `Community 38`, `Community 41`, `Community 43`, `Community 44`, `Community 45`, `Community 46`, `Community 47`, `Community 48`?**
-  _High betweenness centrality (0.195) - this node is a cross-community bridge._
-- **Why does `nowIso()` connect `Community 1` to `Community 0`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 17`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 24`, `Community 26`, `Community 27`, `Community 30`, `Community 31`, `Community 33`, `Community 34`, `Community 36`, `Community 38`, `Community 41`, `Community 44`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
-- **Why does `executeCli()` connect `Community 0` to `Community 1`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 17`, `Community 18`, `Community 24`, `Community 26`, `Community 34`, `Community 36`, `Community 38`, `Community 44`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `writeJson()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`, `Community 33`, `Community 34`, `Community 37`, `Community 38`, `Community 39`, `Community 40`, `Community 41`, `Community 42`, `Community 43`, `Community 44`, `Community 45`, `Community 46`, `Community 47`, `Community 48`?**
+  _High betweenness centrality (0.162) - this node is a cross-community bridge._
+- **Why does `nowIso()` connect `Community 1` to `Community 0`, `Community 4`, `Community 6`, `Community 7`, `Community 9`, `Community 11`, `Community 12`, `Community 14`, `Community 15`, `Community 16`, `Community 18`, `Community 19`, `Community 20`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 28`, `Community 30`, `Community 33`, `Community 34`, `Community 37`, `Community 41`, `Community 43`?**
+  _High betweenness centrality (0.036) - this node is a cross-community bridge._
+- **Why does `executeCli()` connect `Community 0` to `Community 1`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 11`, `Community 12`, `Community 14`, `Community 15`, `Community 18`, `Community 19`, `Community 23`, `Community 24`, `Community 33`, `Community 34`, `Community 37`, `Community 43`?**
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 683 inferred relationships involving `writeJson()` (e.g. with `writeActiveDiscoveryFundPackage()` and `writePublicReviewCorpusPackage()`) actually correct?**
   _`writeJson()` has 683 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 392 inferred relationships involving `nowIso()` (e.g. with `.check()` and `.demo()`) actually correct?**

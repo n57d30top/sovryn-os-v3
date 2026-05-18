@@ -82,6 +82,7 @@ import {
   workerPolicyCheck,
 } from "../core/worker/worker-doctor.js";
 import { runCommand } from "../adapters/shell/command.js";
+import { resolveGitHubTokenFromEnv } from "../adapters/github/github-publisher.js";
 import { loadPlugins } from "../plugins/loader.js";
 
 type ParsedArgs = {
@@ -5786,14 +5787,25 @@ async function githubDoctor(
     allowNetwork: false,
   }).catch(() => null);
   const ghInstalled = gh !== null && gh.exitCode === 0;
-  const tokenPresent = Boolean(process.env[tokenEnv]);
+  const envTokenPresent = Boolean(resolveGitHubTokenFromEnv(tokenEnv));
+  const ghAuth = ghInstalled
+    ? await runCommand("gh auth token", root, {
+        allowNetwork: false,
+      }).catch(() => null)
+    : null;
+  const ghAuthPresent = Boolean(
+    ghAuth && ghAuth.exitCode === 0 && ghAuth.stdout.trim(),
+  );
+  const tokenPresent = envTokenPresent || ghAuthPresent;
   const enabled = config.github?.enabled !== false;
   const problems = [
     ...(enabled && !ghInstalled
       ? ["gh CLI missing for GitHub publication"]
       : []),
     ...(enabled && !tokenPresent
-      ? [`${tokenEnv} is not set for real GitHub publication`]
+      ? [
+          `${tokenEnv}, GH_TOKEN, or an authenticated gh CLI session is required for real GitHub publication`,
+        ]
       : []),
   ];
   return {
@@ -5805,6 +5817,8 @@ async function githubDoctor(
     ghVersion: ghInstalled ? gh.stdout.split("\n")[0] : null,
     tokenEnv,
     tokenPresent,
+    envTokenPresent,
+    ghAuthPresent,
     defaultOrg: config.github?.defaultOrg ?? null,
     defaultVisibility: config.github?.defaultVisibility ?? "public",
     problems,

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runCommand } from "../shell/command.js";
@@ -71,11 +72,12 @@ export class GitHubPublisher {
       );
     }
     const tokenEnv = this.config.github?.tokenEnv ?? "SOVRYN_GITHUB_TOKEN";
-    const token = process.env[tokenEnv];
+    const token =
+      resolveGitHubTokenFromEnv(tokenEnv) ?? (await readGhAuthToken(this.root));
     if (!token)
       throw new AppError(
         "GITHUB_TOKEN_REQUIRED",
-        `GitHub publication requires ${tokenEnv}.`,
+        `GitHub publication requires ${tokenEnv}, GH_TOKEN, or an authenticated gh CLI session.`,
         { tokenEnv },
       );
 
@@ -218,6 +220,41 @@ export function buildGhRepoCreateCommand(
     "origin",
     "--push",
   ].join(" ");
+}
+
+export function resolveGitHubTokenFromEnv(
+  tokenEnv: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return env[tokenEnv] || env.GH_TOKEN || null;
+}
+
+async function readGhAuthToken(cwd: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn("gh", ["auth", "token"], {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      env: process.env,
+    });
+    let stdout = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve(null);
+    }, 10000);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.on("error", () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      const token = stdout.trim();
+      resolve(code === 0 && token ? token : null);
+    });
+  });
 }
 
 async function preparePublicEvidence(

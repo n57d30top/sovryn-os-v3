@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { buildGhRepoCreateCommand } from "../src/adapters/github/github-publisher.js";
+import {
+  buildGhRepoCreateCommand,
+  resolveGitHubTokenFromEnv,
+} from "../src/adapters/github/github-publisher.js";
 import { executeCli } from "../src/cli/index.js";
 import { hashEvidence } from "../src/core/invention/pipeline.js";
 import { evaluatePublicationPolicy } from "../src/core/publication/publication-policy.js";
@@ -988,6 +991,23 @@ test("GitHub publisher builds single-line gh repo create command", () => {
   );
   assert.equal(command.includes("\n"), false);
   assert.match(command, /--source \. --remote origin --push/);
+});
+
+test("GitHub publisher resolves configured token before GH_TOKEN fallback", () => {
+  assert.equal(
+    resolveGitHubTokenFromEnv("SOVRYN_GITHUB_TOKEN", {
+      SOVRYN_GITHUB_TOKEN: "sovryn-token",
+      GH_TOKEN: "gh-token",
+    }),
+    "sovryn-token",
+  );
+  assert.equal(
+    resolveGitHubTokenFromEnv("SOVRYN_GITHUB_TOKEN", {
+      GH_TOKEN: "gh-token",
+    }),
+    "gh-token",
+  );
+  assert.equal(resolveGitHubTokenFromEnv("SOVRYN_GITHUB_TOKEN", {}), null);
 });
 
 async function createOpenInvention() {
